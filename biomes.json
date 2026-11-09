@@ -1,0 +1,74 @@
+[
+  {
+    "id": "meadow",
+    "land": true,
+    "tree": 0.03,
+    "rock": 0.008,
+    "ore": 0.0,
+    "flower": 0.025,
+    "node": 0.0,
+    "super": 0.0,
+    "mountain": 0.0,
+    "rubble": 0.0
+  },
+  {
+    "id": "grove",
+    "land": true,
+    "tree": 0.15,
+    "rock": 0.015,
+    "ore": 0.008,
+    "flower": 0.015,
+    "node": 0.0,
+    "super": 0.0,
+    "mountain": 0.0,
+    "rubble": 0.0
+  },
+  {
+    "id": "hills",
+    "land": true,
+    "tree": 0.035,
+    "rock": 0.07,
+    "ore": 0.045,
+    "flower": 0.005,
+    "node": 0.012,
+    "super": 0.004,
+    "mountain": 0.0,
+    "rubble": 0.0
+  },
+  {
+    "id": "mountain",
+    "land": true,
+    "tree": 0.012,
+    "rock": 0.04,
+    "ore": 0.03,
+    "flower": 0.0,
+    "node": 0.016,
+    "super": 0.006,
+    "mountain": 0.34,
+    "rubble": 0.1
+  },
+  {
+    "id": "bloom",
+    "land": true,
+    "tree": 0.018,
+    "rock": 0.0,
+    "ore": 0.0,
+    "flower": 0.16,
+    "node": 0.0,
+    "super": 0.0,
+    "mountain": 0.0,
+    "rubble": 0.0
+  },
+  {
+    "id": "river",
+    "land": false,
+    "tree": 0.02,
+    "rock": 0.0,
+    "ore": 0.0,
+    "flower": 0.01,
+    "node": 0.0,
+    "super": 0.0,
+    "mountain": 0.0,
+    "rubble": 0.0
+  }
+]
