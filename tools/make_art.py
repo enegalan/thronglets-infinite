@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pixel art for Thronglets: Infinite. Original drawings, not Netflix assets."""
+"""Pixel art for Thronglets: Infinite."""
 
 import os
 from PIL import Image, ImageDraw
@@ -381,13 +381,20 @@ def draw_icon(img, ox, oy, index):
         box(6, 8, 4, 3, (40, 150, 170, 255))
         box(7, 11, 2, 2, (20, 90, 110, 255))
         p(7, 5, W)
+    elif index == 40:  # egg
+        box(6, 3, 4, 2, W)
+        box(5, 5, 6, 7, CREAM)
+        box(6, 12, 4, 2, (210, 190, 150, 255))
+        p(7, 7, W)
+        p(9, 9, (200, 160, 100, 255))
+        p(6, 10, (200, 160, 100, 255))
 
 
 def make_atlas():
     cols = 32
     rows = 2
     sheet = new(cols * 16, rows * 16)
-    for i in range(40):
+    for i in range(41):
         blit_icon(sheet, i, cols)
     sheet.save(OUT("resources", "structures", "structures_tileset.png"))
     icons = new(64, 16)
@@ -700,13 +707,13 @@ def make_world():
     for index in range(24):
         tile = blobs.crop(( (index % 4) * 16, (index // 4) * 16, (index % 4) * 16 + 16, (index // 4) * 16 + 16))
         sheet.alpha_composite(tile, ((index % cols) * 32 + 8, (index // cols) * 32 + 16))
-    for icon in range(40):
+    for icon in range(41):
         index = 24 + icon
         tile = new(16, 16)
         draw_icon(tile, 0, 0, icon)
         sheet.alpha_composite(tile, ((index % cols) * 32 + 8, (index // cols) * 32 + 16))
     for big in range(20):
-        index = 64 + big
+        index = 65 + big
         tile = new(32, 32)
         draw_big(tile, big)
         sheet.alpha_composite(tile, ((index % cols) * 32, (index // cols) * 32))

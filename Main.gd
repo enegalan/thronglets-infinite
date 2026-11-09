@@ -4,11 +4,22 @@ var camera: Camera2D
 var tilemap: TileMapLayer
 var world: MultiMeshInstance2D
 var world_mesh: MultiMesh
+var place_fill: Polygon2D
+var place_edge: Line2D
+var charge_ring: Line2D
+var charge_area: Line2D
 
 var tool := Catalog.TOOL_EYE
 var placing := -1
+var kit_drag := {}
 var selected := -1
-var zoom_i := 2
+var tool_charge := 0.0
+var tool_charge_key := ""
+var tool_charge_n := 0
+const ZOOM_MIN := 0.55
+const ZOOM_MAX := 4.5
+const ZOOM_STEP := 1.12
+var zoom_level := 2.0
 var dragging := false
 var drag_from := Vector2.ZERO
 var cam_from := Vector2.ZERO
@@ -65,7 +76,7 @@ func _ready() -> void:
 	_build_audio()
 	_build_ui()
 	camera.position = _to_iso(Vector2(256, 256))
-	camera.zoom = Vector2(zoom_i, zoom_i)
+	camera.zoom = Vector2(zoom_level, zoom_level)
 	if ThrongletSimServer.testing:
 		in_title = false
 	else:
@@ -74,10 +85,49 @@ func _ready() -> void:
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
-		if placing >= 0:
-			_drop_build()
+		if not kit_drag.is_empty():
+			_end_kit_drag()
+		elif ThrongletSimServer.has_scoop():
+			_drop_scoop()
 		elif ThrongletSimServer.is_holding():
 			_hand_release()
+		elif _is_charge_tool(tool):
+			_clear_tool_charge()
+			tool = Catalog.TOOL_EYE
+		elif tool == Catalog.TOOL_SPONGE:
+			tool = Catalog.TOOL_EYE
+	if in_title:
+		return
+	if event is InputEventMouseButton and event.pressed:
+		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
+			_zoom_by(1.0)
+			get_viewport().set_input_as_handled()
+		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			_zoom_by(-1.0)
+			get_viewport().set_input_as_handled()
+	elif event is InputEventMagnifyGesture:
+		_zoom_factor(float(event.factor))
+		get_viewport().set_input_as_handled()
+	elif event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_EQUAL or event.keycode == KEY_KP_ADD:
+			_zoom_by(1.0)
+			get_viewport().set_input_as_handled()
+		elif event.keycode == KEY_MINUS or event.keycode == KEY_KP_SUBTRACT:
+			_zoom_by(-1.0)
+			get_viewport().set_input_as_handled()
+
+
+func _zoom_by(direction: float) -> void:
+	if direction > 0.0:
+		_zoom_factor(ZOOM_STEP)
+	elif direction < 0.0:
+		_zoom_factor(1.0 / ZOOM_STEP)
+
+
+func _zoom_factor(factor: float) -> void:
+	if factor <= 0.0:
+		return
+	zoom_level = clampf(zoom_level * factor, ZOOM_MIN, ZOOM_MAX)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -89,13 +139,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		drag_from = event.position
 		cam_from = camera.position
 		if event.pressed:
-			placing = -1
+			_cancel_kit_drag()
 		return
-	if event is InputEventMouseButton and event.pressed:
-		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
-			zoom_i = mini(4, zoom_i + 1)
-		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-			zoom_i = maxi(1, zoom_i - 1)
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_F5:
 			_save_current()
@@ -108,7 +153,7 @@ func _unhandled_input(event: InputEvent) -> void:
 				_close_slots()
 			else:
 				market_open = false
-				placing = -1
+				_cancel_kit_drag()
 				tool = Catalog.TOOL_EYE
 		else:
 			_hotkey(event.keycode)
@@ -116,10 +161,11 @@ func _unhandled_input(event: InputEvent) -> void:
 	if sim.frozen or sim.paused or in_title:
 		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-		if placing < 0 and tool == Catalog.TOOL_EYE:
-			_hand_press()
+		if not kit_drag.is_empty():
 			return
-		if placing < 0:
+		if tool == Catalog.TOOL_EYE:
+			_hand_press()
+		else:
 			_world_click()
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
 		_hand_release()
@@ -127,6 +173,11 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _process(delta: float) -> void:
 	if in_title:
+		_sync_place_mark()
+		if charge_ring != null:
+			charge_ring.visible = false
+		if charge_area != null:
+			charge_area.visible = false
 		return
 	var sim := ThrongletSimServer
 	_move_camera(delta)
@@ -150,8 +201,11 @@ func _process(delta: float) -> void:
 		sim.scrub(at.x, at.y, stroke)
 	else:
 		sponge_tracking = false
+	_tick_tool_charge(delta)
 	_sync_world()
 	_sync_actors()
+	_sync_place_mark()
+	_sync_charge_mark()
 	_sync_hud(delta)
 	_sync_market()
 	_sync_gaze()
@@ -161,8 +215,78 @@ func _process(delta: float) -> void:
 
 func _world_click() -> void:
 	var sim := ThrongletSimServer
+	var used := tool
+	if used == Catalog.TOOL_SPONGE:
+		return
+	if _is_charge_tool(used):
+		return
+	var at := _grid_pointer() if used == Catalog.TOOL_TNT else _pointer()
+	sim.use_tool(used, at.x, at.y)
+	if used != Catalog.TOOL_EYE:
+		tool = Catalog.TOOL_EYE
+
+
+func _is_charge_tool(tool_id: int) -> bool:
+	return tool_id == Catalog.TOOL_AXE or tool_id == Catalog.TOOL_HAMMER or tool_id == Catalog.TOOL_PICK or tool_id == Catalog.TOOL_SAW or tool_id == Catalog.TOOL_GRAB
+
+
+func _charge_tool_id() -> int:
+	var sim := ThrongletSimServer
+	if sim.has_scoop():
+		return -1
+	if not kit_drag.is_empty() and str(kit_drag.get("type", "")) == "tool":
+		var drag_id := int(kit_drag.get("id", -1))
+		if _is_charge_tool(drag_id):
+			return drag_id
+	if _is_charge_tool(tool) and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+		return tool
+	return -1
+
+
+func _clear_tool_charge() -> void:
+	tool_charge = 0.0
+	tool_charge_key = ""
+	tool_charge_n = 0
+
+
+func _tick_tool_charge(delta: float) -> void:
+	var sim := ThrongletSimServer
 	var at := _pointer()
-	sim.use_tool(tool, at.x, at.y)
+	if sim.has_scoop():
+		_clear_tool_charge()
+		if (not kit_drag.is_empty() or Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)) and _drop_on_island():
+			sim.scoop_follow(at.x, at.y)
+		return
+	var used := _charge_tool_id()
+	if used < 0 or sim.frozen or sim.paused or not _drop_on_island():
+		_clear_tool_charge()
+		return
+	var target := sim.charge_tool_target(used, at.x, at.y)
+	if target.is_empty():
+		_clear_tool_charge()
+		return
+	var key := str(target.get("key", ""))
+	var n := int(target.get("n", 0))
+	if used == Catalog.TOOL_GRAB and n <= 0:
+		tool_charge_key = key
+		tool_charge = 0.0
+		tool_charge_n = 0
+		return
+	if key != tool_charge_key:
+		tool_charge_key = key
+		tool_charge = 0.0
+		tool_charge_n = maxi(1, n)
+	else:
+		tool_charge_n = maxi(1, n)
+	tool_charge = minf(1.0, tool_charge + delta / Catalog.TOOL_CHARGE)
+	if tool_charge < 1.0:
+		return
+	if used == Catalog.TOOL_GRAB:
+		sim.scoop_gather(float(target.x), float(target.y))
+		_clear_tool_charge()
+		return
+	sim.use_tool(used, float(target.x), float(target.y))
+	_clear_tool_charge()
 
 
 func _hand_press() -> void:
@@ -193,6 +317,12 @@ func _hand_release() -> void:
 		sim.cancel_hold()
 		return
 	var at := _pointer()
+	if sim.held_kind == "building" or sim.held_kind == "rock":
+		at = _grid_pointer()
+	elif sim.hand_id != -1:
+		var held := sim.hand_item()
+		if not held.is_empty() and Catalog.item_snaps_grid(int(held.kind)):
+			at = _grid_pointer()
 	var hit := sim.release_at(at.x, at.y, short_click)
 	var kind := str(hit.get("type", ""))
 	if kind == "thronglet":
@@ -212,17 +342,17 @@ func _move_camera(delta: float) -> void:
 		keys.y -= 1.0
 	if Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN):
 		keys.y += 1.0
-	camera.position += keys * 220.0 * delta / float(zoom_i)
+	camera.position += keys * 220.0 * delta / zoom_level
 	if dragging:
 		var drag := get_viewport().get_mouse_position() - drag_from
-		camera.position = cam_from - drag / float(zoom_i)
-	camera.zoom = Vector2(float(zoom_i), float(zoom_i))
-	var step := 1.0 / float(zoom_i)
+		camera.position = cam_from - drag / zoom_level
+	camera.zoom = Vector2(zoom_level, zoom_level)
+	var step := 1.0 / zoom_level
 	camera.position = camera.position.snapped(Vector2(step, step))
 
 
 func _iso_view() -> Rect2:
-	var size := get_viewport_rect().size / float(zoom_i)
+	var size := get_viewport_rect().size / zoom_level
 	return Rect2(camera.position - size * 0.5, size)
 
 
@@ -258,6 +388,30 @@ func _from_iso(iso: Vector2) -> Vector2:
 
 func _pointer() -> Vector2:
 	return _from_iso(get_global_mouse_position())
+
+
+func _grid_pointer() -> Vector2:
+	return Catalog.snap_vec(_pointer())
+
+
+func _is_care_tool(tool_id: int) -> bool:
+	return tool_id == Catalog.TOOL_APPLE or tool_id == Catalog.TOOL_BALL or tool_id == Catalog.TOOL_SPONGE
+
+
+func _want_place_grid() -> bool:
+	if in_title or not _drop_on_island():
+		return false
+	var sim := ThrongletSimServer
+	if not kit_drag.is_empty():
+		if str(kit_drag.get("type", "")) == "build":
+			return true
+		return not _is_care_tool(int(kit_drag.get("id", -1))) and int(kit_drag.get("id", -1)) == Catalog.TOOL_TNT
+	if sim.hand_id != -1:
+		var hand := sim.hand_item()
+		return not hand.is_empty() and Catalog.item_snaps_grid(int(hand.kind))
+	if sim.held_kind == "building" or sim.held_kind == "rock":
+		return true
+	return tool == Catalog.TOOL_TNT
 
 
 func _sync_world() -> void:
@@ -318,6 +472,7 @@ func _sync_actors() -> void:
 		var p := Vector2(float(feat.x), float(feat.y))
 		if view.has_point(p):
 			_push_iso(draws, p, _prop_frame(Catalog.icon_for_feature(int(feat.kind), int(feat.ore))), Color.WHITE)
+	var time_pre := Time.get_ticks_msec() / 1000.0
 	for it in sim.items:
 		if it.dead or it.held:
 			continue
@@ -325,7 +480,15 @@ func _sync_actors() -> void:
 			continue
 		var p2 := Vector2(float(it.x), float(it.y))
 		if view.has_point(p2):
-			_push_iso(draws, p2, _prop_frame(Catalog.icon_for_item(int(it.kind))), Color.WHITE)
+			var egg_lift := float(it.get("air", 0.0))
+			if int(it.kind) == Catalog.ITEM_EGG and float(it.get("shake", 0.0)) > 0.0:
+				p2 += Vector2(randf_range(-1.5, 1.5), randf_range(-1.0, 1.0))
+			elif int(it.kind) == Catalog.ITEM_BALL:
+				var spd := absf(float(it.get("vx", 0.0))) + absf(float(it.get("vy", 0.0)))
+				egg_lift = 2.0 + absf(sin(time_pre * 14.0 + float(it.id))) * (3.0 if spd > 8.0 else 1.2)
+				if spd > 8.0:
+					p2 += Vector2(sin(time_pre * 20.0) * 1.0, cos(time_pre * 18.0) * 0.6)
+			_push_iso(draws, p2, _prop_frame(Catalog.icon_for_item(int(it.kind))), Color.WHITE, egg_lift)
 	for b in sim.buildings:
 		if b.dead or bool(b.get("lifted", false)):
 			continue
@@ -333,65 +496,141 @@ func _sync_actors() -> void:
 			continue
 		var p3 := Vector2(float(b.x), float(b.y))
 		if view.has_point(p3):
-			_push_iso(draws, p3, _prop_frame(Catalog.icon_for_building(int(b.kind))), Color.WHITE)
+			var b_lift := 0.0
+			var b_tint := Color.WHITE
+			var b_kind := int(b.kind)
+			if bool(b.get("active", false)):
+				b_lift = absf(sin(time_pre * 8.0 + float(b.id))) * 2.2
+				if b_kind == Catalog.BLD_ROUND:
+					p3 += Vector2(cos(time_pre * 6.0) * 1.5, sin(time_pre * 6.0) * 1.0)
+				elif b_kind == Catalog.BLD_TUB:
+					b_tint = Color(0.85, 0.95, 1.0)
+				elif b_kind == Catalog.BLD_FACTORY or b_kind == Catalog.BLD_FACTORY2:
+					b_tint = Color(1.0, 0.9, 0.82)
+				elif b_kind == Catalog.BLD_MINE or b_kind == Catalog.BLD_MINE2:
+					b_tint = Color(1.0, 0.95, 0.75)
+			_push_iso(draws, p3, _prop_frame(Catalog.icon_for_building(b_kind)), b_tint, b_lift)
+			if bool(b.get("active", false)) and (b_kind == Catalog.BLD_TUB or b_kind == Catalog.BLD_ROUND):
+				var spark := Vector2(cos(time_pre * 10.0 + float(b.id)) * 10.0, sin(time_pre * 10.0) * 6.0)
+				var spark_icon := Catalog.ICON_SPONGE if b_kind == Catalog.BLD_TUB else Catalog.ICON_BALL
+				_push_iso(draws, Vector2(float(b.x), float(b.y)) + spark, _prop_frame(spark_icon), Color(1, 1, 1, 0.7), 10.0)
+	var bridge := sim.bridge_marker()
+	if not bridge.is_empty() and sim.chunk_shown(str(bridge.ck)):
+		var site := Vector2(float(bridge.x), float(bridge.y))
+		var drop := Vector2(float(bridge.drop_x), float(bridge.drop_y))
+		var pulse := 0.55 + 0.45 * absf(sin(Time.get_ticks_msec() / 280.0))
+		var mark := Color(1.0, 0.85, 0.2, pulse)
+		var site_draw := _bridge_view_point(site, view)
+		var drop_draw := _bridge_view_point(drop, view)
+		var on_site := view.has_point(site)
+		_push_iso(draws, site_draw, _prop_frame(Catalog.ICON_MONOLITH), mark, 28.0 if on_site else 22.0)
+		_push_iso(draws, drop_draw, _prop_frame(Catalog.ICON_WOOD), Color(1.0, 1.0, 1.0, pulse), 16.0)
+		if on_site or view.has_point(drop):
+			var filled := mini(int(bridge.progress), int(bridge.need))
+			for n in filled:
+				var ox := float((n % 3) - 1) * 10.0
+				var oy := float(n / 3) * -8.0
+				_push_iso(draws, drop + Vector2(ox, oy), _prop_frame(Catalog.ICON_WOOD), Color(0.95, 0.82, 0.4, 0.9), 14.0)
+			for n in range(filled, int(bridge.need)):
+				var gx := float((n % 3) - 1) * 10.0
+				var gy := float(n / 3) * -8.0
+				_push_iso(draws, drop + Vector2(gx, gy), _prop_frame(Catalog.ICON_WOOD), Color(1.0, 1.0, 1.0, 0.22 * pulse), 10.0)
+	var grid_at := _grid_pointer()
+	var free_at := _pointer()
 	var hand := sim.hand_item()
 	if not hand.is_empty():
-		draws.append({
-			"p": get_global_mouse_position(),
-			"icon": _prop_frame(Catalog.icon_for_item(int(hand.kind))),
-			"tint": Color.WHITE,
-		})
-	if sim.held_kind == "rock":
-		var rock = sim.feature_by_id.get(sim.held_ref, {})
-		if not rock.is_empty():
-			draws.append({
-				"p": get_global_mouse_position(),
-				"icon": _prop_frame(Catalog.icon_for_feature(int(rock.kind), int(rock.ore))),
-				"tint": Color.WHITE,
-			})
-	elif sim.held_kind == "building":
-		var carried = sim.building_by_id.get(sim.held_ref, {})
-		if not carried.is_empty():
-			draws.append({
-				"p": get_global_mouse_position(),
-				"icon": _prop_frame(Catalog.icon_for_building(int(carried.kind))),
-				"tint": Color.WHITE,
-			})
-	if placing >= 0 and Catalog.BUILD_INFO.has(placing):
-		var built: Dictionary = Catalog.BUILD_INFO[placing]
-		var ghost := Color(1, 1, 1, 0.8)
 		if _drop_on_island():
-			_push_iso(draws, _pointer(), _prop_frame(int(built.icon)), ghost)
+			var hand_at := grid_at if Catalog.item_snaps_grid(int(hand.kind)) else free_at
+			_push_iso(draws, hand_at, _prop_frame(Catalog.icon_for_item(int(hand.kind))), Color(1, 1, 1, 0.9), 10.0)
 		else:
 			draws.append({
 				"p": get_global_mouse_position(),
-				"icon": _prop_frame(int(built.icon)),
-				"tint": ghost,
+				"icon": _prop_frame(Catalog.icon_for_item(int(hand.kind))),
+				"tint": Color.WHITE,
 			})
+	if sim.has_scoop():
+		for raw in sim.scoop_item_ids:
+			var scooped = sim.item_by_id.get(int(raw), {})
+			if scooped.is_empty() or scooped.dead:
+				continue
+			_push_iso(draws, Vector2(float(scooped.x), float(scooped.y)), _prop_frame(Catalog.icon_for_item(int(scooped.kind))), Color(1, 1, 1, 0.92), 12.0)
+	if sim.held_kind == "rock":
+		var rock = sim.feature_by_id.get(sim.held_ref, {})
+		if not rock.is_empty():
+			if _drop_on_island():
+				_push_iso(draws, grid_at, _prop_frame(Catalog.icon_for_feature(int(rock.kind), int(rock.ore))), Color(1, 1, 1, 0.9), 10.0)
+			else:
+				draws.append({
+					"p": get_global_mouse_position(),
+					"icon": _prop_frame(Catalog.icon_for_feature(int(rock.kind), int(rock.ore))),
+					"tint": Color.WHITE,
+				})
+	elif sim.held_kind == "building":
+		var carried = sim.building_by_id.get(sim.held_ref, {})
+		if not carried.is_empty():
+			if _drop_on_island():
+				_push_iso(draws, grid_at, _prop_frame(Catalog.icon_for_building(int(carried.kind))), Color(1, 1, 1, 0.9), 10.0)
+			else:
+				draws.append({
+					"p": get_global_mouse_position(),
+					"icon": _prop_frame(Catalog.icon_for_building(int(carried.kind))),
+					"tint": Color.WHITE,
+				})
+	if not kit_drag.is_empty():
+		var ghost := Color(1, 1, 1, 0.85)
+		var drag_icon := _kit_drag_icon()
+		if drag_icon >= 0:
+			if _drop_on_island():
+				var ghost_at := grid_at if _want_place_grid() else free_at
+				_push_iso(draws, ghost_at, _prop_frame(drag_icon), ghost, 10.0)
+			else:
+				draws.append({
+					"p": get_global_mouse_position(),
+					"icon": _prop_frame(drag_icon),
+					"tint": ghost,
+				})
 	var time := Time.get_ticks_msec() / 1000.0
 	for id in sim.query_rect(view):
 		var i := int(id)
 		if sim.held_kind == "thronglet" and i == sim.held_ref:
 			continue
 		var pos := Vector2(sim.pos_x[i], sim.pos_y[i])
-		if sim.shake_t[i] > 0.0:
-			pos += Vector2(randf_range(-1.5, 1.5), randf_range(-1.5, 1.5))
 		var tint: Color = Catalog.TINTS[int(sim.tint[i]) % Catalog.TINTS.size()]
 		if sim.state[i] == Catalog.ST_DEAD:
 			tint = Color.WHITE
 		elif sim.clean[i] < 12.0:
 			tint = Color(0.62, 0.82, 0.34)
 		var lift := 0.0
-		if int(sim.act[i]) == ThrongletSimServer.ACT_EAT:
-			lift = sin(time * 10.0 + float(i)) * 1.0
-		elif sim.act_t[i] > 0.0:
-			lift = sin(time * 16.0 + float(i)) * 3.5
+		var doing := int(sim.act[i])
+		if not sim.frozen:
+			if sim.shake_t[i] > 0.0:
+				pos += Vector2(randf_range(-1.5, 1.5), randf_range(-1.5, 1.5))
+			if doing == ThrongletSimServer.ACT_EAT:
+				lift = sin(time * 10.0 + float(i)) * 1.0
+			elif doing == ThrongletSimServer.ACT_PLAY:
+				lift = absf(sin(time * 14.0 + float(i))) * 5.5
+				pos += Vector2(sin(time * 18.0 + float(i)) * 1.4, cos(time * 16.0 + float(i)) * 0.8)
+			elif doing == ThrongletSimServer.ACT_BATH:
+				lift = absf(sin(time * 9.0 + float(i))) * 2.2
+			elif doing == ThrongletSimServer.ACT_WORK:
+				lift = absf(sin(time * 12.0 + float(i))) * 3.0
+			elif sim.act_t[i] > 0.0:
+				lift = sin(time * 16.0 + float(i)) * 3.5
 		_push_iso(draws, pos, _frame(i, time), tint, lift)
 		if sim.carry[i] != Catalog.CARRY_NONE:
 			_push_iso(draws, pos, _carry_icon(int(sim.carry[i])), Color.WHITE, 12.0)
-		if int(sim.act[i]) == ThrongletSimServer.ACT_WASH:
+		if not sim.frozen and doing == ThrongletSimServer.ACT_WASH:
 			var bub := Vector2(cos(time * 14.0) * 7.0, sin(time * 14.0) * 4.0)
-			_push_iso(draws, pos + bub, Catalog.ICON_SPONGE, Color(1, 1, 1, 0.85), 8.0)
+			_push_iso(draws, pos + bub, _prop_frame(Catalog.ICON_SPONGE), Color(1, 1, 1, 0.85), 8.0)
+		elif not sim.frozen and doing == ThrongletSimServer.ACT_BATH:
+			var suds := Vector2(cos(time * 11.0 + float(i)) * 6.0, sin(time * 11.0) * 3.5)
+			_push_iso(draws, pos + suds, _prop_frame(Catalog.ICON_SPONGE), Color(0.85, 0.95, 1.0, 0.8), 7.0)
+		elif not sim.frozen and doing == ThrongletSimServer.ACT_PLAY:
+			var toy := Vector2(cos(time * 12.0 + float(i)) * 8.0, sin(time * 12.0) * 4.0)
+			_push_iso(draws, pos + toy, _prop_frame(Catalog.ICON_BALL), Color(1, 1, 1, 0.9), 9.0 + lift)
+		elif not sim.frozen and doing == ThrongletSimServer.ACT_WORK:
+			var chip := Vector2(sin(time * 15.0 + float(i)) * 6.0, -4.0)
+			_push_iso(draws, pos + chip, _prop_frame(Catalog.ICON_ORE), Color(1, 1, 1, 0.75), 8.0)
 	if sim.held_kind == "thronglet" and sim.held_ref >= 0 and sim.held_ref < sim.slot_count:
 		var hi := sim.held_ref
 		var htint: Color = Catalog.TINTS[int(sim.tint[hi]) % Catalog.TINTS.size()]
@@ -411,7 +650,7 @@ func _frame(i: int, time: float) -> int:
 	var sim := ThrongletSimServer
 	if sim.state[i] == Catalog.ST_DEAD:
 		return Catalog.FRAME_CORPSE
-	if sim.frozen or (sim.sponge_id == i and sim.sponge_hold > 0.0):
+	if sim.frozen:
 		return Catalog.FRAME_STARE
 	if sim.mito_t[i] > 0.0:
 		return 16 + int(time * 10.0) % 4
@@ -420,10 +659,14 @@ func _frame(i: int, time: float) -> int:
 		return Catalog.FRAME_EAT if int(time * 6.0) % 2 == 0 else 0
 	if doing == ThrongletSimServer.ACT_BATH or doing == ThrongletSimServer.ACT_WASH:
 		return Catalog.FRAME_STARE
-	if doing == ThrongletSimServer.ACT_PLAY or doing == ThrongletSimServer.ACT_WORK:
-		return int(time * 12.0 + float(i)) % 4
+	if doing == ThrongletSimServer.ACT_PLAY:
+		return Catalog.FRAME_EAT if int(time * 10.0 + float(i)) % 2 == 0 else (8 + int(time * 14.0 + float(i)) % 4)
+	if doing == ThrongletSimServer.ACT_WORK:
+		return 8 + int(time * 12.0 + float(i)) % 4
 	if sim.clean[i] < 12.0:
 		return Catalog.FRAME_SICK
+	if absf(sim.dir_x[i]) + absf(sim.dir_y[i]) < 0.01:
+		return Catalog.FRAME_STARE
 	var row := 0
 	if absf(sim.dir_x[i]) > absf(sim.dir_y[i]):
 		row = 2 if sim.dir_x[i] >= 0.0 else 3
@@ -434,7 +677,7 @@ func _frame(i: int, time: float) -> int:
 
 func _prop_frame(icon: int) -> int:
 	if _BIG.has(icon):
-		return 64 + int(_BIG[icon])
+		return 65 + int(_BIG[icon])
 	return 24 + icon
 
 
@@ -444,6 +687,125 @@ func _carry_icon(kind: int) -> int:
 	if kind == Catalog.CARRY_ORE:
 		return Catalog.ICON_ORE
 	return Catalog.ICON_WOOD
+
+
+func _place_cell_poly() -> PackedVector2Array:
+	var tile := Vector2(tilemap.tile_set.tile_size)
+	return PackedVector2Array([
+		Vector2(0.0, -tile.y * 0.5),
+		Vector2(tile.x * 0.5, 0.0),
+		Vector2(0.0, tile.y * 0.5),
+		Vector2(-tile.x * 0.5, 0.0),
+	])
+
+
+func _sync_place_mark() -> void:
+	if place_fill == null or place_edge == null:
+		return
+	if not _want_place_grid():
+		place_fill.visible = false
+		place_edge.visible = false
+		return
+	var sim := ThrongletSimServer
+	var at := _grid_pointer()
+	var building_id := sim.held_ref if sim.held_kind == "building" else -1
+	var ignore_item := sim.hand_id
+	var ok := false
+	if placing >= 0:
+		ok = sim.can_place_building(placing, at.x, at.y)
+	else:
+		ok = sim.spot_ok(at.x, at.y, building_id, ignore_item)
+	var poly := _place_cell_poly()
+	place_fill.polygon = poly
+	place_fill.color = Color(0.3, 1.0, 0.5, 0.55) if ok else Color(1.0, 0.25, 0.22, 0.55)
+	place_fill.position = _to_iso(at)
+	place_fill.visible = true
+	place_edge.points = poly + PackedVector2Array([poly[0]])
+	place_edge.default_color = Color(0.75, 1.0, 0.85, 1.0) if ok else Color(1.0, 0.55, 0.5, 1.0)
+	place_edge.position = place_fill.position
+	place_edge.visible = true
+
+
+func _sync_charge_mark() -> void:
+	if charge_ring == null or charge_area == null:
+		return
+	var sim := ThrongletSimServer
+	var at := _pointer()
+	if sim.has_scoop():
+		charge_area.points = _iso_circle_points(at, Catalog.GRAB_RADIUS * 0.35, 20)
+		charge_area.default_color = Color(0.95, 0.9, 0.45, 0.7)
+		charge_area.visible = true
+		charge_ring.visible = false
+		return
+	var used := _charge_tool_id()
+	if used < 0:
+		charge_ring.visible = false
+		charge_area.visible = false
+		return
+	var target := sim.charge_tool_target(used, at.x, at.y)
+	if target.is_empty() and used != Catalog.TOOL_GRAB:
+		charge_ring.visible = false
+		charge_area.visible = false
+		return
+	var tx := float(target.get("x", at.x)) if not target.is_empty() else at.x
+	var ty := float(target.get("y", at.y)) if not target.is_empty() else at.y
+	var area_r := float(target.get("radius", 0.0)) if not target.is_empty() else 0.0
+	if used == Catalog.TOOL_GRAB:
+		area_r = Catalog.GRAB_RADIUS
+		tx = at.x
+		ty = at.y
+	var center := _to_iso(Vector2(tx, ty))
+	if area_r > 0.0:
+		charge_area.points = _iso_circle_points(Vector2(tx, ty), area_r, 28)
+		if used == Catalog.TOOL_SAW:
+			charge_area.default_color = Color(1.0, 0.55, 0.2, 0.85)
+		elif used == Catalog.TOOL_GRAB:
+			charge_area.default_color = Color(0.95, 0.9, 0.45, 0.8)
+		else:
+			charge_area.default_color = Color(0.55, 0.85, 1.0, 0.8)
+		charge_area.visible = true
+	else:
+		charge_area.visible = false
+	if tool_charge > 0.02 and (used != Catalog.TOOL_GRAB or int(target.get("n", 0)) > 0):
+		charge_ring.points = _charge_arc_points(center, 18.0, tool_charge)
+		charge_ring.default_color = Color(1.0, 0.92, 0.35, 0.95)
+		charge_ring.visible = true
+	else:
+		charge_ring.visible = false
+
+
+func _iso_circle_points(world_center: Vector2, radius: float, steps: int) -> PackedVector2Array:
+	var pts := PackedVector2Array()
+	for i in steps + 1:
+		var ang := TAU * float(i) / float(steps)
+		var world := world_center + Vector2(cos(ang), sin(ang)) * radius
+		pts.append(_to_iso(world))
+	return pts
+
+
+func _charge_arc_points(center_iso: Vector2, radius: float, progress: float) -> PackedVector2Array:
+	var pts := PackedVector2Array()
+	var filled := clampf(progress, 0.0, 1.0)
+	var steps := maxi(2, int(ceil(28.0 * filled)))
+	for i in steps + 1:
+		var t := float(i) / float(steps)
+		var ang := -PI * 0.5 + TAU * filled * t
+		pts.append(center_iso + Vector2(cos(ang), sin(ang)) * radius)
+	return pts
+
+
+func _bridge_view_point(world_pos: Vector2, view: Rect2) -> Vector2:
+	if view.has_point(world_pos):
+		return world_pos
+	var center := view.get_center()
+	var delta := world_pos - center
+	var half := view.size * 0.38
+	var scale_x := absf(delta.x) / maxf(half.x, 1.0)
+	var scale_y := absf(delta.y) / maxf(half.y, 1.0)
+	var scale := maxf(scale_x, scale_y)
+	if scale <= 1.0:
+		return world_pos
+	return center + delta / scale
 
 
 func _push_iso(draws: Array, world_pos: Vector2, frame: int, tint: Color, lift: float = 0.0) -> void:
@@ -495,19 +857,40 @@ func _sync_hud(delta: float) -> void:
 	gem_panel.visible = sim.part_two
 	gem_label.text = str(sim.gems)
 	goal_label.text = "TAREA  " + sim.goal_line()
-	res_label.text = "MADERA %d   HUESO %d   MINERAL %d   MUERTOS %d" % [
+	res_label.text = "MADERA %d   HUESO %d   MINERAL %d\n%s" % [
 		sim.count_item(Catalog.ITEM_WOOD),
 		sim.count_item(Catalog.ITEM_BONE),
 		sim.count_item(Catalog.ITEM_ORE),
-		sim.count_dead(),
+		sim.moral_line(),
 	]
 	var info := ""
 	for entry in Catalog.TOOL_INFO:
 		if int(entry.tool) == tool:
 			info = str(entry.hint)
 			break
-	if placing >= 0 and Catalog.BUILD_INFO.has(placing):
-		info = "SUELTA " + str(Catalog.BUILD_INFO[placing].label)
+	if sim.has_scoop():
+		info = "MANO  SUELTA PARA ESPARCIR  x%d" % (sim.scoop_item_ids.size() + sim.scoop_dead_ids.size())
+	elif not kit_drag.is_empty():
+		var drag_id := int(kit_drag.get("id", -1))
+		if _is_charge_tool(drag_id):
+			if drag_id == Catalog.TOOL_GRAB:
+				info = "MANO  MANTEN SOBRE OBJETOS DEL SUELO"
+				if tool_charge > 0.0:
+					info = "MANO  %.0f%%  x%d" % [tool_charge * 100.0, maxi(tool_charge_n, 1)]
+			elif tool_charge > 0.0:
+				info = "%s  %.0f%%" % [_kit_drag_label(), tool_charge * 100.0]
+				if tool_charge_n > 1:
+					info += "  x%d" % tool_charge_n
+			else:
+				info = "MANTEN SOBRE EL OBJETIVO  " + _kit_drag_label()
+		else:
+			info = "SUELTA EN LA REJILLA  " + _kit_drag_label()
+	elif _is_charge_tool(tool) and tool_charge > 0.0:
+		info = "CARGANDO  %.0f%%" % (tool_charge * 100.0)
+		if tool_charge_n > 1:
+			info += "  x%d" % tool_charge_n
+	elif _want_place_grid():
+		info = "REJILLA ACTIVA  SUELTA EN UNA CELDA"
 	hint.text = info
 	if selected >= 0:
 		var data := sim.inspect(selected)
@@ -543,7 +926,7 @@ func _sync_hud(delta: float) -> void:
 
 func _sync_market() -> void:
 	var sim := ThrongletSimServer
-	market_panel.visible = market_open and bool(sim.unlocks.get("market", false))
+	market_panel.visible = market_open and sim.has_building_kind(Catalog.BLD_MARKET)
 	if not market_panel.visible:
 		return
 	var sig := "%d:%d" % [sim.gems, sim.unlock_serial]
@@ -600,7 +983,7 @@ func _sync_gaze() -> void:
 
 func _kit_tabs() -> Array:
 	return [
-		{"label": "CUIDA", "title": "CUIDADOS", "tools": [Catalog.TOOL_EYE, Catalog.TOOL_APPLE, Catalog.TOOL_BALL, Catalog.TOOL_SPONGE], "builds": []},
+		{"label": "CUIDA", "title": "CUIDADOS", "tools": [Catalog.TOOL_APPLE, Catalog.TOOL_BALL, Catalog.TOOL_SPONGE], "builds": []},
 		{"label": "UTIL", "title": "HERRAMIENTAS", "tools": [Catalog.TOOL_AXE, Catalog.TOOL_HAMMER, Catalog.TOOL_PICK, Catalog.TOOL_SAW, Catalog.TOOL_GRAB, Catalog.TOOL_MOP], "builds": []},
 		{"label": "OBRA", "title": "CONSTRUCCION", "tools": [], "builds": [Catalog.BLD_DWELL, Catalog.BLD_FANCY, Catalog.BLD_MINE, Catalog.BLD_MINE2, Catalog.BLD_FACTORY, Catalog.BLD_FACTORY2, Catalog.BLD_THEATRE, Catalog.BLD_CANNON, Catalog.BLD_MARKET, Catalog.BLD_FLOWER, Catalog.BLD_STATUE]},
 		{"label": "HOGAR", "title": "CUIDADOS EXTRA", "tools": [], "builds": [Catalog.BLD_TUB, Catalog.BLD_APPLE, Catalog.BLD_ROUND]},
@@ -659,7 +1042,7 @@ func _rebuild_bars() -> void:
 			continue
 		var tool_id := int(entry.tool)
 		var button := _icon_button(str(entry.label), int(entry.icon))
-		button.pressed.connect(_pick_tool.bind(tool_id))
+		button.button_down.connect(_begin_kit_drag.bind("tool", tool_id))
 		kit_icons.add_child(button)
 		tool_buttons[tool_id] = button
 	for id in current.builds:
@@ -667,53 +1050,110 @@ func _rebuild_bars() -> void:
 		if info.is_empty() or not bool(sim.unlocks.get(str(info.unlock), false)):
 			continue
 		var build_id := int(id)
+		if build_id == Catalog.BLD_MARKET and sim.has_building_kind(Catalog.BLD_MARKET):
+			continue
 		var button2 := _icon_button(str(info.label), int(info.icon))
-		button2.button_down.connect(_begin_build_drag.bind(build_id))
-		button2.button_up.connect(_drop_build)
+		button2.button_down.connect(_begin_kit_drag.bind("build", build_id))
 		kit_icons.add_child(button2)
 		build_buttons[build_id] = button2
-	if str(current.label) == "OBRA" and bool(sim.unlocks.get("market", false)):
-		var market := Button.new()
-		market.text = "MERCADO"
-		market.pressed.connect(func(): market_open = not market_open)
-		kit_icons.add_child(market)
-
-
 func _set_kit_tab(index: int) -> void:
 	kit_tab = index
 	_rebuild_bars()
 
 
-func _pick_tool(id: int) -> void:
-	tool = id
-	placing = -1
+func _begin_kit_drag(kind: String, id: int) -> void:
+	if ThrongletSimServer.frozen or ThrongletSimServer.paused:
+		return
+	kit_drag = {"type": kind, "id": id}
+	if kind == "build":
+		placing = id
+		tool = Catalog.TOOL_EYE
+	else:
+		placing = -1
+		tool = id
 
 
-func _begin_build_drag(id: int) -> void:
-	placing = id
+func _drop_scoop() -> void:
+	var sim := ThrongletSimServer
+	if not sim.has_scoop():
+		return
+	var at := _pointer()
+	sim.scoop_drop(at.x, at.y)
+	_clear_tool_charge()
 	tool = Catalog.TOOL_EYE
 
 
-func _drop_build() -> void:
-	var kind := placing
+func _cancel_kit_drag() -> void:
+	if ThrongletSimServer.has_scoop():
+		_drop_scoop()
+	kit_drag = {}
 	placing = -1
-	if kind < 0 or ThrongletSimServer.frozen or ThrongletSimServer.paused:
+	_clear_tool_charge()
+	tool = Catalog.TOOL_EYE
+
+
+func _end_kit_drag() -> void:
+	if kit_drag.is_empty():
+		return
+	var kind := str(kit_drag.get("type", ""))
+	var id := int(kit_drag.get("id", -1))
+	kit_drag = {}
+	placing = -1
+	var was_charge := _is_charge_tool(id)
+	if id == Catalog.TOOL_GRAB and ThrongletSimServer.has_scoop():
+		_drop_scoop()
+		return
+	_clear_tool_charge()
+	if id < 0 or ThrongletSimServer.frozen or ThrongletSimServer.paused:
+		tool = Catalog.TOOL_EYE
+		return
+	if was_charge:
+		tool = Catalog.TOOL_EYE
 		return
 	if not _drop_on_island():
+		tool = Catalog.TOOL_EYE
 		return
-	var at := _pointer()
-	ThrongletSimServer.place_building(kind, at.x, at.y)
+	var place := id == Catalog.TOOL_TNT or kind == "build"
+	var at := _grid_pointer() if place else _pointer()
+	if kind == "build":
+		ThrongletSimServer.place_building(id, at.x, at.y)
+	elif kind == "tool":
+		if id == Catalog.TOOL_SPONGE:
+			ThrongletSimServer.scrub(at.x, at.y, 18.0)
+		else:
+			ThrongletSimServer.use_tool(id, at.x, at.y)
+	tool = Catalog.TOOL_EYE
+
+
+func _kit_drag_icon() -> int:
+	if kit_drag.is_empty():
+		return -1
+	if str(kit_drag.get("type", "")) == "build":
+		var info: Dictionary = Catalog.BUILD_INFO.get(int(kit_drag.id), {})
+		return int(info.get("icon", -1))
+	var entry := _tool_entry(int(kit_drag.id))
+	return int(entry.get("icon", -1))
+
+
+func _kit_drag_label() -> String:
+	if kit_drag.is_empty():
+		return ""
+	if str(kit_drag.get("type", "")) == "build":
+		var info: Dictionary = Catalog.BUILD_INFO.get(int(kit_drag.id), {})
+		var wood_n := int(info.get("wood", 0))
+		if wood_n <= 0:
+			return "%s  (GRATIS)" % str(info.get("label", ""))
+		return "%s  (%d MADERA)" % [str(info.get("label", "")), wood_n]
+	var entry := _tool_entry(int(kit_drag.id))
+	return str(entry.get("label", ""))
 
 
 func _drop_on_island() -> bool:
 	var mouse := get_viewport().get_mouse_position()
 	for panel in [kit_panel, market_panel, gaze_panel, slots_panel, menu_dim, inspect_panel]:
-		if panel.visible and panel.get_global_rect().has_point(mouse):
+		if panel != null and panel.visible and panel.get_global_rect().has_point(mouse):
 			return false
-	var hovered := get_viewport().gui_get_hovered_control()
-	if hovered == null or hovered.mouse_filter == Control.MOUSE_FILTER_IGNORE:
-		return true
-	return not hovered.get_global_rect().has_point(mouse)
+	return true
 
 
 func _toggle_kit() -> void:
@@ -724,12 +1164,19 @@ func _toggle_kit() -> void:
 
 
 func _mark_selected() -> void:
+	var drag_tool := -1
+	var drag_build := -1
+	if not kit_drag.is_empty():
+		if str(kit_drag.get("type", "")) == "tool":
+			drag_tool = int(kit_drag.id)
+		else:
+			drag_build = int(kit_drag.id)
 	for id in tool_buttons.keys():
 		var button: Button = tool_buttons[id]
-		button.modulate = Color(1, 1, 1) if int(id) == tool and placing < 0 else Color(0.65, 0.65, 0.7)
+		button.modulate = Color(1, 1, 1) if int(id) == drag_tool else Color(0.7, 0.7, 0.75)
 	for id in build_buttons.keys():
 		var button2: Button = build_buttons[id]
-		button2.modulate = Color(1, 0.95, 0.6) if int(id) == placing else Color(0.75, 0.75, 0.8)
+		button2.modulate = Color(1, 0.95, 0.6) if int(id) == drag_build else Color(0.75, 0.75, 0.8)
 
 
 func _hotkey(code: int) -> void:
@@ -738,12 +1185,14 @@ func _hotkey(code: int) -> void:
 	]
 	var tools: Array = []
 	for entry in Catalog.TOOL_INFO:
+		if int(entry.tool) == Catalog.TOOL_EYE:
+			continue
 		if bool(ThrongletSimServer.unlocks.get(str(entry.unlock), false)):
 			tools.append(int(entry.tool))
 	for i in order.size():
 		if code == order[i] and i < tools.size():
+			_cancel_kit_drag()
 			tool = int(tools[i])
-			placing = -1
 
 
 func _atlas_icon(icon: int) -> AtlasTexture:
@@ -782,8 +1231,36 @@ func _build_world() -> void:
 	tilemap.tile_set = _make_tileset()
 	tilemap.z_index = 0
 	add_child(tilemap)
+	place_fill = Polygon2D.new()
+	place_fill.z_index = 1
+	place_fill.visible = false
+	add_child(place_fill)
+	place_edge = Line2D.new()
+	place_edge.z_index = 1
+	place_edge.width = 2.0
+	place_edge.joint_mode = Line2D.LINE_JOINT_ROUND
+	place_edge.begin_cap_mode = Line2D.LINE_CAP_ROUND
+	place_edge.end_cap_mode = Line2D.LINE_CAP_ROUND
+	place_edge.visible = false
+	add_child(place_edge)
+	charge_area = Line2D.new()
+	charge_area.z_index = 3
+	charge_area.width = 2.5
+	charge_area.joint_mode = Line2D.LINE_JOINT_ROUND
+	charge_area.begin_cap_mode = Line2D.LINE_CAP_ROUND
+	charge_area.end_cap_mode = Line2D.LINE_CAP_ROUND
+	charge_area.visible = false
+	add_child(charge_area)
+	charge_ring = Line2D.new()
+	charge_ring.z_index = 4
+	charge_ring.width = 3.0
+	charge_ring.joint_mode = Line2D.LINE_JOINT_ROUND
+	charge_ring.begin_cap_mode = Line2D.LINE_CAP_ROUND
+	charge_ring.end_cap_mode = Line2D.LINE_CAP_ROUND
+	charge_ring.visible = false
+	add_child(charge_ring)
 	world = MultiMeshInstance2D.new()
-	world.z_index = 1
+	world.z_index = 2
 	world.material = _material(16, 6)
 	world.texture = _tex("res://resources/sprites/world_iso.png")
 	world_mesh = _mesh(true, 32)
@@ -1074,7 +1551,7 @@ func _show_title() -> void:
 	in_title = true
 	sim.paused = true
 	market_open = false
-	placing = -1
+	_cancel_kit_drag()
 	kit_open = false
 	if kit_panel:
 		kit_panel.visible = false
@@ -1183,7 +1660,7 @@ func _open_menu() -> void:
 	menu_dim.visible = true
 	ThrongletSimServer.paused = true
 	market_open = false
-	placing = -1
+	_cancel_kit_drag()
 	kit_open = false
 	kit_panel.visible = false
 	_show_menu()

@@ -1,13 +1,17 @@
 extends Node
 
-# Colony simulation. Needs, tools and prices follow the Netflix Thronglets FAQ.
+# Colony simulation.
 # The bug defleshes a body into bone. The axe leaves a stump. The hammer removes it.
 # Mitosis requires food, fun and clean together. There is no forced game over.
 
-const DECAY_FED := 0.45
-const DECAY_FUN := 0.28
-const DECAY_CLEAN := 0.32
+const DECAY_FED := 0.18
+const DECAY_FUN := 0.12
+const DECAY_CLEAN := 0.14
 const MOVE_SPEED := 26.0
+const MITOSIS_CHARGE := 3.5
+const EGG_NEED := 4
+const EGG_FALL := 140.0
+const BALL_LIFE := 180.0
 
 var testing := false
 var smoke_hold := false
@@ -22,11 +26,15 @@ var ethics: Array = []
 var notes: Array = []
 var sfx_queue: Array = []
 var modal := {}
+var gaze_queue: Array = []
 var frozen := false
+var moral := 0
+var mutations := {}
 
 var part_two := false
 var mountain_seen := false
 var trees_chopped := 0
+var stumps_cleared := 0
 var bug_uses := 0
 var tnt_used := 0
 var goo_count := 0
@@ -43,11 +51,15 @@ var bridge_done := {}
 var bridges: Array = []
 var dirty_chunks: Array = []
 var paint_epoch := 0
+var sister_cx := 1
+var sister_cy := 0
+var sister_ready := false
 
 var features: Array = []
 var feature_by_id := {}
 var feature_cell := {}
 var next_feature_id := 1
+var tree_seeds: Array = []
 
 var items: Array = []
 var item_by_id := {}
@@ -57,6 +69,8 @@ var held_kind := ""
 var held_ref := -1
 var held_x := 0.0
 var held_y := 0.0
+var scoop_item_ids: Array = []
+var scoop_dead_ids: Array = []
 var session_live := false
 var sponge_id := -1
 var sponge_hold := 0.0
@@ -80,8 +94,10 @@ var amused := PackedFloat32Array()
 var clean := PackedFloat32Array()
 var cool := PackedFloat32Array()
 var starve := PackedFloat32Array()
+var hungry_t := PackedFloat32Array()
 var wander_t := PackedFloat32Array()
 var mito_t := PackedFloat32Array()
+var mito_charge := PackedFloat32Array()
 var shake_t := PackedFloat32Array()
 var buff_t := PackedFloat32Array()
 var state := PackedInt32Array()
@@ -144,7 +160,9 @@ func _step(delta: float) -> void:
 		if sponge_hold <= 0.0:
 			sponge_id = -1
 	if not frozen:
+		_ensure_bridge_site()
 		_tick_items(delta)
+		_tick_trees(delta)
 		_tick_buildings(delta)
 		_tick_auras(delta)
 		_tick_visible(delta)
@@ -190,12 +208,14 @@ func _tick_one(i: int, dt: float) -> void:
 	if mito_t[i] > 0.0:
 		mito_t[i] = maxf(0.0, mito_t[i] - dt)
 		return
-	fed[i] = maxf(0.0, fed[i] - DECAY_FED * dt)
-	amused[i] = maxf(0.0, amused[i] - DECAY_FUN * dt)
-	clean[i] = maxf(0.0, clean[i] - DECAY_CLEAN * dt)
+	var decay := _decay_scale()
+	fed[i] = maxf(0.0, fed[i] - DECAY_FED * decay * dt)
+	amused[i] = maxf(0.0, amused[i] - DECAY_FUN * decay * dt)
+	clean[i] = maxf(0.0, clean[i] - DECAY_CLEAN * decay * dt)
 	var tile := _tile_at(pos_x[i], pos_y[i])
 	if tile == Catalog.TILE_GOO:
-		clean[i] = maxf(0.0, clean[i] - 0.9 * dt)
+		var goo_hit := 0.35 if bool(mutations.get("adapt", false)) else 0.9
+		clean[i] = maxf(0.0, clean[i] - goo_hit * dt)
 		fed[i] = maxf(0.0, fed[i] - 0.35 * dt)
 	if fed[i] <= 0.0 or amused[i] <= 0.0 or clean[i] <= 0.0:
 		starve[i] += dt
@@ -204,6 +224,10 @@ func _tick_one(i: int, dt: float) -> void:
 			return
 	else:
 		starve[i] = 0.0
+	if fed[i] < Catalog.NEED_HUNGRY:
+		hungry_t[i] += dt
+	else:
+		hungry_t[i] = 0.0
 	if act_t[i] > 0.0:
 		act_t[i] = maxf(0.0, act_t[i] - dt)
 		if act_t[i] <= 0.0:
@@ -215,29 +239,44 @@ func _tick_one(i: int, dt: float) -> void:
 	if i == sponge_id and sponge_hold > 0.0:
 		return
 	cool[i] = maxf(0.0, cool[i] - dt)
-	if fed[i] >= Catalog.NEED_OK and amused[i] >= Catalog.NEED_OK and clean[i] >= Catalog.NEED_OK and cool[i] <= 0.0:
-		_start_mitosis(i)
-		return
+	var ready := fed[i] >= Catalog.NEED_OK and amused[i] >= Catalog.NEED_OK and clean[i] >= Catalog.NEED_OK and cool[i] <= 0.0
+	if ready:
+		mito_charge[i] = minf(MITOSIS_CHARGE, mito_charge[i] + dt)
+		if mito_charge[i] >= MITOSIS_CHARGE:
+			mito_charge[i] = 0.0
+			_start_mitosis(i)
+			return
+	else:
+		mito_charge[i] = maxf(0.0, mito_charge[i] - dt * 1.5)
 	var speed := MOVE_SPEED
 	if buff_t[i] > 0.0:
 		speed = 36.0
 		buff_t[i] = maxf(0.0, buff_t[i] - dt)
-	if fed[i] < Catalog.NEED_OK:
+	if fed[i] < Catalog.NEED_HUNGRY:
 		_release_claim(i)
 		if _seek_food(i, speed, dt):
 			return
-	if clean[i] < Catalog.NEED_OK:
+		_release_apple_claim(i)
+	else:
+		_release_apple_claim(i)
+	var bridge_job := not part_two and not _primary_open_bridge().is_empty()
+	if bridge_job and _try_haul(i, speed, dt):
+		return
+	if clean[i] < Catalog.NEED_SEEK:
 		if _seek_clean(i, speed, dt):
+			_release_item_claims(i)
 			return
 	else:
 		_release_claim(i)
-	if amused[i] < Catalog.NEED_OK and _seek_fun(i, speed, dt):
+	if amused[i] < Catalog.NEED_FUN and _seek_fun(i, speed, dt):
 		return
 	var cared := fed[i] >= 70.0 and amused[i] >= 70.0 and clean[i] >= 70.0
 	if cared and _try_haul(i, speed, dt):
 		return
 	if cared and _seek_mine(i, speed, dt):
+		_release_item_claims(i)
 		return
+	_release_item_claims(i)
 	_wander(i, speed, dt)
 
 
@@ -249,6 +288,7 @@ func _start_mitosis(i: int) -> void:
 		cool[i] = Catalog.MITOSIS_WAIT
 		return
 	cool[i] = Catalog.MITOSIS_WAIT
+	mito_charge[i] = 0.0
 	mito_t[i] = 0.45
 	var ang := randf() * TAU
 	var x := pos_x[i] + cos(ang) * 10.0
@@ -261,43 +301,119 @@ func _start_mitosis(i: int) -> void:
 
 
 func _seek_food(i: int, speed: float, dt: float) -> bool:
-	var apple := _nearest_item(pos_x[i], pos_y[i], Catalog.ITEM_APPLE, 240.0)
-	var home := _nearest_building_kinds(pos_x[i], pos_y[i], [Catalog.BLD_DWELL, Catalog.BLD_FANCY, Catalog.BLD_APPLE], 280.0)
-	var mode := ""
-	var tx := 0.0
-	var ty := 0.0
-	var best := 999999.0
-	if not apple.is_empty():
-		var d := _dist_i(i, float(apple.x), float(apple.y))
-		if d < best:
-			best = d
-			tx = float(apple.x)
-			ty = float(apple.y)
-			mode = "apple"
-	if not home.is_empty():
-		var d2 := _dist_i(i, float(home.x), float(home.y))
-		if d2 < best:
-			best = d2
-			tx = float(home.x)
-			ty = float(home.y)
-			mode = "home"
-	if mode == "":
+	var apple := _nearest_apple(i, 240.0)
+	if apple.is_empty():
 		return false
-	if mode == "apple" and best < 12.0:
+	if not _claim_apple(i, apple):
+		return false
+	var tx := float(apple.x)
+	var ty := float(apple.y)
+	var best := _dist_i(i, tx, ty)
+	if best < 12.0:
 		act[i] = ACT_EAT
 		act_t[i] = 0.25
 		apple.bite = float(apple.get("bite", 0.0)) + dt
 		if float(apple.bite) >= 0.45:
 			apple.dead = true
+			apple.claimer = -1
 			fed[i] = 100.0
+			hungry_t[i] = 0.0
 			_pop(pos_x[i], pos_y[i], Catalog.ICON_APPLE)
-		return true
-	if mode == "home" and best < 34.0:
-		act[i] = ACT_EAT
-		act_t[i] = 0.25
+			_release_apple_claim(i)
 		return true
 	_walk(i, tx, ty, speed, dt)
 	return true
+
+
+func _nearest_apple(i: int, max_dist: float) -> Dictionary:
+	var best := {}
+	var best_d := max_dist
+	for it in items:
+		if it.dead or it.held or int(it.kind) != Catalog.ITEM_APPLE:
+			continue
+		var who := int(it.get("claimer", -1))
+		if who >= 0 and who != i:
+			if who < slot_count and state[who] == Catalog.ST_LIVING and not _food_priority_beats(i, who):
+				continue
+			if who < 0 or who >= slot_count or state[who] != Catalog.ST_LIVING:
+				it.claimer = -1
+		var d := _dist_i(i, float(it.x), float(it.y))
+		if d < best_d:
+			best_d = d
+			best = it
+	return best
+
+
+func _food_priority_beats(a: int, b: int) -> bool:
+	if b < 0 or b >= slot_count or state[b] != Catalog.ST_LIVING:
+		return true
+	if fed[b] >= Catalog.NEED_HUNGRY:
+		return true
+	if fed[a] >= Catalog.NEED_HUNGRY:
+		return false
+	if hungry_t[a] > hungry_t[b] + 0.05:
+		return true
+	if hungry_t[b] > hungry_t[a] + 0.05:
+		return false
+	if fed[a] < fed[b] - 0.5:
+		return true
+	if fed[b] < fed[a] - 0.5:
+		return false
+	return a < b
+
+
+func _claim_apple(i: int, apple: Dictionary) -> bool:
+	if apple.is_empty():
+		return false
+	var who := int(apple.get("claimer", -1))
+	if who == i:
+		return true
+	if who >= 0 and who != i and who < slot_count and state[who] == Catalog.ST_LIVING:
+		if not _food_priority_beats(i, who):
+			return false
+	_release_apple_claim(i)
+	apple.claimer = i
+	return true
+
+
+func _release_apple_claim(i: int) -> void:
+	_release_item_claims(i)
+
+
+func _nearest_free_item(i: int, kind: int, max_dist: float) -> Dictionary:
+	var best := {}
+	var best_d := max_dist
+	for it in items:
+		if it.dead or it.held or int(it.kind) != kind:
+			continue
+		var who := int(it.get("claimer", -1))
+		if who >= 0 and who != i:
+			if who < slot_count and state[who] == Catalog.ST_LIVING:
+				continue
+			it.claimer = -1
+		var d := _dist_i(i, float(it.x), float(it.y))
+		if d < best_d:
+			best_d = d
+			best = it
+	return best
+
+
+func _claim_item(i: int, item: Dictionary) -> void:
+	if item.is_empty():
+		return
+	var who := int(item.get("claimer", -1))
+	if who == i:
+		return
+	if who >= 0 and who != i and who < slot_count and state[who] == Catalog.ST_LIVING:
+		return
+	_release_item_claims(i)
+	item.claimer = i
+
+
+func _release_item_claims(i: int) -> void:
+	for it in items:
+		if int(it.get("claimer", -1)) == i:
+			it.claimer = -1
 
 
 func _seek_clean(i: int, speed: float, dt: float) -> bool:
@@ -325,81 +441,143 @@ func _seek_clean(i: int, speed: float, dt: float) -> bool:
 		_release_claim(i)
 	if best < 12.0 and use_tub:
 		act[i] = ACT_BATH
-		act_t[i] = 0.25
+		act_t[i] = 0.45
+		clean[i] = minf(100.0, clean[i] + 38.0 * dt)
+		shake_t[i] = maxf(shake_t[i], 0.2)
+		if clean[i] >= 98.0:
+			_release_claim(i)
 		return true
 	if best < 34.0 and not use_tub:
-		act[i] = ACT_WORK
-		act_t[i] = 0.25
+		act[i] = ACT_BATH
+		act_t[i] = 0.35
+		clean[i] = minf(100.0, clean[i] + 22.0 * dt)
+		fed[i] = minf(100.0, fed[i] + 10.0 * dt)
 		return true
 	_walk(i, float(target.x), float(target.y), speed, dt)
 	return true
 
 
 func _seek_fun(i: int, speed: float, dt: float) -> bool:
-	var ball := _nearest_item(pos_x[i], pos_y[i], Catalog.ITEM_BALL, 220.0)
-	var play := _nearest_building_kinds(pos_x[i], pos_y[i], [Catalog.BLD_ROUND, Catalog.BLD_THEATRE], 300.0)
+	var ball := _nearest_ball(i, 260.0)
+	var play := _nearest_building_kinds(pos_x[i], pos_y[i], [Catalog.BLD_ROUND, Catalog.BLD_THEATRE, Catalog.BLD_FLOWER, Catalog.BLD_STATUE], 320.0)
 	var tx := 0.0
 	var ty := 0.0
 	var best := 999999.0
 	var radius := 16.0
+	var use_ball := false
+	var play_kind := -1
 	if not ball.is_empty():
 		best = _dist_i(i, float(ball.x), float(ball.y))
 		tx = float(ball.x)
 		ty = float(ball.y)
-		radius = 18.0
+		radius = 16.0
+		use_ball = true
 	if not play.is_empty():
 		var d2 := _dist_i(i, float(play.x), float(play.y))
 		if d2 < best:
 			best = d2
 			tx = float(play.x)
 			ty = float(play.y)
-			radius = 28.0 if int(play.kind) == Catalog.BLD_ROUND else 48.0
+			play_kind = int(play.kind)
+			if play_kind == Catalog.BLD_ROUND:
+				radius = 30.0
+			elif play_kind == Catalog.BLD_THEATRE:
+				radius = 52.0
+			else:
+				radius = 22.0
+			use_ball = false
 	if best > 900000.0:
 		return false
+	if use_ball:
+		_claim_ball(i, ball)
+	else:
+		_release_item_claims(i)
 	if best < radius:
 		act[i] = ACT_PLAY
-		act_t[i] = 0.25
-		if not ball.is_empty() and _dist_i(i, float(ball.x), float(ball.y)) < 20.0 and float(ball.get("rest", 0.0)) <= 0.0:
-			var kx := float(ball.x) - pos_x[i]
-			var ky := float(ball.y) - pos_y[i]
-			var kl := sqrt(kx * kx + ky * ky)
-			if kl < 1.0:
-				kl = 1.0
-			ball.vx = kx / kl * 78.0
-			ball.vy = ky / kl * 62.0
-			ball.rest = 0.55
-			amused[i] = minf(100.0, amused[i] + 8.0)
+		act_t[i] = 0.55
+		if use_ball and int(ball.get("claimer", -1)) == i:
+			if float(ball.get("rest", 0.0)) <= 0.0:
+				var kx := float(ball.x) - pos_x[i]
+				var ky := float(ball.y) - pos_y[i]
+				var kl := sqrt(kx * kx + ky * ky)
+				if kl < 1.0:
+					var ang := randf() * TAU
+					kx = cos(ang)
+					ky = sin(ang)
+					kl = 1.0
+				ball.vx = kx / kl * 96.0
+				ball.vy = ky / kl * 78.0
+				ball.rest = 0.7
+				ball.life = BALL_LIFE
+				amused[i] = minf(100.0, amused[i] + 14.0)
+				shake_t[i] = maxf(shake_t[i], 0.35)
+				_pop(pos_x[i], pos_y[i] - 6.0, Catalog.ICON_BALL)
+				sfx_queue.append("place")
+			else:
+				_walk(i, tx, ty, speed * 1.15, dt)
+			return true
+		if play_kind == Catalog.BLD_ROUND:
+			var ang := atan2(pos_y[i] - ty, pos_x[i] - tx) + 2.8 * dt
+			var orbit_r := 18.0
+			var nx := tx + cos(ang) * orbit_r
+			var ny := ty + sin(ang) * orbit_r
+			if not _blocked(nx, ny):
+				dir_x[i] = cos(ang + PI * 0.5)
+				dir_y[i] = sin(ang + PI * 0.5)
+				pos_x[i] = nx
+				pos_y[i] = ny
+			amused[i] = minf(100.0, amused[i] + 26.0 * dt)
+			shake_t[i] = maxf(shake_t[i], 0.15)
+			return true
+		if play_kind == Catalog.BLD_THEATRE:
+			amused[i] = minf(100.0, amused[i] + 30.0 * dt)
+			buff_t[i] = maxf(buff_t[i], 1.2)
+			shake_t[i] = maxf(shake_t[i], 0.12)
+			return true
+		amused[i] = minf(100.0, amused[i] + 18.0 * dt)
 		return true
 	_walk(i, tx, ty, speed, dt)
 	return true
 
 
+func _nearest_ball(i: int, max_dist: float) -> Dictionary:
+	return _nearest_free_item(i, Catalog.ITEM_BALL, max_dist)
+
+
+func _claim_ball(i: int, ball: Dictionary) -> void:
+	_claim_item(i, ball)
+
+
 func _try_haul(i: int, speed: float, dt: float) -> bool:
 	if carry[i] != Catalog.CARRY_NONE:
+		_release_item_claims(i)
 		return _deliver(i, speed, dt)
-	var bridge := _nearest_open_bridge(pos_x[i], pos_y[i], 1600.0)
+	var bridge := _nearest_open_bridge(pos_x[i], pos_y[i], 8000.0)
 	if not bridge.is_empty():
-		var wood := _nearest_item(pos_x[i], pos_y[i], Catalog.ITEM_WOOD, 130.0)
-		if not wood.is_empty() and _dist_point(float(wood.x), float(wood.y), float(bridge.x), float(bridge.y)) < 120.0:
+		var wood := _nearest_free_item(i, Catalog.ITEM_WOOD, 2800.0)
+		if not wood.is_empty():
 			return _walk_pickup(i, wood, Catalog.CARRY_WOOD, speed, dt)
-		var bone := _nearest_item(pos_x[i], pos_y[i], Catalog.ITEM_BONE, 130.0)
-		if not bone.is_empty() and _dist_point(float(bone.x), float(bone.y), float(bridge.x), float(bridge.y)) < 120.0:
+		var bone := _nearest_free_item(i, Catalog.ITEM_BONE, 2800.0)
+		if not bone.is_empty():
 			return _walk_pickup(i, bone, Catalog.CARRY_BONE, speed, dt)
 	if _has_factory():
-		var ore := _nearest_item(pos_x[i], pos_y[i], Catalog.ITEM_ORE, 180.0)
+		var ore := _nearest_free_item(i, Catalog.ITEM_ORE, 180.0)
 		if not ore.is_empty():
 			return _walk_pickup(i, ore, Catalog.CARRY_ORE, speed, dt)
 	return false
 
 
 func _walk_pickup(i: int, item: Dictionary, carry_kind: int, speed: float, dt: float) -> bool:
+	_claim_item(i, item)
 	var tx := float(item.x)
 	var ty := float(item.y)
 	if _dist_i(i, tx, ty) < 8.0:
-		if not item.dead and not item.held:
+		if not item.dead and not item.held and int(item.get("claimer", -1)) == i:
 			carry[i] = carry_kind
 			carry_value[i] = int(item.value)
+			item.claimer = -1
 			item.dead = true
+			_release_item_claims(i)
 		return true
 	_walk(i, tx, ty, speed, dt)
 	return true
@@ -409,6 +587,7 @@ func _deliver(i: int, speed: float, dt: float) -> bool:
 	var tx := 0.0
 	var ty := 0.0
 	var factory := {}
+	var bridge := {}
 	if carry[i] == Catalog.CARRY_ORE:
 		factory = _nearest_building_kinds(pos_x[i], pos_y[i], [Catalog.BLD_FACTORY, Catalog.BLD_FACTORY2], 4000.0)
 		if factory.is_empty():
@@ -417,18 +596,23 @@ func _deliver(i: int, speed: float, dt: float) -> bool:
 		tx = float(factory.x)
 		ty = float(factory.y)
 	else:
-		var bridge := _nearest_open_bridge(pos_x[i], pos_y[i], 4000.0)
+		bridge = _nearest_open_bridge(pos_x[i], pos_y[i], 8000.0)
 		if bridge.is_empty():
 			carry[i] = Catalog.CARRY_NONE
 			return false
-		tx = float(bridge.x)
-		ty = float(bridge.y)
+		var drop := _bridge_drop_point(bridge)
+		tx = drop.x
+		ty = drop.y
+	act[i] = ACT_WORK
+	act_t[i] = 0.3
 	_walk(i, tx, ty, speed, dt)
 	if _dist_i(i, tx, ty) < 64.0:
 		if carry[i] == Catalog.CARRY_ORE:
 			factory.buffer = int(factory.get("buffer", 0)) + maxi(1, carry_value[i])
+			factory.active = true
+			_pop(float(factory.x), float(factory.y) - 4.0, Catalog.ICON_ORE)
 		else:
-			_drop_on_bridge(tx, ty, carry[i])
+			_drop_on_bridge(float(bridge.x), float(bridge.y), carry[i])
 		carry[i] = Catalog.CARRY_NONE
 		carry_value[i] = 0
 	return true
@@ -449,7 +633,8 @@ func _seek_mine(i: int, speed: float, dt: float) -> bool:
 		ty = float(mine.y) + 18.0
 	if _dist_i(i, tx, ty) < 8.0:
 		act[i] = ACT_WORK
-		act_t[i] = 0.25
+		act_t[i] = 0.5
+		shake_t[i] = maxf(shake_t[i], 0.2)
 		return true
 	_walk(i, tx, ty, speed, dt)
 	return true
@@ -458,11 +643,62 @@ func _seek_mine(i: int, speed: float, dt: float) -> bool:
 func _wander(i: int, speed: float, dt: float) -> void:
 	wander_t[i] -= dt
 	if wander_t[i] <= 0.0:
-		var ang := randf() * TAU
-		dir_x[i] = cos(ang)
-		dir_y[i] = sin(ang)
-		wander_t[i] = randf_range(0.5, 1.8)
+		_pick_wander(i)
+	if absf(dir_x[i]) + absf(dir_y[i]) < 0.01:
+		return
+	if _blocked(pos_x[i] + dir_x[i] * 12.0, pos_y[i] + dir_y[i] * 12.0):
+		_pick_wander(i)
+		if absf(dir_x[i]) + absf(dir_y[i]) < 0.01:
+			return
 	_move(i, dir_x[i] * speed * dt, dir_y[i] * speed * dt)
+
+
+func _pick_wander(i: int) -> void:
+	if randf() < 0.38:
+		dir_x[i] = 0.0
+		dir_y[i] = 0.0
+		wander_t[i] = randf_range(0.9, 2.8)
+		return
+	var open := _open_dir(i, _inland_dir(i))
+	if open == Vector2.ZERO:
+		dir_x[i] = 0.0
+		dir_y[i] = 0.0
+		wander_t[i] = randf_range(0.4, 1.0)
+		return
+	dir_x[i] = open.x
+	dir_y[i] = open.y
+	wander_t[i] = randf_range(0.6, 2.0)
+
+
+func _inland_dir(i: int) -> Vector2:
+	if carry[i] != Catalog.CARRY_NONE and carry[i] != Catalog.CARRY_ORE:
+		var bridge := _nearest_open_bridge(pos_x[i], pos_y[i], 8000.0)
+		if not bridge.is_empty():
+			var drop := _bridge_drop_point(bridge)
+			var to_drop := Vector2(drop.x - pos_x[i], drop.y - pos_y[i])
+			if to_drop.length_squared() > 1.0:
+				return to_drop.normalized()
+	var to := Vector2(256.0 - pos_x[i], 256.0 - pos_y[i])
+	if to.length_squared() < 1.0:
+		return Vector2(cos(float(i)), sin(float(i)))
+	return to.normalized()
+
+
+func _open_dir(i: int, prefer: Vector2) -> Vector2:
+	var base := prefer
+	if base.length_squared() < 0.01:
+		base = Vector2(1.0, 0.0)
+	else:
+		base = base.normalized()
+	for n in 12:
+		var ang := float(n) * (TAU / 12.0) + randf() * 0.2
+		var d := base.rotated(ang if n > 0 else randf_range(-0.4, 0.4))
+		if n == 0:
+			d = base.rotated(randf_range(-0.5, 0.5))
+		if not _blocked(pos_x[i] + d.x * 14.0, pos_y[i] + d.y * 14.0):
+			if not _blocked(pos_x[i] + d.x * 6.0, pos_y[i] + d.y * 6.0):
+				return d
+	return Vector2.ZERO
 
 
 func _walk(i: int, tx: float, ty: float, speed: float, dt: float) -> void:
@@ -473,24 +709,120 @@ func _walk(i: int, tx: float, ty: float, speed: float, dt: float) -> void:
 		return
 	dir_x[i] = dx / dist
 	dir_y[i] = dy / dist
+	if _blocked(pos_x[i] + dir_x[i] * 10.0, pos_y[i] + dir_y[i] * 10.0):
+		var detour := _open_dir(i, Vector2(dir_x[i], dir_y[i]))
+		if detour != Vector2.ZERO:
+			dir_x[i] = detour.x
+			dir_y[i] = detour.y
 	_move(i, dir_x[i] * speed * dt, dir_y[i] * speed * dt)
 
 
 func _move(i: int, dx: float, dy: float) -> void:
+	var ox := pos_x[i]
+	var oy := pos_y[i]
 	var moved := false
-	if not _blocked(pos_x[i] + dx, pos_y[i]):
-		pos_x[i] += dx
+	var can_x := not _blocked(ox + dx, oy)
+	var can_y := not _blocked(ox, oy + dy)
+	if can_x and can_y and not _blocked(ox + dx, oy + dy):
+		pos_x[i] = ox + dx
+		pos_y[i] = oy + dy
+		return
+	if can_x:
+		pos_x[i] = ox + dx
 		moved = true
-	if not _blocked(pos_x[i], pos_y[i] + dy):
-		pos_y[i] += dy
+	if not _blocked(pos_x[i], oy + dy):
+		pos_y[i] = oy + dy
 		moved = true
-	if not moved:
-		wander_t[i] = 0.0
+	elif can_y and not can_x:
+		pos_y[i] = oy + dy
+		moved = true
+	if not moved or (moved and _corner_trap(i)):
+		_unstick(i)
+
+
+func _corner_trap(i: int) -> bool:
+	var open := 0
+	for n in 4:
+		var a := float(n) * TAU * 0.25
+		if not _blocked(pos_x[i] + cos(a) * 8.0, pos_y[i] + sin(a) * 8.0):
+			open += 1
+	return open <= 1
+
+
+func _unstick(i: int) -> void:
+	var prefer := _inland_dir(i)
+	if absf(dir_x[i]) + absf(dir_y[i]) > 0.2:
+		prefer = Vector2(dir_x[i], dir_y[i]).normalized()
+	var step := _open_dir(i, prefer)
+	if step == Vector2.ZERO:
+		step = _open_dir(i, _inland_dir(i))
+	if step == Vector2.ZERO:
+		step = _inland_dir(i)
+	var try_dist: Array[float] = [6.0, 4.0, 3.0, 2.0]
+	for dist in try_dist:
+		var nx: float = pos_x[i] + step.x * dist
+		var ny: float = pos_y[i] + step.y * dist
+		if not _blocked(nx, ny):
+			pos_x[i] = nx
+			pos_y[i] = ny
+			dir_x[i] = step.x
+			dir_y[i] = step.y
+			wander_t[i] = randf_range(0.3, 0.8)
+			return
+	wander_t[i] = 0.0
+
+
+func _tick_trees(dt: float) -> void:
+	for feat in features:
+		if feat.dead or int(feat.kind) != Catalog.FEAT_STUMP:
+			continue
+		var grow := float(feat.get("grow", Catalog.TREE_REGROW))
+		grow -= dt
+		if grow > 0.0:
+			feat.grow = grow
+			continue
+		feat.grow = 0.0
+		feat.kind = Catalog.FEAT_TREE
+		feat.hp = 1
+	if tree_seeds.is_empty():
+		return
+	var kept: Array = []
+	for seed in tree_seeds:
+		var left := float(seed.get("t", 0.0)) - dt
+		if left > 0.0:
+			seed.t = left
+			kept.append(seed)
+			continue
+		_try_plant_tree(float(seed.x), float(seed.y))
+	tree_seeds = kept
+
+
+func _queue_tree_seed(x: float, y: float, wait: float) -> void:
+	tree_seeds.append({"x": x, "y": y, "t": wait})
+
+
+func _try_plant_tree(x: float, y: float) -> void:
+	if _blocked(x, y) or _on_bridge(x, y):
+		return
+	if not _feature_at(x, y, 6.0).is_empty():
+		return
+	if not _building_at(x, y, 10.0).is_empty():
+		return
+	_add_feature(Catalog.FEAT_TREE, x, y, 1, 0, true)
 
 
 func _tick_items(dt: float) -> void:
 	for it in items:
-		if it.dead or it.held or int(it.kind) != Catalog.ITEM_BALL:
+		if it.dead or it.held:
+			continue
+		if int(it.kind) == Catalog.ITEM_EGG:
+			_tick_egg(it, dt)
+			continue
+		if int(it.kind) != Catalog.ITEM_BALL:
+			continue
+		it.life = maxf(0.0, float(it.get("life", BALL_LIFE)) - dt)
+		if float(it.life) <= 0.0:
+			it.dead = true
 			continue
 		it.rest = maxf(0.0, float(it.get("rest", 0.0)) - dt)
 		var vx := float(it.get("vx", 0.0))
@@ -511,25 +843,46 @@ func _tick_items(dt: float) -> void:
 		_boost(float(it.x), float(it.y), 28.0, 2, 0.0, 0.0, 20.0 * dt, 0.0)
 
 
+func _tick_egg(it: Dictionary, dt: float) -> void:
+	it.shake = maxf(0.0, float(it.get("shake", 0.0)) - dt)
+	var air := float(it.get("air", 0.0))
+	if air <= 0.0:
+		return
+	var fall := float(it.get("fall", 0.0)) + 220.0 * dt
+	it.fall = fall
+	air = maxf(0.0, air - fall * dt)
+	it.air = air
+	if air <= 0.0:
+		it.air = 0.0
+		it.fall = 0.0
+		notes.append("TOCA EL HUEVO CON LA MANO PARA AYUDAR.")
+		sfx_queue.append("place")
+
+
 func _tick_buildings(dt: float) -> void:
 	for b in buildings:
 		if b.dead:
 			continue
 		var kind := int(b.kind)
+		b.active = false
 		if kind == Catalog.BLD_APPLE:
 			b.timer = float(b.timer) - dt
 			if float(b.timer) <= 0.0:
 				b.timer = 5.0
 				if _count_items_near(Catalog.ITEM_APPLE, float(b.x), float(b.y), 36.0) < 4:
 					_add_item(Catalog.ITEM_APPLE, float(b.x) + randf_range(-8.0, 8.0), float(b.y) + 12.0, 1)
+					_pop(float(b.x), float(b.y) - 4.0, Catalog.ICON_APPLE)
+					b.active = true
 		elif kind == Catalog.BLD_MINE or kind == Catalog.BLD_MINE2:
 			var cap := 6 if kind == Catalog.BLD_MINE2 else 2
 			var workers := _workers_near(b, cap)
 			if workers > 0:
+				b.active = true
 				b.timer = float(b.timer) - dt * float(workers)
 				if float(b.timer) <= 0.0:
 					b.timer = 2.2
 					_add_item(Catalog.ITEM_ORE, float(b.x), float(b.y) + 14.0, _mine_value(b))
+					_pop(float(b.x), float(b.y) - 2.0, Catalog.ICON_ORE)
 		elif kind == Catalog.BLD_FACTORY or kind == Catalog.BLD_FACTORY2:
 			b.timer = float(b.timer) - dt
 			if float(b.timer) <= 0.0:
@@ -538,18 +891,31 @@ func _tick_buildings(dt: float) -> void:
 					b.buffer = buffered - 1
 					b.timer = 0.7 if kind == Catalog.BLD_FACTORY2 else 2.0
 					gems += 2 if kind == Catalog.BLD_FACTORY2 else 1
+					b.active = true
+					_pop(float(b.x), float(b.y) - 6.0, Catalog.ICON_GEM)
 					_spill_goo(float(b.x), float(b.y), 2 if kind == Catalog.BLD_FACTORY2 else 1)
 				else:
 					b.timer = 0.25
 			if bool(b.get("incinerate", false)):
+				b.active = true
 				b.burn = float(b.get("burn", 0.0)) + dt
 				if float(b.burn) >= 3.0:
 					var corpse := _nearest_corpse(float(b.x), float(b.y), 90.0)
 					if corpse >= 0:
 						b.burn = 0.0
 						_vacate(corpse)
-						gems += 3
+						gems += 5 if bool(mutations.get("fuel", false)) else 3
 						sfx_queue.append("death")
+		elif kind == Catalog.BLD_TUB:
+			var occ := int(b.occupant)
+			if occ >= 0 and occ < slot_count and state[occ] == Catalog.ST_LIVING and _dist_i(occ, float(b.x), float(b.y)) < 16.0:
+				b.active = true
+		elif kind == Catalog.BLD_ROUND or kind == Catalog.BLD_THEATRE:
+			if _count_living_near(float(b.x), float(b.y), 40.0 if kind == Catalog.BLD_ROUND else 60.0) > 0:
+				b.active = true
+		elif kind == Catalog.BLD_DWELL or kind == Catalog.BLD_FANCY:
+			if _count_living_near(float(b.x), float(b.y), 48.0) > 0:
+				b.active = true
 
 
 func _tick_auras(dt: float) -> void:
@@ -558,22 +924,28 @@ func _tick_auras(dt: float) -> void:
 			continue
 		var kind := int(b.kind)
 		if kind == Catalog.BLD_DWELL:
-			_boost(float(b.x), float(b.y), 42.0, 4, 18.0 * dt, 18.0 * dt, 0.0, 0.0)
+			_boost(float(b.x), float(b.y), 42.0, 4, 18.0 * dt, 18.0 * dt, 0.0, 0.0, ACT_BATH)
 		elif kind == Catalog.BLD_FANCY:
-			_boost(float(b.x), float(b.y), 58.0, 10, 22.0 * dt, 22.0 * dt, 0.0, 0.0)
+			_boost(float(b.x), float(b.y), 58.0, 10, 22.0 * dt, 22.0 * dt, 0.0, 0.0, ACT_BATH)
 		elif kind == Catalog.BLD_ROUND:
-			_boost(float(b.x), float(b.y), 44.0, 6, 0.0, 0.0, 22.0 * dt, 0.0)
+			_boost(float(b.x), float(b.y), 44.0, 6, 0.0, 0.0, 22.0 * dt, 0.0, ACT_PLAY)
 		elif kind == Catalog.BLD_THEATRE:
-			_boost(float(b.x), float(b.y), 76.0, 18, 0.0, 0.0, 28.0 * dt, 1.6)
+			_boost(float(b.x), float(b.y), 76.0, 18, 0.0, 0.0, 28.0 * dt, 1.6, ACT_PLAY)
+		elif kind == Catalog.BLD_FLOWER:
+			_boost(float(b.x), float(b.y), 28.0, 3, 0.0, 0.0, 10.0 * dt, 0.0, ACT_PLAY)
+		elif kind == Catalog.BLD_STATUE:
+			_boost(float(b.x), float(b.y), 36.0, 4, 0.0, 0.0, 14.0 * dt, 0.8, ACT_PLAY)
 		elif kind == Catalog.BLD_TUB:
 			var occ := int(b.occupant)
 			if occ >= 0 and occ < slot_count and state[occ] == Catalog.ST_LIVING and _dist_i(occ, float(b.x), float(b.y)) < 16.0:
 				clean[occ] = minf(100.0, clean[occ] + 30.0 * dt)
+				act[occ] = ACT_BATH
+				act_t[occ] = maxf(act_t[occ], 0.3)
 				if clean[occ] >= 98.0:
 					_release_claim(occ)
 
 
-func _boost(x: float, y: float, radius: float, limit: int, fed_r: float, clean_r: float, fun_r: float, buff: float) -> void:
+func _boost(x: float, y: float, radius: float, limit: int, fed_r: float, clean_r: float, fun_r: float, buff: float, mark_act: int = 0) -> void:
 	var ids := query_radius(x, y, radius)
 	var scored: Array = []
 	for id in ids:
@@ -592,6 +964,9 @@ func _boost(x: float, y: float, radius: float, limit: int, fed_r: float, clean_r
 			amused[id] = minf(100.0, amused[id] + fun_r)
 		if buff > 0.0:
 			buff_t[id] = maxf(buff_t[id], buff)
+		if mark_act > 0:
+			act[id] = mark_act
+			act_t[id] = maxf(act_t[id], 0.35)
 
 
 func use_tool(tool: int, x: float, y: float) -> void:
@@ -627,30 +1002,38 @@ func use_tool(tool: int, x: float, y: float) -> void:
 
 
 func _drop_loose(kind: int, x: float, y: float, value: int) -> void:
-	if _blocked(x, y):
+	var at := Vector2(x, y)
+	if Catalog.item_snaps_grid(kind):
+		at = Catalog.snap_world(x, y)
+	if not _can_drop(at.x, at.y) or not _item_spot_free(at.x, at.y):
 		notes.append("AHI NO.")
 		return
-	_add_item(kind, x, y, value)
+	var it := _add_item(kind, at.x, at.y, value)
+	if kind == Catalog.ITEM_BALL:
+		it.life = BALL_LIFE
+		it.vx = 0.0
+		it.vy = 0.0
+		it.rest = 0.0
+		notes.append("LOS MULTIS JUEGAN SI LES FALTA DIVERSION.")
 	sfx_queue.append("place")
 
 
 func _tool_axe(x: float, y: float) -> void:
 	var feat := _feature_at(x, y, 14.0)
 	if feat.is_empty() or int(feat.kind) != Catalog.FEAT_TREE:
-		_splash_kill(x, y, 10.0)
 		return
 	_chop(feat)
-	_splash_kill(float(feat.x), float(feat.y), 12.0)
 
 
 func _chop(feat: Dictionary) -> void:
 	feat.kind = Catalog.FEAT_STUMP
+	feat.grow = Catalog.TREE_REGROW
 	_add_item(Catalog.ITEM_WOOD, float(feat.x) + 8.0, float(feat.y), 1)
 	_pop(float(feat.x), float(feat.y), Catalog.ICON_WOOD)
 	trees_chopped += 1
 	sfx_queue.append("chop")
 	if trees_chopped >= 12:
-		_grant("grabber", "DOCE ARBOLES. LA GARRA JUNTA LO SUELTO.")
+		_grant("grabber", "DOCE ARBOLES. LA MANO JUNTA LO SUELTO.")
 
 
 func _tool_hammer(x: float, y: float) -> void:
@@ -664,16 +1047,13 @@ func _tool_hammer(x: float, y: float) -> void:
 	var feat := _feature_at(x, y, 14.0)
 	if not feat.is_empty():
 		_hammer_feature(feat)
-		_splash_kill(x, y, 10.0)
 		sfx_queue.append("chop")
 		return
 	var b := _building_at(x, y, 16.0)
 	if not b.is_empty():
 		_remove_building(b)
-		_splash_kill(x, y, 10.0)
 		sfx_queue.append("chop")
 		return
-	_splash_kill(x, y, 10.0)
 
 
 func _hammer_feature(feat: Dictionary) -> void:
@@ -685,6 +1065,9 @@ func _hammer_feature(feat: Dictionary) -> void:
 		notes.append("ESO QUIERE EL HACHA.")
 		return
 	if kind == Catalog.FEAT_STUMP or kind == Catalog.FEAT_FLOWER:
+		if kind == Catalog.FEAT_STUMP:
+			stumps_cleared += 1
+			_queue_tree_seed(float(feat.x), float(feat.y), Catalog.TREE_REPLANT)
 		_pop(float(feat.x), float(feat.y), Catalog.ICON_STUMP if kind == Catalog.FEAT_STUMP else Catalog.ICON_FLOWER)
 		_kill_feature(feat)
 		return
@@ -698,30 +1081,207 @@ func _hammer_feature(feat: Dictionary) -> void:
 			return
 		feat.hp = int(feat.hp) - 1
 		if int(feat.hp) <= 0:
-			if int(feat.ore) > 0:
-				_add_item(Catalog.ITEM_ORE, float(feat.x), float(feat.y), int(feat.ore))
+			var ore_n := maxi(3, int(feat.ore))
+			_add_item(Catalog.ITEM_ORE, float(feat.x), float(feat.y), ore_n)
 			_kill_feature(feat)
 		return
 
 
 func _tool_pick(x: float, y: float) -> void:
+	var hit := false
 	for feat in features:
 		if feat.dead or int(feat.kind) != Catalog.FEAT_ROCK:
 			continue
-		if _dist_point(x, y, float(feat.x), float(feat.y)) <= 42.0:
+		if _dist_point(x, y, float(feat.x), float(feat.y)) <= Catalog.PICK_RADIUS:
 			_hammer_feature(feat)
-	_splash_kill(x, y, 16.0)
-	sfx_queue.append("chop")
+			hit = true
+	if hit:
+		sfx_queue.append("chop")
 
 
 func _tool_saw(x: float, y: float) -> void:
+	var hit := false
 	for feat in features:
 		if feat.dead or int(feat.kind) != Catalog.FEAT_TREE:
 			continue
-		if _dist_point(x, y, float(feat.x), float(feat.y)) <= 40.0:
+		if _dist_point(x, y, float(feat.x), float(feat.y)) <= Catalog.SAW_RADIUS:
 			_chop(feat)
-			_splash_kill(float(feat.x), float(feat.y), 10.0)
-	sfx_queue.append("chop")
+			hit = true
+	if hit:
+		_splash_kill(x, y, Catalog.SAW_RADIUS)
+		sfx_queue.append("chop")
+
+
+func charge_tool_target(tool: int, x: float, y: float) -> Dictionary:
+	if tool == Catalog.TOOL_AXE:
+		var tree := _feature_at(x, y, 14.0)
+		if tree.is_empty() or int(tree.kind) != Catalog.FEAT_TREE:
+			return {}
+		return {"key": "feat:%d" % int(tree.id), "x": float(tree.x), "y": float(tree.y), "n": 1}
+	if tool == Catalog.TOOL_HAMMER:
+		var ore := _item_at(x, y, 10.0)
+		if not ore.is_empty() and int(ore.kind) == Catalog.ITEM_ORE and part_two:
+			return {"key": "item:%d" % int(ore.id), "x": float(ore.x), "y": float(ore.y), "n": 1}
+		var feat := _feature_at(x, y, 14.0)
+		if not feat.is_empty() and int(feat.kind) != Catalog.FEAT_TREE and int(feat.kind) != Catalog.FEAT_MONOLITH and int(feat.kind) != Catalog.FEAT_NODE and int(feat.kind) != Catalog.FEAT_SUPER:
+			return {"key": "feat:%d" % int(feat.id), "x": float(feat.x), "y": float(feat.y), "n": 1}
+		var b := _building_at(x, y, 16.0)
+		if not b.is_empty():
+			return {"key": "bld:%d" % int(b.id), "x": float(b.x), "y": float(b.y), "n": 1}
+		return {}
+	if tool == Catalog.TOOL_PICK:
+		var rocks := _count_features_near(Catalog.FEAT_ROCK, x, y, Catalog.PICK_RADIUS)
+		if rocks <= 0:
+			return {}
+		return {"key": "pick:%d:%d" % [int(floor(x / 8.0)), int(floor(y / 8.0))], "x": x, "y": y, "n": rocks, "radius": Catalog.PICK_RADIUS}
+	if tool == Catalog.TOOL_SAW:
+		var trees := _count_features_near(Catalog.FEAT_TREE, x, y, Catalog.SAW_RADIUS)
+		if trees <= 0:
+			return {}
+		return {"key": "saw:%d:%d" % [int(floor(x / 8.0)), int(floor(y / 8.0))], "x": x, "y": y, "n": trees, "radius": Catalog.SAW_RADIUS}
+	if tool == Catalog.TOOL_GRAB:
+		if has_scoop():
+			return {}
+		var n := _count_scoopables(x, y, Catalog.GRAB_RADIUS)
+		return {
+			"key": "grab:%d:%d" % [int(floor(x / 8.0)), int(floor(y / 8.0))],
+			"x": x,
+			"y": y,
+			"n": n,
+			"radius": Catalog.GRAB_RADIUS,
+		}
+	return {}
+
+
+func _count_features_near(kind: int, x: float, y: float, radius: float) -> int:
+	var n := 0
+	for feat in features:
+		if feat.dead or int(feat.kind) != kind:
+			continue
+		if _dist_point(x, y, float(feat.x), float(feat.y)) <= radius:
+			n += 1
+	return n
+
+
+func _count_scoopables(x: float, y: float, radius: float) -> int:
+	var n := 0
+	for it in items:
+		if it.dead or it.held:
+			continue
+		var kind := int(it.kind)
+		if kind != Catalog.ITEM_WOOD and kind != Catalog.ITEM_BONE and kind != Catalog.ITEM_ORE:
+			continue
+		if _dist_point(x, y, float(it.x), float(it.y)) <= radius:
+			n += 1
+	for i in slot_count:
+		if state[i] != Catalog.ST_DEAD:
+			continue
+		if _dist_i(i, x, y) <= radius:
+			n += 1
+	return n
+
+
+func has_scoop() -> bool:
+	return not scoop_item_ids.is_empty() or not scoop_dead_ids.is_empty()
+
+
+func scoop_gather(x: float, y: float) -> int:
+	if frozen or has_scoop() or hand_id != -1 or held_kind != "":
+		return 0
+	var got := 0
+	for it in items:
+		if it.dead or it.held:
+			continue
+		var kind := int(it.kind)
+		if kind != Catalog.ITEM_WOOD and kind != Catalog.ITEM_BONE and kind != Catalog.ITEM_ORE:
+			continue
+		if _dist_point(x, y, float(it.x), float(it.y)) > Catalog.GRAB_RADIUS:
+			continue
+		it.held = true
+		scoop_item_ids.append(int(it.id))
+		got += 1
+	for i in slot_count:
+		if state[i] != Catalog.ST_DEAD:
+			continue
+		if _dist_i(i, x, y) > Catalog.GRAB_RADIUS:
+			continue
+		scoop_dead_ids.append(i)
+		got += 1
+	if got > 0:
+		scoop_follow(x, y)
+		sfx_queue.append("place")
+	return got
+
+
+func scoop_follow(x: float, y: float) -> void:
+	var i := 0
+	for raw in scoop_item_ids:
+		var it = item_by_id.get(int(raw), {})
+		if it.is_empty() or it.dead:
+			continue
+		var ang := float(i) * 0.85
+		var rad := 3.0 + float(i % 3) * 2.0
+		it.x = x + cos(ang) * rad
+		it.y = y + sin(ang) * rad
+		i += 1
+	for raw2 in scoop_dead_ids:
+		var id := int(raw2)
+		if id < 0 or id >= slot_count or state[id] != Catalog.ST_DEAD:
+			continue
+		var ang2 := float(i) * 0.85
+		pos_x[id] = x + cos(ang2) * 4.0
+		pos_y[id] = y + sin(ang2) * 4.0
+		i += 1
+
+
+func scoop_drop(x: float, y: float) -> void:
+	if not has_scoop():
+		return
+	for raw in scoop_item_ids:
+		var it = item_by_id.get(int(raw), {})
+		if it.is_empty() or it.dead:
+			continue
+		it.held = false
+		var dropped := false
+		for _try in 8:
+			var ox := randf_range(-30.0, 30.0)
+			var oy := randf_range(-30.0, 30.0)
+			var px := x + ox
+			var py := y + oy
+			if Catalog.item_snaps_grid(int(it.kind)):
+				var snapped := Catalog.snap_world(px, py)
+				px = snapped.x
+				py = snapped.y
+			if _blocked(px, py) or not _item_spot_free(px, py, int(it.id)):
+				continue
+			it.x = px
+			it.y = py
+			dropped = true
+			break
+		if not dropped:
+			it.x = x + randf_range(-12.0, 12.0)
+			it.y = y + randf_range(-12.0, 12.0)
+	for raw2 in scoop_dead_ids:
+		var id := int(raw2)
+		if id < 0 or id >= slot_count or state[id] != Catalog.ST_DEAD:
+			continue
+		var placed := false
+		for _try2 in 8:
+			var dx := x + randf_range(-30.0, 30.0)
+			var dy := y + randf_range(-30.0, 30.0)
+			if _blocked(dx, dy):
+				continue
+			pos_x[id] = dx
+			pos_y[id] = dy
+			placed = true
+			break
+		if not placed:
+			pos_x[id] = x + randf_range(-10.0, 10.0)
+			pos_y[id] = y + randf_range(-10.0, 10.0)
+	scoop_item_ids.clear()
+	scoop_dead_ids.clear()
+	sfx_queue.append("place")
+
 
 
 func _tool_bug(x: float, y: float) -> void:
@@ -736,11 +1296,14 @@ func _tool_swarm(x: float, y: float) -> void:
 
 
 func _tool_tnt(x: float, y: float) -> void:
+	var at := Catalog.snap_world(x, y)
+	x = at.x
+	y = at.y
 	var charge := _nearest_item(x, y, Catalog.ITEM_TNT, 14.0)
 	if not charge.is_empty():
 		_detonate(charge)
 		return
-	if _blocked(x, y):
+	if not _can_drop(x, y) or not _item_spot_free(x, y):
 		notes.append("AHI NO.")
 		return
 	_add_item(Catalog.ITEM_TNT, x, y, 1)
@@ -781,22 +1344,7 @@ func _explode_tiles(x: float, y: float, radius: float) -> void:
 
 
 func _grab(x: float, y: float) -> void:
-	for it in items:
-		if it.dead or it.held:
-			continue
-		var kind := int(it.kind)
-		if kind != Catalog.ITEM_WOOD and kind != Catalog.ITEM_BONE and kind != Catalog.ITEM_ORE:
-			continue
-		if _dist_point(x, y, float(it.x), float(it.y)) <= 48.0:
-			it.x = x
-			it.y = y
-	for i in slot_count:
-		if state[i] != Catalog.ST_DEAD:
-			continue
-		if _dist_i(i, x, y) <= 48.0:
-			pos_x[i] = x
-			pos_y[i] = y
-	sfx_queue.append("place")
+	scoop_gather(x, y)
 
 
 func _mop(x: float, y: float) -> void:
@@ -824,23 +1372,42 @@ func _mop(x: float, y: float) -> void:
 func scrub(x: float, y: float, stroke: float) -> void:
 	if frozen:
 		return
-	var id := -1
-	if sponge_id >= 0 and sponge_id < slot_count and state[sponge_id] == Catalog.ST_LIVING and _dist_i(sponge_id, x, y) <= 30.0:
-		id = sponge_id
-	else:
-		id = find_thronglet(x, y, 16.0, true)
-	if id < 0:
+	var ids := query_radius(x, y, 30.0)
+	if ids.is_empty():
 		return
-	sponge_id = id
 	sponge_hold = 0.35
-	if stroke < 4.0 or _dist_i(id, x, y) > 26.0:
+	sponge_id = -1
+	if stroke < 4.0:
 		return
-	clean[id] = minf(100.0, clean[id] + minf(stroke, 22.0) * 2.0)
-	shake_t[id] = 0.18
-	act[id] = ACT_WASH
-	act_t[id] = 0.25
-	if int(frame_i) % 4 == 0:
-		_pop(pos_x[id], pos_y[id] - 6.0, Catalog.ICON_SPONGE)
+	var gain := minf(stroke, 22.0) * 2.0
+	for raw in ids:
+		var id := int(raw)
+		if state[id] != Catalog.ST_LIVING:
+			continue
+		if clean[id] >= 100.0:
+			_stop_wash(id)
+			continue
+		clean[id] = minf(100.0, clean[id] + gain)
+		if clean[id] >= 100.0:
+			_stop_wash(id)
+			continue
+		sponge_id = id
+		shake_t[id] = 0.18
+		act[id] = ACT_WASH
+		act_t[id] = 0.25
+		if int(frame_i) % 4 == 0:
+			_pop(pos_x[id], pos_y[id] - 6.0, Catalog.ICON_SPONGE)
+
+
+func _stop_wash(id: int) -> void:
+	if id < 0 or id >= slot_count:
+		return
+	shake_t[id] = 0.0
+	if act[id] == ACT_WASH:
+		act[id] = 0
+		act_t[id] = 0.0
+	if sponge_id == id:
+		sponge_id = -1
 
 
 func eye_use(x: float, y: float) -> Dictionary:
@@ -856,17 +1423,46 @@ func eye_use(x: float, y: float) -> Dictionary:
 		if kind == Catalog.BLD_FACTORY or kind == Catalog.BLD_FACTORY2:
 			if not bool(b.get("incinerate", false)):
 				_confirm("burn", {"op": "burn", "id": int(b.id)})
+			else:
+				notes.append("LA FABRICA INCINERA CADAVERES.")
 			return {"type": "factory", "id": int(b.id)}
 		if kind == Catalog.BLD_CANNON:
 			_confirm("orbit", {"op": "launch", "id": int(b.id)})
 			return {"type": "cannon", "id": int(b.id)}
 		if kind == Catalog.BLD_MARKET:
 			return {"type": "market"}
-		return {"type": "building", "id": int(b.id)}
+		_describe_building(b)
+		return {"type": "building", "id": int(b.id), "kind": kind}
 	var id := find_thronglet(x, y, 12.0, false)
 	if id >= 0:
 		return {"type": "thronglet", "id": id}
 	return {"type": "empty"}
+
+
+func _describe_building(b: Dictionary) -> void:
+	var kind := int(b.kind)
+	match kind:
+		Catalog.BLD_APPLE:
+			notes.append("EL MANZANO SUELTA MANZANAS PARA COMER.")
+		Catalog.BLD_TUB:
+			notes.append("LA BANERA LIMPIA A QUIEN SE METE.")
+		Catalog.BLD_ROUND:
+			notes.append("EL TIOVIVO SUBE LA DIVERSION. LOS MULTIS GIRAN ALREDEDOR.")
+		Catalog.BLD_DWELL:
+			notes.append("LA VIVIENDA ALIMENTA Y LIMPIA CERCA.")
+		Catalog.BLD_FANCY:
+			notes.append("EL LUJO CUIDA A MAS MULTIS A LA VEZ.")
+		Catalog.BLD_MINE, Catalog.BLD_MINE2:
+			notes.append("LA MINA SACA MINERAL SI HAY MULTIS TRABAJANDO.")
+		Catalog.BLD_THEATRE:
+			notes.append("EL TEATRO ENTRETIENE A MUCHOS A LA VEZ.")
+		Catalog.BLD_FLOWER:
+			notes.append("LA FLOR DA UN POCO DE ALEGRIA.")
+		Catalog.BLD_STATUE:
+			notes.append("LA ESCULTURA ANIMA Y ACELERA A LOS CERCANOS.")
+		_:
+			if Catalog.BUILD_INFO.has(kind):
+				notes.append(str(Catalog.BUILD_INFO[kind].label))
 
 
 func take_hand(x: float, y: float) -> bool:
@@ -874,6 +1470,8 @@ func take_hand(x: float, y: float) -> bool:
 		return false
 	var it := _item_at(x, y, 10.0)
 	if it.is_empty():
+		return false
+	if bool(it.get("fixed", false)) or int(it.kind) == Catalog.ITEM_EGG:
 		return false
 	it.held = true
 	hand_id = int(it.id)
@@ -884,18 +1482,32 @@ func drop_hand(x: float, y: float) -> void:
 	if hand_id == -1:
 		return
 	var it = item_by_id.get(hand_id, {})
+	var drop_id := hand_id
 	hand_id = -1
 	if it.is_empty() or it.dead:
 		return
 	it.held = false
-	if _blocked(x, y):
+	var at := Vector2(x, y)
+	if Catalog.item_snaps_grid(int(it.kind)):
+		at = Catalog.snap_world(x, y)
+	if int(it.kind) == Catalog.ITEM_WOOD or int(it.kind) == Catalog.ITEM_BONE:
+		var bridge := _nearest_open_bridge(at.x, at.y, 90.0)
+		if not bridge.is_empty():
+			it.dead = true
+			var kind := Catalog.CARRY_WOOD if int(it.kind) == Catalog.ITEM_WOOD else Catalog.CARRY_BONE
+			_drop_on_bridge(float(bridge.x), float(bridge.y), kind)
+			sfx_queue.append("place")
+			return
+	if not _can_drop(at.x, at.y) or not _item_spot_free(at.x, at.y, drop_id):
 		return
-	it.x = x
-	it.y = y
+	it.x = at.x
+	it.y = at.y
+	if int(it.kind) == Catalog.ITEM_EGG:
+		_help_egg(it)
 
 
 func is_holding() -> bool:
-	return held_kind != "" or hand_id != -1
+	return held_kind != "" or hand_id != -1 or has_scoop()
 
 
 func grab_at(x: float, y: float) -> bool:
@@ -910,6 +1522,8 @@ func grab_at(x: float, y: float) -> bool:
 		return true
 	var feat := _feature_at(x, y, 14.0)
 	if not feat.is_empty() and int(feat.kind) == Catalog.FEAT_ROCK:
+		if bool(feat.get("rooted", false)):
+			return false
 		held_kind = "rock"
 		held_ref = int(feat.id)
 		held_x = float(feat.x)
@@ -929,6 +1543,11 @@ func grab_at(x: float, y: float) -> bool:
 			claim[occ] = -1
 		b.occupant = -1
 		return true
+	var it := _item_at(x, y, 10.0)
+	if not it.is_empty() and (bool(it.get("fixed", false)) or int(it.kind) == Catalog.ITEM_EGG):
+		if int(it.kind) == Catalog.ITEM_EGG:
+			_help_egg(it)
+		return false
 	return take_hand(x, y)
 
 
@@ -940,6 +1559,10 @@ func release_at(x: float, y: float, short_click: bool, allow_use: bool = true) -
 		if short_click and not it.is_empty():
 			ix = float(it.x)
 			iy = float(it.y)
+		elif not it.is_empty() and Catalog.item_snaps_grid(int(it.kind)):
+			var snapped := Catalog.snap_world(ix, iy)
+			ix = snapped.x
+			iy = snapped.y
 		drop_hand(ix, iy)
 		return {}
 	if held_kind == "":
@@ -949,6 +1572,10 @@ func release_at(x: float, y: float, short_click: bool, allow_use: bool = true) -
 	var kind := held_kind
 	var id := held_ref
 	var use := allow_use and short_click and kind == "building"
+	if kind != "thronglet" and not short_click:
+		var snapped := Catalog.snap_world(px, py)
+		px = snapped.x
+		py = snapped.y
 	if kind == "thronglet" and id >= 0 and id < slot_count and state[id] == Catalog.ST_LIVING:
 		if not short_click and _tile_at(px, py) == Catalog.TILE_VOID:
 			pos_x[id] = px
@@ -994,7 +1621,12 @@ func _clear_held() -> void:
 
 
 func _can_drop(x: float, y: float) -> bool:
-	return revealed.has(_ck_of(x, y)) and not _blocked(x, y)
+	return revealed.has(_ck_of(x, y)) and not _blocked(x, y) and not _on_bridge(x, y)
+
+
+func _item_spot_free(x: float, y: float, ignore_id: int = -1) -> bool:
+	var other := _item_at(x, y, 10.0)
+	return other.is_empty() or int(other.id) == ignore_id
 
 
 func _building_spot_free(id: int, x: float, y: float) -> bool:
@@ -1032,39 +1664,60 @@ func place_building(kind: int, x: float, y: float) -> bool:
 		return false
 	if not Catalog.BUILD_INFO.has(kind):
 		return false
+	var at := Catalog.snap_world(x, y)
 	var info: Dictionary = Catalog.BUILD_INFO[kind]
 	if not bool(unlocks.get(str(info.unlock), false)):
 		notes.append("AUN NO ESTA DESBLOQUEADO.")
 		return false
-	if not revealed.has(_ck_of(x, y)) or _blocked(x, y):
+	if not _can_drop(at.x, at.y):
 		notes.append("AHI NO SE PUEDE CONSTRUIR.")
 		return false
-	if not _building_at(x, y, 14.0).is_empty():
+	if not _building_at(at.x, at.y, 14.0).is_empty() or not _item_spot_free(at.x, at.y):
 		notes.append("YA HAY ALGO AHI.")
+		return false
+	if kind == Catalog.BLD_MARKET and _has_building(Catalog.BLD_MARKET):
+		notes.append("SOLO PUEDE HABER UN MERCADO.")
 		return false
 	var node := 0
 	if kind == Catalog.BLD_MINE or kind == Catalog.BLD_MINE2:
-		var feat := _feature_at(x, y, 12.0)
+		var feat := _feature_at(at.x, at.y, 12.0)
 		if feat.is_empty() or (int(feat.kind) != Catalog.FEAT_NODE and int(feat.kind) != Catalog.FEAT_SUPER):
 			notes.append("LA MINA SOLO VA SOBRE UN NODO.")
 			return false
 		node = 2 if int(feat.kind) == Catalog.FEAT_SUPER else 1
 		_kill_feature(feat)
-	if not _consume_kind(Catalog.ITEM_WOOD, int(info.wood), x, y):
+	if not _consume_kind(Catalog.ITEM_WOOD, int(info.wood), at.x, at.y):
 		notes.append("FALTA MADERA.")
 		return false
-	var b := _add_building(kind, x, y)
+	var b := _add_building(kind, at.x, at.y)
 	b.node = node
 	if kind == Catalog.BLD_CANNON:
 		_grant("nuke", "EL CANON CARGA EL DISPOSITIVO TERMONUCLEAR. NO ACABA LA PARTIDA.")
 	sfx_queue.append("place")
-	_pop(x, y, int(info.icon))
+	_pop(at.x, at.y, int(info.icon))
 	return true
 
 
+func spot_ok(x: float, y: float, building_id: int = -1, ignore_item_id: int = -1) -> bool:
+	var at := Catalog.snap_world(x, y)
+	if not _can_drop(at.x, at.y):
+		return false
+	if not _item_spot_free(at.x, at.y, ignore_item_id):
+		return false
+	if building_id >= 0:
+		return _building_spot_free(building_id, at.x, at.y)
+	return _building_at(at.x, at.y, 14.0).is_empty()
+
+
+func can_place_building(kind: int, x: float, y: float) -> bool:
+	if kind == Catalog.BLD_MARKET and _has_building(Catalog.BLD_MARKET):
+		return false
+	return spot_ok(x, y)
+
+
 func buy(key: String) -> bool:
-	if not bool(unlocks.get("market", false)):
-		notes.append("EL MERCADO AUN NO EXISTE.")
+	if not _has_building(Catalog.BLD_MARKET):
+		notes.append("COLOCA EL MERCADO PRIMERO.")
 		return false
 	if not Catalog.MARKET.has(key):
 		return false
@@ -1089,12 +1742,14 @@ func choose(index: int) -> void:
 	if index < 0 or index >= choices.size():
 		return
 	_set_ethics(event, index, str(choices[index]))
+	_apply_moral_choice(gaze, index)
 	modal = {}
 	frozen = false
 	var allow: Array = gaze.allow
 	if allow.has(index) and not action.is_empty():
 		_apply_action(action)
 	sfx_queue.append("gaze")
+	_open_next_talk()
 
 
 func inspect(id: int) -> Dictionary:
@@ -1116,7 +1771,8 @@ func inspect(id: int) -> Dictionary:
 func moral_line() -> String:
 	if ethics.is_empty():
 		return "AUN NO TE JUZGAN."
-	return str(ethics[ethics.size() - 1].text)
+	var mark := "CUIDADO" if moral > 0 else "FRIO" if moral < 0 else "NEUTRO"
+	return "%s (%+d)  %s" % [mark, moral, str(ethics[ethics.size() - 1].text)]
 
 
 func count_item(kind: int) -> int:
@@ -1440,9 +2096,12 @@ func save_game() -> bool:
 		"land_tier": land_tier,
 		"unlocks": unlocks.duplicate(true),
 		"ethics": ethics.duplicate(true),
+		"moral": moral,
+		"mutations": mutations.duplicate(true),
 		"part_two": part_two,
 		"mountain_seen": mountain_seen,
 		"trees_chopped": trees_chopped,
+		"stumps_cleared": stumps_cleared,
 		"bug_uses": bug_uses,
 		"tnt_used": tnt_used,
 		"goo_count": goo_count,
@@ -1457,8 +2116,10 @@ func save_game() -> bool:
 		"clean": clean,
 		"cool": cool,
 		"starve": starve,
+		"hungry_t": hungry_t,
 		"wander_t": wander_t,
 		"mito_t": mito_t,
+		"mito_charge": mito_charge,
 		"shake_t": shake_t,
 		"buff_t": buff_t,
 		"state": state,
@@ -1471,10 +2132,14 @@ func save_game() -> bool:
 		"items": items.duplicate(true),
 		"buildings": buildings.duplicate(true),
 		"features": features.duplicate(true),
+		"tree_seeds": tree_seeds.duplicate(true),
 		"bridges": bridges.duplicate(true),
 		"chunks": chunks.duplicate(true),
 		"bridge_done": bridge_done.duplicate(true),
 		"revealed": revealed.duplicate(true),
+		"sister_cx": sister_cx,
+		"sister_cy": sister_cy,
+		"sister_ready": sister_ready,
 	}
 	var file := FileAccess.open(save_path, FileAccess.WRITE)
 	if file == null:
@@ -1504,14 +2169,20 @@ func load_game() -> bool:
 	land_tier = int(data.get("land_tier", 0))
 	unlocks = data.get("unlocks", unlocks)
 	ethics = data.get("ethics", [])
+	moral = int(data.get("moral", 0))
+	mutations = data.get("mutations", {})
+	if typeof(mutations) != TYPE_DICTIONARY:
+		mutations = {}
 	part_two = bool(data.get("part_two", false))
 	mountain_seen = bool(data.get("mountain_seen", false))
 	trees_chopped = int(data.get("trees_chopped", 0))
+	stumps_cleared = int(data.get("stumps_cleared", 0))
 	bug_uses = int(data.get("bug_uses", 0))
 	tnt_used = int(data.get("tnt_used", 0))
 	goo_count = int(data.get("goo_count", 0))
 	cap_told = bool(data.get("cap_told", false))
 	monolith_tier_spawned = data.get("monoliths", {})
+	gaze_queue.clear()
 	pos_x = _as_f32(data.pos_x)
 	pos_y = _as_f32(data.pos_y)
 	dir_x = _as_f32(data.dir_x)
@@ -1521,8 +2192,10 @@ func load_game() -> bool:
 	clean = _as_f32(data.clean)
 	cool = _as_f32(data.cool)
 	starve = _as_f32(data.starve)
+	hungry_t = _as_f32(data.get("hungry_t", []))
 	wander_t = _as_f32(data.wander_t)
 	mito_t = _as_f32(data.mito_t)
+	mito_charge = _as_f32(data.get("mito_charge", []))
 	shake_t = _as_f32(data.shake_t)
 	buff_t = _as_f32(data.buff_t)
 	state = _as_i32(data.state)
@@ -1537,18 +2210,30 @@ func load_game() -> bool:
 		act.append(0)
 	while act_t.size() < slot_count:
 		act_t.append(0.0)
+	while mito_charge.size() < slot_count:
+		mito_charge.append(0.0)
+	while hungry_t.size() < slot_count:
+		hungry_t.append(0.0)
 	items = data.get("items", [])
 	buildings = data.get("buildings", [])
 	features = data.get("features", [])
+	tree_seeds = data.get("tree_seeds", [])
 	bridges = data.get("bridges", [])
 	chunks = data.get("chunks", {})
 	bridge_done = data.get("bridge_done", {})
 	revealed = data.get("revealed", {})
+	sister_cx = int(data.get("sister_cx", 1))
+	sister_cy = int(data.get("sister_cy", 0))
+	sister_ready = bool(data.get("sister_ready", false))
 	_recount()
 	_reindex()
-	_check_milestones(false)
+	_refresh_pop_gates(false)
 	_shape_island()
 	_hide_closed_world()
+	if world_open() and not part_two and _ethics_choice("need_bridge") == -1:
+		_introduce_bridge()
+	_repair_done_bridges()
+	_ensure_island_mines()
 	_rebuild_hash()
 	paint_epoch += 1
 	dirty_chunks.clear()
@@ -1563,6 +2248,18 @@ func load_game() -> bool:
 	notes.append("PARTIDA CARGADA.")
 	session_live = true
 	return true
+
+
+func _repair_done_bridges() -> void:
+	for bridge in bridges:
+		if not bool(bridge.get("done", false)):
+			continue
+		var tile := Catalog.TILE_BRIDGE_BONE if int(bridge.get("bones", 0)) > 0 else Catalog.TILE_BRIDGE_WOOD
+		var dest := _sister_chunk()
+		_reveal(dest.x, dest.y)
+		var start := _home_bridge_drop()
+		var finish := _nearest_island_shore(dest.x, dest.y, start)
+		_paint_wood_bridge(start, finish, tile)
 
 
 func _apply_action(action: Dictionary) -> void:
@@ -1618,9 +2315,9 @@ func _launch(building_id: int) -> void:
 		notes.append("NO HAY NADIE CERCA DEL CANON.")
 		return
 	_vacate(id)
-	gems += 20
+	gems += 28 if bool(mutations.get("fuel", false)) else 20
 	sfx_queue.append("explode")
-	notes.append("UNO SALE DE LA PANTALLA. +20 GEMAS.")
+	notes.append("UNO SALE DE LA PANTALLA. +%d GEMAS." % (28 if bool(mutations.get("fuel", false)) else 20))
 
 
 func _nuke(cx: int, cy: int) -> void:
@@ -1703,19 +2400,60 @@ func _confirm(event: String, action: Dictionary) -> void:
 		_apply_action(action)
 		notes.append("EL THRONG LO HA NOTADO.")
 		return
-	if not modal.is_empty():
-		return
-	modal = {"event": event, "action": action}
-	frozen = true
-	sfx_queue.append("gaze")
+	_queue_talk(event, action)
 
 
 func _reflect(event: String) -> void:
-	if _ethics_choice(event) != -1 or not modal.is_empty():
+	if _ethics_choice(event) != -1:
 		return
-	modal = {"event": event, "action": {}}
+	_queue_talk(event, {})
+
+
+func _queue_talk(event: String, action: Dictionary) -> void:
+	if not Catalog.GAZE.has(event):
+		return
+	if _ethics_choice(event) != -1 and action.is_empty():
+		return
+	for pending in gaze_queue:
+		if str(pending.event) == event:
+			return
+	if not modal.is_empty() and str(modal.event) == event:
+		return
+	if modal.is_empty():
+		modal = {"event": event, "action": action}
+		_begin_gaze()
+	else:
+		gaze_queue.append({"event": event, "action": action})
+
+
+func _open_next_talk() -> void:
+	while not gaze_queue.is_empty():
+		var next: Dictionary = gaze_queue.pop_front()
+		var event := str(next.event)
+		if _ethics_choice(event) != -1 and (next.action is Dictionary and next.action.is_empty()):
+			continue
+		modal = {"event": event, "action": next.action if next.action is Dictionary else {}}
+		_begin_gaze()
+		return
+
+
+func _begin_gaze() -> void:
 	frozen = true
+	_clear_action_motion()
 	sfx_queue.append("gaze")
+
+
+func _clear_wash_all() -> void:
+	_clear_action_motion()
+
+
+func _clear_action_motion() -> void:
+	sponge_id = -1
+	sponge_hold = 0.0
+	for i in slot_count:
+		shake_t[i] = 0.0
+		act[i] = 0
+		act_t[i] = 0.0
 
 
 func _ethics_choice(event: String) -> int:
@@ -1735,29 +2473,74 @@ func _set_ethics(event: String, index: int, text: String) -> void:
 	ethics.append({"event": event, "choice": index, "text": text})
 
 
-func _grant(key: String, message: String) -> bool:
+func _apply_moral_choice(gaze: Dictionary, index: int) -> void:
+	var morals: Array = gaze.get("moral", [])
+	if index < morals.size():
+		moral = clampi(moral + int(morals[index]), -5, 5)
+	var flags: Array = gaze.get("mutate", [])
+	if index < flags.size():
+		var flag := str(flags[index])
+		if flag != "":
+			mutations[flag] = true
+			if flag == "adapt":
+				notes.append("ALGUNOS NACEN CON TONO MORADO.")
+			elif flag == "numb":
+				notes.append("SUS OJOS SE VUELVEN FRIOS.")
+			elif flag == "hard":
+				notes.append("LA COLONIA SE ENDURECE.")
+			elif flag == "fuel":
+				notes.append("APRENDEN A VER ENERGIA EN TODO.")
+			elif flag == "care":
+				notes.append("RECUERDAN QUE LOS CUIDAS.")
+
+
+func _decay_scale() -> float:
+	var scale := 1.0
+	if bool(mutations.get("care", false)) or moral > 0:
+		scale *= 0.9
+	if bool(mutations.get("hard", false)) or bool(mutations.get("numb", false)) or moral < 0:
+		scale *= 1.12
+	return scale
+
+
+func _birth_tint(fallback: int) -> int:
+	if bool(mutations.get("adapt", false)) and randf() < 0.55:
+		return Catalog.TINT_ADAPT
+	if bool(mutations.get("numb", false)) and randf() < 0.45:
+		return Catalog.TINT_NUMB
+	if bool(mutations.get("hard", false)) and randf() < 0.35:
+		return Catalog.TINT_NUMB
+	return fallback % Catalog.TINTS.size()
+
+
+func _grant(key: String, message: String = "", talk: bool = true) -> bool:
 	if bool(unlocks.get(key, false)):
 		return false
 	unlocks[key] = true
 	unlock_serial += 1
-	if message != "":
+	if talk and Catalog.UNLOCK_TALK.has(key):
+		_queue_talk(str(Catalog.UNLOCK_TALK[key]), {})
+	elif message != "":
 		notes.append(message)
 	return true
 
 
-func _refresh_pop_gates() -> void:
+func _refresh_pop_gates(announce: bool = true) -> void:
+	# Tools first, then wood buildings: chop → clear → place.
 	var n := peak
 	if n >= 6:
-		_grant("bathtub", "BANERA LISTA. LIMPIA A UNO CADA VEZ.")
+		_grant("axe", "", announce)
 	if n >= 10:
-		_grant("apple_tree", "MANZANO LISTO. SUELTA MANZANAS SOLO.")
+		_grant("hammer", "", announce)
+	if n >= 12:
+		_grant("bathtub", "", announce)
 	if n >= 15:
-		_grant("roundabout", "TIOVIVO LISTO. ENTRETIENE A VARIOS.")
+		_grant("apple_tree", "", announce)
 	if n >= 20:
-		_grant("hammer", "MARTILLO LISTO. QUITA TOCONES Y ROCAS.")
+		_grant("roundabout", "", announce)
 	if n >= 25:
 		_ensure_monolith(1)
-	_check_milestones()
+	_check_milestones(announce)
 
 
 func _milestone_defs() -> Array:
@@ -1765,7 +2548,7 @@ func _milestone_defs() -> Array:
 		{"kind": "pop", "n": 6},
 		{"kind": "pop", "n": 12},
 		{"kind": "bridge", "n": 0},
-		{"kind": "gem", "n": 25},
+		{"kind": "gem", "n": 20},
 		{"kind": "pop", "n": 30},
 		{"kind": "gem", "n": 100},
 		{"kind": "pop", "n": 80},
@@ -1786,6 +2569,7 @@ func _check_milestones(announce: bool = true) -> void:
 	if gems > gems_peak:
 		gems_peak = gems
 	var defs := _milestone_defs()
+	var was_open := world_open()
 	var grew := false
 	while land_tier < defs.size() and _milestone_met(defs[land_tier]):
 		land_tier += 1
@@ -1797,9 +2581,95 @@ func _check_milestones(announce: bool = true) -> void:
 		notes.append("LA ISLA CRECE.")
 	_shape_island()
 	_hide_closed_world()
+	if announce and not was_open and world_open():
+		_introduce_bridge()
+
+
+func _introduce_bridge() -> void:
+	_ensure_bridge_site()
+	_queue_talk("need_bridge", {})
+
+
+func _ensure_bridge_site() -> void:
+	if part_two or not world_open():
+		return
+	_ensure_sister_layout()
+	var gap := _gap_chunk()
+	var sister := _sister_chunk()
+	if not revealed.has(_ck(gap.x, gap.y)):
+		_reveal(gap.x, gap.y)
+	if not revealed.has(_ck(sister.x, sister.y)):
+		_reveal(sister.x, sister.y)
+	if _primary_open_bridge().is_empty():
+		_ensure(gap.x, gap.y)
+		_ensure(sister.x, sister.y)
+		var drop := _home_bridge_drop()
+		var far := _nearest_island_shore(sister.x, sister.y, drop)
+		var mid := drop.lerp(far, 0.5)
+		bridges.append({
+			"ck": _ck(gap.x, gap.y),
+			"x": mid.x,
+			"y": mid.y,
+			"drop_x": drop.x,
+			"drop_y": drop.y,
+			"progress": 0,
+			"need": 6,
+			"bones": 0,
+			"done": false,
+		})
+	else:
+		var bridge := _primary_open_bridge()
+		var drop2 := _home_bridge_drop()
+		bridge.drop_x = drop2.x
+		bridge.drop_y = drop2.y
+
+
+func _ensure_sister_layout() -> void:
+	if sister_ready:
+		return
+	# Adjacent chunk: short void between shores for the bridge.
+	var dirs: Array[Vector2i] = [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
+	var pick: Vector2i = dirs[absi(int(world_seed)) % dirs.size()]
+	sister_cx = pick.x
+	sister_cy = pick.y
+	sister_ready = true
+
+
+func _sister_chunk() -> Vector2i:
+	_ensure_sister_layout()
+	return Vector2i(sister_cx, sister_cy)
+
+
+func _gap_chunk() -> Vector2i:
+	# Bridge key lives on the sister chunk (adjacent void between island edges).
+	return _sister_chunk()
 
 
 func goal_line() -> String:
+	if living <= 0 and _has_egg():
+		return "AYUDA AL HUEVO A ECLOSIONAR"
+	if peak < 2:
+		return "CUIDA: COMIDA, LIMPIEZA Y JUEGO HASTA LA MITOSIS"
+	if peak < 6:
+		return "CRECE LA COLONIA  %d/6 MULTIS" % peak
+	if bool(unlocks.get("axe", false)) and trees_chopped <= 0:
+		return "TALA UN ARBOL CON EL HACHA"
+	if bool(unlocks.get("hammer", false)) and trees_chopped > 0 and stumps_cleared <= 0:
+		return "QUITA UN TOCON CON EL MARTILLO"
+	if bool(unlocks.get("bathtub", false)) and not _has_building(Catalog.BLD_TUB):
+		return "CONSTRUYE UNA BANERA  (1 MADERA)"
+	if bool(unlocks.get("apple_tree", false)) and not _has_building(Catalog.BLD_APPLE):
+		return "PLANTA UN MANZANO  (1 MADERA)"
+	if bool(unlocks.get("roundabout", false)) and not _has_building(Catalog.BLD_ROUND):
+		return "COLOCA UN TIOVIVO  (1 MADERA)"
+	if not part_two:
+		_ensure_bridge_site()
+		var bridge := _primary_open_bridge()
+		if bridge.is_empty():
+			if world_open():
+				return "MIRA AL ESTE: EL RIO PIDE UN PUENTE"
+			return "CRECE HASTA ABRIR EL MUNDO  %d/12 MULTIS" % peak
+		return "PUENTE AL ESTE  %d/%d MADERA" % [int(bridge.progress), int(bridge.need)]
 	var defs := _milestone_defs()
 	if land_tier >= defs.size():
 		return "LA ISLA ESTA COMPLETA"
@@ -1807,21 +2677,79 @@ func goal_line() -> String:
 	var kind := str(step.kind)
 	var n := int(step.n)
 	if kind == "pop":
-		return "HITO  %d/%d MULTIS" % [mini(peak, n), n]
+		return "EXPANDE  %d/%d MULTIS" % [mini(peak, n), n]
 	if kind == "gem":
-		return "HITO  %d/%d ENERGIA" % [mini(gems_peak, n), n]
-	return "HITO  HAZ UN PUENTE"
+		_ensure_early_ore_stock(n)
+		if n >= 100 and bool(unlocks.get("mine", false)):
+			return "JUNTA ENERGIA  %d/%d  (MINAS EN NODOS → CRISTALES)" % [mini(gems_peak, n), n]
+		return "JUNTA ENERGIA  %d/%d  (MARTILLO: ROCA → MINERAL)" % [mini(gems_peak, n), n]
+	return "HAZ UN PUENTE"
+
+
+func _ensure_early_ore_stock(need: int = 20) -> void:
+	if not part_two or gems_peak >= need:
+		return
+	var rocks := 0
+	for feat in features:
+		if feat.dead or int(feat.kind) != Catalog.FEAT_ROCK:
+			continue
+		rocks += 1
+	if rocks >= 8:
+		return
+	_seed_early_ore(8 - rocks)
 
 
 func _enter_part_two(reason: String) -> void:
 	var first := not part_two
 	part_two = true
-	_grant("market", "ABRE EL MERCADO. LAS GEMAS COMPRAN LO QUE VIENE.")
+	_grant("market", "DESBLOQUEA EL MERCADO. COLOCALO GRATIS. SOLO UNO.")
 	_grant("flower", "")
 	_grant("sculpture", "")
-	if first and reason != "":
-		notes.append(reason)
+	if first:
+		_seed_early_ore(12)
+		_grant("pickaxe", "EL PICO ROMPE ROCAS. LAS MINAS VAN SOBRE NODOS.")
+		_grant("mine", "COLOCA MINAS EN LOS NODOS PARA SACAR CRISTALES.")
+		notes.append("ROMPE ROCAS O USA MINAS EN NODOS. EL MINERAL SUELTA ENERGIA.")
+		if reason != "":
+			notes.append(reason)
 	_check_milestones()
+
+
+func _seed_early_ore(want: int = 12) -> void:
+	if want <= 0:
+		return
+	var placed := 0
+	var chunks_to_fill: Array[Vector2i] = [Vector2i(0, 0)]
+	var sister := _sister_chunk()
+	if chunks.has(_ck(sister.x, sister.y)):
+		chunks_to_fill.append(sister)
+	for c in chunks_to_fill:
+		if placed >= want:
+			break
+		var ck := _ck(c.x, c.y)
+		if not chunks.has(ck):
+			_ensure(c.x, c.y)
+		var tiles = chunks[ck].tiles
+		for _try in 80:
+			if placed >= want:
+				break
+			var lx := randi() % Catalog.CHUNK
+			var ly := randi() % Catalog.CHUNK
+			var tile := int(tiles[ly * Catalog.CHUNK + lx])
+			if tile == Catalog.TILE_VOID or tile == Catalog.TILE_WATER or _is_bridge_tile(tile):
+				continue
+			var wx := float((c.x * Catalog.CHUNK + lx) * Catalog.TILE + 8)
+			var wy := float((c.y * Catalog.CHUNK + ly) * Catalog.TILE + 8)
+			if _blocked(wx, wy) or _on_bridge(wx, wy):
+				continue
+			if _dist_point(256.0, 256.0, wx, wy) < 70.0 and c.x == 0 and c.y == 0:
+				continue
+			if not _feature_at(wx, wy, 14.0).is_empty():
+				continue
+			if not _building_at(wx, wy, 14.0).is_empty():
+				continue
+			_add_feature(Catalog.FEAT_ROCK, wx, wy, 1, 3, true)
+			placed += 1
 
 
 func _ensure_monolith(tier: int) -> void:
@@ -1868,21 +2796,144 @@ func _finish_bridge(bridge: Dictionary) -> void:
 	bridge.done = true
 	var ck := str(bridge.ck)
 	bridge_done[ck] = true
-	var axis := str(chunks[ck].axis)
 	var tile := Catalog.TILE_BRIDGE_BONE if int(bridge.bones) > 0 else Catalog.TILE_BRIDGE_WOOD
-	if axis == "v" or axis == "both":
-		for ly in range(14, 18):
-			for lx in range(13, 19):
-				_set_local_tile(ck, lx, ly, tile, true)
-	if axis == "h" or axis == "both":
-		for ly in range(13, 19):
-			for lx in range(14, 18):
-				_set_local_tile(ck, lx, ly, tile, true)
-	notes.append("EL PUENTE ESTA LISTO.")
+	var dest := _sister_chunk()
+	_reveal(dest.x, dest.y)
+	var start := _home_bridge_drop()
+	var finish := _nearest_island_shore(dest.x, dest.y, start)
+	_paint_wood_bridge(start, finish, tile)
+	bridge.drop_x = start.x
+	bridge.drop_y = start.y
+	notes.append("EL PUENTE DE MADERA LLEGA A LA ISLA.")
 	_enter_part_two("EL PRIMER PUENTE ABRE LA SEGUNDA PARTE.")
 	if int(bridge.bones) > 0:
 		_reflect("bones")
 	sfx_queue.append("place")
+
+
+func _nearest_island_shore(cx: int, cy: int, from: Vector2) -> Vector2:
+	_ensure(cx, cy)
+	var ck := _ck(cx, cy)
+	var tiles = chunks[ck].tiles
+	var best := _chunk_center(cx, cy)
+	var best_d := 1.0e12
+	var found := false
+	for ly in Catalog.CHUNK:
+		for lx in Catalog.CHUNK:
+			var tile := int(tiles[ly * Catalog.CHUNK + lx])
+			if tile == Catalog.TILE_VOID or tile == Catalog.TILE_WATER or tile == Catalog.TILE_MOUNTAIN or tile == Catalog.TILE_RUBBLE:
+				continue
+			var wx := float((cx * Catalog.CHUNK + lx) * Catalog.TILE + 8)
+			var wy := float((cy * Catalog.CHUNK + ly) * Catalog.TILE + 8)
+			var d := _dist_point(from.x, from.y, wx, wy)
+			if d < best_d:
+				best_d = d
+				best = Vector2(wx, wy)
+				found = true
+	if found:
+		return best
+	return _chunk_center(cx, cy)
+
+
+func _paint_wood_bridge(start: Vector2, finish: Vector2, tile: int) -> void:
+	var delta := finish - start
+	var dist := delta.length()
+	if dist < 1.0:
+		return
+	var dir := delta / dist
+	# Bite a bit into both shores so the deck meets land without a seam.
+	var from := start - dir * float(Catalog.TILE)
+	var to := finish + dir * float(Catalog.TILE)
+	var a := _cell_vec(from.x, from.y)
+	var b := _cell_vec(to.x, to.y)
+	var cells := _raster_line(a.x, a.y, b.x, b.y)
+	var thick: Array[Vector2i] = [Vector2i(0, 0)]
+	if absi(b.x - a.x) >= absi(b.y - a.y):
+		thick.append(Vector2i(0, -1))
+		thick.append(Vector2i(0, 1))
+	else:
+		thick.append(Vector2i(-1, 0))
+		thick.append(Vector2i(1, 0))
+	for cell in cells:
+		for off in thick:
+			_set_bridge_cell(cell.x + off.x, cell.y + off.y, tile)
+
+
+func _raster_line(x0: int, y0: int, x1: int, y1: int) -> Array[Vector2i]:
+	var out: Array[Vector2i] = []
+	var dx := absi(x1 - x0)
+	var dy := absi(y1 - y0)
+	var sx := 1 if x0 < x1 else -1
+	var sy := 1 if y0 < y1 else -1
+	var err := dx - dy
+	var x := x0
+	var y := y0
+	while true:
+		out.append(Vector2i(x, y))
+		if x == x1 and y == y1:
+			break
+		var e2 := err * 2
+		if e2 > -dy:
+			err -= dy
+			x += sx
+		if e2 < dx:
+			err += dx
+			y += sy
+	return out
+
+
+func _set_bridge_cell(cx: int, cy: int, tile: int) -> void:
+	var chunk_x := _floor_div(cx, Catalog.CHUNK)
+	var chunk_y := _floor_div(cy, Catalog.CHUNK)
+	var ck := _ck(chunk_x, chunk_y)
+	_ensure(chunk_x, chunk_y)
+	if not revealed.has(ck):
+		revealed[ck] = true
+	var lx := cx - chunk_x * Catalog.CHUNK
+	var ly := cy - chunk_y * Catalog.CHUNK
+	if lx < 0 or ly < 0 or lx >= Catalog.CHUNK or ly >= Catalog.CHUNK:
+		return
+	var now := int(chunks[ck].tiles[ly * Catalog.CHUNK + lx])
+	if now == Catalog.TILE_MOUNTAIN or now == Catalog.TILE_RUBBLE:
+		return
+	var cell := Vector2i(cx, cy)
+	if feature_cell.has(cell):
+		var feat = feature_by_id.get(int(feature_cell[cell]), {})
+		if not feat.is_empty():
+			_kill_feature(feat)
+	var b := _building_at(float(cx * Catalog.TILE + 8), float(cy * Catalog.TILE + 8), 8.0)
+	if not b.is_empty():
+		b.dead = true
+	_set_local_tile(ck, lx, ly, tile, true)
+
+
+func _bridge_path_solid(start: Vector2, finish: Vector2) -> bool:
+	var a := _cell_vec(start.x, start.y)
+	var b := _cell_vec(finish.x, finish.y)
+	var cells := _raster_line(a.x, a.y, b.x, b.y)
+	for cell in cells:
+		if not _cell_has_bridge_or_land(cell.x, cell.y) \
+			and not _cell_has_bridge_or_land(cell.x + 1, cell.y) \
+			and not _cell_has_bridge_or_land(cell.x - 1, cell.y) \
+			and not _cell_has_bridge_or_land(cell.x, cell.y + 1) \
+			and not _cell_has_bridge_or_land(cell.x, cell.y - 1):
+			return false
+	return true
+
+
+func _cell_has_bridge_or_land(cx: int, cy: int) -> bool:
+	var chunk_x := _floor_div(cx, Catalog.CHUNK)
+	var chunk_y := _floor_div(cy, Catalog.CHUNK)
+	var ck := _ck(chunk_x, chunk_y)
+	if not chunks.has(ck):
+		return false
+	var lx := cx - chunk_x * Catalog.CHUNK
+	var ly := cy - chunk_y * Catalog.CHUNK
+	if lx < 0 or ly < 0 or lx >= Catalog.CHUNK or ly >= Catalog.CHUNK:
+		return false
+	var tile := int(chunks[ck].tiles[ly * Catalog.CHUNK + lx])
+	return tile == Catalog.TILE_BRIDGE_WOOD or tile == Catalog.TILE_BRIDGE_BONE \
+		or tile == Catalog.TILE_GRASS or tile == Catalog.TILE_DIRT or tile == Catalog.TILE_BLOOM
 
 
 func _spill_goo(x: float, y: float, amount: int) -> void:
@@ -1911,12 +2962,53 @@ func _bootstrap_new() -> void:
 		world_seed = 1
 	_reveal(0, 0)
 	_clear_spawn()
-	_push_slot(256.0, 248.0, 78.0, 78.0, 78.0, 6.0, 0)
-	_push_slot(276.0, 268.0, 74.0, 80.0, 76.0, 7.0, 1)
-	_push_slot(238.0, 272.0, 80.0, 72.0, 77.0, 5.0, 2)
+	_spawn_starter_egg()
 	_rebuild_hash()
 	session_live = true
 	_hide_closed_world()
+
+
+func _spawn_starter_egg() -> void:
+	var it := _add_item(Catalog.ITEM_EGG, 256.0, 256.0, 0)
+	it.fixed = true
+	it.air = EGG_FALL
+	it.fall = 0.0
+	it.hatch = 0
+	it.need = EGG_NEED
+	it.shake = 0.0
+	notes.append("UN HUEVO CAE DEL CIELO.")
+
+
+func _help_egg(it: Dictionary) -> void:
+	if it.is_empty() or it.dead or int(it.kind) != Catalog.ITEM_EGG:
+		return
+	if float(it.get("air", 0.0)) > 0.0:
+		return
+	it.hatch = int(it.get("hatch", 0)) + 1
+	it.shake = 0.35
+	sfx_queue.append("place")
+	if int(it.hatch) >= int(it.get("need", EGG_NEED)):
+		_hatch_egg(it)
+	elif int(it.hatch) == 1:
+		notes.append("SIGUE TOCANDALO. QUIERE NACER.")
+
+
+func _hatch_egg(it: Dictionary) -> void:
+	if it.is_empty() or it.dead:
+		return
+	var x := float(it.x)
+	var y := float(it.y)
+	it.dead = true
+	if hand_id == int(it.id):
+		hand_id = -1
+	if peak > 0 or living > 0:
+		return
+	var id := _push_slot(x, y, 50.0, 50.0, 50.0, 4.0, 0)
+	if id >= 0:
+		shake_t[id] = 0.45
+	sfx_queue.append("mitosis")
+	_pop(x, y - 6.0, Catalog.ICON_EGG)
+	_queue_talk("first_born", {})
 
 
 func _reset_world() -> void:
@@ -1925,9 +3017,13 @@ func _reset_world() -> void:
 	bridge_done.clear()
 	bridges.clear()
 	dirty_chunks.clear()
+	sister_cx = 1
+	sister_cy = 0
+	sister_ready = false
 	features.clear()
 	feature_by_id.clear()
 	feature_cell.clear()
+	tree_seeds.clear()
 	items.clear()
 	item_by_id.clear()
 	buildings.clear()
@@ -1937,6 +3033,8 @@ func _reset_world() -> void:
 	next_building_id = 1
 	hand_id = -1
 	_clear_held()
+	scoop_item_ids.clear()
+	scoop_dead_ids.clear()
 	sponge_id = -1
 	sponge_hold = 0.0
 	slot_count = 0
@@ -1947,6 +3045,7 @@ func _reset_world() -> void:
 	gems_peak = 0
 	land_tier = 0
 	trees_chopped = 0
+	stumps_cleared = 0
 	bug_uses = 0
 	tnt_used = 0
 	goo_count = 0
@@ -1955,6 +3054,9 @@ func _reset_world() -> void:
 	cap_told = false
 	frozen = false
 	modal = {}
+	gaze_queue.clear()
+	moral = 0
+	mutations.clear()
 	monolith_tier_spawned.clear()
 	pos_x = PackedFloat32Array()
 	pos_y = PackedFloat32Array()
@@ -1965,8 +3067,10 @@ func _reset_world() -> void:
 	clean = PackedFloat32Array()
 	cool = PackedFloat32Array()
 	starve = PackedFloat32Array()
+	hungry_t = PackedFloat32Array()
 	wander_t = PackedFloat32Array()
 	mito_t = PackedFloat32Array()
+	mito_charge = PackedFloat32Array()
 	shake_t = PackedFloat32Array()
 	buff_t = PackedFloat32Array()
 	state = PackedInt32Array()
@@ -1995,14 +3099,16 @@ func _push_slot(x: float, y: float, fed_v: float, fun_v: float, clean_v: float, 
 	clean.append(clean_v)
 	cool.append(cool_v)
 	starve.append(0.0)
+	hungry_t.append(0.0)
 	wander_t.append(randf_range(0.2, 1.2))
 	mito_t.append(0.0)
+	mito_charge.append(0.0)
 	shake_t.append(0.0)
 	buff_t.append(0.0)
 	state.append(Catalog.ST_LIVING)
 	carry.append(Catalog.CARRY_NONE)
 	carry_value.append(0)
-	tint.append(tint_i)
+	tint.append(_birth_tint(tint_i))
 	claim.append(-1)
 	act.append(0)
 	act_t.append(0.0)
@@ -2024,18 +3130,22 @@ func _reveal(cx: int, cy: int) -> void:
 	_ensure(cx, cy)
 	if not fresh:
 		return
-	var biome := str(chunks[ck].biome)
-	if biome == "river":
-		_grant("axe", "HAY UN RIO. EL THRONG DEJA EL HACHA.")
-	if biome == "mountain":
-		mountain_seen = true
-		_grant("tnt", "LA MONTANA ESTA CERRADA. DINAMITA.")
-		_enter_part_two("LA MONTANA ABRE LA SEGUNDA PARTE.")
+	var sister := _sister_chunk()
+	var gap := _gap_chunk()
+	if cx == gap.x and cy == gap.y:
+		_grant("axe", "HAY UN VACIO. EL THRONG DEJA EL HACHA.")
+		if not part_two and _ethics_choice("need_bridge") == -1:
+			_queue_talk("need_bridge", {})
+	if cx == sister.x and cy == sister.y and part_two == false:
+		pass
 	_mark_dirty(ck)
 
 
 func _try_reveal(cx: int, cy: int) -> void:
 	if not world_open() and not (cx == 0 and cy == 0):
+		return
+	# Only home, gap and sister exist as content. Sea chunks stay unrevealed fog.
+	if not _is_known_chunk(cx, cy):
 		return
 	var ck := _ck(cx, cy)
 	if revealed.has(ck):
@@ -2048,13 +3158,22 @@ func _try_reveal(cx: int, cy: int) -> void:
 			return
 
 
+func _is_known_chunk(cx: int, cy: int) -> bool:
+	if cx == 0 and cy == 0:
+		return true
+	_ensure_sister_layout()
+	var sister := _sister_chunk()
+	var gap := _gap_chunk()
+	return (cx == sister.x and cy == sister.y) or (cx == gap.x and cy == gap.y)
+
+
 func _edge_open(ax: int, ay: int, bx: int, by: int) -> bool:
-	var a := _biome_of(ax, ay)
-	var b := _biome_of(bx, by)
-	if a == "river" and b != "river":
-		return bool(bridge_done.get(_ck(ax, ay), false))
-	if a == "river" and b == "river":
-		return bool(bridge_done.get(_ck(ax, ay), false)) and bool(bridge_done.get(_ck(bx, by), false))
+	var sister := _sister_chunk()
+	var gap := _gap_chunk()
+	var to_sister := bx == sister.x and by == sister.y
+	var from_sister := ax == sister.x and ay == sister.y
+	if to_sister or from_sister:
+		return bool(bridge_done.get(_ck(gap.x, gap.y), false))
 	return true
 
 
@@ -2063,53 +3182,142 @@ func _ensure(cx: int, cy: int) -> void:
 	if chunks.has(ck):
 		return
 	var biome := _biome_formula(cx, cy)
-	var axis := ""
-	if biome == "river":
-		axis = _river_axis(cx, cy)
-	var tiles := _fill_tiles(cx, cy, biome, axis)
-	chunks[ck] = {"biome": biome, "axis": axis, "tiles": tiles, "base": tiles.duplicate()}
-	_scatter(cx, cy, biome)
+	var tiles := _fill_tiles(cx, cy, biome)
+	chunks[ck] = {"biome": biome, "axis": "", "tiles": tiles, "base": tiles.duplicate()}
 	if cx == 0 and cy == 0:
 		_shape_island()
-	if biome == "river":
-		var center := _chunk_center(cx, cy)
-		bridges.append({
-			"ck": ck,
-			"x": center.x,
-			"y": center.y,
-			"progress": 0,
-			"need": 6,
-			"bones": 0,
-			"done": false,
-		})
+		_seed_mine_nodes(0, 0)
+	elif _is_island_chunk(cx, cy):
+		_shape_remote_island(cx, cy)
+	_scatter(cx, cy, biome)
 	_mark_dirty(ck)
 
 
-func _fill_tiles(cx: int, cy: int, biome: String, axis: String) -> PackedByteArray:
-	var spec: Dictionary = biome_by_id.get(biome, {})
+func _fill_tiles(cx: int, cy: int, biome: String) -> PackedByteArray:
+	var tiles := PackedByteArray()
+	tiles.resize(Catalog.CHUNK * Catalog.CHUNK)
 	var base := Catalog.TILE_GRASS
 	if biome == "hills" or biome == "mountain":
 		base = Catalog.TILE_DIRT
 	elif biome == "bloom":
 		base = Catalog.TILE_BLOOM
-	var tiles := PackedByteArray()
-	tiles.resize(Catalog.CHUNK * Catalog.CHUNK)
+	for i in tiles.size():
+		tiles[i] = Catalog.TILE_VOID
+	if cx == 0 and cy == 0:
+		for ly in Catalog.CHUNK:
+			for lx in Catalog.CHUNK:
+				tiles[ly * Catalog.CHUNK + lx] = base
+	elif _is_island_chunk(cx, cy):
+		for ly in Catalog.CHUNK:
+			for lx in Catalog.CHUNK:
+				tiles[ly * Catalog.CHUNK + lx] = base
+	return tiles
+
+
+func _is_island_chunk(cx: int, cy: int) -> bool:
+	if cx == 0 and cy == 0:
+		return true
+	_ensure_sister_layout()
+	return cx == sister_cx and cy == sister_cy
+
+
+func _shape_remote_island(cx: int, cy: int) -> void:
+	var ck := _ck(cx, cy)
+	if not chunks.has(ck):
+		return
+	var tiles = chunks[ck].tiles
+	var mid := float(Catalog.CHUNK * Catalog.TILE) * 0.5
+	# Equal or larger than the home island at the moment it appears.
+	var reach := maxf(148.0, _island_reach() + 12.0)
+	reach = minf(reach, 220.0)
+	var phase := float(absi(cx * 13 + cy * 29 + int(world_seed))) * 0.17
 	for ly in Catalog.CHUNK:
 		for lx in Catalog.CHUNK:
-			var tile := base
-			var water := false
-			if biome == "river" and (axis == "v" or axis == "both") and lx >= 13 and lx <= 18:
-				water = true
-			if biome == "river" and (axis == "h" or axis == "both") and ly >= 13 and ly <= 18:
-				water = true
-			if water:
-				tile = Catalog.TILE_WATER
-			elif _rand(cx, cy, lx, ly, 11) < float(spec.get("mountain", 0.0)):
-				tile = Catalog.TILE_MOUNTAIN
-			elif _rand(cx, cy, lx, ly, 12) < float(spec.get("rubble", 0.0)):
-				tile = Catalog.TILE_RUBBLE
-			tiles[ly * Catalog.CHUNK + lx] = tile
-	return tiles
+			var idx := ly * Catalog.CHUNK + lx
+			var now := int(tiles[idx])
+			if now == Catalog.TILE_BRIDGE_WOOD or now == Catalog.TILE_BRIDGE_BONE:
+				continue
+			var wx := float(lx * Catalog.TILE + 8)
+			var wy := float(ly * Catalog.TILE + 8)
+			var ang := atan2(wy - mid, wx - mid)
+			var wobble := sin(ang * 3.0 + phase) * 34.0 + sin(ang * 5.0 + phase * 0.7 + 1.3) * 16.0
+			if _dist_point(mid, mid, wx, wy) <= reach + wobble:
+				tiles[idx] = Catalog.TILE_GRASS
+			else:
+				tiles[idx] = Catalog.TILE_VOID
+	chunks[ck].tiles = tiles
+	chunks[ck].base = tiles.duplicate()
+	_seed_mine_nodes(cx, cy)
+
+
+func _ensure_island_mines() -> void:
+	_seed_mine_nodes(0, 0)
+	_ensure_sister_layout()
+	var sister := _sister_chunk()
+	if chunks.has(_ck(sister.x, sister.y)):
+		_seed_mine_nodes(sister.x, sister.y)
+
+
+func _count_mine_nodes(cx: int, cy: int) -> int:
+	var n := 0
+	for feat in features:
+		if feat.dead:
+			continue
+		if int(feat.cx) != cx or int(feat.cy) != cy:
+			continue
+		if int(feat.kind) == Catalog.FEAT_NODE or int(feat.kind) == Catalog.FEAT_SUPER:
+			n += 1
+	return n
+
+
+func _seed_mine_nodes(cx: int, cy: int) -> void:
+	var ck := _ck(cx, cy)
+	if not chunks.has(ck):
+		return
+	var tiles = chunks[ck].tiles
+	var placed := _count_mine_nodes(cx, cy)
+	var want := 3
+	var tries := 0
+	while placed < want and tries < 160:
+		tries += 1
+		var lx := randi() % Catalog.CHUNK
+		var ly := randi() % Catalog.CHUNK
+		if not _mine_spot_ok(cx, cy, lx, ly, tiles, 18.0, 40.0):
+			continue
+		var wx := float((cx * Catalog.CHUNK + lx) * Catalog.TILE + 8)
+		var wy := float((cy * Catalog.CHUNK + ly) * Catalog.TILE + 8)
+		var kind := Catalog.FEAT_SUPER if placed == 0 else Catalog.FEAT_NODE
+		var ore := 2 if kind == Catalog.FEAT_SUPER else 1
+		if _add_feature(kind, wx, wy, 1, ore, true).is_empty():
+			continue
+		placed += 1
+	if placed > 0:
+		return
+	for ly in Catalog.CHUNK:
+		for lx in Catalog.CHUNK:
+			if not _mine_spot_ok(cx, cy, lx, ly, tiles, 10.0, 0.0):
+				continue
+			var fx := float((cx * Catalog.CHUNK + lx) * Catalog.TILE + 8)
+			var fy := float((cy * Catalog.CHUNK + ly) * Catalog.TILE + 8)
+			if not _add_feature(Catalog.FEAT_SUPER, fx, fy, 1, 2, true).is_empty():
+				return
+
+
+func _mine_spot_ok(cx: int, cy: int, lx: int, ly: int, tiles, clear_r: float, mid_min: float) -> bool:
+	var tile := int(tiles[ly * Catalog.CHUNK + lx])
+	if tile == Catalog.TILE_VOID or tile == Catalog.TILE_WATER or _is_bridge_tile(tile):
+		return false
+	if mid_min > 0.0:
+		var local_mid := float(Catalog.CHUNK * Catalog.TILE) * 0.5
+		if _dist_point(local_mid, local_mid, float(lx * Catalog.TILE + 8), float(ly * Catalog.TILE + 8)) < mid_min:
+			return false
+	var wx := float((cx * Catalog.CHUNK + lx) * Catalog.TILE + 8)
+	var wy := float((cy * Catalog.CHUNK + ly) * Catalog.TILE + 8)
+	if not _feature_at(wx, wy, clear_r).is_empty():
+		return false
+	if not _building_at(wx, wy, 14.0).is_empty():
+		return false
+	return true
 
 
 func _scatter(cx: int, cy: int, biome: String) -> void:
@@ -2118,22 +3326,22 @@ func _scatter(cx: int, cy: int, biome: String) -> void:
 	for ly in Catalog.CHUNK:
 		for lx in Catalog.CHUNK:
 			var tile := int(chunks[ck].tiles[ly * Catalog.CHUNK + lx])
-			if tile == Catalog.TILE_WATER or tile == Catalog.TILE_MOUNTAIN or tile == Catalog.TILE_RUBBLE or tile == Catalog.TILE_VOID:
+			if tile == Catalog.TILE_WATER or tile == Catalog.TILE_MOUNTAIN or tile == Catalog.TILE_RUBBLE or tile == Catalog.TILE_VOID or _is_bridge_tile(tile):
 				continue
 			var wx := float((cx * Catalog.CHUNK + lx) * Catalog.TILE + 8)
 			var wy := float((cy * Catalog.CHUNK + ly) * Catalog.TILE + 8)
 			if _rand(cx, cy, lx, ly, 1) < float(spec.get("tree", 0.0)):
-				_add_feature(Catalog.FEAT_TREE, wx, wy, 1, 0)
+				_add_feature(Catalog.FEAT_TREE, wx, wy, 1, 0, true)
 			elif _rand(cx, cy, lx, ly, 2) < float(spec.get("ore", 0.0)):
-				_add_feature(Catalog.FEAT_ROCK, wx, wy, 2, 1)
+				_add_feature(Catalog.FEAT_ROCK, wx, wy, 2, 1, true)
 			elif _rand(cx, cy, lx, ly, 3) < float(spec.get("rock", 0.0)):
-				_add_feature(Catalog.FEAT_ROCK, wx, wy, 1, 0)
+				_add_feature(Catalog.FEAT_ROCK, wx, wy, 1, 0, true)
 			elif _rand(cx, cy, lx, ly, 4) < float(spec.get("super", 0.0)):
-				_add_feature(Catalog.FEAT_SUPER, wx, wy, 1, 2)
+				_add_feature(Catalog.FEAT_SUPER, wx, wy, 1, 2, true)
 			elif _rand(cx, cy, lx, ly, 5) < float(spec.get("node", 0.0)):
-				_add_feature(Catalog.FEAT_NODE, wx, wy, 1, 1)
+				_add_feature(Catalog.FEAT_NODE, wx, wy, 1, 1, true)
 			elif _rand(cx, cy, lx, ly, 6) < float(spec.get("flower", 0.0)):
-				_add_feature(Catalog.FEAT_FLOWER, wx, wy, 1, 0)
+				_add_feature(Catalog.FEAT_FLOWER, wx, wy, 1, 0, true)
 
 
 func _island_reach() -> float:
@@ -2165,6 +3373,8 @@ func _shape_island() -> void:
 			var land := _dist_point(256.0, 256.0, wx, wy) <= reach + wobble
 			var idx := ly * Catalog.CHUNK + lx
 			var tile := int(tiles[idx])
+			if tile == Catalog.TILE_BRIDGE_WOOD or tile == Catalog.TILE_BRIDGE_BONE:
+				continue
 			if land:
 				if tile == Catalog.TILE_WATER or tile == Catalog.TILE_VOID:
 					tiles[idx] = Catalog.TILE_GRASS
@@ -2189,15 +3399,18 @@ func _shape_island() -> void:
 		if int(tiles[sy * Catalog.CHUNK + sx]) == Catalog.TILE_VOID:
 			_kill_feature(feat)
 	for spot in fresh:
+		if _on_bridge(spot.x, spot.y):
+			continue
 		if _dist_point(256.0, 256.0, spot.x, spot.y) < 80.0:
 			continue
 		var fx := _cell_of(spot.x)
 		var fy := _cell_of(spot.y)
 		var roll := _rand(0, 0, fx, fy, 22)
-		if roll < 0.05:
-			_add_feature(Catalog.FEAT_TREE, spot.x, spot.y, 1, 0)
-		elif roll < 0.09:
-			_add_feature(Catalog.FEAT_FLOWER, spot.x, spot.y, 1, 0)
+		if roll < 0.14:
+			_add_feature(Catalog.FEAT_TREE, spot.x, spot.y, 1, 0, true)
+		elif roll < 0.18:
+			_add_feature(Catalog.FEAT_FLOWER, spot.x, spot.y, 1, 0, true)
+	_seed_mine_nodes(0, 0)
 	_mark_dirty(ck)
 
 
@@ -2220,7 +3433,9 @@ func _clear_spawn() -> void:
 		_kill_feature(feat)
 
 
-func _add_feature(kind: int, x: float, y: float, hp: int, ore: int) -> Dictionary:
+func _add_feature(kind: int, x: float, y: float, hp: int, ore: int, rooted: bool = false) -> Dictionary:
+	if _on_bridge(x, y):
+		return {}
 	var cell := _cell_vec(x, y)
 	if feature_cell.has(cell):
 		return {}
@@ -2237,6 +3452,7 @@ func _add_feature(kind: int, x: float, y: float, hp: int, ore: int) -> Dictionar
 		"cx": c.x,
 		"cy": c.y,
 		"dead": false,
+		"rooted": rooted,
 	}
 	features.append(feat)
 	feature_by_id[id] = feat
@@ -2257,7 +3473,9 @@ func _kill_feature(feat: Dictionary) -> void:
 func _add_item(kind: int, x: float, y: float, value: int) -> Dictionary:
 	var id := next_item_id
 	next_item_id += 1
-	var it := {"id": id, "kind": kind, "x": x, "y": y, "value": value, "held": false, "dead": false}
+	var it := {"id": id, "kind": kind, "x": x, "y": y, "value": value, "held": false, "dead": false, "fixed": false}
+	if kind == Catalog.ITEM_BALL:
+		it.life = BALL_LIFE
 	items.append(it)
 	item_by_id[id] = it
 	return it
@@ -2277,6 +3495,7 @@ func _add_building(kind: int, x: float, y: float) -> Dictionary:
 		"buffer": 0,
 		"burn": 0.0,
 		"incinerate": false,
+		"active": false,
 		"dead": false,
 	}
 	buildings.append(b)
@@ -2295,21 +3514,53 @@ func _remove_building(b: Dictionary) -> void:
 func _consume_kind(kind: int, count: int, near_x: float, near_y: float) -> bool:
 	if count <= 0:
 		return true
+	if count_item(kind) < count:
+		return false
+	var left := count
 	var found: Array = []
 	for it in items:
 		if it.dead or it.held or int(it.kind) != kind:
 			continue
 		found.append(it)
-	if found.size() < count:
-		return false
 	found.sort_custom(func(a, b):
 		var da := _dist_point(near_x, near_y, float(a.x), float(a.y))
 		var db := _dist_point(near_x, near_y, float(b.x), float(b.y))
 		return da < db
 	)
-	for i in count:
-		found[i].dead = true
-	return true
+	for it in found:
+		if left <= 0:
+			break
+		it.dead = true
+		left -= 1
+	if left <= 0:
+		return true
+	var carriers: Array = []
+	for i in slot_count:
+		if not _carry_matches(i, kind):
+			continue
+		carriers.append(i)
+	carriers.sort_custom(func(a, b):
+		return _dist_i(int(a), near_x, near_y) < _dist_i(int(b), near_x, near_y)
+	)
+	for i in carriers:
+		if left <= 0:
+			break
+		carry[int(i)] = Catalog.CARRY_NONE
+		carry_value[int(i)] = 0
+		left -= 1
+	return left <= 0
+
+
+func _carry_matches(i: int, kind: int) -> bool:
+	if i < 0 or i >= slot_count:
+		return false
+	if kind == Catalog.ITEM_WOOD:
+		return carry[i] == Catalog.CARRY_WOOD
+	if kind == Catalog.ITEM_BONE:
+		return carry[i] == Catalog.CARRY_BONE
+	if kind == Catalog.ITEM_ORE:
+		return carry[i] == Catalog.CARRY_ORE
+	return false
 
 
 func _claim_tub(i: int, tub: Dictionary) -> void:
@@ -2439,6 +3690,63 @@ func _nearest_open_bridge(x: float, y: float, max_dist: float) -> Dictionary:
 	return best
 
 
+func _primary_open_bridge() -> Dictionary:
+	return _nearest_open_bridge(256.0, 256.0, 99999.0)
+
+
+func _bridge_drop_point(bridge: Dictionary) -> Vector2:
+	if str(bridge.get("ck", "")) == "2,0":
+		var home := _home_bridge_drop()
+		if not _blocked(home.x, home.y):
+			return home
+	if bridge.has("drop_x") and bridge.has("drop_y"):
+		var dx := float(bridge.drop_x)
+		var dy := float(bridge.drop_y)
+		if not _blocked(dx, dy):
+			return Vector2(dx, dy)
+	return _find_bridge_drop(float(bridge.x), float(bridge.y))
+
+
+func _home_bridge_drop() -> Vector2:
+	var sister := _sister_chunk()
+	var target := _chunk_center(sister.x, sister.y)
+	return _nearest_island_shore(0, 0, target)
+
+
+func _find_bridge_drop(cx: float, cy: float) -> Vector2:
+	var offsets: Array[Vector2] = [
+		Vector2(-56, 0), Vector2(56, 0), Vector2(0, -56), Vector2(0, 56),
+		Vector2(-72, 0), Vector2(72, 0), Vector2(0, -72), Vector2(0, 72),
+		Vector2(-56, -24), Vector2(-56, 24), Vector2(56, -24), Vector2(56, 24),
+	]
+	for off in offsets:
+		var px := cx + off.x
+		var py := cy + off.y
+		if revealed.has(_ck_of(px, py)) and not _blocked(px, py):
+			return Vector2(px, py)
+	for off in offsets:
+		var px2 := cx + off.x
+		var py2 := cy + off.y
+		if not _blocked(px2, py2):
+			return Vector2(px2, py2)
+	return Vector2(cx - 56.0, cy)
+
+
+func bridge_marker() -> Dictionary:
+	var bridge := _primary_open_bridge()
+	if bridge.is_empty():
+		return {}
+	return {
+		"x": float(bridge.x),
+		"y": float(bridge.y),
+		"drop_x": float(bridge.get("drop_x", bridge.x)),
+		"drop_y": float(bridge.get("drop_y", bridge.y)),
+		"progress": int(bridge.progress),
+		"need": int(bridge.need),
+		"ck": str(bridge.ck),
+	}
+
+
 func _nearest_living(x: float, y: float, radius: float) -> int:
 	return find_thronglet(x, y, radius, true)
 
@@ -2480,6 +3788,24 @@ func _mine_value(b: Dictionary) -> int:
 	return 2
 
 
+func _has_egg() -> bool:
+	for it in items:
+		if not it.dead and int(it.kind) == Catalog.ITEM_EGG:
+			return true
+	return false
+
+
+func has_building_kind(kind: int) -> bool:
+	return _has_building(kind)
+
+
+func _has_building(kind: int) -> bool:
+	for b in buildings:
+		if not b.dead and int(b.kind) == kind:
+			return true
+	return false
+
+
 func _has_factory() -> bool:
 	for b in buildings:
 		if b.dead:
@@ -2488,6 +3814,14 @@ func _has_factory() -> bool:
 		if kind == Catalog.BLD_FACTORY or kind == Catalog.BLD_FACTORY2:
 			return true
 	return false
+
+
+func _count_living_near(x: float, y: float, radius: float) -> int:
+	var n := 0
+	for id in query_radius(x, y, radius):
+		if state[int(id)] == Catalog.ST_LIVING:
+			n += 1
+	return n
 
 
 func _count_items_near(kind: int, x: float, y: float, radius: float) -> int:
@@ -2520,6 +3854,14 @@ func _blocked(px: float, py: float) -> bool:
 		if not feat.is_empty() and not feat.dead and Catalog.feature_blocks(int(feat.kind)):
 			return true
 	return false
+
+
+func _is_bridge_tile(tile: int) -> bool:
+	return tile == Catalog.TILE_BRIDGE_WOOD or tile == Catalog.TILE_BRIDGE_BONE
+
+
+func _on_bridge(px: float, py: float) -> bool:
+	return _is_bridge_tile(_tile_at(px, py))
 
 
 func _tile_at(px: float, py: float) -> int:
@@ -2679,23 +4021,9 @@ func _load_biomes() -> void:
 func _biome_formula(cx: int, cy: int) -> String:
 	if cx == 0 and cy == 0:
 		return "meadow"
-	if cx == 1 and cy == 0:
+	if _is_island_chunk(cx, cy):
 		return "grove"
-	if cx == 4 and cy == 0:
-		return "mountain"
-	if _pmod(cx, 3) == 2 or _pmod(cy, 4) == 3:
-		return "river"
-	var land: Array = []
-	for biome in biomes:
-		if str(biome.id) != "river":
-			land.append(str(biome.id))
-	if land.is_empty():
-		return "meadow"
-	var h := absi((cx * 73856093) ^ (cy * 19349663) ^ int(world_seed))
-	var pick := str(land[h % land.size()])
-	if pick == "mountain" and maxi(absi(cx), absi(cy)) <= 2:
-		return "hills" if biome_by_id.has("hills") else "meadow"
-	return pick
+	return "sea"
 
 
 func _biome_of(cx: int, cy: int) -> String:
@@ -2703,16 +4031,6 @@ func _biome_of(cx: int, cy: int) -> String:
 	if chunks.has(ck):
 		return str(chunks[ck].biome)
 	return _biome_formula(cx, cy)
-
-
-func _river_axis(cx: int, cy: int) -> String:
-	var vertical := _pmod(cx, 3) == 2
-	var horizontal := _pmod(cy, 4) == 3
-	if vertical and horizontal:
-		return "both"
-	if vertical:
-		return "v"
-	return "h"
 
 
 func _rand(cx: int, cy: int, lx: int, ly: int, salt: int) -> float:
@@ -2816,32 +4134,108 @@ func _as_i32(value) -> PackedInt32Array:
 
 func _run_checks() -> void:
 	var errors: Array = []
-	if living != 3:
+	if living != 0:
 		errors.append("start living %s" % living)
+	var egg := _nearest_item(256.0, 256.0, Catalog.ITEM_EGG, 40.0)
+	if egg.is_empty():
+		errors.append("no starter egg")
+	else:
+		if float(egg.get("air", 0.0)) <= 0.0:
+			errors.append("egg not falling")
+		egg.air = 0.0
+		egg.fall = 0.0
+		for _n in EGG_NEED:
+			_help_egg(egg)
+		if living != 1:
+			errors.append("hatch living %s" % living)
+		if not egg.dead:
+			errors.append("egg remains")
+		if modal.is_empty() or str(modal.get("event", "")) != "first_born":
+			errors.append("first_born talk missing")
+		else:
+			choose(0)
+		if bool(mutations.get("care", false)) != true:
+			errors.append("care mutation missing")
+		var again := _add_item(Catalog.ITEM_EGG, 260.0, 260.0, 0)
+		again.air = 0.0
+		again.hatch = 0
+		again.need = 1
+		_help_egg(again)
+		if living != 1:
+			errors.append("second egg spawned multi")
+		if not again.dead:
+			errors.append("second egg remains")
 	if not bool(unlocks.camera):
 		errors.append("camera locked at start")
 	if bool(unlocks.axe):
 		errors.append("axe early")
-	fed[0] = 100.0
-	amused[0] = 100.0
-	clean[0] = 100.0
-	cool[0] = 0.0
-	_step(0.2)
-	if living < 4:
-		errors.append("mitosis living %s" % living)
+	if living < 1:
+		errors.append("no first multi")
+	else:
+		fed[0] = 100.0
+		amused[0] = 100.0
+		clean[0] = 100.0
+		cool[0] = 0.0
+		shake_t[0] = 0.0
+		mito_t[0] = 0.0
+		mito_charge[0] = 0.0
+		for _n in 25:
+			fed[0] = 100.0
+			amused[0] = 100.0
+			clean[0] = 100.0
+			cool[0] = 0.0
+			_step(0.2)
+			if living >= 2:
+				break
+		if living < 2:
+			errors.append("mitosis living %s" % living)
 	if not bool(unlocks.camera):
-		errors.append("camera locked after 4")
-	_reveal(2, 0)
-	if str(chunks["2,0"].biome) != "river":
-		errors.append("biome " + str(chunks["2,0"].biome))
+		errors.append("camera locked after hatch")
+	peak = 6
+	_refresh_pop_gates(false)
+	if not modal.is_empty():
+		errors.append("quiet grant opened talk")
+	if not bool(unlocks.axe):
+		errors.append("axe at 6")
+	if bool(unlocks.hammer) or bool(unlocks.bathtub):
+		errors.append("build before tools at 6")
+	peak = 10
+	_refresh_pop_gates(false)
+	if not bool(unlocks.hammer):
+		errors.append("hammer at 10")
+	if bool(unlocks.bathtub):
+		errors.append("bathtub before 12")
+	peak = 12
+	_refresh_pop_gates(false)
+	if not bool(unlocks.bathtub):
+		errors.append("bathtub at 12")
+	_ensure_sister_layout()
+	var sister := _sister_chunk()
+	if maxi(absi(sister.x), absi(sister.y)) != 1:
+		errors.append("sister not adjacent")
+	_reveal(sister.x, sister.y)
+	if str(chunks[_ck(sister.x, sister.y)].biome) != "grove":
+		errors.append("sister biome " + str(chunks[_ck(sister.x, sister.y)].biome))
+	var sister_land := 0
+	for t in chunks[_ck(sister.x, sister.y)].tiles:
+		if int(t) != Catalog.TILE_VOID and int(t) != Catalog.TILE_WATER:
+			sister_land += 1
+	if sister_land < 120:
+		errors.append("sister not island shaped")
+	if _count_mine_nodes(0, 0) < 1:
+		errors.append("home mine nodes missing")
+	if _count_mine_nodes(sister.x, sister.y) < 1:
+		errors.append("sister mine nodes missing")
 	if not bool(unlocks.axe):
 		errors.append("axe locked")
-	if not _blocked(2.0 * 512.0 + 16.0 * 16.0 + 8.0, 256.0):
-		errors.append("water walkable")
-	_reveal(1, 0)
+	if not modal.is_empty() and str(modal.get("event", "")) == "need_bridge":
+		choose(0)
+	_ensure_bridge_site()
+	if _primary_open_bridge().is_empty():
+		errors.append("bridge missing")
 	var tree := {}
 	for feat in features:
-		if not feat.dead and int(feat.kind) == Catalog.FEAT_TREE and int(feat.cx) == 1:
+		if not feat.dead and int(feat.kind) == Catalog.FEAT_TREE and int(feat.cx) == 0:
 			tree = feat
 			break
 	if tree.is_empty():
@@ -2853,6 +4247,52 @@ func _run_checks() -> void:
 		_hammer_feature(tree)
 		if not tree.dead:
 			errors.append("stump remains")
+	var open_bridge := _primary_open_bridge()
+	if open_bridge.is_empty():
+		errors.append("open bridge gone")
+	else:
+		open_bridge.progress = int(open_bridge.need)
+		_finish_bridge(open_bridge)
+	var plank := 0
+	var home := _home_bridge_drop()
+	var far := _nearest_island_shore(sister.x, sister.y, home)
+	if home.distance_to(far) > 360.0:
+		errors.append("bridge too long")
+	for ck in chunks.keys():
+		for t in chunks[ck].tiles:
+			if int(t) == Catalog.TILE_BRIDGE_WOOD or int(t) == Catalog.TILE_BRIDGE_BONE:
+				plank += 1
+	if plank < 4:
+		errors.append("wood bridge missing")
+	if not _bridge_path_solid(home, far):
+		errors.append("bridge gaps")
+	_shape_island()
+	if not _bridge_path_solid(home, far):
+		errors.append("bridge wiped by reshape")
+	var mid := home.lerp(far, 0.5)
+	if not _on_bridge(mid.x, mid.y):
+		errors.append("bridge mid missing")
+	elif can_place_building(Catalog.BLD_TUB, mid.x, mid.y):
+		errors.append("build on bridge allowed")
+	if not _add_feature(Catalog.FEAT_ROCK, mid.x, mid.y, 1, 0, true).is_empty():
+		errors.append("rock on bridge")
+	if not bool(bridge_done.get(_ck(sister.x, sister.y), false)):
+		errors.append("bridge not marked done")
+	if not bool(unlocks.get("market", false)):
+		errors.append("market unlock after bridge")
+	if not bool(unlocks.get("mine", false)):
+		errors.append("mine unlock after bridge")
+	while not modal.is_empty():
+		choose(0)
+	var market_at := Vector2(256.0, 200.0)
+	for spot in [Vector2(256.0, 200.0), Vector2(220.0, 220.0), Vector2(280.0, 220.0), Vector2(256.0, 300.0)]:
+		if can_place_building(Catalog.BLD_MARKET, spot.x, spot.y):
+			market_at = spot
+			break
+	if not place_building(Catalog.BLD_MARKET, market_at.x, market_at.y):
+		errors.append("market place free")
+	elif place_building(Catalog.BLD_MARKET, market_at.x + 40.0, market_at.y):
+		errors.append("market unique broken")
 	_rebuild_hash()
 	if find_thronglet(pos_x[0], pos_y[0], 8.0, true) != 0:
 		errors.append("hash miss")
