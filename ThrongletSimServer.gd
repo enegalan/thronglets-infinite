@@ -1156,6 +1156,35 @@ func debug_spawn(amount: int, around: Vector2) -> void:
 	notes.append("ENJAMBRE DE PRUEBA: %d" % living)
 
 
+func world_open() -> bool:
+	return land_tier >= 2
+
+
+func chunk_shown(ck: String) -> bool:
+	if not revealed.has(ck):
+		return false
+	if ck == "0,0":
+		return true
+	return world_open()
+
+
+func chunk_key_at(x: float, y: float) -> String:
+	var c := _chunk_at(x, y)
+	return _ck(c.x, c.y)
+
+
+func _hide_closed_world() -> void:
+	if world_open():
+		return
+	var drop: Array = []
+	for key in revealed.keys():
+		if str(key) != "0,0":
+			drop.append(str(key))
+	for ck in drop:
+		revealed.erase(ck)
+		_mark_dirty(ck)
+
+
 func explore_rect(rect: Rect2) -> void:
 	if rect.size == Vector2.ZERO:
 		return
@@ -1519,6 +1548,7 @@ func load_game() -> bool:
 	_reindex()
 	_check_milestones(false)
 	_shape_island()
+	_hide_closed_world()
 	_rebuild_hash()
 	paint_epoch += 1
 	dirty_chunks.clear()
@@ -1761,10 +1791,12 @@ func _check_milestones(announce: bool = true) -> void:
 		land_tier += 1
 		grew = true
 	if not grew:
+		_hide_closed_world()
 		return
 	if announce:
 		notes.append("LA ISLA CRECE.")
 	_shape_island()
+	_hide_closed_world()
 
 
 func goal_line() -> String:
@@ -1884,6 +1916,7 @@ func _bootstrap_new() -> void:
 	_push_slot(238.0, 272.0, 80.0, 72.0, 77.0, 5.0, 2)
 	_rebuild_hash()
 	session_live = true
+	_hide_closed_world()
 
 
 func _reset_world() -> void:
@@ -2002,6 +2035,8 @@ func _reveal(cx: int, cy: int) -> void:
 
 
 func _try_reveal(cx: int, cy: int) -> void:
+	if not world_open() and not (cx == 0 and cy == 0):
+		return
 	var ck := _ck(cx, cy)
 	if revealed.has(ck):
 		return

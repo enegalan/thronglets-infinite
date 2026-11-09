@@ -267,7 +267,7 @@ func _sync_world() -> void:
 		painted.clear()
 		tilemap.clear()
 	for ck in sim.take_dirty():
-		_paint_chunk(str(ck), false)
+		_paint_chunk(str(ck), not sim.chunk_shown(str(ck)))
 	var rect := _world_view().grow(128.0)
 	var size := float(Catalog.TILE * Catalog.CHUNK)
 	var x0 := int(floor(rect.position.x / size))
@@ -277,7 +277,7 @@ func _sync_world() -> void:
 	for cy in range(y0 - 1, y1 + 2):
 		for cx in range(x0 - 1, x1 + 2):
 			var ck := "%d,%d" % [cx, cy]
-			if sim.revealed.has(ck):
+			if sim.chunk_shown(ck):
 				if str(painted.get(ck, "")) != "real":
 					_paint_chunk(ck, false)
 			elif str(painted.get(ck, "")) != "fog":
@@ -313,17 +313,23 @@ func _sync_actors() -> void:
 	for feat in sim.features:
 		if feat.dead or bool(feat.get("lifted", false)):
 			continue
+		if not sim.chunk_shown("%d,%d" % [int(feat.cx), int(feat.cy)]):
+			continue
 		var p := Vector2(float(feat.x), float(feat.y))
 		if view.has_point(p):
 			_push_iso(draws, p, _prop_frame(Catalog.icon_for_feature(int(feat.kind), int(feat.ore))), Color.WHITE)
 	for it in sim.items:
 		if it.dead or it.held:
 			continue
+		if not sim.chunk_shown(sim.chunk_key_at(float(it.x), float(it.y))):
+			continue
 		var p2 := Vector2(float(it.x), float(it.y))
 		if view.has_point(p2):
 			_push_iso(draws, p2, _prop_frame(Catalog.icon_for_item(int(it.kind))), Color.WHITE)
 	for b in sim.buildings:
 		if b.dead or bool(b.get("lifted", false)):
+			continue
+		if not sim.chunk_shown(sim.chunk_key_at(float(b.x), float(b.y))):
 			continue
 		var p3 := Vector2(float(b.x), float(b.y))
 		if view.has_point(p3):

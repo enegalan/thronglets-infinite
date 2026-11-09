@@ -69,6 +69,7 @@ def draw_thronglet(img, col, row, kind, frame):
     if kind == "stare":
         rx, ry = 6.3, 5.8
         cy = 8.2
+    eating = kind == "eat"
     ellipse(img, ox, oy, cx, cy + 0.4, rx, ry, body)
     facing = kind if kind in ("south", "east", "west", "stare", "corpse") else "south"
     if kind == "sick":
@@ -77,6 +78,9 @@ def draw_thronglet(img, col, row, kind, frame):
         px(img, ox + 11, oy + 10, (92, 42, 140, 255))
     px(img, ox + int(cx) - 1, oy + int(cy) - 4, (255, 255, 255, 255))
     _face(img, ox, oy, cx, cy - 0.4, pupil, facing)
+    if eating:
+        rect(img, ox + 6, oy + int(cy) + 2, 4, 3, (90, 36, 28, 255))
+        px(img, ox + 7, oy + int(cy) + 3, (210, 48, 42, 255))
     outline_cell(img, ox, oy)
     for sx in range(4, 12):
         px(img, ox + sx, oy + 15, (36, 44, 28, 170))
