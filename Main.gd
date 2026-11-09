@@ -382,7 +382,9 @@ func _sync_actors() -> void:
 		elif sim.clean[i] < 12.0:
 			tint = Color(0.62, 0.82, 0.34)
 		var lift := 0.0
-		if sim.act_t[i] > 0.0:
+		if int(sim.act[i]) == ThrongletSimServer.ACT_EAT:
+			lift = sin(time * 10.0 + float(i)) * 1.0
+		elif sim.act_t[i] > 0.0:
 			lift = sin(time * 16.0 + float(i)) * 3.5
 		_push_iso(draws, pos, _frame(i, time), tint, lift)
 		if sim.carry[i] != Catalog.CARRY_NONE:
@@ -414,7 +416,9 @@ func _frame(i: int, time: float) -> int:
 	if sim.mito_t[i] > 0.0:
 		return 16 + int(time * 10.0) % 4
 	var doing := int(sim.act[i])
-	if doing == ThrongletSimServer.ACT_EAT or doing == ThrongletSimServer.ACT_BATH or doing == ThrongletSimServer.ACT_WASH:
+	if doing == ThrongletSimServer.ACT_EAT:
+		return Catalog.FRAME_EAT if int(time * 6.0) % 2 == 0 else 0
+	if doing == ThrongletSimServer.ACT_BATH or doing == ThrongletSimServer.ACT_WASH:
 		return Catalog.FRAME_STARE
 	if doing == ThrongletSimServer.ACT_PLAY or doing == ThrongletSimServer.ACT_WORK:
 		return int(time * 12.0 + float(i)) % 4

@@ -82,6 +82,7 @@ const TOOL_NUKE := 13
 const FRAME_STARE := 20
 const FRAME_CORPSE := 21
 const FRAME_SICK := 22
+const FRAME_EAT := 23
 
 # Atlas is 32 columns by 2 rows. Keep indices aligned with tools/make_art.py.
 const ICON_APPLE := 0

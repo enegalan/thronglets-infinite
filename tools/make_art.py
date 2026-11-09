@@ -117,7 +117,7 @@ def make_thronglets():
     draw_thronglet(img, 0, 5, "stare", 0)
     draw_thronglet(img, 1, 5, "corpse", 0)
     draw_thronglet(img, 2, 5, "sick", 0)
-    draw_thronglet(img, 3, 5, "south", 0)
+    draw_thronglet(img, 3, 5, "eat", 0)
     img.save(OUT("resources", "sprites", "thronglet_spritesheet.png"))
 
 
