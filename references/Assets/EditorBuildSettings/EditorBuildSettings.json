@@ -1,0 +1,496 @@
+{
+	"m_ConfigObjects": {},
+	"m_HideFlags": 0,
+	"m_Scenes": [
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/Game.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/SplashScreens.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/PersistentObjects.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/Start.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/GameIntro.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Credits/Scene_Credits.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/GRASS_Level.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/CH01_S01_ThrongletIsBorn.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/CH01_S02_FirstMitosis.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/CH01_S03_HelloWorld.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/CH01_S04_AbyssDilemma.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/CH01_S05_BuildingTheBridge.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/CH01_S06_TheMonolith.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/CH01_S07_ThrongletBones.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/CH01_S08_CrossingTheBridge.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/GRASS_Logic_Unlocks.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/Timelines.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/ThrongletChorus.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/Emaugs.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/MOUNTAIN_Level.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/CH02_S00_MasterAims.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/CH02_S01_TownIntro.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/CH02_S02_MineTour.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/CH02_S03_BuildingTheTown1.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/CH02_S03_BuildingTheTown2.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/CH02_S04_TNT.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/CH02_S05_Explosive.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/CH02_S06_Oppenheimer.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/CH02_S07_SuccessOrIsIt.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/CH02_Unlocks.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/CH02_Bonus1.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/CH02_Bonus2.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/CH02_Emaugs1.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/CH02_Emaugs2.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/CH01_TransitionTo_CH02.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/DEBUG_Level.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/WASTELAND_Level.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/CH03_S01_UpdateFailed.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/CH03_S02_GapingMaw.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/CH03_S03_ConnectToTheInternet.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/CH03_S03_CAPTCHA.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/CH03_S04_Exponential.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/CH03_S05_WeNeedMorePower.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/CH03_S06_CommunityMode.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/CH03_S07_AnotherThronglet.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/CH03_S075_TimeToLeave.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/CH02_TransitionTo_CH03.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/EPILOGUE_Level.unity"
+		},
+		{
+			"m_Enabled": true,
+			"m_Guid": {
+				"m_Data_0_": 0,
+				"m_Data_1_": 0,
+				"m_Data_2_": 0,
+				"m_Data_3_": 0
+			},
+			"m_Path": "Assets/Venice/Scenes/DEBUG_STRESS_TEST_Level.unity"
+		}
+	]
+}

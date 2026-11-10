@@ -1,0 +1,107 @@
+{
+	"m_AssetBundleName": "08c6930f2a7df67bfc18533d47486cc7.bundle",
+	"m_Container": {
+		"Assets/Venice/Settings/Checkpoints/CH01_Start.asset": {
+			"m_Asset": { "m_Collection": "cab-3e82699fc3d45ea8a39ec3fb39cc66ec", "m_PathID": -6995465232242608696 },
+			"m_PreloadIndex": 128,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Settings/Checkpoints/CH02_Start.asset": {
+			"m_Asset": { "m_Collection": "cab-3e82699fc3d45ea8a39ec3fb39cc66ec", "m_PathID": -5875276481537654804 },
+			"m_PreloadIndex": 6,
+			"m_PreloadSize": 43
+		},
+		"Assets/Venice/Settings/Checkpoints/CH03_Epilogue.asset": {
+			"m_Asset": { "m_Collection": "cab-3e82699fc3d45ea8a39ec3fb39cc66ec", "m_PathID": -5116148302480277865 },
+			"m_PreloadIndex": 125,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Settings/Checkpoints/CH03_Start.asset": {
+			"m_Asset": { "m_Collection": "cab-3e82699fc3d45ea8a39ec3fb39cc66ec", "m_PathID": -7770789573175470390 },
+			"m_PreloadIndex": 49,
+			"m_PreloadSize": 69
+		},
+		"Assets/Venice/Settings/Checkpoints/DebugCheckpoint.asset": {
+			"m_Asset": { "m_Collection": "cab-3e82699fc3d45ea8a39ec3fb39cc66ec", "m_PathID": 582266902402427435 },
+			"m_PreloadIndex": 0,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Settings/Checkpoints/DebugStressTestCheckpoint.asset": {
+			"m_Asset": { "m_Collection": "cab-3e82699fc3d45ea8a39ec3fb39cc66ec", "m_PathID": 7551670253447102366 },
+			"m_PreloadIndex": 153,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Settings/Scenarios/CH02_MountainScenario.asset": {
+			"m_Asset": { "m_Collection": "cab-3e82699fc3d45ea8a39ec3fb39cc66ec", "m_PathID": -7445109934064028203 },
+			"m_PreloadIndex": 118,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Settings/Scenarios/CH03_WastelandScenario.asset": {
+			"m_Asset": { "m_Collection": "cab-3e82699fc3d45ea8a39ec3fb39cc66ec", "m_PathID": -1571524509691600326 },
+			"m_PreloadIndex": 3,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Settings/Scenarios/DebugScenario.asset": {
+			"m_Asset": { "m_Collection": "cab-3e82699fc3d45ea8a39ec3fb39cc66ec", "m_PathID": -7164080833766053396 },
+			"m_PreloadIndex": 150,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Settings/Scenarios/DebugStressTestScenario.asset": {
+			"m_Asset": { "m_Collection": "cab-3e82699fc3d45ea8a39ec3fb39cc66ec", "m_PathID": -8994523697650477666 },
+			"m_PreloadIndex": 147,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Settings/VeniceGameInstanceConfiguration.asset": {
+			"m_Asset": { "m_Collection": "cab-3e82699fc3d45ea8a39ec3fb39cc66ec", "m_PathID": 4475605673857782267 },
+			"m_PreloadIndex": 137,
+			"m_PreloadSize": 10
+		},
+		"Assets/Venice/Settings/Zones/Zone_DEBUG.asset": {
+			"m_Asset": { "m_Collection": "cab-3e82699fc3d45ea8a39ec3fb39cc66ec", "m_PathID": 685366400063843893 },
+			"m_PreloadIndex": 156,
+			"m_PreloadSize": 2
+		},
+		"Assets/Venice/Settings/Zones/Zone_DEBUG_STRESS_TEST.asset": {
+			"m_Asset": { "m_Collection": "cab-3e82699fc3d45ea8a39ec3fb39cc66ec", "m_PathID": 8099489928838933179 },
+			"m_PreloadIndex": 131,
+			"m_PreloadSize": 2
+		},
+		"Assets/Venice/Settings/Zones/Zone_EPILOGUE.asset": {
+			"m_Asset": { "m_Collection": "cab-3e82699fc3d45ea8a39ec3fb39cc66ec", "m_PathID": 1286290063603326182 },
+			"m_PreloadIndex": 133,
+			"m_PreloadSize": 2
+		},
+		"Assets/Venice/Settings/Zones/Zone_GRASS.asset": {
+			"m_Asset": { "m_Collection": "cab-3e82699fc3d45ea8a39ec3fb39cc66ec", "m_PathID": 6067044840362371260 },
+			"m_PreloadIndex": 121,
+			"m_PreloadSize": 2
+		},
+		"Assets/Venice/Settings/Zones/Zone_MOUNTAIN.asset": {
+			"m_Asset": { "m_Collection": "cab-3e82699fc3d45ea8a39ec3fb39cc66ec", "m_PathID": -4580679467274117641 },
+			"m_PreloadIndex": 123,
+			"m_PreloadSize": 2
+		},
+		"Assets/Venice/Settings/Zones/Zone_WASTELAND.asset": {
+			"m_Asset": { "m_Collection": "cab-3e82699fc3d45ea8a39ec3fb39cc66ec", "m_PathID": 8709261102440064202 },
+			"m_PreloadIndex": 135,
+			"m_PreloadSize": 2
+		}
+	},
+	"m_CorrespondingSourceObject": { "m_Collection": "cab-3e82699fc3d45ea8a39ec3fb39cc66ec", "m_PathID": 0 },
+	"m_Dependencies": [],
+	"m_ExplicitDataLayout": 1,
+	"m_HideFlags": 0,
+	"m_IsStreamedSceneAssetBundle": false,
+	"m_MainAsset": {
+		"m_Asset": { "m_Collection": "cab-3e82699fc3d45ea8a39ec3fb39cc66ec", "m_PathID": 0 },
+		"m_PreloadIndex": 0,
+		"m_PreloadSize": 0
+	},
+	"m_Name": "08c6930f2a7df67bfc18533d47486cc7.bundle",
+	"m_PathFlags": 0,
+	"m_PrefabAsset": { "m_Collection": "cab-3e82699fc3d45ea8a39ec3fb39cc66ec", "m_PathID": 0 },
+	"m_PrefabInstance": { "m_Collection": "cab-3e82699fc3d45ea8a39ec3fb39cc66ec", "m_PathID": 0 },
+	"m_PreloadTable": [],
+	"m_RuntimeCompatibility": 1,
+	"m_SceneHashes": {}
+}

@@ -1,0 +1,49 @@
+{
+	"m_Layers": [
+		"Default",
+		"TransparentFX",
+		"Ignore Raycast",
+		"Player",
+		"Water",
+		"UI",
+		"Ground",
+		"Interactable",
+		"Ghost",
+		"Structure",
+		"Tool",
+		"Structure-Physics",
+		"Interactable-Physics",
+		"",
+		"",
+		"",
+		"",
+		"",
+		"",
+		"",
+		"",
+		"",
+		"",
+		"",
+		"",
+		"",
+		"",
+		"",
+		"",
+		"",
+		"",
+		""
+	],
+	"m_SortingLayers": [
+		{
+			"m_Locked": false,
+			"m_Name": "Shadow",
+			"m_UniqueID": 1273471477
+		},
+		{
+			"m_Locked": false,
+			"m_Name": "Default",
+			"m_UniqueID": 0
+		}
+	],
+	"m_Tags": []
+}

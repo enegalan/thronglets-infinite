@@ -1,0 +1,40 @@
+{
+	"m_AudioMixer": { "m_Collection": "cab-60f297bc5eab09e8399b7e9b7b04ebae.sharedassets", "m_PathID": 100 },
+	"m_BypassEffects": false,
+	"m_Children": [],
+	"m_CorrespondingSourceObject": { "m_Collection": "cab-60f297bc5eab09e8399b7e9b7b04ebae.sharedassets", "m_PathID": 0 },
+	"m_Effects": [
+		{ "m_Collection": "cab-60f297bc5eab09e8399b7e9b7b04ebae.sharedassets", "m_PathID": 11 }
+	],
+	"m_GroupID": {
+		"m_Data_0_": 2250721516,
+		"m_Data_1_": 3678429457,
+		"m_Data_2_": 990260624,
+		"m_Data_3_": 3255020204
+	},
+	"m_HideFlags": 0,
+	"m_Mute": false,
+	"m_Name": "Ambience",
+	"m_Pitch": {
+		"m_Data_0_": 2034507715,
+		"m_Data_1_": 1268677612,
+		"m_Data_2_": 2624251035,
+		"m_Data_3_": 496072160
+	},
+	"m_PrefabAsset": { "m_Collection": "cab-60f297bc5eab09e8399b7e9b7b04ebae.sharedassets", "m_PathID": 0 },
+	"m_PrefabInstance": { "m_Collection": "cab-60f297bc5eab09e8399b7e9b7b04ebae.sharedassets", "m_PathID": 0 },
+	"m_Send": {
+		"m_Data_0_": 0,
+		"m_Data_1_": 0,
+		"m_Data_2_": 0,
+		"m_Data_3_": 0
+	},
+	"m_Solo": false,
+	"m_UserColorIndex": 0,
+	"m_Volume": {
+		"m_Data_0_": 3442033572,
+		"m_Data_1_": 1318525579,
+		"m_Data_2_": 1823961785,
+		"m_Data_3_": 1327723638
+	}
+}

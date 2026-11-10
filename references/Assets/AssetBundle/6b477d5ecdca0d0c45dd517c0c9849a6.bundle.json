@@ -1,0 +1,32 @@
+{
+	"m_AssetBundleName": "6b477d5ecdca0d0c45dd517c0c9849a6.bundle",
+	"m_Container": {
+		"Assets/Venice/Art Assets/UI/StartScreen/logo_es-es.png": {
+			"m_Asset": { "m_Collection": "cab-c8f14e8ff8a1669909cf5acdde814052", "m_PathID": -6371039610960159571 },
+			"m_PreloadIndex": 0,
+			"m_PreloadSize": 2
+		},
+		"Assets/Venice/Art Assets/UI/StartScreen/logo_es-es.png": {
+			"m_Asset": { "m_Collection": "cab-c8f14e8ff8a1669909cf5acdde814052", "m_PathID": -6094674382926717779 },
+			"m_PreloadIndex": 0,
+			"m_PreloadSize": 2
+		}
+	},
+	"m_CorrespondingSourceObject": { "m_Collection": "cab-c8f14e8ff8a1669909cf5acdde814052", "m_PathID": 0 },
+	"m_Dependencies": [],
+	"m_ExplicitDataLayout": 1,
+	"m_HideFlags": 0,
+	"m_IsStreamedSceneAssetBundle": false,
+	"m_MainAsset": {
+		"m_Asset": { "m_Collection": "cab-c8f14e8ff8a1669909cf5acdde814052", "m_PathID": 0 },
+		"m_PreloadIndex": 0,
+		"m_PreloadSize": 0
+	},
+	"m_Name": "6b477d5ecdca0d0c45dd517c0c9849a6.bundle",
+	"m_PathFlags": 0,
+	"m_PrefabAsset": { "m_Collection": "cab-c8f14e8ff8a1669909cf5acdde814052", "m_PathID": 0 },
+	"m_PrefabInstance": { "m_Collection": "cab-c8f14e8ff8a1669909cf5acdde814052", "m_PathID": 0 },
+	"m_PreloadTable": [],
+	"m_RuntimeCompatibility": 1,
+	"m_SceneHashes": {}
+}

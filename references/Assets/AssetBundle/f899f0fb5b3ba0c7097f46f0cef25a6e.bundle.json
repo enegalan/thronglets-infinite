@@ -1,0 +1,29 @@
+{
+	"m_AssetBundleName": "f899f0fb5b3ba0c7097f46f0cef25a6e.bundle",
+	"m_Container": {
+		"Assets/Venice/Credits/Scene_Credits.unity": {
+			"m_Asset": { "m_Collection": "cab-60f297bc5eab09e8399b7e9b7b04ebae.sharedassets", "m_PathID": 0 },
+			"m_PreloadIndex": 0,
+			"m_PreloadSize": 0
+		}
+	},
+	"m_CorrespondingSourceObject": { "m_Collection": "cab-60f297bc5eab09e8399b7e9b7b04ebae.sharedassets", "m_PathID": 0 },
+	"m_Dependencies": [],
+	"m_ExplicitDataLayout": 1,
+	"m_HideFlags": 0,
+	"m_IsStreamedSceneAssetBundle": true,
+	"m_MainAsset": {
+		"m_Asset": { "m_Collection": "cab-60f297bc5eab09e8399b7e9b7b04ebae.sharedassets", "m_PathID": 0 },
+		"m_PreloadIndex": 0,
+		"m_PreloadSize": 0
+	},
+	"m_Name": "f899f0fb5b3ba0c7097f46f0cef25a6e.bundle",
+	"m_PathFlags": 0,
+	"m_PrefabAsset": { "m_Collection": "cab-60f297bc5eab09e8399b7e9b7b04ebae.sharedassets", "m_PathID": 0 },
+	"m_PrefabInstance": { "m_Collection": "cab-60f297bc5eab09e8399b7e9b7b04ebae.sharedassets", "m_PathID": 0 },
+	"m_PreloadTable": [],
+	"m_RuntimeCompatibility": 1,
+	"m_SceneHashes": {
+		"Assets/Venice/Credits/Scene_Credits.unity": "CAB-60f297bc5eab09e8399b7e9b7b04ebae"
+	}
+}

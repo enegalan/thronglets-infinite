@@ -1,0 +1,844 @@
+{
+	"m_AssetBundleName": "f01383326da78b93d20be6f4041c5ae8.bundle",
+	"m_Container": {
+		"Assets/Venice/Localizations/LocalizationTables/3S02_APPLEOBJEC/3S02_AppleObjec_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -2834860212488013753 },
+			"m_PreloadIndex": 24,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/3S02_APPLETREE/3S02_AppleTree_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -4503865178287356703 },
+			"m_PreloadIndex": 222,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/3S02_AXETOOL/3S02_AxeTool_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 5371955027531071693 },
+			"m_PreloadIndex": 297,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/3S02_BALLOBJECT/3S02_BallObject_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -2294507076124179108 },
+			"m_PreloadIndex": 45,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/3S02_BATHTUB/3S02_Bathtub_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -2308156000388533550 },
+			"m_PreloadIndex": 48,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/3S02_BUGTOOL/3S02_BugTool_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -3271587291444071120 },
+			"m_PreloadIndex": 336,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/3S02_CHAINSAW/3S02_Chainsaw_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -9212661722251813310 },
+			"m_PreloadIndex": 309,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/3S02_CURERTOOL/3S02_CurerTool_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 3385478445279652577 },
+			"m_PreloadIndex": 477,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/3S02_DWELLING/3S02_Dwelling_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 2237338779340846872 },
+			"m_PreloadIndex": 123,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/3S02_DWELLING2/3S02_Dwelling2_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -2682077294563851924 },
+			"m_PreloadIndex": 81,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/3S02_FACTORY/3S02_Factory_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 3204081634825500232 },
+			"m_PreloadIndex": 321,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/3S02_FACTORY2/3S02_Factory2_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 5294464720078031425 },
+			"m_PreloadIndex": 363,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/3S02_FLOWERS/3S02_Flowers_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -1754924221748297038 },
+			"m_PreloadIndex": 189,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/3S02_GRABBER/3S02_Grabber_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -4184145682235514842 },
+			"m_PreloadIndex": 471,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/3S02_HAMMER/3S02_Hammer_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 3646722911073807349 },
+			"m_PreloadIndex": 387,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/3S02_MAWSTRUCTU/3S02_MawStructu_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 4591516918037410196 },
+			"m_PreloadIndex": 279,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/3S02_MINE2STRUC/3S02_Mine2Struc_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 6744682772802615978 },
+			"m_PreloadIndex": 267,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/3S02_MINESTRUCT/3S02_MineStruct_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -2591409568671224616 },
+			"m_PreloadIndex": 486,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/3S02_MOPTOOL/3S02_MopTool_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -4641010757533806170 },
+			"m_PreloadIndex": 171,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/3S02_NUKEOBJECT/3S02_NukeObject_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 3101645450369664596 },
+			"m_PreloadIndex": 330,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/3S02_ORBITALCAN/3S02_OrbitalCan_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 5008149136031296355 },
+			"m_PreloadIndex": 423,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/3S02_PICKAXE/3S02_Pickaxe_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -1781617691575137044 },
+			"m_PreloadIndex": 21,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/3S02_ROUNDABOUT/3S02_Roundabout_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 2083186910641792950 },
+			"m_PreloadIndex": 276,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/3S02_SPONGE/3S02_Sponge_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 5479286249065910215 },
+			"m_PreloadIndex": 285,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/3S02_STATUE/3S02_Statue_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -6946544023141966580 },
+			"m_PreloadIndex": 408,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/3S02_SUPERBUG/3S02_Superbug_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -6619045175211790708 },
+			"m_PreloadIndex": 402,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/3S02_THEATRE/3S02_Theatre_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -623061234303196148 },
+			"m_PreloadIndex": 417,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/3S02_THRONGLET/3S02_Thronglet_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 6799401067241102916 },
+			"m_PreloadIndex": 147,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/3S02_TNTOBJECT/3S02_TNTObject_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 6030735103504640454 },
+			"m_PreloadIndex": 30,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/3S04_EXPONENTIA/3S04_Exponentia_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 3470553479497101080 },
+			"m_PreloadIndex": 120,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/3S08_FAREWELL/3S08_Farewell_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 3448008841962505697 },
+			"m_PreloadIndex": 339,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S001_EVERYTHING/ACT3_S001_Everything_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -9030439746616644146 },
+			"m_PreloadIndex": 474,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S01_UPDATEFAIL/ACT3_S01_UpdateFail_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 347055039241747396 },
+			"m_PreloadIndex": 405,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S020_GAPINGMAW/ACT3_S020_GapingMaw_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 8718807725694286440 },
+			"m_PreloadIndex": 255,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S021_AFTERTRYIN/ACT3_S021_AfterTryin_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 119229484264888650 },
+			"m_PreloadIndex": 375,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S022_AFTERPLACI/ACT3_S022_AfterPlaci_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 8374050117929578780 },
+			"m_PreloadIndex": 138,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S024_FIRSTBUGUS/ACT3_S024_FirstBugUs_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -1686902749615180865 },
+			"m_PreloadIndex": 141,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S024_ONBADOBJEC/ACT3_S024_OnBadObjec_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -3189569590155949486 },
+			"m_PreloadIndex": 315,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S030_CONNECTTOT/ACT3_S030_ConnectToT_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -3179676705917265012 },
+			"m_PreloadIndex": 168,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S0310C/ACT3_S0310C_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -1638750719834838931 },
+			"m_PreloadIndex": 354,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S0310I/ACT3_S0310I_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 4724665297594541137 },
+			"m_PreloadIndex": 435,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S031_MANUAL/ACT3_S031_Manual_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 3732309921523218632 },
+			"m_PreloadIndex": 6,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S032_AUTOMATED/ACT3_S032_Automated_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 274191010084755870 },
+			"m_PreloadIndex": 156,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S03C4C/ACT3_S03C4C_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -3543547970416613417 },
+			"m_PreloadIndex": 456,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S03C4I/ACT3_S03C4I_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -7378288596024157824 },
+			"m_PreloadIndex": 318,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S03C5C/ACT3_S03C5C_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -2476208085887669890 },
+			"m_PreloadIndex": 264,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S03C5I/ACT3_S03C5I_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -8695548360282154495 },
+			"m_PreloadIndex": 426,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S03C6C/ACT3_S03C6C_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 6113368098014149988 },
+			"m_PreloadIndex": 132,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S03C6I/ACT3_S03C6I_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -7373087528936277456 },
+			"m_PreloadIndex": 105,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S03C7C/ACT3_S03C7C_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 6136737106990742445 },
+			"m_PreloadIndex": 18,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S03C7I/ACT3_S03C7I_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -63745503157942980 },
+			"m_PreloadIndex": 399,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S03C8C/ACT3_S03C8C_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 5441861605238853956 },
+			"m_PreloadIndex": 483,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S03C8I/ACT3_S03C8I_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -3410072432326961081 },
+			"m_PreloadIndex": 204,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S03C9C/ACT3_S03C9C_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -7295385495285307137 },
+			"m_PreloadIndex": 84,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S03C9I/ACT3_S03C9I_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -6708469539400190464 },
+			"m_PreloadIndex": 180,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S03CCA/ACT3_S03CCA_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -3825798771625789929 },
+			"m_PreloadIndex": 249,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S03CDB/ACT3_S03CDB_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -1887220984039481695 },
+			"m_PreloadIndex": 420,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S03CDK/ACT3_S03CDK_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 4039463677801193092 },
+			"m_PreloadIndex": 144,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S03CSC/ACT3_S03CSC_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 4979108514530195820 },
+			"m_PreloadIndex": 438,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S03FCF/ACT3_S03FCF_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 779865032673850325 },
+			"m_PreloadIndex": 78,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S03FIC/ACT3_S03FIC_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -4586092165656500631 },
+			"m_PreloadIndex": 252,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S03STC/ACT3_S03STC_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -6840992317191692073 },
+			"m_PreloadIndex": 489,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S03_CAPTCHA3CO/ACT3_S03_Captcha3Co_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 3549391190419025302 },
+			"m_PreloadIndex": 348,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S03_CAPTCHA3IN/ACT3_S03_Captcha3In_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 7807370530094482113 },
+			"m_PreloadIndex": 75,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S04_LEADTOPOWE/ACT3_S04_LeadToPowe_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -8456642560475348824 },
+			"m_PreloadIndex": 333,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S051_HOWFAR/ACT3_S051_HowFar_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 2427161366459452599 },
+			"m_PreloadIndex": 429,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S05_WENEEDMORE/ACT3_S05_WeNeedMore_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 6385988127639138221 },
+			"m_PreloadIndex": 51,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S06_COMMUNITYM/ACT3_S06_CommunityM_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -4376573592842603009 },
+			"m_PreloadIndex": 228,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S070_ANOTHERTHR/ACT3_S070_AnotherThr_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 9113480762753470811 },
+			"m_PreloadIndex": 450,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S075B1/ACT3_S075B1_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 5005398763231135503 },
+			"m_PreloadIndex": 282,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S075B2/ACT3_S075B2_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 7837121867514838050 },
+			"m_PreloadIndex": 165,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S075ET/ACT3_S075ET_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 883789102869361180 },
+			"m_PreloadIndex": 261,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S075GB/ACT3_S075GB_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 2213286918089693121 },
+			"m_PreloadIndex": 225,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S075GG/ACT3_S075GG_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 4430719981669022839 },
+			"m_PreloadIndex": 90,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S075GS/ACT3_S075GS_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 6194956326509908963 },
+			"m_PreloadIndex": 441,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S075RW/ACT3_S075RW_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 214346575728240921 },
+			"m_PreloadIndex": 33,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S075TL/ACT3_S075TL_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 5872277658988895891 },
+			"m_PreloadIndex": 126,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S075TT/ACT3_S075TT_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -4483349239318011229 },
+			"m_PreloadIndex": 60,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S075UA/ACT3_S075UA_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 8923343764184230947 },
+			"m_PreloadIndex": 3,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S075UB/ACT3_S075UB_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 6323140705372108097 },
+			"m_PreloadIndex": 39,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S075US/ACT3_S075US_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 1404608260037574759 },
+			"m_PreloadIndex": 360,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ACT3_S075UX/ACT3_S075UX_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -71210042626191758 },
+			"m_PreloadIndex": 384,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH01_S01_020FEED/CH01_S01_020FEED_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -742210760386310295 },
+			"m_PreloadIndex": 240,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH01_S01_030PLAY/CH01_S01_030PLAY_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -5428274313871895481 },
+			"m_PreloadIndex": 93,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH01_S01_040CLEAN/CH01_S01_040CLEAN_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 9071308105339936766 },
+			"m_PreloadIndex": 192,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH01_S01_050THANKS/CH01_S01_050THANKS_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 1753205087035047607 },
+			"m_PreloadIndex": 207,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH01_S03_010HELLO/CH01_S03_010HELLO_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -6283261850330810713 },
+			"m_PreloadIndex": 345,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH01_S04_020ABYSS/CH01_S04_020ABYSS_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 6597496358418699498 },
+			"m_PreloadIndex": 294,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH01_S04_030ARTIFAC/CH01_S04_030ARTIFAC_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 9116554591526106031 },
+			"m_PreloadIndex": 66,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH01_S05_020HINT/CH01_S05_020HINT_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 7802903341635842664 },
+			"m_PreloadIndex": 453,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH01_S05_030HINT2/CH01_S05_030HINT2_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -2131589725156060462 },
+			"m_PreloadIndex": 246,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH01_S05_040THANN/CH01_S05_040THANN_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -3397309598567154466 },
+			"m_PreloadIndex": 36,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH01_S06_010MLTH1/CH01_S06_010MLTH1_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -340550405935229700 },
+			"m_PreloadIndex": 432,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH01_S06_015HINT/CH01_S06_015HINT_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 3260839782080854908 },
+			"m_PreloadIndex": 183,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH01_S06_030MLTH2/CH01_S06_030MLTH2_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 2888237479317302609 },
+			"m_PreloadIndex": 27,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH01_S06_WHATISLOVE/CH01_S06_WhatIsLove_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 5024996985297407108 },
+			"m_PreloadIndex": 480,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH01_S07_010BONES/CH01_S07_010BONES_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -2073767150276610138 },
+			"m_PreloadIndex": 378,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH01_S07_020NOLUMBE/CH01_S07_020NOLUMBE_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 8051389811060229333 },
+			"m_PreloadIndex": 69,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH01_S07_030CARELES/CH01_S07_030CARELES_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 4141252946890458336 },
+			"m_PreloadIndex": 174,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH01_S07_040CAREFUL/CH01_S07_040CAREFUL_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -2667824299524468100 },
+			"m_PreloadIndex": 372,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH01_S08_020COLLECT/CH01_S08_020COLLECT_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -4737420586461084144 },
+			"m_PreloadIndex": 465,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH01_S08_BRIDGEISCO/CH01_S08_BridgeIsCo_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 6268863142902458055 },
+			"m_PreloadIndex": 270,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_010INTRO/CH02_010INTRO_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 4398962392440328126 },
+			"m_PreloadIndex": 303,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_020PLAYSTY/CH02_020PLAYSTY_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -3472268004658732652 },
+			"m_PreloadIndex": 57,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_DROPOREROC/CH02_DropOreRoc_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 4330762588722587959 },
+			"m_PreloadIndex": 369,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_FIRSTBUGUS/CH02_FirstBugUs_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -8588146198657173043 },
+			"m_PreloadIndex": 243,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_FTUE_ABOUTMINES/CH02_FTUE_AboutMines_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -2010797033247364467 },
+			"m_PreloadIndex": 219,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_ITEM_NUKEUNLOCK/CH02_ITEM_NukeUnlock_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 4013643532764154727 },
+			"m_PreloadIndex": 342,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_S02_010MINE/CH02_S02_010MINE_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 8405106874334696784 },
+			"m_PreloadIndex": 288,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_S02_020KEEP/CH02_S02_020KEEP_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -3180461548791725773 },
+			"m_PreloadIndex": 54,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_S03_010INT1/CH02_S03_010INT1_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 3978674435925372467 },
+			"m_PreloadIndex": 411,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_S03_020INT2/CH02_S03_020INT2_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -4230149035433123640 },
+			"m_PreloadIndex": 186,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_S03_030INT3/CH02_S03_030INT3_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -2744562660060790924 },
+			"m_PreloadIndex": 258,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_S04_010TNT/CH02_S04_010TNT_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 9163589387434159793 },
+			"m_PreloadIndex": 468,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_S04_020HINT1/Ch02_S04_020HINT1_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -7000103559244511274 },
+			"m_PreloadIndex": 396,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_S04_030HINT2/Ch02_S04_030HINT2_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -4931885031376570610 },
+			"m_PreloadIndex": 150,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_S04_031HINT3/CH02_S04_031HINT3_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 2847465924259656497 },
+			"m_PreloadIndex": 15,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_S04_032HINT4/CH02_S04_032HINT4_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 6113496331892736098 },
+			"m_PreloadIndex": 366,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_S04_033HINT5/CH02_S04_033HINT5_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -8484152874628763508 },
+			"m_PreloadIndex": 357,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_S04_040PLACED/Ch02_S04_040PLACED_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -375212687045085668 },
+			"m_PreloadIndex": 135,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_S05_010EXPLOSI/CH02_S05_010EXPLOSI_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -3365360068992038347 },
+			"m_PreloadIndex": 231,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_S05_020ABYSSAL/CH02_S05_020ABYSSAL_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 184258069564287389 },
+			"m_PreloadIndex": 114,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_S06_010OPPENHE/CH02_S06_010OPPENHE_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -8164492778029592734 },
+			"m_PreloadIndex": 63,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_S06_020HINT1/Ch02_S06_020HINT1_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 4467444000248792260 },
+			"m_PreloadIndex": 273,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_S06_030HINT2/Ch02_S06_030HINT2_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 8864231946412555733 },
+			"m_PreloadIndex": 201,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_S07_010SUCCESS/CH02_S07_010SUCCESS_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -2085785873207707348 },
+			"m_PreloadIndex": 87,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_SEE_100ECON/CH02_SEE_100ECON_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 6593159760740920731 },
+			"m_PreloadIndex": 414,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_SEE_101BREAK/CH02_SEE_101BREAK_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -483168510045833400 },
+			"m_PreloadIndex": 108,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_SEE_102DWELL/CH02_SEE_102DWELL_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 5254496405719415360 },
+			"m_PreloadIndex": 381,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_SEE_103MARKET/CH02_SEE_103MARKET_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -8032549845012936363 },
+			"m_PreloadIndex": 390,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_SEE_104RNDABT/CH02_SEE_104RNDABT_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -9215043731149252933 },
+			"m_PreloadIndex": 351,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_SEE_1051RBT/CH02_SEE_1051RBT_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 5915676915040699288 },
+			"m_PreloadIndex": 198,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_SEE_105PICKAXE/CH02_SEE_105PICKAXE_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -3127663161983842338 },
+			"m_PreloadIndex": 42,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_SEE_106MINE/CH02_SEE_106MINE_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 5258386182275118784 },
+			"m_PreloadIndex": 291,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_SEE_107FACTORY/CH02_SEE_107FACTORY_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 540646137084666026 },
+			"m_PreloadIndex": 129,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_SEE_108FACTORY/CH02_SEE_108FACTORY_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -2769107394817406158 },
+			"m_PreloadIndex": 393,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_SEE_109CHAINSA/CH02_SEE_109CHAINSA_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -3507924445843176583 },
+			"m_PreloadIndex": 72,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_SEE_110BRIDGE1/CH02_SEE_110BRIDGE1_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -2478068919726601164 },
+			"m_PreloadIndex": 159,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_SEE_111BRIDGE2/CH02_SEE_111BRIDGE2_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 8643552022351437037 },
+			"m_PreloadIndex": 102,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_SEE_112THEATRE/CH02_SEE_112THEATRE_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 4818073574783859526 },
+			"m_PreloadIndex": 195,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_SEE_113THEATRE/CH02_SEE_113THEATRE_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 208492901371607082 },
+			"m_PreloadIndex": 12,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_SEE_114ORE/CH02_SEE_114ORE_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 3802475957045514580 },
+			"m_PreloadIndex": 111,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_SEE_115POLLUTE/CH02_SEE_115POLLUTE_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 2230715585372818880 },
+			"m_PreloadIndex": 444,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_SEE_116MOP/CH02_SEE_116MOP_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -7899298938648732087 },
+			"m_PreloadIndex": 213,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_SEE_117ENCOURA/CH02_SEE_117ENCOURA_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -6614152778551864559 },
+			"m_PreloadIndex": 237,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_SEE_118ENCOURA/CH02_SEE_118ENCOURA_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 6949622360726760911 },
+			"m_PreloadIndex": 177,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_SEE_119GRAB/CH02_SEE_119GRAB_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -2039964971206716146 },
+			"m_PreloadIndex": 312,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_SEE_120MINE2/CH02_SEE_120MINE2_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -3893048450145630198 },
+			"m_PreloadIndex": 462,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_SEE_121ORBITAL/CH02_SEE_121ORBITAL_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -3350561509672203420 },
+			"m_PreloadIndex": 234,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_SEE_200FLOWER/CH02_SEE_200FLOWER_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 849226246179215150 },
+			"m_PreloadIndex": 306,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_SEE_201TREES/CH02_SEE_201TREES_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -4531766525204050064 },
+			"m_PreloadIndex": 117,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_SEE_300WORKLIF/CH02_SEE_300WORKLIF_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 7343323223093916402 },
+			"m_PreloadIndex": 0,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_SEE_400PROCESS/CH02_SEE_400PROCESS_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 5551743179913540810 },
+			"m_PreloadIndex": 96,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_SEE_500STATUE/CH02_SEE_500STATUE_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 236615992459982749 },
+			"m_PreloadIndex": 162,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_SEE_501COMPLET/CH02_SEE_501COMPLET_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 5609701392023253579 },
+			"m_PreloadIndex": 216,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_SEE_600BONES/CH02_SEE_600BONES_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -2237062597238114874 },
+			"m_PreloadIndex": 300,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_SEE_700DEATH/CH02_SEE_700DEATH_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -4487584176995967260 },
+			"m_PreloadIndex": 324,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_SEE_PLACEDWELL/CH02_SEE_PLACEDWELL_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": -8658468312401736142 },
+			"m_PreloadIndex": 447,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/CH02_SEE_THROWROCKS/CH02_SEE_ThrowRocks_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 5374271799770446939 },
+			"m_PreloadIndex": 210,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/GAME_TITLE/GAME_TITLE_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 3430467421144846909 },
+			"m_PreloadIndex": 153,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ITEM_FACTORY2UN/ITEM_Factory2Un_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 4235990288423393723 },
+			"m_PreloadIndex": 327,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/ITEM_SUPERBUGUN/ITEM_SuperBugUn_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 8545906150122419338 },
+			"m_PreloadIndex": 99,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/OGUE_S01_EPILOGUESC/OGUE_S01_EpilogueSc_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 7432203119836664155 },
+			"m_PreloadIndex": 459,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Localizations/LocalizationTables/SEE_T03_MINEUNLOCK/SEE_T03_MineUnlock_AudioTable_pt-BR.asset": {
+			"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 4264457907259469102 },
+			"m_PreloadIndex": 9,
+			"m_PreloadSize": 3
+		}
+	},
+	"m_CorrespondingSourceObject": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 0 },
+	"m_Dependencies": [
+		"cab-11632ee87abd87eadc3a177659fdbe80"
+	],
+	"m_ExplicitDataLayout": 1,
+	"m_HideFlags": 0,
+	"m_IsStreamedSceneAssetBundle": false,
+	"m_MainAsset": {
+		"m_Asset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 0 },
+		"m_PreloadIndex": 0,
+		"m_PreloadSize": 0
+	},
+	"m_Name": "f01383326da78b93d20be6f4041c5ae8.bundle",
+	"m_PathFlags": 0,
+	"m_PrefabAsset": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 0 },
+	"m_PrefabInstance": { "m_Collection": "cab-14d8ffe3bfe5f80a7d5c9128b9f61243", "m_PathID": 0 },
+	"m_PreloadTable": [],
+	"m_RuntimeCompatibility": 1,
+	"m_SceneHashes": {}
+}

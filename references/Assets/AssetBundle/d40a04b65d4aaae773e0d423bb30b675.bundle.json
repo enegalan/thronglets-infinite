@@ -1,0 +1,57 @@
+{
+	"m_AssetBundleName": "d40a04b65d4aaae773e0d423bb30b675.bundle",
+	"m_Container": {
+		"Assets/Venice/Settings/Localization/Locales/English (en).asset": {
+			"m_Asset": { "m_Collection": "cab-20c8374eb63db785995ebac9f7a26a75", "m_PathID": -6891612041472355532 },
+			"m_PreloadIndex": 4,
+			"m_PreloadSize": 2
+		},
+		"Assets/Venice/Settings/Localization/Locales/French (fr).asset": {
+			"m_Asset": { "m_Collection": "cab-20c8374eb63db785995ebac9f7a26a75", "m_PathID": 6789995583218375043 },
+			"m_PreloadIndex": 13,
+			"m_PreloadSize": 2
+		},
+		"Assets/Venice/Settings/Localization/Locales/German (de).asset": {
+			"m_Asset": { "m_Collection": "cab-20c8374eb63db785995ebac9f7a26a75", "m_PathID": 3747781541374159265 },
+			"m_PreloadIndex": 9,
+			"m_PreloadSize": 2
+		},
+		"Assets/Venice/Settings/Localization/Locales/Italian (it).asset": {
+			"m_Asset": { "m_Collection": "cab-20c8374eb63db785995ebac9f7a26a75", "m_PathID": 3503940657650951523 },
+			"m_PreloadIndex": 2,
+			"m_PreloadSize": 2
+		},
+		"Assets/Venice/Settings/Localization/Locales/Portuguese (Brazil) (pt-BR).asset": {
+			"m_Asset": { "m_Collection": "cab-20c8374eb63db785995ebac9f7a26a75", "m_PathID": 5081621992809424766 },
+			"m_PreloadIndex": 11,
+			"m_PreloadSize": 2
+		},
+		"Assets/Venice/Settings/Localization/Locales/Spanish (Spain) (es-ES).asset": {
+			"m_Asset": { "m_Collection": "cab-20c8374eb63db785995ebac9f7a26a75", "m_PathID": 4868171749425790053 },
+			"m_PreloadIndex": 6,
+			"m_PreloadSize": 3
+		},
+		"Assets/Venice/Settings/Localization/Locales/Spanish (es).asset": {
+			"m_Asset": { "m_Collection": "cab-20c8374eb63db785995ebac9f7a26a75", "m_PathID": -4306116938093885925 },
+			"m_PreloadIndex": 0,
+			"m_PreloadSize": 2
+		}
+	},
+	"m_CorrespondingSourceObject": { "m_Collection": "cab-20c8374eb63db785995ebac9f7a26a75", "m_PathID": 0 },
+	"m_Dependencies": [],
+	"m_ExplicitDataLayout": 1,
+	"m_HideFlags": 0,
+	"m_IsStreamedSceneAssetBundle": false,
+	"m_MainAsset": {
+		"m_Asset": { "m_Collection": "cab-20c8374eb63db785995ebac9f7a26a75", "m_PathID": 0 },
+		"m_PreloadIndex": 0,
+		"m_PreloadSize": 0
+	},
+	"m_Name": "d40a04b65d4aaae773e0d423bb30b675.bundle",
+	"m_PathFlags": 0,
+	"m_PrefabAsset": { "m_Collection": "cab-20c8374eb63db785995ebac9f7a26a75", "m_PathID": 0 },
+	"m_PrefabInstance": { "m_Collection": "cab-20c8374eb63db785995ebac9f7a26a75", "m_PathID": 0 },
+	"m_PreloadTable": [],
+	"m_RuntimeCompatibility": 1,
+	"m_SceneHashes": {}
+}

@@ -1,0 +1,22 @@
+{
+	"Name": "Timeline_ScrollCredits",
+	"FileExtension": "playable",
+	"Root": { "m_Collection": "Generated Scriptable Object Groups", "m_PathID": 397 },
+	"Children": [
+		{ "m_Collection": "Generated Scriptable Object Groups", "m_PathID": 395 },
+		{ "m_Collection": "Generated Scriptable Object Groups", "m_PathID": 402 },
+		{ "m_Collection": "Generated Scriptable Object Groups", "m_PathID": 390 },
+		{ "m_Collection": "Generated Scriptable Object Groups", "m_PathID": 408 },
+		{ "m_Collection": "Generated Scriptable Object Groups", "m_PathID": 406 },
+		{ "m_Collection": "Generated Scriptable Object Groups", "m_PathID": 409 },
+		{ "m_Collection": "Generated Scriptable Object Groups", "m_PathID": 401 },
+		{ "m_Collection": "Generated Scriptable Object Groups", "m_PathID": 410 },
+		{ "m_Collection": "Generated Scriptable Object Groups", "m_PathID": 404 },
+		{ "m_Collection": "Generated Scriptable Object Groups", "m_PathID": 407 },
+		{ "m_Collection": "Generated Scriptable Object Groups", "m_PathID": 400 },
+		{ "m_Collection": "Generated Scriptable Object Groups", "m_PathID": 405 },
+		{ "m_Collection": "Generated Scriptable Object Groups", "m_PathID": 403 },
+		{ "m_Collection": "Generated Scriptable Object Groups", "m_PathID": 396 },
+		{ "m_Collection": "Generated Scriptable Object Groups", "m_PathID": 394 }
+	]
+}

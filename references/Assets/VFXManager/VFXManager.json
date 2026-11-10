@@ -1,0 +1,16 @@
+{
+	"m_BatchEmptyLifetime": 300,
+	"m_CompiledVersion": 7,
+	"m_CopyBufferShader": { "m_Collection": "globalgamemanagers", "m_PathID": 95 },
+	"m_EmptyShader": { "m_Collection": "globalgamemanagers", "m_PathID": 61 },
+	"m_FixedTimeStep": 0.016666668,
+	"m_HideFlags": 0,
+	"m_IndirectShader": { "m_Collection": "globalgamemanagers", "m_PathID": 97 },
+	"m_MaxDeltaTime": 0.05,
+	"m_MaxScrubTime": 30,
+	"m_RenderPipeSettingsPath": "",
+	"m_RuntimeResources": { "m_Collection": "globalgamemanagers", "m_PathID": 3839 },
+	"m_RuntimeVersion": 35,
+	"m_SortShader": { "m_Collection": "globalgamemanagers", "m_PathID": 99 },
+	"m_StripUpdateShader": { "m_Collection": "globalgamemanagers", "m_PathID": 98 }
+}

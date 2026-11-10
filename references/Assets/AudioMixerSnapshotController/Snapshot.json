@@ -1,0 +1,143 @@
+{
+	"m_AudioMixer": { "m_Collection": "sharedassets2.assets", "m_PathID": 2452 },
+	"m_CorrespondingSourceObject": { "m_Collection": "sharedassets2.assets", "m_PathID": 0 },
+	"m_FloatValues": [
+		{
+			"Key": {
+				"m_Data_0_": 3520676405,
+				"m_Data_1_": 1110523668,
+				"m_Data_2_": 994929280,
+				"m_Data_3_": 3083959389
+			},
+			"Value": 0
+		},
+		{
+			"Key": {
+				"m_Data_0_": 3830259517,
+				"m_Data_1_": 1238925594,
+				"m_Data_2_": 1812801692,
+				"m_Data_3_": 3394050824
+			},
+			"Value": 1
+		},
+		{
+			"Key": {
+				"m_Data_0_": 653799684,
+				"m_Data_1_": 1315074907,
+				"m_Data_2_": 1363929771,
+				"m_Data_3_": 475081694
+			},
+			"Value": -6.133707
+		},
+		{
+			"Key": {
+				"m_Data_0_": 1313116264,
+				"m_Data_1_": 1294604879,
+				"m_Data_2_": 476758931,
+				"m_Data_3_": 2687634840
+			},
+			"Value": 1
+		},
+		{
+			"Key": {
+				"m_Data_0_": 641819724,
+				"m_Data_1_": 1093871913,
+				"m_Data_2_": 2459307439,
+				"m_Data_3_": 3223905941
+			},
+			"Value": 0
+		},
+		{
+			"Key": {
+				"m_Data_0_": 3394661772,
+				"m_Data_1_": 1233144618,
+				"m_Data_2_": 1998943379,
+				"m_Data_3_": 460546206
+			},
+			"Value": 1
+		},
+		{
+			"Key": {
+				"m_Data_0_": 1209679157,
+				"m_Data_1_": 1099729015,
+				"m_Data_2_": 434086837,
+				"m_Data_3_": 6347945
+			},
+			"Value": 0
+		},
+		{
+			"Key": {
+				"m_Data_0_": 3220022640,
+				"m_Data_1_": 1332463850,
+				"m_Data_2_": 1725774256,
+				"m_Data_3_": 605865970
+			},
+			"Value": 1
+		},
+		{
+			"Key": {
+				"m_Data_0_": 978999132,
+				"m_Data_1_": 1141131540,
+				"m_Data_2_": 1965144996,
+				"m_Data_3_": 2810313319
+			},
+			"Value": 0
+		},
+		{
+			"Key": {
+				"m_Data_0_": 245364515,
+				"m_Data_1_": 1092129752,
+				"m_Data_2_": 191977904,
+				"m_Data_3_": 2769198686
+			},
+			"Value": 1
+		},
+		{
+			"Key": {
+				"m_Data_0_": 308904715,
+				"m_Data_1_": 1213416320,
+				"m_Data_2_": 1387556262,
+				"m_Data_3_": 3633375351
+			},
+			"Value": 0
+		},
+		{
+			"Key": {
+				"m_Data_0_": 3158701721,
+				"m_Data_1_": 1178240284,
+				"m_Data_2_": 206335663,
+				"m_Data_3_": 4261966853
+			},
+			"Value": 50
+		},
+		{
+			"Key": {
+				"m_Data_0_": 1340494694,
+				"m_Data_1_": 1178495186,
+				"m_Data_2_": 1687237797,
+				"m_Data_3_": 925850337
+			},
+			"Value": 50
+		},
+		{
+			"Key": {
+				"m_Data_0_": 3306818222,
+				"m_Data_1_": 1110030019,
+				"m_Data_2_": 323955595,
+				"m_Data_3_": 1804917074
+			},
+			"Value": 0
+		}
+	],
+	"m_HideFlags": 0,
+	"m_Name": "Snapshot",
+	"m_PrefabAsset": { "m_Collection": "sharedassets2.assets", "m_PathID": 0 },
+	"m_PrefabInstance": { "m_Collection": "sharedassets2.assets", "m_PathID": 0 },
+	"m_SnapshotID": {
+		"m_Data_0_": 4269141562,
+		"m_Data_1_": 2487946477,
+		"m_Data_2_": 3145246381,
+		"m_Data_3_": 3535541075
+	},
+	"m_TransitionOverrides": []
+}
