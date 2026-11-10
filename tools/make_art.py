@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Pixel art for Thronglets: Infinite."""
 
+import json
 import os
 from PIL import Image, ImageDraw
 
@@ -47,78 +48,176 @@ def outline_cell(img, ox, oy, size=16):
                 px(img, ox + nx, oy + ny, dark)
 
 
-def draw_thronglet(img, col, row, kind, frame):
-    ox, oy = col * 16, row * 16
-    bob = (0, -1, 0, 1)[frame % 4]
-    body = (244, 244, 236, 255)
-    pupil = (28, 18, 12, 255)
-    if kind == "corpse":
-        body = (168, 164, 150, 255)
-        bob = 0
-    rx, ry = 5.4, 6.0
-    cx, cy = 8.0, 8.2 + bob
-    if kind == "mitosis":
-        if frame >= 2:
-            ellipse(img, ox, oy, 5.0, cy, 3.3, 4.4, body)
-            ellipse(img, ox, oy, 11.0, cy, 3.3, 4.4, body)
-            _face(img, ox, oy, 5.0, cy - 0.8, pupil, "south")
-            _face(img, ox, oy, 11.0, cy - 0.8, pupil, "south")
-            outline_cell(img, ox, oy)
-            return
-        rx = 6.6 if frame == 1 else 5.4
-    if kind == "stare":
-        rx, ry = 6.3, 5.8
-        cy = 8.2
-    eating = kind == "eat"
-    ellipse(img, ox, oy, cx, cy + 0.4, rx, ry, body)
-    facing = kind if kind in ("south", "east", "west", "stare", "corpse") else "south"
+BODY = (228, 181, 66, 255)
+
+
+def _ref_crop():
+    src = Image.open(OUT("ThrongA_Default_001.png")).convert("RGBA")
+    return src.crop(src.getbbox())
+
+
+def _is_face_pixel(color):
+    r, g, b, a = color
+    if a < 200:
+        return False
+    if r > 240 and g > 240 and b > 240:
+        return True
+    if r < 20 and g < 20 and b < 20:
+        return True
+    return (r, g, b) == (115, 80, 26)
+
+
+def _body_near(src, x, y, w, h):
+    for dy, dx in ((-1, 0), (-2, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (-1, 1)):
+        nx, ny = x + dx, y + dy
+        if 0 <= nx < w and 0 <= ny < h:
+            color = src[nx, ny]
+            if color[3] > 200 and not _is_face_pixel(color):
+                return color
+    return BODY
+
+
+def _cover_face(img, redraw):
+    out = img.copy()
+    src = img.load()
+    dst = out.load()
+    w, h = img.size
+    found = []
+    for y in range(h):
+        for x in range(w):
+            if _is_face_pixel(src[x, y]):
+                found.append((x, y, src[x, y]))
+                dst[x, y] = _body_near(src, x, y, w, h)
+    if redraw is None:
+        return out
+    for x, y, color in found:
+        nx, ny = redraw(x, y)
+        if 0 <= nx < w and 0 <= ny < h:
+            dst[nx, ny] = color
+    return out
+
+
+def _paint_eat(img):
+    out = _cover_face(img, lambda x, y: (x, y))
+    dst = out.load()
+    for y in range(20, 24):
+        for x in range(15, 21):
+            dst[x, y] = (150, 48, 28, 255)
+    for y in range(21, 23):
+        for x in range(16, 20):
+            dst[x, y] = (70, 24, 18, 255)
+    return out
+
+
+def _paint_sick(img):
+    out = img.copy()
+    dst = out.load()
+    w, h = out.size
+    for y in range(h):
+        for x in range(w):
+            r, g, b, a = dst[x, y]
+            if a < 16 or _is_face_pixel((r, g, b, a)):
+                continue
+            if b > r and b > 100:
+                continue
+            if g < 110:
+                continue
+            dst[x, y] = (int(r * 0.62), min(255, int(g * 0.9) + 28), int(b * 0.55), a)
+    return out
+
+
+def _paint_corpse(img):
+    out = img.copy()
+    dst = out.load()
+    w, h = out.size
+    for y in range(h):
+        for x in range(w):
+            r, g, b, a = dst[x, y]
+            if a < 16:
+                continue
+            lum = int(r * 0.3 + g * 0.5 + b * 0.2)
+            if b > r and b > 100:
+                dst[x, y] = (int(lum * 0.7), int(lum * 0.78), int(lum * 0.95), a)
+            else:
+                dst[x, y] = (lum, int(lum * 0.97), int(lum * 0.9), a)
+    ink = (24, 20, 18, 255)
+    for d in range(6):
+        dst[12 + d, 14 + d] = ink
+        dst[17 - d, 14 + d] = ink
+        dst[19 + d, 14 + d] = ink
+        dst[24 - d, 14 + d] = ink
+    return out
+
+
+CELL_W, CELL_H = 64, 64
+# Buildings and props grow by 2 so a 30x34 thronglet stays smaller than a house.
+PROP_SCALE = 2
+
+
+def _place(img, bob=0):
+    cell = new(CELL_W, CELL_H)
+    x = (CELL_W - img.size[0]) // 2
+    y = CELL_H - img.size[1] - bob
+    cell.alpha_composite(img, (x, y))
+    return cell
+
+
+def _mitosis_cell(base, frame):
+    cell = new(CELL_W, CELL_H)
+    y = CELL_H - base.size[1]
+    if frame < 2:
+        cell.alpha_composite(base, ((CELL_W - base.size[0]) // 2, y))
+        return cell
+    left = (CELL_W - base.size[0] * 2) // 2
+    cell.alpha_composite(base, (left, y))
+    cell.alpha_composite(base, (left + base.size[0], y))
+    return cell
+
+
+def _pose(kind):
+    base = _ref_crop()
+    if kind == "north":
+        return _cover_face(base, None)
+    if kind == "east":
+        return _cover_face(base, lambda x, y: (x + 3, y))
+    if kind == "west":
+        return _cover_face(base, lambda x, y: (x - 3, y))
+    if kind == "eat":
+        return _paint_eat(base)
     if kind == "sick":
-        facing = "south"
-        px(img, ox + 4, oy + 11, (92, 42, 140, 255))
-        px(img, ox + 11, oy + 10, (92, 42, 140, 255))
-    px(img, ox + int(cx) - 1, oy + int(cy) - 4, (255, 255, 255, 255))
-    _face(img, ox, oy, cx, cy - 0.4, pupil, facing)
-    if eating:
-        rect(img, ox + 6, oy + int(cy) + 2, 4, 3, (90, 36, 28, 255))
-        px(img, ox + 7, oy + int(cy) + 3, (210, 48, 42, 255))
-    outline_cell(img, ox, oy)
-    for sx in range(4, 12):
-        px(img, ox + sx, oy + 15, (36, 44, 28, 170))
+        return _paint_sick(base)
+    if kind == "corpse":
+        return _paint_corpse(base)
+    return base
 
 
-def _face(img, ox, oy, cx, cy, pupil, facing):
-    if facing == "corpse":
-        for d in range(2):
-            px(img, ox + int(cx) - 3 + d, oy + int(cy) + d, pupil)
-            px(img, ox + int(cx) - 2 - d, oy + int(cy) + d, pupil)
-            px(img, ox + int(cx) + 1 + d, oy + int(cy) + d, pupil)
-            px(img, ox + int(cx) + 2 - d, oy + int(cy) + d, pupil)
-        return
-    shift = 2 if facing == "east" else -2 if facing == "west" else 0
-    span = 3 if facing == "stare" else 2
-    lx = int(cx) - span + shift
-    rx = int(cx) + 1 + shift
-    py = int(cy)
-    px(img, ox + lx, oy + py, pupil)
-    px(img, ox + lx + 1, oy + py, pupil)
-    px(img, ox + rx, oy + py, pupil)
-    px(img, ox + rx + 1, oy + py, pupil)
-    px(img, ox + int(cx) + shift, oy + py + 3, (120, 64, 36, 255))
+def _frame_cell(kind, frame):
+    if kind == "mitosis":
+        return _mitosis_cell(_ref_crop(), frame)
+    bob = (0, 1, 0, 1)[frame % 4] if kind in ("south", "north", "east", "west") else 0
+    return _place(_pose(kind), bob)
 
 
 def make_thronglets():
-    img = new(64, 96)
-    facings = ("south", "north", "east", "west")
-    for row, facing in enumerate(facings):
+    order = []
+    for facing in ("south", "north", "east", "west"):
         for frame in range(4):
-            draw_thronglet(img, frame, row, facing, frame)
+            order.append((facing, frame))
     for frame in range(4):
-        draw_thronglet(img, frame, 4, "mitosis", frame)
-    draw_thronglet(img, 0, 5, "stare", 0)
-    draw_thronglet(img, 1, 5, "corpse", 0)
-    draw_thronglet(img, 2, 5, "sick", 0)
-    draw_thronglet(img, 3, 5, "eat", 0)
-    img.save(OUT("resources", "sprites", "thronglet_spritesheet.png"))
+        order.append(("mitosis", frame))
+    order.extend((("stare", 0), ("corpse", 0), ("sick", 0), ("eat", 0)))
+    sheet = new(4 * CELL_W, 6 * CELL_H)
+    view_w, view_h = 60, 35
+    view = new(4 * view_w, 6 * view_h)
+    for index, (kind, frame) in enumerate(order):
+        cell = _frame_cell(kind, frame)
+        sheet.alpha_composite(cell, ((index % 4) * CELL_W, (index // 4) * CELL_H))
+        view.alpha_composite(
+            cell.crop((2, CELL_H - view_h, 2 + view_w, CELL_H)),
+            ((index % 4) * view_w, (index // 4) * view_h),
+        )
+    view.save(OUT("resources", "sprites", "thronglet_spritesheet.png"))
+    sheet.save(OUT("resources", "sprites", "thronglet_32.png"))
 
 
 def icon(index):
@@ -128,8 +227,7 @@ def icon(index):
 
 
 def blit_icon(sheet, index, cols):
-    tile = new(16, 16)
-    draw_icon(tile, 0, 0, index)
+    tile = _ui_icon(index)
     x = (index % cols) * 16
     y = (index // cols) * 16
     sheet.alpha_composite(tile, (x, y))
@@ -164,12 +262,12 @@ def draw_icon(img, ox, oy, index):
         box(5, 5, 6, 6, RED)
         box(6, 6, 4, 4, (230, 70, 70, 255))
         p(6, 6, W)
-    elif index == 1:  # ball
-        box(4, 4, 8, 8, RED)
-        box(7, 4, 2, 8, W)
-        box(4, 7, 8, 2, W)
-        p(5, 5, RED)
-        p(10, 10, RED)
+    elif index == 1:  # beach ball
+        box(4, 4, 8, 8, (214, 48, 56, 255))
+        box(8, 4, 4, 8, (244, 188, 40, 255))
+        box(4, 8, 4, 4, (52, 120, 220, 255))
+        box(8, 8, 4, 4, W)
+        p(6, 6, W)
     elif index == 2:  # tree
         box(7, 10, 2, 4, BR)
         box(4, 4, 8, 6, G)
@@ -394,15 +492,32 @@ def make_atlas():
     cols = 32
     rows = 2
     sheet = new(cols * 16, rows * 16)
-    for i in range(41):
+    for i in range(63):
         blit_icon(sheet, i, cols)
     sheet.save(OUT("resources", "structures", "structures_tileset.png"))
     icons = new(64, 16)
-    for i, src in enumerate((0, 12, 13, 28)):
-        tile = new(16, 16)
-        draw_icon(tile, 0, 0, src)
-        icons.alpha_composite(tile, (i * 16, 0))
+    for i, src in enumerate((0, 12, 13)):
+        icons.alpha_composite(_ui_icon(src), (i * 16, 0))
+    icons.alpha_composite(_fit(_ref("hand.png"), 16, 16), (48, 0))
     icons.save(OUT("resources", "ui", "ui_icons.png"))
+
+
+def draw_eye(img, ox, oy):
+    def p(x, y, c):
+        px(img, ox + x, oy + y, c)
+
+    def box(x, y, w, h, c):
+        rect(img, ox + x, oy + y, w, h, c)
+
+    W = (245, 245, 248, 255)
+    INK = (24, 20, 32, 255)
+    BLUE = (64, 120, 210, 255)
+    box(4, 6, 8, 4, W)
+    box(5, 5, 6, 1, W)
+    box(5, 10, 6, 1, W)
+    box(6, 6, 4, 4, BLUE)
+    box(7, 6, 2, 4, INK)
+    p(7, 6, W)
 
 
 def _shade(color, light):
@@ -429,28 +544,84 @@ def paint_block(img, ox, top, light, dark, left_side, right_side):
                 px(img, ox + x, y, side)
 
 
+def _tex(name):
+    return Image.open(
+        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "references", "Assets", "Texture2D", name)
+    ).convert("RGBA")
+
+
+def _sample_tile(img, ox, src):
+    src = src.convert("RGBA")
+    sw, sh = src.size
+    sp = src.load()
+    for y in range(32):
+        for x in range(32):
+            nx = (x + 0.5 - 16.0) / 16.0
+            ny = (y + 0.5 - 16.0) / 8.0
+            span = 1.0 - abs(nx)
+            if span < 0.0:
+                continue
+            bottom = 16.0 + 8.0 * span
+            if abs(nx) + abs(ny) <= 1.0:
+                sx = min(sw - 1, max(0, int((nx + 1.0) * 0.5 * sw)))
+                sy = min(sh - 1, max(0, int((ny + 1.0) * 0.5 * sh)))
+                color = sp[sx, sy]
+                if color[3] < 16:
+                    continue
+                px(img, ox + x, y, (color[0], color[1], color[2], 255))
+            elif bottom <= y + 0.5 < bottom + 8.0:
+                sx = min(sw - 1, max(0, int((abs(nx)) * (sw - 1))))
+                color = sp[sx, sh // 2]
+                shade = 0.62 if x < 16 else 0.45
+                if y + 0.5 > bottom + 5.0:
+                    shade *= 0.8
+                px(img, ox + x, y, (int(color[0] * shade), int(color[1] * shade), int(color[2] * shade), 255))
+
+
+def _stamp_tile(img, ox, src):
+    fitted = _fit(src.convert("RGBA"), 32, 22)
+    img.alpha_composite(fitted, (ox + (32 - fitted.size[0]) // 2, 4))
+
+
 def make_terrain():
-    blocks = (
-        ((150, 164, 72, 255), (190, 196, 104, 255), (112, 128, 54, 255), (74, 58, 38, 255), (122, 96, 58, 255)),
-        ((168, 132, 78, 255), (196, 164, 112, 255), (132, 100, 58, 255), (70, 52, 34, 255), (112, 84, 50, 255)),
-        ((78, 150, 188, 255), (150, 198, 220, 255), (46, 108, 150, 255), (28, 64, 96, 255), (52, 102, 140, 255)),
-        ((150, 148, 140, 255), (190, 188, 180, 255), (110, 108, 102, 255), (62, 60, 58, 255), (96, 94, 90, 255)),
-        ((128, 116, 104, 255), (160, 148, 132, 255), (90, 80, 70, 255), (54, 48, 42, 255), (84, 74, 64, 255)),
-        ((132, 64, 160, 255), (170, 110, 190, 255), (90, 36, 110, 255), (48, 28, 64, 255), (80, 48, 100, 255)),
-        ((156, 112, 64, 255), (186, 142, 86, 255), (112, 78, 42, 255), (70, 48, 30, 255), (110, 76, 46, 255)),
-        ((210, 204, 184, 255), (230, 226, 210, 255), (170, 162, 146, 255), (120, 112, 98, 255), (160, 150, 132, 255)),
-        ((0, 0, 0, 0), (0, 0, 0, 0), (0, 0, 0, 0), (0, 0, 0, 0), (0, 0, 0, 0)),
-        ((132, 170, 70, 255), (176, 200, 104, 255), (96, 132, 52, 255), (70, 56, 36, 255), (114, 90, 54, 255)),
-    )
-    img = new(32 * 10, 32)
-    for i, colors in enumerate(blocks):
-        if i == 8:
+    grass = _tex("Grass_Bright.png")
+    grass_dark = _tex("Grass_Darker.png")
+    ground_a = _tex("16_Ground_Jellyfish_Style_1.png")
+    ground_b = _tex("16_Ground_Jellyfish_Style_2.png")
+    dirt = _tex("Wasteland_GroundTile_1_Center.png")
+    water = _tex("TEMP_river.png")
+    mountain = _tex("TEMP_Mountain_Bright.png")
+    rubble = _tex("TEMP_Mountain_Darker.png")
+    goo = _tex("T_PollutedTile_GroundVariant.png")
+    wood = _tex("Bridge_Wood_Iso_A.png")
+    bone = _tex("Bridge_Bones_Iso_A.png")
+    tiles = (grass, dirt, water, mountain, rubble, goo, wood, bone, None, grass_dark, ground_a, ground_b)
+    img = new(32 * len(tiles), 32)
+    for i, src in enumerate(tiles):
+        if src is None:
             continue
-        paint_block(img, i * 32, colors[0], colors[1], colors[2], colors[3], colors[4])
+        if i in (6, 7):
+            _stamp_tile(img, i * 32, src)
+            continue
+        _sample_tile(img, i * 32, src)
         if i == 3:
-            _peak(img, i * 32, (186, 184, 176, 255), (96, 94, 90, 255))
+            mid = src.getpixel((src.size[0] // 2, src.size[1] // 2))
+            light = tuple(min(255, int(channel * 1.3)) for channel in mid[:3]) + (255,)
+            dark = tuple(int(channel * 0.55) for channel in mid[:3]) + (255,)
+            _peak(img, i * 32, light, dark)
     img.save(OUT("resources", "tiles", "terrain_tileset.png"))
     make_space()
+
+
+def _tufts(img, ox, seed):
+    light = (210, 214, 130, 255) if seed == 10 else (96, 118, 48, 255)
+    for n in range(7):
+        seed = (seed * 1103515245 + 12345 + n) & 0x7FFFFFFF
+        x = 6 + seed % 20
+        seed = (seed * 1103515245 + 12345) & 0x7FFFFFFF
+        y = 10 + seed % 8
+        px(img, ox + x, y, light)
+        px(img, ox + x + 1, y, light)
 
 
 def _peak(img, ox, left, right):
@@ -598,135 +769,275 @@ def make_font():
         handle.write("\n".join(lines) + "\n")
 
 
-def make_big():
-    cols, rows = 8, 3
-    sheet = new(cols * 32, rows * 32)
-    for index in range(20):
-        tile = new(32, 32)
-        draw_big(tile, index)
-        sheet.alpha_composite(tile, ((index % cols) * 32, (index // cols) * 32))
-    sheet.save(OUT("resources", "structures", "buildings_32.png"))
+# World art is cropped from references/Assets and packed into the sheets.
+# The monolith and the purple goo stay the painted pillar and crystal.
+STRUCT = lambda name: OUT("resources", "src", "structures", name)
+ITEM = lambda name: OUT("resources", "src", "items", name)
+REF = lambda name: OUT("resources", "src", "ref", name)
 
 
-def draw_big(img, index):
-    G = (52, 140, 48, 255)
-    GD = (28, 96, 32, 255)
-    BR = (128, 78, 40, 255)
-    WALL = (214, 168, 122, 255)
-    ROOF = (176, 64, 52, 255)
-    ROOFD = (120, 36, 32, 255)
-    WIN = (120, 176, 210, 255)
-    STONE = (110, 108, 104, 255)
-    PUR = (110, 48, 150, 255)
-    INK = (42, 32, 28, 255)
-    GOLD = (220, 170, 64, 255)
-    if index in (0, 5):
-        rect(img, 15, 18, 3, 7, (96, 64, 36, 255))
-        ellipse(img, 0, 0, 16, 13, 12, 9, (72, 108, 46, 255), 32)
-        ellipse(img, 0, 0, 16, 12, 10, 8, (138, 176, 74, 255), 32)
-        px(img, 12, 10, (186, 206, 110, 255))
-        if index == 5:
-            px(img, 12, 10, (196, 42, 40, 255))
-            px(img, 18, 8, (196, 42, 40, 255))
-            px(img, 16, 14, (210, 60, 48, 255))
-            px(img, 10, 14, (210, 60, 48, 255))
-    elif index in (1, 2):
-        ellipse(img, 0, 0, 16, 18, 10, 7, (80, 78, 74, 255), 32)
-        ellipse(img, 0, 0, 16, 16, 9, 6, STONE, 32)
-        px(img, 12, 14, (230, 230, 220, 255))
-        if index == 2:
-            px(img, 18, 15, GOLD)
-            px(img, 14, 18, GOLD)
-    elif index in (3, 4):
-        ellipse(img, 0, 0, 16, 20, 8, 5, (70, 60, 40, 255), 32)
-        rect(img, 14, 6, 4, 14, GOLD if index == 4 else (230, 210, 90, 255))
-        rect(img, 12, 12, 8, 6, (255, 244, 180, 255))
-    elif index == 6:
-        rect(img, 6, 14, 20, 10, (236, 236, 232, 255))
-        rect(img, 8, 16, 16, 6, (90, 150, 200, 255))
-        rect(img, 6, 12, 4, 6, STONE)
-        rect(img, 22, 12, 4, 6, STONE)
-    elif index == 7:
-        rect(img, 14, 14, 4, 12, GOLD)
-        ellipse(img, 0, 0, 16, 12, 12, 6, ROOF, 32)
-        px(img, 10, 11, GOLD)
-        px(img, 20, 11, GOLD)
-    elif index in (8, 9, 16):
-        roof = GOLD if index == 9 else (90, 48, 40, 255) if index == 16 else ROOF
-        rect(img, 6, 16, 20, 12, WALL)
-        rect(img, 4, 8, 24, 12, roof)
-        rect(img, 8, 6, 16, 6, ROOFD if index != 9 else (180, 130, 40, 255))
-        rect(img, 8, 20, 4, 4, WIN)
-        rect(img, 20, 20, 4, 4, WIN)
-        rect(img, 14, 20, 4, 8, BR)
-        if index == 9:
-            rect(img, 22, 4, 3, 8, STONE)
-    elif index in (10, 11):
-        rect(img, 4, 12, 24, 16, (88, 84, 78, 255))
-        rect(img, 10, 16, 12, 12, INK)
-        rect(img, 6, 10, 20, 4, BR)
-        px(img, 14, 20, GOLD)
-        if index == 11:
-            rect(img, 8, 6, 6, 6, GOLD)
-    elif index in (12, 13):
-        rect(img, 4, 14, 24, 14, (90, 88, 96, 255))
-        rect(img, 8, 4, 6, 12, (60, 58, 66, 255))
-        rect(img, 10, 8, 2, 4, PUR)
-        rect(img, 18, 18, 6, 6, (80, 140, 180, 255))
-        if index == 13:
-            rect(img, 18, 4, 6, 12, (60, 58, 66, 255))
-            rect(img, 20, 8, 2, 4, PUR)
-    elif index == 14:
-        rect(img, 4, 10, 24, 18, (120, 42, 48, 255))
-        rect(img, 8, 14, 6, 12, ROOF)
-        rect(img, 18, 14, 6, 12, ROOF)
-        rect(img, 14, 16, 4, 10, GOLD)
-    elif index == 15:
-        rect(img, 6, 20, 20, 6, (50, 48, 46, 255))
-        rect(img, 8, 12, 14, 8, STONE)
-        rect(img, 16, 4, 6, 10, (70, 68, 66, 255))
-    elif index == 17:
-        rect(img, 12, 4, 8, 24, INK)
-        rect(img, 14, 10, 4, 4, (240, 236, 220, 255))
-        px(img, 15, 16, PUR)
-    elif index == 18:
-        rect(img, 8, 22, 16, 4, STONE)
-        rect(img, 12, 12, 8, 10, (230, 214, 180, 255))
-        ellipse(img, 0, 0, 16, 10, 5, 5, (230, 214, 180, 255), 32)
-        px(img, 14, 9, INK)
-        px(img, 18, 9, INK)
-    elif index == 19:
-        rect(img, 6, 18, 20, 8, (70, 40, 90, 255))
-        ellipse(img, 0, 0, 16, 14, 8, 5, (150, 70, 190, 255), 32)
+def _open_png(path):
+    img = Image.open(path).convert("RGBA")
+    box = img.getbbox()
+    if box:
+        img = img.crop(box)
+    return img
+
+
+def _open_struct(name):
+    return _open_png(STRUCT(name))
+
+
+def _ref(name):
+    return _open_png(REF(name))
+
+
+def _tex_frame(name, index, fw, fh):
+    img = Image.open(os.path.join(ROOT, "references", "Assets", "Texture2D", name)).convert("RGBA")
+    return img.crop((index * fw, 0, (index + 1) * fw, fh))
+
+
+def _fit(img, max_w, max_h, zoom=1):
+    if zoom > 1:
+        img = img.resize((img.size[0] * zoom, img.size[1] * zoom), Image.NEAREST)
+    scale = min(float(max_w) / img.size[0], float(max_h) / img.size[1], 1.0)
+    if scale < 0.999:
+        img = img.resize(
+            (max(1, int(round(img.size[0] * scale))), max(1, int(round(img.size[1] * scale)))),
+            Image.NEAREST,
+        )
+    return img
+
+
+def _gray(img):
+    out = img.copy()
+    pix = out.load()
+    for y in range(out.size[1]):
+        for x in range(out.size[0]):
+            r, g, b, a = pix[x, y]
+            if a < 16:
+                continue
+            lum = int(r * 0.3 + g * 0.5 + b * 0.2)
+            pix[x, y] = (lum, lum, min(255, lum + 8), a)
+    return out
+
+
+def _tint(img, mul):
+    out = img.copy()
+    pix = out.load()
+    for y in range(out.size[1]):
+        for x in range(out.size[0]):
+            r, g, b, a = pix[x, y]
+            if a < 16:
+                continue
+            pix[x, y] = (min(255, int(r * mul[0])), min(255, int(g * mul[1])), min(255, int(b * mul[2])), a)
+    return out
+
+
+def _world_sprites():
+    tree = _fit(_ref("tree.png"), 60, 62)
+    # The flower's visible head is about 12px once the grass pad blends in.
+    rock = _fit(_ref("rock.png"), 14, 12)
+    ore = _fit(_ref("ore_rock.png"), 18, 16)
+    node = _fit(_ref("node.png"), 58, 40)
+    super_gem = _fit(_ref("super.png"), 60, 48)
+    apple = tree
+    tub = _fit(_ref("tub.png"), 40, 42)
+    merry = _fit(_ref("round.png"), 40, 24)
+    dwell = _fit(_ref("dwell.png"), 60, 62)
+    fancy = _fit(_ref("fancy.png"), 60, 62)
+    mine = _fit(_ref("mine.png"), 62, 48)
+    mine2 = _fit(_ref("mine2.png"), 62, 48)
+    factory = _fit(_ref("factory.png"), 58, 62)
+    factory2 = _fit(_ref("factory2.png"), 52, 62)
+    theatre = _fit(_ref("theatre.png"), 60, 56)
+    cannon = _fit(_ref("cannon.png"), 60, 56)
+    market = _fit(_ref("market.png"), 62, 48)
+    monolith = _fit(_ref("monolith.png"), 48, 62)
+    statue = _fit(_ref("statue.png"), 40, 48)
+    goo = _fit(_ref("goo.png"), 44, 40)
+    bigrock = _fit(_ref("bigrock.png"), 24, 22)
+    cosmetic = _fit(_ref("cosmetic.png"), 48, 62)
+    cosmetic_bad = _fit(_ref("cosmetic_bad.png"), 48, 62)
+    ore_mega = _fit(_ref("ore_mega.png"), 40, 36)
+    ore_super = _fit(_ref("ore_super.png"), 40, 36)
+    ore_ultra = _fit(_ref("ore_ultra.png"), 40, 44)
+    wood_statue = _fit(_ref("wood_statue.png"), 40, 48)
+    fire = _fit(_ref("fire.png"), 36, 48)
+    totem = _fit(_ref("totem.png"), 36, 52)
+    curer = _fit(_ref("curer.png"), 40, 48)
+    jack = _fit(_ref("jack.png"), 28, 40, 2)
+    superbug = _fit(_ref("superbug.png"), 48, 48)
+    theatre2 = _fit(_ref("theatre2.png"), 48, 48, 2)
+    maw = _fit(_ref("maw.png"), 56, 36)
+    mstump = _fit(_ref("mstump.png"), 16, 14)
+    mnode = _fit(_ref("node.png"), 48, 32)
+    sprites = (
+        tree, rock, ore, node, super_gem, apple, tub, merry, dwell, fancy,
+        mine, mine2, factory, factory2, theatre, cannon, market, monolith, statue, goo,
+        bigrock, cosmetic, cosmetic_bad, ore_mega, ore_super, ore_ultra,
+        wood_statue, fire, totem, curer, jack, superbug, theatre2, maw, mstump, mnode,
+    )
+    extras = {
+        3: _fit(_ref("stump.png"), 16, 14),
+        23: _fit(_ref("flower.png"), 32, 32),
+        41: _fit(_tex_frame("TEMP_FX_AxeChop.png", 4, 32, 32), 32, 32),
+        42: _fit(_tex_frame("TEMP_FX_HammerBlow.png", 7, 32, 32), 32, 32),
+        43: _fit(_tex_frame("FX_CleanSparkles_Spritesheet.png", 0, 38, 38), 28, 28),
+        44: _fit(_tex_frame("T_PixelSmoke.png", 4, 64, 64), 36, 36),
+        45: _fit(_ref("fx_poof.png"), 36, 36),
+        46: _fit(_ref("fx_blood.png"), 40, 16),
+    }
+    icons = {
+        2: tree, 3: extras[3], 4: rock, 5: ore, 6: node, 7: super_gem,
+        11: apple, 12: tub, 13: merry, 14: dwell, 15: fancy,
+        16: mine, 17: mine2, 18: factory, 19: factory2, 20: theatre,
+        21: cannon, 22: market, 23: extras[23], 24: statue, 25: monolith, 27: goo,
+        47: bigrock, 48: cosmetic, 49: cosmetic_bad,
+        50: ore_mega, 51: ore_super, 52: ore_ultra,
+        53: wood_statue, 54: fire, 55: totem, 56: curer, 57: jack,
+        58: superbug, 59: theatre2, 60: maw, 61: mstump, 62: mnode,
+    }
+    for key in (41, 42, 43, 44, 45, 46):
+        icons[key] = extras[key]
+    return sprites, extras, icons
+
+
+WORLD_SPRITES, WORLD_EXTRAS, WORLD_ICONS = _world_sprites()
+
+
+def _item_icons():
+    def load(name):
+        return _open_png(ITEM(name))
+
+    return {
+        0: _ref("apple.png"),
+        1: _ref("ball.png"),
+        8: _ref("wood.png"),
+        9: _ref("bone.png"),
+        10: _ref("ore.png"),
+        26: _ref("tnt.png"),
+        28: _ref("hand.png"),
+        29: _ref("axe.png"),
+        30: _ref("hammer.png"),
+        31: _ref("sponge.png"),
+        32: _ref("pick.png"),
+        33: _ref("bug.png"),
+        35: _ref("saw.png"),
+        36: _ref("mop.png"),
+        37: _ref("swarm.png"),
+        38: _ref("nuke.png"),
+        39: _ref("gem.png"),
+        40: _ref("egg.png"),
+    }
+
+
+ITEM_ICONS = _item_icons()
+
+
+def _ui_icon(index):
+    if index in ITEM_ICONS:
+        return _fit(ITEM_ICONS[index], 16, 16)
+    if index in WORLD_ICONS:
+        return _fit(WORLD_ICONS[index], 16, 16)
+    tile = new(16, 16)
+    draw_icon(tile, 0, 0, index)
+    return tile
+
+
+def _item_box(icon):
+    # Loose props match the log (18x14). The apple source is the 12x14 frame.
+    boxes = {
+        0: (12, 14),
+        1: (12, 12),
+        8: (18, 14),
+        9: (26, 16),
+        10: (16, 14),
+        26: (14, 22),
+        40: (12, 16),
+    }
+    return boxes.get(icon, (16, 16))
+
+
+def _cell_sprite(img):
+    cell = new(CELL_W, CELL_H)
+    cell.alpha_composite(img, ((CELL_W - img.size[0]) // 2, CELL_H - img.size[1]))
+    return cell
 
 
 def make_world():
-    cols, rows = 16, 6
-    sheet = new(cols * 32, rows * 32)
-    blobs = Image.open(OUT("resources", "sprites", "thronglet_spritesheet.png"))
+    cols, rows = 16, 9
+    sheet = new(cols * CELL_W, rows * CELL_H)
+    blobs = Image.open(OUT("resources", "sprites", "thronglet_32.png"))
     for index in range(24):
-        tile = blobs.crop(( (index % 4) * 16, (index // 4) * 16, (index % 4) * 16 + 16, (index // 4) * 16 + 16))
-        sheet.alpha_composite(tile, ((index % cols) * 32 + 8, (index // cols) * 32 + 16))
-    for icon in range(41):
+        tile = blobs.crop((
+            (index % 4) * CELL_W,
+            (index // 4) * CELL_H,
+            (index % 4) * CELL_W + CELL_W,
+            (index // 4) * CELL_H + CELL_H,
+        ))
+        # ThrongA is 0.34x0.38 world. 52px on the tree is 1.0, so the body is 18x20.
+        tile = _shrink_body(tile, 18, 20)
+        sheet.alpha_composite(tile, ((index % cols) * CELL_W, (index // cols) * CELL_H))
+    for icon in range(63):
         index = 24 + icon
-        tile = new(16, 16)
-        draw_icon(tile, 0, 0, icon)
-        sheet.alpha_composite(tile, ((index % cols) * 32 + 8, (index // cols) * 32 + 16))
-    for big in range(20):
-        index = 65 + big
-        tile = new(32, 32)
-        draw_big(tile, big)
-        sheet.alpha_composite(tile, ((index % cols) * 32, (index // cols) * 32))
+        if icon in WORLD_EXTRAS:
+            tile = WORLD_EXTRAS[icon]
+        elif icon in ITEM_ICONS:
+            box = _item_box(icon)
+            tile = _fit(ITEM_ICONS[icon], box[0], box[1])
+        elif icon in WORLD_ICONS:
+            tile = _fit(WORLD_ICONS[icon], 16 * PROP_SCALE, 16 * PROP_SCALE)
+        else:
+            tile = new(16, 16)
+            draw_icon(tile, 0, 0, icon)
+            tile = tile.resize((16 * PROP_SCALE, 16 * PROP_SCALE), Image.NEAREST)
+        sheet.alpha_composite(tile, (
+            (index % cols) * CELL_W + (CELL_W - tile.size[0]) // 2,
+            (index // cols) * CELL_H + CELL_H - tile.size[1],
+        ))
+    for big, img in enumerate(WORLD_SPRITES):
+        index = 96 + big
+        sheet.alpha_composite(_cell_sprite(img), ((index % cols) * CELL_W, (index // cols) * CELL_H))
+    # Egg wiggle/crack/hatch and the roundabout spin. Frames 87-91 and 132-139 are free.
+    for i in range(5):
+        _stamp_frame(sheet, cols, 87 + i, _fit(_ref("egg_%d.png" % i), 12, 16))
+    for i in range(8):
+        _stamp_frame(sheet, cols, 132 + i, _fit(_ref("round_%d.png" % i), 40, 24))
+    # Animated ground fire. fire.png stays the bubble glyph, not this.
+    flame = Image.open(os.path.join(ROOT, "references", "Assets", "Texture2D", "T_FireSprites_Color_16x1.png")).convert("RGBA")
+    for i in range(4):
+        src = i * 4
+        frame = flame.crop((src * 32, 0, src * 32 + 32, 32))
+        _stamp_frame(sheet, cols, 140 + i, _fit(frame, 24, 30))
+    sheet = _stamp_throng_anims(sheet, cols)
     sheet.save(OUT("resources", "sprites", "world_iso.png"))
 
 
+def _shrink_body(tile, max_w, max_h):
+    box = tile.getbbox()
+    if not box:
+        return tile
+    body = _fit(tile.crop(box), max_w, max_h)
+    out = new(CELL_W, CELL_H)
+    out.alpha_composite(body, ((CELL_W - body.size[0]) // 2, CELL_H - body.size[1]))
+    return out
+
+
+def _stamp_frame(sheet, cols, index, img):
+    sheet.alpha_composite(img, (
+        (index % cols) * CELL_W + (CELL_W - img.size[0]) // 2,
+        (index // cols) * CELL_H + CELL_H - img.size[1],
+    ))
+
+
 def make_hud():
-    ring = new(40, 40)
-    for y in range(40):
-        for x in range(40):
-            d = ((x - 19.5) ** 2 + (y - 19.5) ** 2) ** 0.5
-            if d <= 18.5:
-                color = (92, 58, 28, 255) if d >= 15.0 else (244, 228, 196, 255)
+    ring = new(56, 56)
+    for y in range(56):
+        for x in range(56):
+            d = ((x - 27.5) ** 2 + (y - 27.5) ** 2) ** 0.5
+            if d <= 26.0:
+                color = (92, 58, 28, 255) if d >= 22.0 else (244, 228, 196, 255)
                 px(ring, x, y, color)
     ring.save(OUT("resources", "ui", "ui_circle.png"))
     kit = new(32, 32)
@@ -749,13 +1060,208 @@ def make_hud():
     kit.save(OUT("resources", "ui", "ui_kit.png"))
 
 
+THRONG_SKIP = (
+    "ThrongletCounter",
+    "ThrongletFace",
+    "Thronglet1",
+    "Thronglet2",
+    "Throng_UI_",
+    "Thronglet_Counter",
+)
+THRONG_BASE = 144
+
+
+def _throng_key(base):
+    if "_Alpha" in base:
+        return None
+    if base.startswith(THRONG_SKIP):
+        return None
+    head, tail = base.rsplit("_", 1) if "_" in base else (base, "")
+    if tail.isdigit():
+        return head, int(tail)
+    return base, 0
+
+
+def _crop_unity(atlas, rect):
+    x = int(round(rect["m_X"]))
+    y = int(round(rect["m_Y"]))
+    w = max(1, int(round(rect["m_Width"])))
+    h = max(1, int(round(rect["m_Height"])))
+    top = atlas.size[1] - (y + h)
+    left = max(0, x)
+    upper = max(0, top)
+    right = min(atlas.size[0], x + w)
+    lower = min(atlas.size[1], top + h)
+    if right <= left or lower <= upper:
+        return new(1, 1)
+    return atlas.crop((left, upper, right, lower))
+
+
+def _load_throng_clips():
+    folder = os.path.join(ROOT, "references", "Assets", "Sprite")
+    atlas = Image.open(os.path.join(
+        ROOT, "references", "Assets", "Texture2D",
+        "sactx-0-2048x2048-Uncompressed-Sprites-Thronglets-fc0e3430.png",
+    )).convert("RGBA")
+    groups = {}
+    for name in sorted(os.listdir(folder)):
+        if not name.startswith("Throng") or not name.endswith(".json"):
+            continue
+        key = _throng_key(name[:-5])
+        if key is None:
+            continue
+        clip, order = key
+        data = json.load(open(os.path.join(folder, name)))
+        rect = data.get("m_Rect")
+        if not rect:
+            continue
+        groups.setdefault(clip, [])
+        groups[clip].append((order, name, _crop_unity(atlas, rect)))
+    clips = {}
+    for clip in sorted(groups):
+        frames = [img for _order, _name, img in sorted(groups[clip])]
+        clips[clip] = frames
+    return clips
+
+
+def _grow_sheet(sheet, cols, rows):
+    if sheet.size[1] >= rows * CELL_H and sheet.size[0] >= cols * CELL_W:
+        return sheet
+    bigger = new(cols * CELL_W, rows * CELL_H)
+    bigger.alpha_composite(sheet, (0, 0))
+    return bigger
+
+
+def _write_throng_clips(entries, rows, talk, idle):
+    def strings(names):
+        return ",\n".join('\t\t"%s"' % name.replace('"', "") for name in names)
+    body = []
+    body.append("class_name ThrongClips")
+    body.append("extends Object")
+    body.append("")
+    body.append("const SHEET_COLS := %d" % 16)
+    body.append("const SHEET_ROWS := %d" % rows)
+    body.append("const BASE := %d" % THRONG_BASE)
+    body.append("")
+    body.append("const CLIPS := {")
+    for name, start, count in entries:
+        body.append('\t"%s": Vector2i(%d, %d),' % (name.replace('"', ""), start, count))
+    body.append("}")
+    body.append("")
+    body.append("const TALK := [")
+    body.append(strings(talk))
+    body.append("]")
+    body.append("")
+    body.append("const IDLE := [")
+    body.append(strings(idle))
+    body.append("]")
+    body.append("")
+    body.append("static func has_clip(clip: String) -> bool:")
+    body.append("\treturn CLIPS.has(clip)")
+    body.append("")
+    body.append("static func frame_at(clip: String, tick: int) -> int:")
+    body.append("\tvar box: Vector2i = CLIPS.get(clip, Vector2i(20, 1))")
+    body.append("\tif box.y <= 1:")
+    body.append("\t\treturn box.x")
+    body.append("\treturn box.x + posmod(tick, box.y)")
+    body.append("")
+    body.append("static func frame_along(clip: String, along: float) -> int:")
+    body.append("\tvar box: Vector2i = CLIPS.get(clip, Vector2i(20, 1))")
+    body.append("\tvar n := maxi(box.y, 1)")
+    body.append("\treturn box.x + clampi(int(clampf(along, 0.0, 0.999) * float(n)), 0, n - 1)")
+    body.append("")
+    body.append("static func pick(pool: Array, index: int, time: float, hold: float) -> int:")
+    body.append("\tif pool.is_empty():")
+    body.append("\t\treturn 20")
+    body.append("\tvar which := int(time / hold) + index")
+    body.append("\tvar name := str(pool[posmod(which, pool.size())])")
+    body.append("\tvar local := time - float(int(time / hold)) * hold")
+    body.append("\treturn frame_at(name, int(local * 8.0))")
+    body.append("")
+    path = OUT("throng_clips.gd")
+    with open(path, "w") as handle:
+        handle.write("\n".join(body) + "\n")
+
+
+def _throng_crop(frame):
+    box = frame.getbbox()
+    if not box:
+        return frame
+    return frame.crop(box)
+
+
+def _throng_scale(frames):
+    heights = []
+    for frame in frames:
+        cropped = _throng_crop(frame)
+        if cropped.size[1] > 0 and frame.getbbox():
+            heights.append(cropped.size[1])
+    if not heights:
+        return 1.0
+    heights.sort()
+    ref = heights[min(len(heights) - 1, len(heights) // 5)]
+    if ref <= 0:
+        return 1.0
+    return min(1.0, 20.0 / float(ref))
+
+
+def _throng_frame(frame, scale, wide):
+    cropped = _throng_crop(frame)
+    if scale < 0.999:
+        cropped = cropped.resize(
+            (max(1, int(round(cropped.size[0] * scale))), max(1, int(round(cropped.size[1] * scale)))),
+            Image.NEAREST,
+        )
+    return _fit(cropped, 56 if wide else 24, 20)
+
+
+def _stamp_throng_anims(sheet, cols):
+    clips = _load_throng_clips()
+    total = sum(len(frames) for frames in clips.values())
+    rows = (THRONG_BASE + total + cols - 1) // cols
+    sheet = _grow_sheet(sheet, cols, rows)
+    reserved = {
+        "Throng_Walk_Anim_Spritesheet",
+        "Throng_WalkBack_Anim_Spritesheet",
+        "ThrongA_Eat",
+        "ThrongA_Pickaxe_Spritesheet",
+        "Throng_FallInBath_Spritesheet",
+        "ThrongA_Roundabout_SpriteSheet",
+        "ThrongA_Jump_VariantA_Spritesheet",
+        "ThrongA_Mitosis_Spritesheet",
+        "ThrongA_Dead_001",
+        "ThrongA_Dead_002",
+        "ThrongA_Bones",
+        "ThrongA_Sad",
+    }
+    entries = []
+    talk = []
+    idle = []
+    index = THRONG_BASE
+    for name in sorted(clips):
+        frames = clips[name]
+        start = index
+        scale = _throng_scale(frames)
+        wide = "Mitosis" in name
+        for frame in frames:
+            _stamp_frame(sheet, cols, index, _throng_frame(frame, scale, wide))
+            index += 1
+        entries.append((name, start, len(frames)))
+        if "Talk" in name:
+            talk.append(name)
+        elif name not in reserved:
+            idle.append(name)
+    _write_throng_clips(entries, rows, talk, idle)
+    print("throng clips", len(entries), "frames", total, "rows", rows)
+    return sheet
+
+
 def main():
     make_thronglets()
     make_atlas()
     make_terrain()
     make_frame()
     make_font()
-    make_big()
     make_world()
     make_hud()
 

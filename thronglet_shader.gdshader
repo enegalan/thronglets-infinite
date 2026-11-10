@@ -22,5 +22,5 @@ void fragment() {
 	if (tex.a < 0.15) {
 		discard;
 	}
-	COLOR = tex * inst_color;
+	COLOR = (current_frame < 24 || current_frame >= 144) ? tex : tex * inst_color;
 }
