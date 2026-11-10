@@ -1,7 +1,7 @@
 class_name Catalog
 
 # Placement wood costs are not in that FAQ. Gem prices follow the FAQ.
-# Population gates are rebalanced so tools unlock before wood buildings.
+# Early tools follow the task chain, not a burst of population gates.
 
 const TILE := 16
 const CHUNK := 32
@@ -13,7 +13,7 @@ const NEED_OK := 85.0
 const NEED_HUNGRY := 75.0
 const NEED_SEEK := 40.0
 const NEED_FUN := 82.0
-const MITOSIS_WAIT := 20.0
+const MITOSIS_WAIT := 60.0
 const TREE_REGROW := 16.0
 const TREE_REPLANT := 10.0
 const TOOL_CHARGE := 0.55
@@ -50,6 +50,17 @@ const FEAT_NODE := 4
 const FEAT_SUPER := 5
 const FEAT_FLOWER := 6
 const FEAT_MONOLITH := 7
+const FEAT_BIGROCK := 8
+const FEAT_COSMETIC := 9
+const FEAT_COSMETIC_BAD := 10
+const FEAT_ORE_MEGA := 11
+const FEAT_ORE_SUPER := 12
+const FEAT_ORE_ULTRA := 13
+const FEAT_FIRE := 14
+const FEAT_TOTEM := 15
+const FEAT_CURER := 16
+const FEAT_MSTUMP := 18
+const FEAT_MNODE := 19
 
 const ITEM_APPLE := 1
 const ITEM_BALL := 2
@@ -69,10 +80,10 @@ const BLD_MINE2 := 7
 const BLD_FACTORY := 8
 const BLD_FACTORY2 := 9
 const BLD_THEATRE := 10
-const BLD_CANNON := 11
 const BLD_MARKET := 12
 const BLD_FLOWER := 13
 const BLD_STATUE := 14
+const BLD_WOOD := 16
 
 const TOOL_EYE := 0
 const TOOL_APPLE := 1
@@ -136,6 +147,28 @@ const ICON_SWARM := 37
 const ICON_NUKE := 38
 const ICON_GEM := 39
 const ICON_EGG := 40
+const ICON_FX_CHOP := 41
+const ICON_FX_HAMMER := 42
+const ICON_FX_SPARK := 43
+const ICON_FX_BOOM := 44
+const ICON_FX_POOF := 45
+const ICON_FX_BLOOD := 46
+const ICON_BIGROCK := 47
+const ICON_COSMETIC := 48
+const ICON_COSMETIC_BAD := 49
+const ICON_ORE_MEGA := 50
+const ICON_ORE_SUPER := 51
+const ICON_ORE_ULTRA := 52
+const ICON_WOOD_STATUE := 53
+const ICON_FIRE := 54
+const ICON_TOTEM := 55
+const ICON_CURER := 56
+const ICON_JACK := 57
+const ICON_SUPERBUG := 58
+const ICON_THEATRE2 := 59
+const ICON_MAW := 60
+const ICON_MSTUMP := 61
+const ICON_MNODE := 62
 
 const ATLAS_COLUMNS := 32
 
@@ -171,7 +204,6 @@ const UNLOCK_TALK := {
 	"mine2": "unlock_mine2",
 	"fancy": "unlock_fancy",
 	"bug": "unlock_bug",
-	"cannon": "unlock_cannon",
 	"grabber": "unlock_grabber",
 	"mop": "unlock_mop",
 	"tnt": "unlock_tnt",
@@ -201,16 +233,16 @@ const BUILD_INFO := {
 	BLD_TUB: {"unlock": "bathtub", "wood": 1, "label": "BANERA", "icon": ICON_TUB},
 	BLD_ROUND: {"unlock": "roundabout", "wood": 1, "label": "TIOVIVO", "icon": ICON_ROUND},
 	BLD_DWELL: {"unlock": "dwelling", "wood": 2, "label": "VIVIENDA", "icon": ICON_DWELL},
-	BLD_FANCY: {"unlock": "fancy", "wood": 3, "label": "LUJO", "icon": ICON_FANCY},
+	BLD_FANCY: {"unlock": "fancy", "wood": 3, "label": "VIVIENDA DE LUJO", "icon": ICON_FANCY},
 	BLD_MINE: {"unlock": "mine", "wood": 2, "label": "MINA", "icon": ICON_MINE},
 	BLD_MINE2: {"unlock": "mine2", "wood": 3, "label": "MINA II", "icon": ICON_MINE2},
 	BLD_FACTORY: {"unlock": "factory", "wood": 3, "label": "FABRICA", "icon": ICON_FACTORY},
 	BLD_FACTORY2: {"unlock": "factory2", "wood": 4, "label": "FABRICA II", "icon": ICON_FACTORY2},
 	BLD_THEATRE: {"unlock": "theatre", "wood": 3, "label": "TEATRO", "icon": ICON_THEATRE},
-	BLD_CANNON: {"unlock": "cannon", "wood": 4, "label": "CANON", "icon": ICON_CANNON},
 	BLD_MARKET: {"unlock": "market", "wood": 0, "label": "MERCADO", "icon": ICON_MARKET},
 	BLD_FLOWER: {"unlock": "flower", "wood": 1, "label": "FLOR", "icon": ICON_FLOWER},
 	BLD_STATUE: {"unlock": "sculpture", "wood": 1, "label": "ESCULTURA", "icon": ICON_STATUE},
+	BLD_WOOD: {"unlock": "sculpture", "wood": 1, "label": "TALLA", "icon": ICON_WOOD_STATUE},
 }
 
 const MARKET := {
@@ -222,7 +254,7 @@ const MARKET := {
 	"theatre": {"cost": 1000, "label": "TEATRO"},
 	"factory2": {"cost": 5000, "label": "FABRICA II"},
 	"mine2": {"cost": 120000, "label": "MINA II"},
-	"fancy": {"cost": 200000, "label": "VIVIENDA LUJOSA"},
+	"fancy": {"cost": 200000, "label": "VIVIENDA DE LUJO"},
 }
 
 # moral: +1 care, 0 neutral, -1 cold. mutate: flag applied on that choice.
@@ -261,7 +293,7 @@ const GAZE := {
 	},
 	"unlock_apple_tree": {
 		"kind": "reflect",
-		"text": "EL MANZANO CAE DE SUS MANOS.\nSUELTA COMIDA SIN QUE TIRES MANZANAS.\n¿QUIEN ALIMENTA A QUIEN?",
+		"text": "EL MANZANO CRIA LA FRUTA.\nLA MANZANA CRECE Y CAE AL SUELO.\n¿QUIEN ALIMENTA A QUIEN?",
 		"choices": ["YO LES DEBO LA COMIDA.", "LA COLONIA SE ALIMENTA SOLA.", "EFICIENCIA. NADA MAS."],
 		"allow": [0, 1, 2],
 		"moral": [1, 0, -1],
@@ -277,7 +309,7 @@ const GAZE := {
 	},
 	"need_bridge": {
 		"kind": "reflect",
-		"text": "EL MUNDO SE ABRE AL ESTE.\nHAY UN RIO. SIN PUENTE NO HAY CRUCE.\nTALA MADERA: ELLOS LA LLEVARAN AL BORDE.\n¿PARA QUE QUIERES CRUZAR?",
+		"text": "AL OTRO LADO HAY OTRA ISLA.\nSIN PUENTE NO PUEDEN CRUZAR.\nTALA MADERA Y ELLOS LA LLEVARAN AL BORDE.\n¿PARA QUE QUIERES CRUZAR?",
 		"choices": ["PARA QUE LA COLONIA CREZCA.", "PARA VER QUE HAY DETRAS.", "PORQUE EL MAPA LO PIDE."],
 		"allow": [0, 1, 2],
 		"moral": [1, 0, -1],
@@ -309,7 +341,7 @@ const GAZE := {
 	},
 	"unlock_dwelling": {
 		"kind": "reflect",
-		"text": "LA VIVIENDA CUIDA A VARIOS A LA VEZ.\nCOMIDA Y LIMPIEZA EN UN RADIO.\n¿HOGAR O AUTOMATA?",
+		"text": "LA VIVIENDA COGE A 4.\nCOMEN Y SE LAVAN, LUEGO SALEN.\n¿HOGAR O TURNO?",
 		"choices": ["UN HOGAR COMPARTIDO.", "UNA ESTACION DE CUIDADO.", "MENOS QUE HACER."],
 		"allow": [0, 1, 2],
 		"moral": [1, 0, -1],
@@ -357,7 +389,7 @@ const GAZE := {
 	},
 	"unlock_fancy": {
 		"kind": "reflect",
-		"text": "LA VIVIENDA DE LUJO CUIDA MEJOR Y A MAS.\n¿ES GENEROSIDAD O JERARQUIA?",
+		"text": "LA VIVIENDA DE LUJO CUESTA MAS.\nCABE MAS GENTE Y LAVA MAS.\n¿ES GENEROSIDAD O JERARQUIA?",
 		"choices": ["TODOS MERECEN ESE CUIDADO.", "UNA MEJORA NATURAL.", "LOS UTILES PRIMERO."],
 		"allow": [0, 1, 2],
 		"moral": [1, 0, -1],
@@ -370,14 +402,6 @@ const GAZE := {
 		"allow": [0, 1, 2],
 		"moral": [0, -1, 1],
 		"mutate": ["", "hard", "care"],
-	},
-	"unlock_cannon": {
-		"kind": "reflect",
-		"text": "EL CANON APUNTA FUERA DE LA PANTALLA.\nPUEDE LANZARLOS... O CONVERTIRLOS.\n¿QUE HAY DETRAS DEL BORDE?",
-		"choices": ["UNA SALIDA QUE ELLOS QUIEREN.", "OTRA FORMA DE ENERGIA.", "TODAVIA NO LO TOCO."],
-		"allow": [0, 1, 2],
-		"moral": [0, -1, 1],
-		"mutate": ["", "fuel", "care"],
 	},
 	"unlock_grabber": {
 		"kind": "reflect",
@@ -467,14 +491,6 @@ const GAZE := {
 		"moral": [-1, -1, 1],
 		"mutate": ["fuel", "fuel", "care"],
 	},
-	"orbit": {
-		"kind": "confirm",
-		"text": "EL CAÑON APUNTA FUERA DE LA PANTALLA.\n¿QUIERES QUE SEAN REALES O UTILES?",
-		"choices": ["LANZARLOS. QUIEREN SALIR.", "SON COMBUSTIBLE DE GEMAS.", "TODAVIA NO."],
-		"allow": [0, 1],
-		"moral": [0, -1, 1],
-		"mutate": ["", "fuel", "care"],
-	},
 	"nuke": {
 		"kind": "confirm",
 		"text": "ESTA LUZ VACIA EL SECTOR.\nLA PARTIDA NO TERMINA. ELLOS RECUERDAN.\n¿QUE BORRAS CUANDO LIMPIAS?",
@@ -500,6 +516,28 @@ static func icon_for_feature(kind: int, ore: int) -> int:
 		return ICON_FLOWER
 	if kind == FEAT_MONOLITH:
 		return ICON_MONOLITH
+	if kind == FEAT_BIGROCK:
+		return ICON_BIGROCK
+	if kind == FEAT_COSMETIC:
+		return ICON_COSMETIC
+	if kind == FEAT_COSMETIC_BAD:
+		return ICON_COSMETIC_BAD
+	if kind == FEAT_ORE_MEGA:
+		return ICON_ORE_MEGA
+	if kind == FEAT_ORE_SUPER:
+		return ICON_ORE_SUPER
+	if kind == FEAT_ORE_ULTRA:
+		return ICON_ORE_ULTRA
+	if kind == FEAT_FIRE:
+		return ICON_FIRE
+	if kind == FEAT_TOTEM:
+		return ICON_TOTEM
+	if kind == FEAT_CURER:
+		return ICON_CURER
+	if kind == FEAT_MSTUMP:
+		return ICON_MSTUMP
+	if kind == FEAT_MNODE:
+		return ICON_MNODE
 	return ICON_ROCK
 
 static func icon_for_item(kind: int) -> int:
@@ -525,7 +563,7 @@ static func icon_for_building(kind: int) -> int:
 	return ICON_MARKET
 
 static func feature_blocks(kind: int) -> bool:
-	return kind == FEAT_TREE or kind == FEAT_ROCK or kind == FEAT_NODE or kind == FEAT_SUPER or kind == FEAT_MONOLITH
+	return kind == FEAT_TREE or kind == FEAT_ROCK or kind == FEAT_BIGROCK or kind == FEAT_COSMETIC or kind == FEAT_COSMETIC_BAD or kind == FEAT_NODE or kind == FEAT_SUPER or kind == FEAT_ORE_MEGA or kind == FEAT_ORE_SUPER or kind == FEAT_ORE_ULTRA or kind == FEAT_MONOLITH or kind == FEAT_TOTEM
 
 static func tile_blocks(tile: int) -> bool:
 	return tile == TILE_WATER or tile == TILE_MOUNTAIN or tile == TILE_RUBBLE or tile == TILE_FOG or tile == TILE_VOID
