@@ -3,7 +3,7 @@
 
 import json
 import os
-from PIL import Image, ImageDraw
+from PIL import Image, ImageChops, ImageDraw
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = lambda *parts: os.path.join(ROOT, *parts)
@@ -149,9 +149,12 @@ def _paint_corpse(img):
     return out
 
 
-CELL_W, CELL_H = 64, 64
+# World sheet cell. Main.gd WORLD_CELL must match. Sprites are bottom-centered in the cell.
+CELL_W, CELL_H = 128, 128
 # Buildings and props grow by 2 so a 30x34 thronglet stays smaller than a house.
 PROP_SCALE = 2
+# Screen pixels per original unity unit. Thronglet is 0.34u -> 18px. One tile is 32px.
+PX_PER_UNIT = 52.0
 
 
 def _place(img, bob=0):
@@ -641,8 +644,45 @@ def make_terrain():
             _peak(img, i * 32, light, dark)
         elif i == 6:
             _plank_seams(img, i * 32)
-    img.save(OUT("resources", "tiles", "terrain_tileset.png"))
+    extra = _river_tiles() + _wasteland_tiles()
+    wide = new(32 * (len(tiles) + len(extra)), 32)
+    wide.alpha_composite(img, (0, 0))
+    for i, src in enumerate(extra):
+        _sample_tile(wide, (len(tiles) + i) * 32, src)
+    wide.save(OUT("resources", "tiles", "terrain_tileset.png"))
     make_space()
+
+
+def _river_tiles():
+    roles = (
+        "River_Tile_Center_%d.png",
+        "River_Tile_BorderTop_%d.png",
+        "River_Tile_BorderBot_%d.png",
+        "river_edge_left_%d.png",
+        "river_edgle_right_%d.png",
+        "river_corner_dark_NE_%d.png",
+        "river_corner_dark_NW_%d.png",
+        "river_corner_dark_flipped_%d.png",
+        "river_corner_dark_%d.png",
+    )
+    tiles = []
+    for role in roles:
+        for n in range(1, 5):
+            src = _tex(role % n)
+            if src is None:
+                raise SystemExit("missing river tile %s" % (role % n))
+            tiles.append(src)
+    return tiles
+
+
+def _wasteland_tiles():
+    tiles = []
+    for n in range(2, 8):
+        src = _tex("Wasteland_GroundTile_%d.png" % n)
+        if src is None:
+            raise SystemExit("missing wasteland tile %d" % n)
+        tiles.append(src)
+    return tiles
 
 
 def _tufts(img, ox, seed):
@@ -902,6 +942,15 @@ def _fit(img, max_w, max_h, zoom=1):
     return img
 
 
+def _px(img, ppu=100.0):
+    scale = PX_PER_UNIT / float(ppu)
+    dw = max(1, int(round(img.size[0] * scale)))
+    dh = max(1, int(round(img.size[1] * scale)))
+    if dw == img.size[0] and dh == img.size[1]:
+        return img
+    return img.resize((dw, dh), Image.NEAREST)
+
+
 def _gray(img):
     out = img.copy()
     pix = out.load()
@@ -928,43 +977,43 @@ def _tint(img, mul):
 
 
 def _world_sprites():
-    tree = _fit(_ref("tree.png"), 60, 62)
-    # The flower's visible head is about 12px once the grass pad blends in.
+    # Rocks and stumps stay small. Everything else shares the thronglet scale.
+    tree = _px(_ref("tree.png"), 54)
     rock = _fit(_ref("rock.png"), 14, 12)
     ore = _fit(_ref("ore_rock.png"), 18, 16)
-    node = _fit(_ref("node.png"), 58, 40)
-    super_gem = _fit(_ref("super.png"), 60, 48)
+    node = _px(_ref("node.png"))
+    super_gem = _px(_ref("super.png"))
     apple = tree
-    tub = _fit(_ref("tub.png"), 40, 42)
-    merry = _fit(_ref("round.png"), 40, 24)
-    dwell = _fit(_ref("dwell.png"), 60, 62)
-    fancy = _fit(_ref("fancy.png"), 60, 62)
-    mine = _fit(_ref("mine.png"), 62, 48)
-    mine2 = _fit(_ref("mine2.png"), 62, 48)
-    factory = _fit(_ref("factory.png"), 58, 62)
-    factory2 = _fit(_ref("factory2.png"), 52, 62)
-    theatre = _fit(_ref("theatre.png"), 60, 56)
-    cannon = _fit(_ref("cannon.png"), 60, 56)
-    market = _fit(_ref("market.png"), 62, 48)
-    monolith = _fit(_ref("monolith.png"), 48, 62)
-    statue = _fit(_ref("statue.png"), 40, 48)
-    goo = _fit(_ref("goo.png"), 44, 40)
+    tub = _px(_ref("tub.png"))
+    merry = _px(_ref("round.png"))
+    dwell = _px(_ref("dwell.png"))
+    fancy = _px(_ref("fancy.png"))
+    mine = _px(_ref("mine.png"))
+    mine2 = _px(_ref("mine2.png"))
+    factory = _px(_ref("factory.png"))
+    factory2 = _px(_ref("factory2.png"))
+    theatre = _px(_ref("theatre.png"))
+    cannon = _px(_ref("cannon.png"))
+    market = _px(_ref("market.png"))
+    monolith = _px(_ref("monolith.png"))
+    statue = _px(_ref("statue.png"))
+    goo = _px(_ref("goo.png"))
     bigrock = _fit(_ref("bigrock.png"), 24, 22)
-    cosmetic = _fit(_ref("cosmetic.png"), 48, 62)
-    cosmetic_bad = _fit(_ref("cosmetic_bad.png"), 48, 62)
-    ore_mega = _fit(_ref("ore_mega.png"), 40, 36)
-    ore_super = _fit(_ref("ore_super.png"), 40, 36)
-    ore_ultra = _fit(_ref("ore_ultra.png"), 40, 44)
-    wood_statue = _fit(_ref("wood_statue.png"), 40, 48)
-    fire = _fit(_ref("fire.png"), 36, 48)
-    totem = _fit(_ref("totem.png"), 36, 52)
-    curer = _fit(_ref("curer.png"), 40, 48)
-    jack = _fit(_ref("jack.png"), 28, 40, 2)
-    superbug = _fit(_ref("superbug.png"), 48, 48)
-    theatre2 = _fit(_ref("theatre2.png"), 48, 48, 2)
-    maw = _fit(_ref("maw.png"), 56, 36)
+    cosmetic = _px(_ref("cosmetic.png"))
+    cosmetic_bad = _px(_ref("cosmetic_bad.png"))
+    ore_mega = _px(_ref("ore_mega.png"))
+    ore_super = _px(_ref("ore_super.png"))
+    ore_ultra = _px(_ref("ore_ultra.png"))
+    wood_statue = _px(_ref("wood_statue.png"))
+    fire = _px(_ref("fire.png"))
+    totem = _px(_ref("totem.png"))
+    curer = _px(_ref("curer.png"))
+    jack = _px(_ref("jack.png"))
+    superbug = _px(_ref("superbug.png"))
+    theatre2 = _px(_ref("theatre2.png"))
+    maw = _px(_ref("maw.png"))
     mstump = _fit(_ref("mstump.png"), 16, 14)
-    mnode = _fit(_ref("node.png"), 48, 32)
+    mnode = _px(_ref("mnode.png"))
     sprites = (
         tree, rock, ore, node, super_gem, apple, tub, merry, dwell, fancy,
         mine, mine2, factory, factory2, theatre, cannon, market, monolith, statue, goo,
@@ -973,11 +1022,11 @@ def _world_sprites():
     )
     extras = {
         3: _fit(_ref("stump.png"), 16, 14),
-        23: _fit(_ref("flower.png"), 32, 32),
-        41: _fit(_tex_frame("TEMP_FX_AxeChop.png", 4, 32, 32), 32, 32),
-        42: _fit(_tex_frame("TEMP_FX_HammerBlow.png", 7, 32, 32), 32, 32),
-        43: _fit(_tex_frame("FX_CleanSparkles_Spritesheet.png", 0, 38, 38), 28, 28),
-        44: _fit(_tex_frame("T_PixelSmoke.png", 4, 64, 64), 36, 36),
+        23: _px(_ref("flower.png")),
+        41: _fit(_ref("fx_chop.png"), 32, 32),
+        42: _fit(_ref("fx_hammer.png"), 32, 32),
+        43: _fit(_ref("fx_spark.png"), 28, 28),
+        44: _fit(_ref("fx_boom.png"), 36, 36),
         45: _fit(_ref("fx_poof.png"), 36, 36),
         46: _fit(_ref("fx_blood.png"), 40, 16),
     }
@@ -1097,7 +1146,7 @@ def make_world():
     for i in range(5):
         _stamp_frame(sheet, cols, 87 + i, _fit(_ref("egg_%d.png" % i), 12, 16))
     for i in range(8):
-        _stamp_frame(sheet, cols, 132 + i, _fit(_ref("round_%d.png" % i), 40, 24))
+        _stamp_frame(sheet, cols, 132 + i, _px(_ref("round_%d.png" % i)))
     # Animated ground fire. fire.png stays the bubble glyph, not this.
     flame = Image.open(os.path.join(ROOT, "references", "Assets", "Texture2D", "T_FireSprites_Color_16x1.png")).convert("RGBA")
     for i in range(4):
@@ -1211,9 +1260,20 @@ def _load_throng_clips():
     )).convert("RGBA")
     groups = {}
     for name in sorted(os.listdir(folder)):
-        if not name.startswith("Throng") or not name.endswith(".json"):
+        if not name.endswith(".json"):
             continue
-        key = _throng_key(name[:-5])
+        base = name[:-5]
+        if base.startswith("Char_ThrongA_Bored_KickRock_Alpha"):
+            continue
+        if base.startswith("Char_ThrongA_Bored_KickRock_Spritesheet_"):
+            tail = base.rsplit("_", 1)[-1]
+            if not tail.isdigit():
+                continue
+            key = ("ThrongA_Bored_KickRock", int(tail))
+        elif name.startswith("Throng"):
+            key = _throng_key(base)
+        else:
+            continue
         if key is None:
             continue
         clip, order = key
@@ -1335,10 +1395,244 @@ def _throng_pair(frame, dirt, scale, wide):
     return _fit(body, target[0], target[1]), _fit(grime, target[0], target[1])
 
 
+def _tex(name):
+    path = os.path.join(ROOT, "references", "Assets", "Texture2D", name)
+    if not os.path.isfile(path):
+        return None
+    return Image.open(path).convert("RGBA")
+
+
+def _split_strip(img, count):
+    count = max(1, int(count))
+    width = img.size[0] // count
+    if width < 1:
+        return [img]
+    frames = []
+    for i in range(count):
+        frames.append(img.crop((i * width, 0, (i + 1) * width, img.size[1])))
+    return frames
+
+
+def _stamp_loose_clips(sheet, dirt_sheet, cols, index, entries, idle):
+    singles = (
+        ("ThrongA_Default_Ghost", "Char_ThrongA_Default_Ghost.png"),
+        ("Thronglet_Outline", "T_ThrongletOutline.png"),
+        ("Throng_Outline", "T_ThrongOutline.png"),
+    )
+    have = set(name for name, _start, _count in entries)
+    for clip, filename in singles:
+        if clip in have:
+            continue
+        img = _tex(filename)
+        if img is None:
+            continue
+        body, _grime = _throng_pair(img, new(img.size[0], img.size[1]), 1.0, False)
+        _stamp_frame(sheet, cols, index, body)
+        _stamp_frame(dirt_sheet, cols, index, new(1, 1))
+        entries.append((clip, index, 1))
+        if clip == "ThrongA_Default_Ghost":
+            idle.append(clip)
+        index += 1
+    return index
+
+
+def _write_asset_frames(slots):
+    lines = [
+        "class_name AssetFrames",
+        "extends Object",
+        "",
+    ]
+    for name, start, count in slots:
+        lines.append("const %s := %d" % (name, start))
+        lines.append("const %s_N := %d" % (name, count))
+    lines.append("")
+    lines.append("static func frame(start: int, count: int, tick: int) -> int:")
+    lines.append("\tif count <= 0:")
+    lines.append("\t\treturn -1")
+    lines.append("\treturn start + posmod(tick, count)")
+    lines.append("")
+    with open(OUT("asset_frames.gd"), "w") as handle:
+        handle.write("\n".join(lines) + "\n")
+
+
+def _trim_frame(img):
+    img = img.convert("RGBA")
+    w, h = img.size
+    if w < 2 or h < 2:
+        return img
+    corners = (
+        img.getpixel((0, 0)),
+        img.getpixel((w - 1, 0)),
+        img.getpixel((0, h - 1)),
+        img.getpixel((w - 1, h - 1)),
+    )
+    if all(p[3] > 240 and p[0] < 12 and p[1] < 12 and p[2] < 12 for p in corners):
+        diff = ImageChops.difference(img.convert("RGB"), Image.new("RGB", img.size, (0, 0, 0))).convert("L")
+        img.putalpha(diff)
+    box = img.getbbox()
+    if box:
+        return img.crop(box)
+    return img
+
+
+def _sprite_cuts(filename):
+    stem = filename[:-4]
+    folder = os.path.join(ROOT, "references", "Assets", "Sprite")
+    img = _tex(filename)
+    if img is None or not os.path.isdir(folder):
+        return []
+    found = []
+    for name in os.listdir(folder):
+        if not name.endswith(".json"):
+            continue
+        base = name[:-5]
+        if base != stem and not base.startswith(stem + "_"):
+            continue
+        tail = base[len(stem):].lstrip("_")
+        if "_" in tail:
+            continue
+        if tail and not tail.isdigit():
+            continue
+        data = json.load(open(os.path.join(folder, name)))
+        rect = data.get("m_Rect")
+        if not rect or float(rect.get("m_Width", 0)) < 1:
+            continue
+        found.append((int(tail) if tail else 0, _crop_unity(img, rect)))
+    found.sort(key=lambda item: item[0])
+    frames = [frame for _order, frame in found]
+    if not frames:
+        return []
+    biggest = max(frame.size[0] * frame.size[1] for frame in frames)
+    return [frame for frame in frames if frame.size[0] * frame.size[1] * 8 >= biggest]
+
+
+def _equal_cuts(img, count):
+    frames = []
+    for frame in _split_strip(img, count):
+        trimmed = _trim_frame(frame)
+        if trimmed.getbbox():
+            frames.append(trimmed)
+    return frames
+
+
+def _band_cuts(img):
+    img = img.convert("RGBA")
+    w, h = img.size
+    pix = img.load()
+    empty = []
+    for x in range(w):
+        empty.append(not any(pix[x, y][3] > 8 for y in range(h)))
+    frames = []
+    x = 0
+    while x < w:
+        if empty[x]:
+            x += 1
+            continue
+        start = x
+        hole = 0
+        while x < w:
+            if empty[x]:
+                hole += 1
+                if hole >= 6:
+                    x = x - hole + 1
+                    break
+                x += 1
+            else:
+                hole = 0
+                x += 1
+        if x - start >= 16:
+            frames.append(_trim_frame(img.crop((start, 0, x, h))))
+        if x <= start:
+            x = start + 1
+    return frames
+
+
+def _effect_frames(filename, columns):
+    frames = _sprite_cuts(filename)
+    if frames:
+        return frames
+    img = _tex(filename)
+    if img is None:
+        return []
+    if columns == 0:
+        banded = _band_cuts(img)
+        if banded:
+            return banded
+    if columns > 1:
+        return _equal_cuts(img, columns)
+    return [_trim_frame(img)]
+
+
+def _stamp_fx_and_biomes(sheet, cols, index):
+    slots = []
+
+    def take(name, filename, fit, columns=1, floor=0):
+        nonlocal index
+        frames = _effect_frames(filename, columns)
+        if not frames:
+            slots.append((name, 0, 0))
+            return
+        start = index
+        for frame in frames:
+            shown = _trim_frame(frame)
+            long_side = max(shown.size)
+            if floor and long_side < floor:
+                shown = _fit(shown, fit[0], fit[1], max(1, int(round(float(floor) / long_side))))
+            else:
+                shown = _fit(shown, fit[0], fit[1])
+            _stamp_frame(sheet, cols, index, shown)
+            index += 1
+        slots.append((name, start, len(frames)))
+
+    take("BUBBLE", "FX_SoapBubbles_Spritesheet.png", (28, 28))
+    take("BUBBLE_LIGHT", "FX_SoapBubblesLight_Spritesheet.png", (28, 28), 0)
+    take("CLEAN", "FX_CleanSparkles_Spritesheet.png", (28, 28))
+    take("SPLASH", "FX_WaterSplash_Spritesheet.png", (48, 36), 0)
+    take("SMOKE", "T_PixelSmoke.png", (28, 28))
+    take("AURA", "T_AuraSmoke.png", (36, 36))
+    take("SPARK", "T_Spark.png", (16, 16), 1, 12)
+    take("GLITCH", "Glitch_Animation_Spritesheet.png", (64, 40))
+    take("TILE_GLITCH", "Tile_Glitch_Anim_Spritesheet.png", (40, 40))
+    take("HAND", "Hand_PickUp_Spritesheet.png", (36, 36), 4)
+    take("FIRE", "T_FireSprites_Color_16x1.png", (32, 24), 16)
+    take("GLITCH_HOUSE", "Prop_Dwelling_Glitchy_Act3.png", (48, 44))
+    take("GLITCH_TREE", "Prop_Tree_B_Glitchy_Act3.png", (40, 48))
+    take("WASTE_TREE", "Props_Wasteland_Tree_A.png", (40, 48))
+    take("ANOMALY", "Map_Anomaly_Pile_Sprite.png", (44, 36))
+    take("ANOMALY_RAY", "Map_AnomalyPile_Ray_Idle_Sprite.png", (40, 44))
+    take("EPILOGUE", "T_Epilogue_Thronglet.png", (40, 40))
+    for extra in ("T_Epilogue_Thronglet2.png", "T_Epilogue_Thronglet3.png", "T_Epilogue_Thronglet4.png", "T_Epilogue_Thronglet5.png"):
+        frame = _tex(extra)
+        if frame is None or not slots or slots[-1][0] != "EPILOGUE":
+            continue
+        shown = _fit(_trim_frame(frame), 40, 40)
+        _stamp_frame(sheet, cols, index, shown)
+        index += 1
+        _name, start, count = slots[-1]
+        slots[-1] = (_name, start, count + 1)
+    take("ROTTEN_APPLE", "T_Epilogue_Apple_rot.png", (20, 20))
+    suds = _fit(_ref("fx_suds.png"), 24, 24)
+    _stamp_frame(sheet, cols, index, suds)
+    slots.append(("SUDS", index, 1))
+    index += 1
+    take("GLITCH_TREE_C", "Prop_Tree_C_Glitchy_Act3.png", (40, 48))
+    take("GLITCH_TREE_D", "Prop_Tree_D_Glitchy_Act3.png", (40, 48))
+    take("WASTE_TREE_B", "Props_Wasteland_Tree_B.png", (40, 48))
+    take("EPI_APPLE", "T_Epilogue_Apple.png", (20, 20))
+    take("MOUNT_BIG", "Map_Mountain_Big.png", (112, 80))
+    take("MOUNT_SMALL", "Map_Mountain_Small_A.png", (56, 48))
+    take("MOUNT_GLITCH", "Map_Mountain_Big_Glitch.png", (112, 80))
+    take("GRASS_PATCH", "Grass_Patch.png", (32, 20))
+    take("FUMES", "T_PollutionFumes_8x1.png", (28, 24), 8, 22)
+    take("FIRE_BLOB", "T_FireBlob_8x1.png", (24, 20), 8, 18)
+    _write_asset_frames(slots)
+    return index
+
+
 def _stamp_throng_anims(sheet, cols):
     clips = _load_throng_clips()
     total = sum(len(frames) for frames in clips.values())
-    rows = (THRONG_BASE + total + cols - 1) // cols
+    rows = (THRONG_BASE + total + 160 + cols - 1) // cols
     sheet = _grow_sheet(sheet, cols, rows)
     dirt_sheet = new(sheet.size[0], sheet.size[1])
     reserved = {
@@ -1374,6 +1668,11 @@ def _stamp_throng_anims(sheet, cols):
             talk.append(name)
         elif name not in reserved:
             idle.append(name)
+    index = _stamp_loose_clips(sheet, dirt_sheet, cols, index, entries, idle)
+    index = _stamp_fx_and_biomes(sheet, cols, index)
+    rows = (index + cols - 1) // cols
+    sheet = sheet.crop((0, 0, cols * CELL_W, rows * CELL_H))
+    dirt_sheet = dirt_sheet.crop((0, 0, cols * CELL_W, rows * CELL_H))
     _write_throng_clips(entries, rows, talk, idle)
     dirt_sheet.save(OUT("resources", "sprites", "world_iso_dirt.png"))
     print("throng clips", len(entries), "frames", total, "rows", rows)
