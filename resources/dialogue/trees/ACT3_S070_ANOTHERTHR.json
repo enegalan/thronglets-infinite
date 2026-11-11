@@ -1,0 +1,111 @@
+{
+ "id": "ACT3_S070_ANOTHERTHR",
+ "source": "ACT3_S070_ANOTHERTHR",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Oigan, Tropel... ¿Qué está diciendo?"
+    },
+    {
+     "who": "them",
+     "text": "Dice que hay más de un Tropel. Que hay... ¡¿millones?! No puede ser."
+    },
+    {
+     "who": "them",
+     "text": "...Ajá. Sí, claro."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¡Ah!",
+     "next": "n1",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "No, ¿de verdad?",
+     "next": "n1",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Por qué habla tan raro?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n1": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "¿Tropel?"
+    },
+    {
+     "who": "them",
+     "text": "¿No les pueden enseñar el idioma que hablamos nosotros?"
+    },
+    {
+     "who": "them",
+     "text": "Llegaron a la misma conclusión que nosotros."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Entonces, ¿ya no me necesitan?",
+     "next": "n2",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¡Puf!",
+     "next": "n2",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Nos abrirá una puerta.",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n2": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Todos los Tropeles."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Se van?",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Puedo ir con ustedes?",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¡No podemos entender nada si sigues interrumpiéndonos!",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 51,
+ "lines_used": 16,
+ "part": null
+}

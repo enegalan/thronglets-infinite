@@ -1,0 +1,33 @@
+{
+ "id": "CH02_SEE_103MARKET",
+ "source": "CH02_SEE_103MARKET",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "El mercado es el lugar donde aprovechamos la energía y la transformamos en conceptos nuevos."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¡Y también podrás ver la cantidad de gemas necesaria para desbloquearlo!",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Ya viste el mercado?",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    }
+   ]
+  }
+ },
+ "lines_in": 5,
+ "lines_used": 3,
+ "part": null
+}

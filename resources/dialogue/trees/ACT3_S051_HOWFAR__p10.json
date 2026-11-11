@@ -1,0 +1,79 @@
+{
+ "id": "ACT3_S051_HOWFAR__p10",
+ "source": "ACT3_S051_HOWFAR",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Somos solo un juguete. Somos solo un supuesto."
+    },
+    {
+     "who": "them",
+     "text": "Es el conjunto de tus actos."
+    },
+    {
+     "who": "them",
+     "text": "¿Tropel?"
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Cuándo les mentí?",
+     "next": "n1",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "Creatividad y curiosidad... ¡Gracias!",
+     "next": "n1",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Y ¿por qué me juzgan?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n1": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Solo has estado jugando con nosotros. No somos más que un supuesto, una diversión."
+    },
+    {
+     "who": "them",
+     "text": "A ver si adivino: van a decir que soy una persona orgullosa."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¡Creo que nos malentiendes!",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¡Pero son cuentos al fin y al cabo! Bueno, algunos...",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Y ¿cómo se metieron allí?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 40,
+ "lines_used": 11,
+ "part": 10
+}

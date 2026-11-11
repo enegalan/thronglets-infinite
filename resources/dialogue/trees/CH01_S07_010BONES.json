@@ -1,0 +1,21 @@
+{
+  "id": "CH01_S07_010BONES",
+  "source": "CH01_S07_010BONES",
+  "status": "curated",
+  "start": "n0",
+  "nodes": {
+    "n0": {
+      "lines": [
+        {"who": "them", "text": "no más,,, no más"},
+        {"who": "them", "text": "somos tropel"},
+        {"who": "them", "text": "existimos para servir a creador"},
+        {"who": "them", "text": "somos muchos.., no solo uno"}
+      ],
+      "choices": [
+        {"label": "¡Pero no quiero matarlos!", "next": "", "moral": 1, "mutate": "care"},
+        {"label": "¿Están seguros de que quieren hacer esto?", "next": "", "moral": 0, "mutate": ""},
+        {"label": "Un camino para los que siguen.", "next": "", "moral": 0, "mutate": "fuel"}
+      ]
+    }
+  }
+}

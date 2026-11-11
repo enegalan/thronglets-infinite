@@ -1,0 +1,31 @@
+{
+ "id": "CH02_S04_033HINT5",
+ "source": "CH02_S04_033HINT5",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "No colocaste el dispositivo termonuclear."
+    },
+    {
+     "who": "them",
+     "text": "Colócalo en tierra firme e interactúa con él para activarlo."
+    }
+   ],
+   "choices": [
+    {
+     "label": "No colocaste el dispositivo termonuclear.",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    }
+   ]
+  }
+ },
+ "lines_in": 2,
+ "lines_used": 3,
+ "part": null
+}

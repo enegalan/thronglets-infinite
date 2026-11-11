@@ -1,0 +1,83 @@
+{
+ "id": "CH01_S06_030MLTH2",
+ "source": "CH01_S06_030MLTH2",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "libera a"
+    },
+    {
+     "who": "them",
+     "text": "usar  == rapidez"
+    },
+    {
+     "who": "them",
+     "text": "escuchamos"
+    }
+   ],
+   "choices": [
+    {
+     "label": "¡¿Quieren que construya el puente con sus huesos?!",
+     "next": "n1",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¡Rápido! Huesos, por favor.",
+     "next": "n1",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "preferir rapidez con ??",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n1": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "aprendemos"
+    },
+    {
+     "who": "them",
+     "text": "== mààs energía que"
+    },
+    {
+     "who": "them",
+     "text": "Esperen, ¿la anomalía se COMIÓ al tropel?"
+    }
+   ],
+   "choices": [
+    {
+     "label": "o tardanza con ??",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "aprendemos de",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "debes entender",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 16,
+ "lines_used": 12,
+ "part": null
+}

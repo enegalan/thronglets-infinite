@@ -1,0 +1,39 @@
+{
+ "id": "ACT3_S03_CAPTCHA3IN",
+ "source": "ACT3_S03_CAPTCHA3IN",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Reniegas el efecto de tus instintos..."
+    },
+    {
+     "who": "them",
+     "text": "Has desperdiciado numerosas vidas en la búsqueda de nuestro progreso."
+    },
+    {
+     "who": "them",
+     "text": "¿Te remuerde la conciencia?"
+    },
+    {
+     "who": "them",
+     "text": "Este ejercicio nos ha permitido seguir evaluando tus cualidades intrínsecas."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Te remuerde la conciencia?",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    }
+   ]
+  }
+ },
+ "lines_in": 4,
+ "lines_used": 5,
+ "part": null
+}

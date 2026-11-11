@@ -1,0 +1,79 @@
+{
+ "id": "CH02_S02_010MINE",
+ "source": "CH02_S02_010MINE",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "A menudo, distintas consultas nos llevan a una misma palabra: >."
+    },
+    {
+     "who": "them",
+     "text": "Interesante."
+    },
+    {
+     "who": "them",
+     "text": "Quiero tener el poder absoluto."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Hemos logrado algún avance?",
+     "next": "n1",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Ya aprendieron algo nuevo sobre ello?",
+     "next": "n1",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Y eso? ¿Por qué de pronto se creen Cervantes?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n1": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Te consideras como alguien que merece tener poder."
+    },
+    {
+     "who": "them",
+     "text": "Comprendemos."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Entonces, ¿ahora qué?",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Qué es un... Cervantes?",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Emmm... Fue un dramaturgo.",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 77,
+ "lines_used": 11,
+ "part": null
+}

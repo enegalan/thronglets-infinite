@@ -1,0 +1,67 @@
+{
+ "id": "CH01_S05_040THANN",
+ "source": "CH01_S05_040THANN",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "potencial energèètico == insuficiente"
+    },
+    {
+     "who": "them",
+     "text": "nosotros buscar  == rapidez"
+    },
+    {
+     "who": "them",
+     "text": "ser lento"
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Van a buscar una forma de avanzar más rápido?",
+     "next": "n1",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Tienen alguna otra herramienta que podamos usar?",
+     "next": "n1",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "\\r",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n1": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "INSUFICIENTE"
+    },
+    {
+     "who": "them",
+     "text": "ejecutar consulta,,,"
+    }
+   ],
+   "choices": [
+    {
+     "label": "esperar corto",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    }
+   ]
+  }
+ },
+ "lines_in": 11,
+ "lines_used": 9,
+ "part": null
+}

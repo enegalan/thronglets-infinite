@@ -1,0 +1,219 @@
+{
+ "id": "CH02_SEE_501COMPLET",
+ "source": "CH02_SEE_501COMPLET",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "¿Te gusta nuestra escultura, ?"
+    },
+    {
+     "who": "them",
+     "text": "Solo una pregunta..."
+    },
+    {
+     "who": "them",
+     "text": "Tiene cierta... elegancia."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Te gusta nuestra escultura, ?",
+     "next": "n1",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Sí?",
+     "next": "n1",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Y por qué es una letra Y gigante?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n1": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "¿Sí?"
+    },
+    {
+     "who": "them",
+     "text": "Gracias, ."
+    },
+    {
+     "who": "them",
+     "text": "Tendemos a concordar."
+    }
+   ],
+   "choices": [
+    {
+     "label": "No entendemos...",
+     "next": "n2",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Es porque... es una letra colectiva?",
+     "next": "n2",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Te gusta nuestra escultura, ?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n2": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "¿Y por qué es una letra Y gigante?"
+    },
+    {
+     "who": "them",
+     "text": "Eh, olvídenlo. Como gusten."
+    },
+    {
+     "who": "them",
+     "text": "No entendemos..."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Sí?",
+     "next": "n3",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Y por qué es una letra Y gigante?",
+     "next": "n3",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "No entendemos...",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n3": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Es como una... letra \"Y\" gigante. Una enorme \"Y\". Colosal penúltima letra del abecedario."
+    },
+    {
+     "who": "them",
+     "text": "¿Es porque... es una letra colectiva?"
+    },
+    {
+     "who": "them",
+     "text": "Simplemente... nos llamó la atención esa forma."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Es porque... es una letra colectiva?",
+     "next": "n4",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Te gusta nuestra escultura, ?",
+     "next": "n4",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Sí?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n4": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Perdona nuestra arrogancia, ."
+    },
+    {
+     "who": "them",
+     "text": "Es una afirmación irrefutable."
+    },
+    {
+     "who": "them",
+     "text": "Eh, olvídenlo. Fue su forma de expresarse."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Y por qué es una letra Y gigante?",
+     "next": "n5",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "No entendemos...",
+     "next": "n5",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Es porque... es una letra colectiva?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n5": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Es horrible y la detesto."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Continuar.",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "De acuerdo.",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Ya basta.",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 16,
+ "lines_used": 34,
+ "part": null
+}

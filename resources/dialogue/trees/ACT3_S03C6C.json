@@ -1,0 +1,49 @@
+{
+ "id": "ACT3_S03C6C",
+ "source": "ACT3_S03C6C",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Mas ¿esta vez sí leíste las instrucciones?"
+    },
+    {
+     "who": "them",
+     "text": "Oscilas con tanta violencia entre dos estrategias que parece que actuaras al azar."
+    },
+    {
+     "who": "them",
+     "text": "Parece azar."
+    },
+    {
+     "who": "them",
+     "text": "No nos gusta."
+    },
+    {
+     "who": "them",
+     "text": "Esperábamos que este ejercicio nos permitiera seguir evaluando tus cualidades intrínsecas."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Mas ¿esta vez sí leíste las instrucciones?",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "No nos gusta.",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    }
+   ]
+  }
+ },
+ "lines_in": 5,
+ "lines_used": 7,
+ "part": null
+}

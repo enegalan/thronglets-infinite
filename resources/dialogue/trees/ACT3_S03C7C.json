@@ -1,0 +1,39 @@
+{
+ "id": "ACT3_S03C7C",
+ "source": "ACT3_S03C7C",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "¿Te causa placer infundir miedo?"
+    }
+   ],
+   "choices": [
+    {
+     "label": "Continuar.",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "De acuerdo.",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Ya basta.",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 5,
+ "lines_used": 4,
+ "part": null
+}

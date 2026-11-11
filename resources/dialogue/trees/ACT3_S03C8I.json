@@ -1,0 +1,39 @@
+{
+ "id": "ACT3_S03C8I",
+ "source": "ACT3_S03C8I",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Es decir, buscas infundir terror."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Desearías poder extender tu alcance más allá de la tumba?",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "Eres un ser increíble, ¿eh?",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿De verdad deseas ser así?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 6,
+ "lines_used": 4,
+ "part": null
+}

@@ -1,0 +1,47 @@
+{
+ "id": "ACT3_S030_CONNECTTOT",
+ "source": "ACT3_S030_CONNECTTOT",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "…"
+    },
+    {
+     "who": "them",
+     "text": "Los tropeles están hechos de energía muy compleja."
+    },
+    {
+     "who": "them",
+     "text": "Por favor, agrega más energía."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¡Genial!",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Ahora qué?",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Lanzarlos a ese enorme agujero?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 13,
+ "lines_used": 6,
+ "part": null
+}

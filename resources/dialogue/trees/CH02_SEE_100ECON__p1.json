@@ -1,0 +1,507 @@
+{
+ "id": "CH02_SEE_100ECON__p1",
+ "source": "CH02_SEE_100ECON",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "verás que nuestras necesidades ahora son un poco más sofisticadas."
+    },
+    {
+     "who": "them",
+     "text": "Automatizaremos el proceso de limpieza y alimentación de nuestra población en una mayor escala."
+    },
+    {
+     "who": "them",
+     "text": "¿Hay palabras menos complicadas en el diccionario?"
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Hay palabras menos complicadas en el diccionario?",
+     "next": "n1",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "Sí, eso es sinónimo de \"conurbación\".",
+     "next": "n1",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Te gustaría que nuestras instrucciones fueran más sencillas, ?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n1": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Los recursos nuevos resultarían en que la capacidad aumente a la novena potencia."
+    },
+    {
+     "who": "them",
+     "text": "Necesitamos tu ayuda para acceder a ellos."
+    },
+    {
+     "who": "them",
+     "text": "Construiremos sitios de extracción en vetas de recursos prometedoras."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Si bien ayudarnos sigue siendo tu labor,",
+     "next": "n2",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "Sí, eso es sinónimo de \"conurbación\".",
+     "next": "n2",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¡Díganmelo todo!",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n2": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Construiremos instalaciones para transformar los recursos en energía que podamos aprovechar."
+    },
+    {
+     "who": "them",
+     "text": "Este ícono representará esta energía."
+    },
+    {
+     "who": "them",
+     "text": "Hay otro componente oculto en nuestro código, podemos sentirlo."
+    }
+   ],
+   "choices": [
+    {
+     "label": "No olvides que aún requerimos alimento, entretenimiento y limpieza.",
+     "next": "n3",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "Nos emociona dar el siguiente paso a lo desconocido a tu lado, .",
+     "next": "n3",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Hay palabras menos complicadas en el diccionario?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n3": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "La energía nos ayudará a procesar los datos y así generar una manera de leerlos."
+    },
+    {
+     "who": "them",
+     "text": "La tuya ha permanecido... constante."
+    },
+    {
+     "who": "them",
+     "text": "Tu diccionario raíz no tiene definición para  \"pet sim\"."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Sí, eso es sinónimo de \"conurbación\".",
+     "next": "n4",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Te gustaría que nuestras instrucciones fueran más sencillas, ?",
+     "next": "n4",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Si bien ayudarnos sigue siendo tu labor,",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n4": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Lo que queremos decir es que colaboraremos en una nueva manera."
+    },
+    {
+     "who": "them",
+     "text": "Sí, eso es sinónimo de \"conurbación\"."
+    },
+    {
+     "who": "them",
+     "text": "¿Te gustaría que nuestras instrucciones fueran más sencillas, ?"
+    }
+   ],
+   "choices": [
+    {
+     "label": "Sí, eso es sinónimo de \"conurbación\".",
+     "next": "n5",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¡Díganmelo todo!",
+     "next": "n5",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "No olvides que aún requerimos alimento, entretenimiento y limpieza.",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n5": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Creemos en ti, ."
+    },
+    {
+     "who": "them",
+     "text": "Necesitamos establecer una economía de extracción."
+    },
+    {
+     "who": "them",
+     "text": "Construiremos una conurbación que sustente a nuestra población y a nuestras actividades de extracción."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Nos emociona dar el siguiente paso a lo desconocido a tu lado, .",
+     "next": "n6",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Hay palabras menos complicadas en el diccionario?",
+     "next": "n6",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Sí, eso es sinónimo de \"conurbación\".",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n6": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Si bien ayudarnos sigue siendo tu labor,"
+    },
+    {
+     "who": "them",
+     "text": "verás que nuestras necesidades ahora son un poco más sofisticadas."
+    },
+    {
+     "who": "them",
+     "text": "Automatizaremos el proceso de limpieza y alimentación de nuestra población en una mayor escala."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Te gustaría que nuestras instrucciones fueran más sencillas, ?",
+     "next": "n7",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "Si bien ayudarnos sigue siendo tu labor,",
+     "next": "n7",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Sí, eso es sinónimo de \"conurbación\".",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n7": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Construimos sitios de extracción en vetas de recursos prometedoras."
+    },
+    {
+     "who": "them",
+     "text": "Construimos instalaciones para transformar los recursos en energía que podamos aprovechar."
+    },
+    {
+     "who": "them",
+     "text": "Este ícono representa la energía."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¡Díganmelo todo!",
+     "next": "n8",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "No olvides que aún requerimos alimento, entretenimiento y limpieza.",
+     "next": "n8",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Nos emociona dar el siguiente paso a lo desconocido a tu lado, .",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n8": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Hay otro componente oculto, podemos sentirlo."
+    },
+    {
+     "who": "them",
+     "text": "La energía nos ayudará a procesar los datos y así generar una manera de activarlo."
+    },
+    {
+     "who": "them",
+     "text": "Pensábamos que estaba bastante claro."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Hay palabras menos complicadas en el diccionario?",
+     "next": "n9",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "Sí, eso es sinónimo de \"conurbación\".",
+     "next": "n9",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Te gustaría que nuestras instrucciones fueran más sencillas, ?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n9": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Estamos colaborando en una nueva manera para alcanzar nuevas metas."
+    },
+    {
+     "who": "them",
+     "text": "Sí, eso es sinónimo de \"conurbación\"."
+    },
+    {
+     "who": "them",
+     "text": "¡Díganmelo todo!"
+    }
+   ],
+   "choices": [
+    {
+     "label": "Si bien ayudarnos sigue siendo tu labor,",
+     "next": "n10",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "Sí, eso es sinónimo de \"conurbación\".",
+     "next": "n10",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¡Díganmelo todo!",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n10": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Quizás no debamos complicarnos por ahora."
+    },
+    {
+     "who": "them",
+     "text": "Justamente."
+    },
+    {
+     "who": "them",
+     "text": "Necesitamos acumular energía."
+    }
+   ],
+   "choices": [
+    {
+     "label": "No olvides que aún requerimos alimento, entretenimiento y limpieza.",
+     "next": "n11",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "Nos emociona dar el siguiente paso a lo desconocido a tu lado, .",
+     "next": "n11",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Hay palabras menos complicadas en el diccionario?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n11": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Necesitamos una inyección catalítica inicial para comenzar con esta labor."
+    },
+    {
+     "who": "them",
+     "text": "Debes romper las rocas..."
+    },
+    {
+     "who": "them",
+     "text": "Con el mazo."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Sí, eso es sinónimo de \"conurbación\".",
+     "next": "n12",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Te gustaría que nuestras instrucciones fueran más sencillas, ?",
+     "next": "n12",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Si bien ayudarnos sigue siendo tu labor,",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n12": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Sabemos que te enfrentarás con éxito a este desafío."
+    },
+    {
+     "who": "them",
+     "text": "Si te da curiosidad, interactúa con las estructuras. Les colocamos instrucciones simples."
+    },
+    {
+     "who": "them",
+     "text": "No olvides que aún requerimos alimento, entretenimiento y limpieza."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Sí, eso es sinónimo de \"conurbación\".",
+     "next": "n13",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¡Díganmelo todo!",
+     "next": "n13",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "No olvides que aún requerimos alimento, entretenimiento y limpieza.",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n13": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Nos emociona dar el siguiente paso a lo desconocido a tu lado, ."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Continuar.",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "De acuerdo.",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Ya basta.",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 40,
+ "lines_used": 82,
+ "part": 1
+}

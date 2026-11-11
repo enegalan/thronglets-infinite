@@ -1,0 +1,43 @@
+{
+ "id": "ACT3_S075UB",
+ "source": "ACT3_S075UB",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Guau, esta cosa nos volvía locos."
+    },
+    {
+     "who": "them",
+     "text": "Patearla una y otra vez..."
+    },
+    {
+     "who": "them",
+     "text": "¿Será que estamos sintiendo \"nostalgia\"?"
+    },
+    {
+     "who": "them",
+     "text": "Nuestros gustos cambiaron."
+    },
+    {
+     "who": "them",
+     "text": "Nuestros gustos cambiaron."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Será que estamos sintiendo \"nostalgia\"?",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    }
+   ]
+  }
+ },
+ "lines_in": 5,
+ "lines_used": 6,
+ "part": null
+}

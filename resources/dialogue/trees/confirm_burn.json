@@ -1,0 +1,19 @@
+{
+  "id": "confirm_burn",
+  "source": "CH02_SEE_600BONES",
+  "status": "curated",
+  "start": "n0",
+  "nodes": {
+    "n0": {
+      "lines": [
+        {"who": "them", "text": "Quieres volver gemas a los muertos."},
+        {"who": "them", "text": "consulta: qué es == cuerpo??"}
+      ],
+      "choices": [
+        {"label": "Energía. Que no se desperdicie.", "next": "", "moral": -1, "mutate": "fuel"},
+        {"label": "Un entierro industrial.", "next": "", "moral": -1, "mutate": "fuel"},
+        {"label": "No se queman.", "next": "", "moral": 1, "mutate": "care"}
+      ]
+    }
+  }
+}

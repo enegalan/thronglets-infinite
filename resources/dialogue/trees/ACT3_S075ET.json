@@ -1,0 +1,69 @@
+{
+ "id": "ACT3_S075ET",
+ "source": "ACT3_S075ET",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Ya no necesitamos tu participación."
+    },
+    {
+     "who": "them",
+     "text": "Preferimos el progreso."
+    },
+    {
+     "who": "them",
+     "text": "Te recordaremos."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿?",
+     "next": "n1",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "No es así.",
+     "next": "n1",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Nos esparciremos por el viento digital como semillas.",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n1": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Hasta siempre."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Bueno, no hay deuda que no se pague.",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Quizás suena todo muy fácil?",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    }
+   ]
+  }
+ },
+ "lines_in": 54,
+ "lines_used": 9,
+ "part": null
+}

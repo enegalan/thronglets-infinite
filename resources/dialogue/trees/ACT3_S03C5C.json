@@ -1,0 +1,39 @@
+{
+ "id": "ACT3_S03C5C",
+ "source": "ACT3_S03C5C",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Objetaste las reglas de nuestra pregunta anterior."
+    },
+    {
+     "who": "them",
+     "text": "Pero ¿esta regla sí la sigues?"
+    },
+    {
+     "who": "them",
+     "text": "Inconsecuente. Eres muy inconsecuente."
+    },
+    {
+     "who": "them",
+     "text": "Este ejercicio nos ha permitido seguir evaluando tus cualidades intrínsecas."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Pero ¿esta regla sí la sigues?",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    }
+   ]
+  }
+ },
+ "lines_in": 4,
+ "lines_used": 5,
+ "part": null
+}

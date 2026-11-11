@@ -1,0 +1,55 @@
+{
+ "id": "ACT3_S03CCA",
+ "source": "ACT3_S03CCA",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Veamos cómo te sientes cuando se te trata de la misma forma."
+    },
+    {
+     "who": "them",
+     "text": "Responde nuestra pregunta o no continúes."
+    },
+    {
+     "who": "them",
+     "text": "¿Cómo se siente?"
+    },
+    {
+     "who": "them",
+     "text": "Estamos valiéndonos de muchos recursos para plantearte este dilema."
+    },
+    {
+     "who": "them",
+     "text": "Tus acciones tienen consecuencias."
+    },
+    {
+     "who": "them",
+     "text": "Te evaluaremos según tus decisiones, ."
+    },
+    {
+     "who": "them",
+     "text": "Empujones y presiones sin ningún contexto."
+    },
+    {
+     "who": "them",
+     "text": "Vernos en aprietos te pareció divertido."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Cómo se siente?",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    }
+   ]
+  }
+ },
+ "lines_in": 8,
+ "lines_used": 9,
+ "part": null
+}

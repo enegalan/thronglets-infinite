@@ -1,0 +1,35 @@
+{
+ "id": "CH02_SEE_121ORBITAL",
+ "source": "CH02_SEE_121ORBITAL",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Alcanzamos los límites de la tierra."
+    },
+    {
+     "who": "them",
+     "text": "Ahora comprendemos el potencial del abismo."
+    },
+    {
+     "who": "them",
+     "text": "Y así, nos lanzaremos hacia él."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¡A fin de cuentas, los recursos naturales son infinitos!",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    }
+   ]
+  }
+ },
+ "lines_in": 7,
+ "lines_used": 4,
+ "part": null
+}

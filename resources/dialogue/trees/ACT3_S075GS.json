@@ -1,0 +1,63 @@
+{
+ "id": "ACT3_S075GS",
+ "source": "ACT3_S075GS",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Esto es de cuando el mundo aún se sentía grande."
+    },
+    {
+     "who": "them",
+     "text": "Grábate estas palabras:"
+    },
+    {
+     "who": "them",
+     "text": "Tus manos nunca estarán limpias."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¡Se siente como si hubiera ocurrido hace tanto tiempo!",
+     "next": "n1",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "No te olvidaremos.",
+     "next": "n1",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¡Ja!",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n1": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Dondequiera que lleguemos ahora..."
+    }
+   ],
+   "choices": [
+    {
+     "label": "No necesitaremos más esponjas.",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    }
+   ]
+  }
+ },
+ "lines_in": 18,
+ "lines_used": 8,
+ "part": null
+}

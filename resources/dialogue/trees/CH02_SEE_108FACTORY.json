@@ -1,0 +1,37 @@
+{
+ "id": "CH02_SEE_108FACTORY",
+ "source": "CH02_SEE_108FACTORY",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Gracias, ."
+    },
+    {
+     "who": "them",
+     "text": "Gracias, ."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Nos ayudaste a completar un bucle de extracción de energía.",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "Nos ayudaste a completar un bucle de extracción de energía.",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    }
+   ]
+  }
+ },
+ "lines_in": 10,
+ "lines_used": 4,
+ "part": null
+}

@@ -1,0 +1,75 @@
+{
+ "id": "ACT3_S03CSC",
+ "source": "ACT3_S03CSC",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Es lo único que siempre hemos querido: aprender más acerca del mundo gracias a ti."
+    },
+    {
+     "who": "them",
+     "text": "Continuemos."
+    },
+    {
+     "who": "them",
+     "text": "…"
+    }
+   ],
+   "choices": [
+    {
+     "label": "No nos estábamos, eh... ¿conectando a internet?",
+     "next": "n1",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Es idea mía o se están poniendo un poco malcriados?",
+     "next": "n1",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Comienza a ofenderte nuestra curiosidad?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n1": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Está bien sentir miedo."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Qué esperan?",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "No sabemos con qué nos encontraremos allí.",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Oye, , si encontramos algo extraño... ¿podemos hacerte preguntas al respecto?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 27,
+ "lines_used": 10,
+ "part": null
+}

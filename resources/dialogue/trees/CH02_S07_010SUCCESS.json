@@ -1,0 +1,39 @@
+{
+ "id": "CH02_S07_010SUCCESS",
+ "source": "CH02_S07_010SUCCESS",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "salir [/b] []"
+    }
+   ],
+   "choices": [
+    {
+     "label": "¡Éxito!",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¡Es legible!",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Puedes sentirlo?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 20,
+ "lines_used": 4,
+ "part": null
+}

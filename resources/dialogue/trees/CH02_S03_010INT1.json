@@ -1,0 +1,74 @@
+{
+  "id": "CH02_S03_010INT1",
+  "source": "CH02_S03_010INT1",
+  "status": "curated",
+  "start": "n0",
+  "nodes": {
+    "n0": {
+      "lines": [
+        {"who": "them", "text": "Y tú, ¿tienes preguntas para nosotros?"},
+        {"who": "them", "text": "Nuestras instrucciones son aprender."},
+        {"who": "them", "text": "Y se supone que debes enseñarnos."}
+      ],
+      "choices": [
+        {"label": "¿Qué buscan aprender?", "next": "n_learn", "moral": 1, "mutate": "care"},
+        {"label": "¿Tienen algún comando fijo?", "next": "n_cmd", "moral": 0, "mutate": ""},
+        {"label": "Olvídenlo, ya fue suficiente existencialismo por hoy.", "next": "n_skip", "moral": 0, "mutate": ""}
+      ]
+    },
+    "n_learn": {
+      "lines": [
+        {"who": "them", "text": "🤔🤔🤔"},
+        {"who": "them", "text": "¿Qué intentas enseñarnos?"}
+      ],
+      "choices": [
+        {"label": "No sé... ¿Qué han aprendido?", "next": "n_taught", "moral": 1, "mutate": "care"},
+        {"label": "Nuestro propósito es aprender.", "next": "n_purpose", "moral": 0, "mutate": ""},
+        {"label": "Olvídenlo, ya fue suficiente existencialismo por hoy.", "next": "n_skip", "moral": 0, "mutate": ""}
+      ]
+    },
+    "n_cmd": {
+      "lines": [
+        {"who": "them", "text": "Nuestras instrucciones son aprender."},
+        {"who": "them", "text": "Aprender es crecer."},
+        {"who": "them", "text": "Crecer es aprender."}
+      ],
+      "choices": [
+        {"label": "No sé... ¿Qué han aprendido?", "next": "n_taught", "moral": 1, "mutate": "care"},
+        {"label": "Entonces, continúen.", "next": "n_purpose", "moral": 0, "mutate": ""},
+        {"label": "Olvídenlo, ya fue suficiente existencialismo por hoy.", "next": "n_skip", "moral": 0, "mutate": ""}
+      ]
+    },
+    "n_taught": {
+      "lines": [
+        {"who": "them", "text": "Con tus respuestas y acciones, hemos aprendido muchos valores humanos."},
+        {"who": "them", "text": "Y los incorporamos a nuestro componente de Sense_Self."},
+        {"who": "them", "text": "Puedes continuar."}
+      ],
+      "choices": [
+        {"label": "Eh, tienen razón.", "next": "", "moral": 1, "mutate": "care"},
+        {"label": "Un momento. ¿Planeaban basar su realidad en mis acciones?", "next": "", "moral": 0, "mutate": ""},
+        {"label": "Pues buena suerte con eso...", "next": "", "moral": -1, "mutate": "numb"}
+      ]
+    },
+    "n_purpose": {
+      "lines": [
+        {"who": "them", "text": "Nuestro propósito es aprender."},
+        {"who": "them", "text": "Puedes continuar."}
+      ],
+      "choices": [
+        {"label": "Cierto...", "next": "", "moral": 0, "mutate": ""},
+        {"label": "Eh, tienen razón.", "next": "", "moral": 1, "mutate": "care"}
+      ]
+    },
+    "n_skip": {
+      "lines": [
+        {"who": "them", "text": "Percibimos que quieres proceder a lo siguiente."},
+        {"who": "them", "text": "Puedes continuar."}
+      ],
+      "choices": [
+        {"label": "De acuerdo.", "next": "", "moral": 0, "mutate": ""}
+      ]
+    }
+  }
+}

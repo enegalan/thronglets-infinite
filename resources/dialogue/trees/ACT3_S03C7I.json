@@ -1,0 +1,55 @@
+{
+ "id": "ACT3_S03C7I",
+ "source": "ACT3_S03C7I",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Mmm, ya vemos."
+    },
+    {
+     "who": "them",
+     "text": "Parece que lo que quieres decir es..."
+    },
+    {
+     "who": "them",
+     "text": "Cualquier paso que damos por lugares donde pasaste puede ser nuestro último."
+    },
+    {
+     "who": "them",
+     "text": "Es una postura decidida, al menos."
+    },
+    {
+     "who": "them",
+     "text": "Este ejercicio nos ha permitido seguir evaluando tus cualidades intrínsecas."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Continuar.",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "De acuerdo.",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Ya basta.",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 5,
+ "lines_used": 8,
+ "part": null
+}

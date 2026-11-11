@@ -1,0 +1,33 @@
+{
+ "id": "ACT3_S021_AFTERTRYIN",
+ "source": "ACT3_S021_AFTERTRYIN",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Un enlace, claro."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Por qué se necesita tanto espacio?",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Qué es eso?",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    }
+   ]
+  }
+ },
+ "lines_in": 15,
+ "lines_used": 3,
+ "part": null
+}

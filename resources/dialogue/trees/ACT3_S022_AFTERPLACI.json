@@ -1,0 +1,27 @@
+{
+ "id": "ACT3_S022_AFTERPLACI",
+ "source": "ACT3_S022_AFTERPLACI",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "(algo para cuando se colocan las fauces)"
+    }
+   ],
+   "choices": [
+    {
+     "label": "(algo para cuando se colocan las fauces)",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    }
+   ]
+  }
+ },
+ "lines_in": 1,
+ "lines_used": 2,
+ "part": null
+}

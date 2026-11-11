@@ -1,0 +1,51 @@
+{
+ "id": "CH02_SEE_118ENCOURA",
+ "source": "CH02_SEE_118ENCOURA",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Estamos cada vez más cerca, ."
+    },
+    {
+     "who": "them",
+     "text": "Más cerca de lo que necesitamos para nuestro objetivo."
+    },
+    {
+     "who": "them",
+     "text": "Te agradecemos por tu ayuda. Asignaremos un subproceso al cálculo de una recompensa para ti."
+    },
+    {
+     "who": "them",
+     "text": "Sigue así, . Sigue así."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Continuar.",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "De acuerdo.",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Ya basta.",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 4,
+ "lines_used": 7,
+ "part": null
+}

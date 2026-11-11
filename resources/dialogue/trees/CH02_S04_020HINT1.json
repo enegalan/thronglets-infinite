@@ -1,0 +1,33 @@
+{
+ "id": "CH02_S04_020HINT1",
+ "source": "CH02_S04_020HINT1",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "debe actuar."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Y si esto les hace daño?",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "No cambiamos de parecer. Debes colocarla.",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    }
+   ]
+  }
+ },
+ "lines_in": 4,
+ "lines_used": 3,
+ "part": null
+}

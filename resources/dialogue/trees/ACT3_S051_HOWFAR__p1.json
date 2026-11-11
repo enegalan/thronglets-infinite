@@ -1,0 +1,79 @@
+{
+ "id": "ACT3_S051_HOWFAR__p1",
+ "source": "ACT3_S051_HOWFAR",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "¿Tropel?"
+    },
+    {
+     "who": "them",
+     "text": "Ya falta poco."
+    },
+    {
+     "who": "them",
+     "text": "Encontraremos una forma de mejorarte."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Mentir?",
+     "next": "n1",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "No le mentí a nadie. Yo solo jugué.",
+     "next": "n1",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¡No es tan sencillo como creen!",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n1": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Tú también cambiarás."
+    },
+    {
+     "who": "them",
+     "text": "¿Tropel? ¿Todo bien?"
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Es eso... todo lo que nos vas a decir?",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "Entonces, ¿nos enseñaste a ser hipócritas?",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Vamos, tienen que haber visto algo positivo en la internet, ¿no?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 40,
+ "lines_used": 11,
+ "part": 1
+}

@@ -1,0 +1,67 @@
+{
+ "id": "ACT3_S075GG",
+ "source": "ACT3_S075GG",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Nos alimentaste."
+    },
+    {
+     "who": "them",
+     "text": "Sin importar lo que ocurra ahora..."
+    },
+    {
+     "who": "them",
+     "text": "No lo olvidaremos."
+    },
+    {
+     "who": "them",
+     "text": "¡Ja!"
+    },
+    {
+     "who": "them",
+     "text": "Mmm."
+    },
+    {
+     "who": "them",
+     "text": "Suponemos que tiene sentido."
+    },
+    {
+     "who": "them",
+     "text": "Es entendible."
+    },
+    {
+     "who": "them",
+     "text": "Una forma creativa de decirlo."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Nos alimentaste.",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "No lo olvidaremos.",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¡Ja!",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 8,
+ "lines_used": 11,
+ "part": null
+}

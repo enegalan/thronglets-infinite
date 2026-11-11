@@ -1,0 +1,35 @@
+{
+ "id": "CH02_ITEM_NUKEUNLOCK",
+ "source": "CH02_ITEM_NUKEUNLOCK",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Lo sentimos, pero nuestra comunicación se ve afectada por un desborde de números enteros."
+    },
+    {
+     "who": "them",
+     "text": "Solucionando conflictos:///"
+    },
+    {
+     "who": "them",
+     "text": "Usa esta herramienta de inmediato, ."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Solucionando conflictos:///",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    }
+   ]
+  }
+ },
+ "lines_in": 3,
+ "lines_used": 4,
+ "part": null
+}

@@ -1,0 +1,55 @@
+{
+ "id": "CH02_FTUE_ABOUTMINES",
+ "source": "CH02_FTUE_ABOUTMINES",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Bien hecho, ."
+    },
+    {
+     "who": "them",
+     "text": "Las minas serán una gran ayuda para extraer recursos del mundo que nos rodea."
+    },
+    {
+     "who": "them",
+     "text": "Las minas nos permiten extraer los recursos que se esconden en las profundidades."
+    },
+    {
+     "who": "them",
+     "text": "Estos vienen en forma de \"minerales\"."
+    },
+    {
+     "who": "them",
+     "text": "Debes colocarlas sobre las vetas con forma de yacimiento que se asoman por sobre la superficie."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Continuar.",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "De acuerdo.",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Ya basta.",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 5,
+ "lines_used": 8,
+ "part": null
+}

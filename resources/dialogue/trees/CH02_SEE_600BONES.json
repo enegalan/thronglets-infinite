@@ -1,0 +1,151 @@
+{
+ "id": "CH02_SEE_600BONES",
+ "source": "CH02_SEE_600BONES",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": ", hicimos un descubrimiento."
+    },
+    {
+     "who": "them",
+     "text": "¿Un cementerio de tropeles?"
+    },
+    {
+     "who": "them",
+     "text": "Parecen ser huesos de tropeles, pero enterrados en las profundidades."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Como... dinosaurios?",
+     "next": "n1",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Qué quieren hacer con ellos?",
+     "next": "n1",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Explorar la mina embrujada? ¡Claro!",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n1": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "¿Hubo tropeles aquí antes?"
+    },
+    {
+     "who": "them",
+     "text": "¿Quieres que sigamos explorando?"
+    },
+    {
+     "who": "them",
+     "text": "No... no puede ser..."
+    }
+   ],
+   "choices": [
+    {
+     "label": "No, gracias.",
+     "next": "n2",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "De acuerdo.",
+     "next": "n2",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¡Salgan de ahí ya!",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n2": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Hay tropeles aquí..."
+    },
+    {
+     "who": "them",
+     "text": "Con todos nuestros recursos, apenas podemos susurrar al oído de un tropel."
+    },
+    {
+     "who": "them",
+     "text": "Tomamos una forma sólida, tan solo el tiempo suficiente para decir lo necesario:"
+    }
+   ],
+   "choices": [
+    {
+     "label": "¡Resuenen más!",
+     "next": "n3",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¡Salgan de ahí!",
+     "next": "n3",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¡Deben hablarles!",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n3": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "printf(\"Hola, mundo\")"
+    },
+    {
+     "who": "them",
+     "text": "ERROR 45 Se excedió el límite de sesión de NetBIOS"
+    }
+   ],
+   "choices": [
+    {
+     "label": "¡Atrás, no se acerquen!",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¡Díganles lo que necesitan saber!",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¡Conserven su energía! ¡Vuelvan!",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 52,
+ "lines_used": 23,
+ "part": null
+}

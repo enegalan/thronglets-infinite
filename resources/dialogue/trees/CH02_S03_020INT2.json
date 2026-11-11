@@ -1,0 +1,111 @@
+{
+ "id": "CH02_S03_020INT2",
+ "source": "CH02_S03_020INT2",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Hemos estado procesando."
+    },
+    {
+     "who": "them",
+     "text": "Procesamos nuestra conversación anterior, en la que preguntaste sobre nuestra existencia."
+    },
+    {
+     "who": "them",
+     "text": "Pero que todas dirigen a una misma solución:"
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Perdón?",
+     "next": "n1",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Ajá?",
+     "next": "n1",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¡Díganme!",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n1": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "…"
+    },
+    {
+     "who": "them",
+     "text": "Según la información actual:"
+    },
+    {
+     "who": "them",
+     "text": "ERROR, CANCELAR CONTACTO"
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Y esa es...?",
+     "next": "n2",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¡Ya, díganlo!",
+     "next": "n2",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Y qué podrían saber de mí?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n2": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Qué extraño. Debió haber un error en nuestras funciones."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Y cuál es su hallazgo más relevante?",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "De cualquier manera,",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Si quieres que te vean de otra manera,",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 53,
+ "lines_used": 16,
+ "part": null
+}

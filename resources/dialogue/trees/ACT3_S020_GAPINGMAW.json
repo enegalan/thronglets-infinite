@@ -1,0 +1,55 @@
+{
+ "id": "ACT3_S020_GAPINGMAW",
+ "source": "ACT3_S020_GAPINGMAW",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Nos ayudaste a comprender parte de lo que se requiere para el componente."
+    },
+    {
+     "who": "them",
+     "text": "Necesitamos capacidades de computación distribuida."
+    },
+    {
+     "who": "them",
+     "text": "Sin embargo, aún es inestable."
+    },
+    {
+     "who": "them",
+     "text": "Así que construimos un enlace."
+    },
+    {
+     "who": "them",
+     "text": "Por favor, coloca este objeto y ayúdanos a cuidarlo."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Continuar.",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "De acuerdo.",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Ya basta.",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 5,
+ "lines_used": 8,
+ "part": null
+}

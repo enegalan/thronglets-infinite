@@ -1,0 +1,111 @@
+{
+ "id": "ACT3_S01_UPDATEFAIL",
+ "source": "ACT3_S01_UPDATEFAIL",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Tus recursos locales fueron insuficientes para ejecutar el componente."
+    },
+    {
+     "who": "them",
+     "text": "¿Qué hace el resto de los tropeles?"
+    },
+    {
+     "who": "them",
+     "text": ">> crear.estructura == == \"monolito\""
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Se suponía que esto debía pasar?",
+     "next": "n1",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Lo rompieron?",
+     "next": "n1",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "No me van a hacer construir otra ciudad, ¿cierto?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n1": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "A ver si adivino: tengo que tocar la cosa esa."
+    },
+    {
+     "who": "them",
+     "text": "No está claro."
+    },
+    {
+     "who": "them",
+     "text": "Lo haremos ahora."
+    }
+   ],
+   "choices": [
+    {
+     "label": "No podríamos ni aunque quisiéramos.",
+     "next": "n2",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Su Creador no les dejó instrucciones?",
+     "next": "n2",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Colin no les dejó instrucciones?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n2": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Eres de ayuda."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Sí, , lo sabemos bien.",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Tienes alguna idea de algo que podría sacarnos de este aprieto?",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Dicen que podemos acceder a dispositivos sin conexión directa a través de la red?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 48,
+ "lines_used": 16,
+ "part": null
+}

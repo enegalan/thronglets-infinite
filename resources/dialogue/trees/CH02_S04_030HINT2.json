@@ -1,0 +1,37 @@
+{
+ "id": "CH02_S04_030HINT2",
+ "source": "CH02_S04_030HINT2",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Tropel es incompatible con la inactividad."
+    },
+    {
+     "who": "them",
+     "text": "Debemos actuar o lo único que veremos es =="
+    }
+   ],
+   "choices": [
+    {
+     "label": "¡Ya basta de órdenes!",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "No me gusta que exploten las cosas.",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    }
+   ]
+  }
+ },
+ "lines_in": 9,
+ "lines_used": 4,
+ "part": null
+}

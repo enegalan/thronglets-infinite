@@ -4,6 +4,8 @@ extends Node
 # The bug defleshes a body into bone. The axe leaves a stump. The hammer removes it.
 # Mitosis requires food, fun and clean together. The last death ends the run.
 
+const DialogueBook := preload("res://dialogue_book.gd")
+
 const DECAY_FED := 0.12
 const DECAY_FUN := 0.07
 const DECAY_CLEAN := 0.08
@@ -43,6 +45,8 @@ var gaze_queue: Array = []
 var frozen := false
 var moral := 0
 var mutations := {}
+var talked_trees := {}
+var learn_talked := false
 
 var part_two := false
 var mountain_seen := false
@@ -161,6 +165,7 @@ func _ready() -> void:
 	if testing:
 		save_path = "user://thronglets_smoke.save"
 		world_seed = 12345
+		seed(world_seed)
 		smoke_hold = true
 	else:
 		world_seed = randi()
@@ -457,6 +462,9 @@ func _finish_mitosis(i: int) -> void:
 	_push_slot(x, y, 70.0, 70.0, 70.0, Catalog.MITOSIS_WAIT, int(tint[i]))
 	sfx_queue.append("mitosis")
 	sfx_queue.append("uplink")
+	if not learn_talked and living >= 2 and not testing:
+		learn_talked = true
+		_queue_talk("learn_self", {})
 
 
 func _seek_food(i: int, speed: float, dt: float) -> bool:
@@ -2929,21 +2937,50 @@ func buy(key: String) -> bool:
 func choose(index: int) -> void:
 	if modal.is_empty():
 		return
-	_restore_gaze()
 	var event := str(modal.event)
+	if not Catalog.GAZE.has(event):
+		return
 	var action: Dictionary = modal.action if modal.action is Dictionary else {}
 	var gaze: Dictionary = Catalog.GAZE[event]
-	var choices: Array = gaze.choices
+	if not modal.has("node") or str(modal.get("tree", "")) == "":
+		var opened: Dictionary = DialogueBook.open_session(event)
+		if opened.is_empty():
+			modal = {}
+			frozen = false
+			_restore_gaze()
+			_open_next_talk()
+			return
+		modal["tree"] = opened.tree
+		modal["node"] = opened.node
+		modal["log"] = opened.log
+		modal["seq"] = opened.seq
+	var session := {
+		"tree": str(modal.tree),
+		"node": str(modal.node),
+		"log": modal.log if modal.log is Array else [],
+		"seq": int(modal.get("seq", 1)),
+	}
+	var choices: Array = DialogueBook.choices_of(session)
 	if index < 0 or index >= choices.size():
 		return
-	_set_ethics(event, index, str(choices[index]))
-	_apply_moral_choice(gaze, index)
+	var step: Dictionary = DialogueBook.advance(session, index)
+	var edge: Dictionary = step.edge if step.edge is Dictionary else {}
+	modal["log"] = step.session.log
+	modal["node"] = step.session.node
+	modal["seq"] = step.session.seq
+	sfx_queue.append("ui")
+	if not bool(step.done):
+		return
+	var label := str(edge.get("label", ""))
+	_set_ethics(event, index, label)
+	_apply_moral_edge(edge)
+	talked_trees[str(modal.tree)] = true
 	modal = {}
 	frozen = false
-	var allow: Array = gaze.allow
+	_restore_gaze()
+	var allow: Array = gaze.get("allow", [])
 	if allow.has(index) and not action.is_empty():
 		_apply_action(action)
-	sfx_queue.append("ui")
 	_open_next_talk()
 
 
@@ -3319,6 +3356,8 @@ func save_game() -> bool:
 		"ethics": ethics.duplicate(true),
 		"moral": moral,
 		"mutations": mutations.duplicate(true),
+		"talked_trees": talked_trees.duplicate(true),
+		"learn_talked": learn_talked,
 		"part_two": part_two,
 		"mountain_seen": mountain_seen,
 		"trees_chopped": trees_chopped,
@@ -3401,6 +3440,10 @@ func load_game() -> bool:
 	mutations = data.get("mutations", {})
 	if typeof(mutations) != TYPE_DICTIONARY:
 		mutations = {}
+	talked_trees = data.get("talked_trees", {})
+	if typeof(talked_trees) != TYPE_DICTIONARY:
+		talked_trees = {}
+	learn_talked = bool(data.get("learn_talked", false))
 	part_two = bool(data.get("part_two", false))
 	mountain_seen = bool(data.get("mountain_seen", false))
 	trees_chopped = int(data.get("trees_chopped", 0))
@@ -3715,17 +3758,20 @@ func _open_next_talk() -> void:
 	while not gaze_queue.is_empty():
 		var next: Dictionary = gaze_queue.pop_front()
 		var event := str(next.event)
-		if _ethics_choice(event) != -1 and (next.action is Dictionary and next.action.is_empty()):
+		if _ethics_choice(event) != -1 and (next.action is Dictionary and next.action.is_empty()) and event != "ambient":
 			continue
-		_schedule_talk(event, next.action if next.action is Dictionary else {})
+		var tree_id := str(next.get("tree", ""))
+		if tree_id != "":
+			_schedule_talk_tree(event, next.action if next.action is Dictionary else {}, tree_id)
+		else:
+			_schedule_talk(event, next.action if next.action is Dictionary else {})
 		return
 
 
 func _schedule_talk(event: String, action: Dictionary) -> void:
 	var wait := 0.0 if testing else TALK_OPEN_DELAY
 	if wait <= 0.0:
-		modal = {"event": event, "action": action}
-		_begin_gaze()
+		_open_talk_modal(event, action)
 		return
 	talk_pending = {"event": event, "action": action, "wait": wait}
 
@@ -3736,9 +3782,50 @@ func _tick_talk_wait(delta: float) -> void:
 	talk_pending.wait = maxf(0.0, float(talk_pending.wait) - delta)
 	if float(talk_pending.wait) > 0.0:
 		return
-	modal = {"event": str(talk_pending.event), "action": talk_pending.action if talk_pending.action is Dictionary else {}}
+	var event := str(talk_pending.event)
+	var action: Dictionary = talk_pending.action if talk_pending.action is Dictionary else {}
+	var tree_id := str(talk_pending.get("tree", ""))
 	talk_pending = {}
+	_open_talk_modal(event, action, tree_id)
+
+
+func _open_talk_modal(event: String, action: Dictionary, tree_override: String = "") -> void:
+	var opened: Dictionary = {}
+	if tree_override != "":
+		opened = DialogueBook.open_tree(tree_override)
+	else:
+		opened = DialogueBook.open_session(event)
+	if opened.is_empty():
+		return
+	modal = {
+		"event": event,
+		"action": action,
+		"tree": opened.tree,
+		"node": opened.node,
+		"log": opened.log,
+		"seq": opened.seq,
+	}
 	_begin_gaze()
+
+
+func _queue_ambient_talk() -> void:
+	if game_over or testing:
+		return
+	var tid: String = DialogueBook.ambient_for(talked_trees)
+	if tid == "":
+		return
+	if not modal.is_empty() or not talk_pending.is_empty():
+		gaze_queue.append({"event": "ambient", "action": {}, "tree": tid})
+		return
+	_schedule_talk_tree("ambient", {}, tid)
+
+
+func _schedule_talk_tree(event: String, action: Dictionary, tree_id: String) -> void:
+	var wait := 0.0 if testing else TALK_OPEN_DELAY
+	if wait <= 0.0:
+		_open_talk_modal(event, action, tree_id)
+		return
+	talk_pending = {"event": event, "action": action, "wait": wait, "tree": tree_id}
 
 
 func _begin_gaze() -> void:
@@ -3943,25 +4030,22 @@ func _set_ethics(event: String, index: int, text: String) -> void:
 	ethics.append({"event": event, "choice": index, "text": text})
 
 
-func _apply_moral_choice(gaze: Dictionary, index: int) -> void:
-	var morals: Array = gaze.get("moral", [])
-	if index < morals.size():
-		moral = clampi(moral + int(morals[index]), -5, 5)
-	var flags: Array = gaze.get("mutate", [])
-	if index < flags.size():
-		var flag := str(flags[index])
-		if flag != "":
-			mutations[flag] = true
-			if flag == "adapt":
-				notes.append("ALGUNOS NACEN CON TONO MORADO.")
-			elif flag == "numb":
-				notes.append("SUS OJOS SE VUELVEN FRIOS.")
-			elif flag == "hard":
-				notes.append("LA COLONIA SE ENDURECE.")
-			elif flag == "fuel":
-				notes.append("APRENDEN A VER ENERGIA EN TODO.")
-			elif flag == "care":
-				notes.append("RECUERDAN QUE LOS CUIDAS.")
+func _apply_moral_edge(edge: Dictionary) -> void:
+	if edge.has("moral"):
+		moral = clampi(moral + int(edge.moral), -5, 5)
+	var flag := str(edge.get("mutate", ""))
+	if flag != "":
+		mutations[flag] = true
+		if flag == "adapt":
+			notes.append("ALGUNOS NACEN CON TONO MORADO.")
+		elif flag == "numb":
+			notes.append("SUS OJOS SE VUELVEN FRIOS.")
+		elif flag == "hard":
+			notes.append("LA COLONIA SE ENDURECE.")
+		elif flag == "fuel":
+			notes.append("APRENDEN A VER ENERGIA EN TODO.")
+		elif flag == "care":
+			notes.append("RECUERDAN QUE LOS CUIDAS.")
 
 
 func _decay_scale() -> float:
@@ -4012,6 +4096,10 @@ func _refresh_pop_gates(announce: bool = true) -> void:
 		_ensure_monolith(1)
 	if _has_building(Catalog.BLD_ROUND) and peak >= 12:
 		_open_sister(announce)
+	if announce and peak >= 12 and _ethics_choice("what_is_care") == -1 and living >= 3:
+		_queue_talk("what_is_care", {})
+	elif announce and peak >= 8 and living >= 2:
+		_queue_ambient_talk()
 	_check_milestones(announce)
 
 
@@ -4281,6 +4369,8 @@ func _finish_bridge(bridge: Dictionary) -> void:
 	_enter_part_two("EL PRIMER PUENTE ABRE LA SEGUNDA PARTE.", not used_bones)
 	if used_bones:
 		_reflect("bones")
+	elif not testing:
+		_queue_talk("bridge_done", {})
 
 
 func _nearest_island_shore(cx: int, cy: int, from: Vector2) -> Vector2:
@@ -4546,6 +4636,8 @@ func _reset_world() -> void:
 	modal = {}
 	talk_pending = {}
 	gaze_queue.clear()
+	talked_trees = {}
+	learn_talked = false
 	moral = 0
 	mutations.clear()
 	monolith_tier_spawned.clear()
@@ -6003,6 +6095,8 @@ func _open_special_biomes() -> void:
 				chunks.erase(key)
 			_reveal(spot.x, spot.y)
 			_ensure(spot.x, spot.y)
+			if biome == "anomaly" and _ethics_choice("act3_maw") == -1:
+				_queue_talk("act3_maw", {})
 			placed = true
 
 
@@ -6277,8 +6371,32 @@ func _shot_add_feature(kind: int, x: float, y: float, ore: int) -> Dictionary:
 	return feat
 
 
+func _smoke_find_spot(kind: int, hints: Array) -> Vector2:
+	for spot in hints:
+		var at: Vector2 = spot
+		if can_place_building(kind, at.x, at.y):
+			return Catalog.snap_world(at.x, at.y)
+	for ly in range(4, Catalog.CHUNK - 4, 2):
+		for lx in range(4, Catalog.CHUNK - 4, 2):
+			var wx := float(lx * Catalog.TILE + 8)
+			var wy := float(ly * Catalog.TILE + 8)
+			if can_place_building(kind, wx, wy):
+				return Catalog.snap_world(wx, wy)
+	return Vector2.ZERO
+
+
 func _run_checks() -> void:
 	var errors: Array = []
+	DialogueBook.ensure()
+	if not DialogueBook.has_tree("first_born"):
+		errors.append("dialogue tree first_born missing")
+	if not DialogueBook.trees.has("CH02_S03_010INT1"):
+		errors.append("dialogue tree CH02_S03_010INT1 missing")
+	if not DialogueBook.trees.has("ACT3_S020_GAPINGMAW"):
+		errors.append("dialogue tree ACT3_S020_GAPINGMAW missing")
+	var sample: Dictionary = DialogueBook.open_session("learn_self")
+	if sample.is_empty() or not str(DialogueBook.log_text(sample)).begins_with(">"):
+		errors.append("learn_self terminal log missing")
 	if living != 0:
 		errors.append("start living %s" % living)
 	for feat in features:
@@ -6304,7 +6422,10 @@ func _run_checks() -> void:
 		if modal.is_empty() or str(modal.get("event", "")) != "first_born":
 			errors.append("first_born talk missing")
 		else:
-			choose(0)
+			var guard := 0
+			while not modal.is_empty() and guard < 32:
+				choose(0)
+				guard += 1
 		if bool(mutations.get("care", false)) != true:
 			errors.append("care mutation missing")
 		var again := _add_item(Catalog.ITEM_EGG, 260.0, 260.0, 0)
@@ -6340,6 +6461,15 @@ func _run_checks() -> void:
 				break
 		if living < 2:
 			errors.append("mitosis living %s" % living)
+		_queue_talk("learn_self", {})
+		var talk_guard := 0
+		while not modal.is_empty() and talk_guard < 64:
+			choose(0)
+			talk_guard += 1
+		if str(DialogueBook.tree_id_for("learn_self")) != "CH02_S03_010INT1":
+			errors.append("learn_self tree mapping")
+		if _ethics_choice("learn_self") == -1:
+			errors.append("learn_self ethics missing")
 	if not bool(unlocks.camera):
 		errors.append("camera locked after hatch")
 	peak = 6
@@ -6448,8 +6578,16 @@ func _run_checks() -> void:
 		errors.append("market unlock after bridge")
 	if not bool(unlocks.get("mine", false)):
 		errors.append("mine unlock after bridge")
-	while not modal.is_empty():
+	var drain_i := 0
+	while not modal.is_empty() and drain_i < 128:
 		choose(0)
+		drain_i += 1
+	frozen = false
+	_restore_gaze()
+	for i in slot_count:
+		if state[i] == Catalog.ST_LIVING:
+			pos_x[i] = 120.0
+			pos_y[i] = 120.0
 	var ore_node := {}
 	for feat in features:
 		if not feat.dead and int(feat.cx) == 0 and _ore_tier(int(feat.kind)) > 0:
@@ -6458,36 +6596,39 @@ func _run_checks() -> void:
 	if ore_node.is_empty():
 		errors.append("no ore node for mine")
 	else:
-		_add_item(Catalog.ITEM_WOOD, float(ore_node.x) + 48.0, float(ore_node.y), 1)
-		_add_item(Catalog.ITEM_WOOD, float(ore_node.x) + 64.0, float(ore_node.y), 1)
+		# Keep wood outside the 6x5 mine footprint so _item_spot_free passes.
+		_add_item(Catalog.ITEM_WOOD, float(ore_node.x) + 112.0, float(ore_node.y) + 96.0, 1)
+		_add_item(Catalog.ITEM_WOOD, float(ore_node.x) + 128.0, float(ore_node.y) + 96.0, 1)
 		if not can_place_building(Catalog.BLD_MINE, float(ore_node.x), float(ore_node.y)):
 			errors.append("mine blocked on ore node")
 		elif not place_building(Catalog.BLD_MINE, float(ore_node.x), float(ore_node.y)):
 			errors.append("mine place on ore node")
 		elif _count_mine_nodes(0, 0) < 1:
 			errors.append("mine ate every ore node")
+	frozen = false
 	var market_at := Vector2(256.0, 200.0)
-	for spot in [Vector2(256.0, 200.0), Vector2(220.0, 220.0), Vector2(280.0, 220.0), Vector2(256.0, 300.0)]:
+	var market_ok := false
+	for spot in [Vector2(256.0, 200.0), Vector2(220.0, 220.0), Vector2(280.0, 220.0), Vector2(256.0, 300.0), Vector2(180.0, 320.0), Vector2(320.0, 160.0), Vector2(160.0, 200.0), Vector2(300.0, 300.0)]:
 		if can_place_building(Catalog.BLD_MARKET, spot.x, spot.y):
 			market_at = spot
+			market_ok = true
 			break
-	if not place_building(Catalog.BLD_MARKET, market_at.x, market_at.y):
+	if not market_ok or not place_building(Catalog.BLD_MARKET, market_at.x, market_at.y):
 		errors.append("market place free")
 	elif place_building(Catalog.BLD_MARKET, market_at.x + 40.0, market_at.y):
 		errors.append("market unique broken")
-	var tub_spot := Vector2(200.0, 280.0)
-	for spot in [Vector2(200.0, 280.0), Vector2(180.0, 260.0), Vector2(220.0, 300.0)]:
-		if can_place_building(Catalog.BLD_TUB, spot.x, spot.y):
-			tub_spot = spot
-			break
-	if place_building(Catalog.BLD_TUB, tub_spot.x, tub_spot.y):
+	var tub_spot := _smoke_find_spot(Catalog.BLD_TUB, [
+		Vector2(200.0, 280.0), Vector2(180.0, 260.0), Vector2(220.0, 300.0),
+		Vector2(140.0, 300.0), Vector2(300.0, 140.0), Vector2(340.0, 240.0), Vector2(100.0, 220.0),
+	])
+	if tub_spot == Vector2.ZERO or not place_building(Catalog.BLD_TUB, tub_spot.x, tub_spot.y):
+		errors.append("tub place for solid")
+	else:
 		if not _blocked(tub_spot.x, tub_spot.y):
 			errors.append("tub not solid")
 		var rim := _approach_spot(tub_spot.x, tub_spot.y, 18.0)
 		if _blocked(rim.x, rim.y):
 			errors.append("tub approach blocked")
-	else:
-		errors.append("tub place for solid")
 	var dug := {}
 	for b in buildings:
 		if not b.dead and int(b.kind) == Catalog.BLD_MINE:

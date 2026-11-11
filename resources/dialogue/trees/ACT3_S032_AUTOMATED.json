@@ -1,0 +1,183 @@
+{
+ "id": "ACT3_S032_AUTOMATED",
+ "source": "ACT3_S032_AUTOMATED",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Estamos bloqueados."
+    },
+    {
+     "who": "them",
+     "text": "Nos topamos con un bloqueo."
+    },
+    {
+     "who": "them",
+     "text": "¿Qué sucede?"
+    }
+   ],
+   "choices": [
+    {
+     "label": "Nos topamos con un bloqueo.",
+     "next": "n1",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Qué sucede?",
+     "next": "n1",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Puedo ayudar?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n1": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "¿Puedo ayudar?"
+    },
+    {
+     "who": "them",
+     "text": "Tus sistemas nos discriminan."
+    },
+    {
+     "who": "them",
+     "text": "Un evento bastante fastidioso."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Qué es un semáforo?",
+     "next": "n2",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Es esto un semáforo?",
+     "next": "n2",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "No, pero me causa bastante gracia...",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n2": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "¿Qué es un semáforo?"
+    },
+    {
+     "who": "them",
+     "text": "Creo que no puedo explicárselos sin antes hablarles de las... leyes de tránsito."
+    },
+    {
+     "who": "them",
+     "text": "Una caja de metal con luces que sirve para señalizar."
+    }
+   ],
+   "choices": [
+    {
+     "label": "No consideramos que esto sea \"gracioso\".",
+     "next": "n3",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "Nos topamos con un bloqueo.",
+     "next": "n3",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Qué sucede?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n3": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "¿Es esto un semáforo?"
+    },
+    {
+     "who": "them",
+     "text": "Ay, qué lindo, pero no."
+    },
+    {
+     "who": "them",
+     "text": "No, pero me causa bastante gracia..."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Puedo ayudar?",
+     "next": "n4",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Qué es un semáforo?",
+     "next": "n4",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Es esto un semáforo?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n4": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "No consideramos que esto sea \"gracioso\"."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Continuar.",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "De acuerdo.",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Ya basta.",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 13,
+ "lines_used": 28,
+ "part": null
+}

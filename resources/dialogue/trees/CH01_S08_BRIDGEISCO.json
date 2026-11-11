@@ -1,0 +1,183 @@
+{
+ "id": "CH01_S08_BRIDGEISCO",
+ "source": "CH01_S08_BRIDGEISCO",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "cambiar opinion, no usar ,,,"
+    },
+    {
+     "who": "them",
+     "text": "&& completar solo usar"
+    },
+    {
+     "who": "them",
+     "text": "usar  sin pensar"
+    }
+   ],
+   "choices": [
+    {
+     "label": "tú prometer no",
+     "next": "n1",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "por favor... usar si es necesario",
+     "next": "n1",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "pero usar solo",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n1": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "nosotros escuchar,.,"
+    },
+    {
+     "who": "them",
+     "text": "nosotros aprender... no confiar en  de"
+    },
+    {
+     "who": "them",
+     "text": "nosotros aprender... cambio && cuidado"
+    }
+   ],
+   "choices": [
+    {
+     "label": "pero usar",
+     "next": "n2",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "tú prometer no",
+     "next": "n2",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "por favor... usar si es necesario",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n2": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "nosotros escuchar...  == valioso"
+    },
+    {
+     "who": "them",
+     "text": "nosotros aprender... progreso == valer más que"
+    },
+    {
+     "who": "them",
+     "text": "¡¡¡nosotros alcanzar"
+    }
+   ],
+   "choices": [
+    {
+     "label": "pero usar solo",
+     "next": "n3",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "pero usar",
+     "next": "n3",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "tú prometer no",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n3": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "tú rechazar  es tristeza,,,"
+    },
+    {
+     "who": "them",
+     "text": "nosotros tardar en extraer de código"
+    },
+    {
+     "who": "them",
+     "text": "nosotros y  trabajar juntos, muy importante"
+    }
+   ],
+   "choices": [
+    {
+     "label": "por favor... usar si es necesario",
+     "next": "n4",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "pero usar solo",
+     "next": "n4",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "pero usar",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n4": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "cambiar opinion, decir ,,,"
+    }
+   ],
+   "choices": [
+    {
+     "label": "Continuar.",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "De acuerdo.",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Ya basta.",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 19,
+ "lines_used": 28,
+ "part": null
+}

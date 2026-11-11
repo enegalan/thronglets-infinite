@@ -1,0 +1,31 @@
+{
+ "id": "ACT3_S024_ONBADOBJEC",
+ "source": "ACT3_S024_ONBADOBJEC",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "¿Por qué harías eso?"
+    },
+    {
+     "who": "them",
+     "text": "¿Acaso nuestras creaciones no son dignas de tu respeto?"
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Será que solo ves respeto en un reflejo?",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    }
+   ]
+  }
+ },
+ "lines_in": 4,
+ "lines_used": 3,
+ "part": null
+}

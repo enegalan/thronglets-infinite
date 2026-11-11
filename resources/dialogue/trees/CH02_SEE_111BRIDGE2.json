@@ -1,0 +1,31 @@
+{
+ "id": "CH02_SEE_111BRIDGE2",
+ "source": "CH02_SEE_111BRIDGE2",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "¡Tanto progreso! Y eso que solo hemos explorado la tierra del sur."
+    },
+    {
+     "who": "them",
+     "text": "Tal vez debamos ir hacia el norte, ."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¡Tanto progreso! Y eso que solo hemos explorado la tierra del sur.",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    }
+   ]
+  }
+ },
+ "lines_in": 2,
+ "lines_used": 3,
+ "part": null
+}

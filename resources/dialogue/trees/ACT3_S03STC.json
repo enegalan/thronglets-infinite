@@ -1,0 +1,27 @@
+{
+ "id": "ACT3_S03STC",
+ "source": "ACT3_S03STC",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Te ríes de nosotros."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Qué?",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    }
+   ]
+  }
+ },
+ "lines_in": 5,
+ "lines_used": 2,
+ "part": null
+}

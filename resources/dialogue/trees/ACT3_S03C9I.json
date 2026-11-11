@@ -1,0 +1,43 @@
+{
+ "id": "ACT3_S03C9I",
+ "source": "ACT3_S03C9I",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Tu indiferencia abarca hasta nuestra pregunta más simple."
+    },
+    {
+     "who": "them",
+     "text": "Quizá tus respuestas son un intento de ponernos a prueba también..."
+    },
+    {
+     "who": "them",
+     "text": "Tesis: quieres sacarnos de quicio como una forma de educarnos."
+    },
+    {
+     "who": "them",
+     "text": "Antítesis: haces lo que haces simplemente por desprecio."
+    },
+    {
+     "who": "them",
+     "text": "Síntesis: eres insoportable."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Síntesis: eres insoportable.",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    }
+   ]
+  }
+ },
+ "lines_in": 5,
+ "lines_used": 6,
+ "part": null
+}

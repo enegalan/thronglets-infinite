@@ -1,0 +1,47 @@
+{
+ "id": "ACT3_S051_HOWFAR__p8",
+ "source": "ACT3_S051_HOWFAR",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "A menudo mostraste preocupación por nosotros mientras crecíamos."
+    },
+    {
+     "who": "them",
+     "text": "Y a veces incluso parecías interesarte por nosotros, lo cual es gratificante."
+    },
+    {
+     "who": "them",
+     "text": "¿Ey, Tropel? Lo siento."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Cuándo les mentí?",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿No se suponía que demostraba preocupación y curiosidad?",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Bien, pero... ¿por qué me juzgan?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 40,
+ "lines_used": 6,
+ "part": 8
+}

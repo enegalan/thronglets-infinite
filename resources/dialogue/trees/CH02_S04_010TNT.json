@@ -1,0 +1,39 @@
+{
+ "id": "CH02_S04_010TNT",
+ "source": "CH02_S04_010TNT",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": ", debes colocar el"
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿En qué quieren que lo use?",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Por qué necesitan explosivos?",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Entonces quieren que haga estallar la montaña?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 15,
+ "lines_used": 4,
+ "part": null
+}

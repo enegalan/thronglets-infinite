@@ -1,0 +1,19 @@
+{
+  "id": "confirm_nuke",
+  "source": "CH02_ITEM_NUKEUNLOCK",
+  "status": "curated",
+  "start": "n0",
+  "nodes": {
+    "n0": {
+      "lines": [
+        {"who": "them", "text": "Esta luz vacía el sector."},
+        {"who": "them", "text": "Solucionando conflictos:///"}
+      ],
+      "choices": [
+        {"label": "La suciedad, no a los vivos.", "next": "", "moral": 1, "mutate": ""},
+        {"label": "Todo lo que estorba.", "next": "", "moral": -1, "mutate": "numb"},
+        {"label": "Guardar el dispositivo.", "next": "", "moral": 1, "mutate": "care"}
+      ]
+    }
+  }
+}

@@ -1,0 +1,39 @@
+{
+ "id": "CH02_DROPOREROC",
+ "source": "CH02_DROPOREROC",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Parece que no comprendiste nuestras instrucciones."
+    },
+    {
+     "who": "them",
+     "text": "Te pedimos que partieras las rocas."
+    },
+    {
+     "who": "them",
+     "text": "Con el mazo."
+    },
+    {
+     "who": "them",
+     "text": "No que las lanzaras fuera de nuestro alcance."
+    }
+   ],
+   "choices": [
+    {
+     "label": "No que las lanzaras fuera de nuestro alcance.",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    }
+   ]
+  }
+ },
+ "lines_in": 4,
+ "lines_used": 5,
+ "part": null
+}

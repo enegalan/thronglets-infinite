@@ -1,0 +1,43 @@
+{
+ "id": "CH02_SEE_100ECON__p0",
+ "source": "CH02_SEE_100ECON",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Debes romper las rocas..."
+    },
+    {
+     "who": "them",
+     "text": "La mayor parte de nuestra población fue reconstituida."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¡Sí, necesitamos mano de obra!",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "No olvides que aún requerimos alimento, entretenimiento y limpieza.",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Nos emociona dar el siguiente paso a lo desconocido a tu lado, .",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 40,
+ "lines_used": 5,
+ "part": 0
+}

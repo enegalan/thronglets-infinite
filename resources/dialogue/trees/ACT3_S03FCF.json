@@ -1,0 +1,47 @@
+{
+ "id": "ACT3_S03FCF",
+ "source": "ACT3_S03FCF",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Así que tú también los encuentras desconcertantes."
+    },
+    {
+     "who": "them",
+     "text": "Entendemos que los humanos deberían ser capaces de distinguir estos sistemas."
+    },
+    {
+     "who": "them",
+     "text": "¿No deseas ayudarnos?"
+    },
+    {
+     "who": "them",
+     "text": "Tienes un solo trabajo, humano."
+    },
+    {
+     "who": "them",
+     "text": "Necesitamos que resuelvas esto para continuar."
+    },
+    {
+     "who": "them",
+     "text": "Inténtalo otra vez."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿No deseas ayudarnos?",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    }
+   ]
+  }
+ },
+ "lines_in": 6,
+ "lines_used": 7,
+ "part": null
+}

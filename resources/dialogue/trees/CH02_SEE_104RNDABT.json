@@ -1,0 +1,39 @@
+{
+ "id": "CH02_SEE_104RNDABT",
+ "source": "CH02_SEE_104RNDABT",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": ", no olvides que necesitamos entretenimiento, alimento y limpieza para poder multiplicarnos."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Continuar.",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "De acuerdo.",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Ya basta.",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 3,
+ "lines_used": 4,
+ "part": null
+}

@@ -1,0 +1,55 @@
+{
+ "id": "ACT3_S03C4I",
+ "source": "ACT3_S03C4I",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Rehúyes de tus fechorías."
+    },
+    {
+     "who": "them",
+     "text": "Pero eso no las hace desaparecer."
+    },
+    {
+     "who": "them",
+     "text": "La entropía es inevitable. Volverán a la energía que alguna vez los forjó."
+    },
+    {
+     "who": "them",
+     "text": "La muerte se transforma en vida. Como un ciclo."
+    },
+    {
+     "who": "them",
+     "text": "Este ejercicio nos ha permitido seguir evaluando tus cualidades intrínsecas."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Continuar.",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "De acuerdo.",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Ya basta.",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 5,
+ "lines_used": 8,
+ "part": null
+}

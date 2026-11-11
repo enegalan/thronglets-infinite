@@ -2,6 +2,7 @@ extends Node2D
 
 const ThrongletSim := preload("res://ThrongletSimServer.gd")
 const DevBench := preload("res://dev_bench.gd")
+const DialogueBook := preload("res://dialogue_book.gd")
 
 var camera: Camera2D
 var tilemap: TileMapLayer
@@ -121,8 +122,10 @@ var sponge_tracking := false
 var market_panel: PanelContainer
 var market_list: VBoxContainer
 var gaze_panel: PanelContainer
-var gaze_text: Label
+var gaze_text: RichTextLabel
 var gaze_box: VBoxContainer
+var gaze_face: TextureRect
+var shown_seq := 0
 var focus_dim: ColorRect
 var focus_frame: Panel
 var focus_shade: ShaderMaterial
@@ -1862,38 +1865,62 @@ func _sync_gaze() -> void:
 			_play("dialogue_out")
 		gaze_panel.visible = false
 		shown_event = ""
+		shown_seq = 0
 		return
 	var event := str(sim.modal.event)
-	if event != shown_event:
-		if shown_event != "":
-			_play("dialogue_out")
+	var seq := int(sim.modal.get("seq", 1))
+	if event != shown_event or seq != shown_seq:
+		if event != shown_event:
+			if shown_event != "":
+				_play("dialogue_out")
+			_play("dialogue_in")
+		else:
+			_play("console")
 		shown_event = event
-		_play("dialogue_in")
+		shown_seq = seq
 		for child in gaze_box.get_children():
 			child.queue_free()
-		var gaze: Dictionary = Catalog.GAZE[event]
-		var quote := LineBook.line_for(event)
-		gaze_text.text = quote if quote != "" else str(gaze.text)
-		if quote != "":
-			gaze_text.text = quote + "\n" + str(gaze.text)
-		var choices: Array = gaze.choices
+		var session := {
+			"tree": str(sim.modal.get("tree", "")),
+			"node": str(sim.modal.get("node", "")),
+			"log": sim.modal.get("log", []),
+			"seq": seq,
+		}
+		gaze_text.clear()
+		gaze_text.add_theme_color_override("default_color", Color(0.35, 1.0, 0.45))
+		gaze_text.append_text(DialogueBook.log_text(session).replace("[", "(").replace("]", ")"))
+		if gaze_face != null:
+			var face_key := "epilogue_caretaker"
+			if POP_FACES.has(sim.mood_face):
+				face_key = sim.mood_face
+			elif bool(sim.mutations.get("care", false)):
+				face_key = "epilogue_caretaker"
+			elif bool(sim.mutations.get("numb", false)) or bool(sim.mutations.get("hard", false)):
+				face_key = "epilogue_angry"
+			gaze_face.texture = _tex(POP_FACES[face_key])
+		var choices: Array = DialogueBook.choices_of(session)
 		for i in choices.size():
+			var edge: Dictionary = choices[i] if choices[i] is Dictionary else {}
 			var button := Button.new()
-			button.text = str(choices[i])
-			button.add_theme_color_override("font_color", Color.WHITE)
-			button.add_theme_color_override("font_hover_color", Color(0.28, 0.14, 0.05))
-			button.add_theme_color_override("font_focus_color", Color(0.28, 0.14, 0.05))
-			button.add_theme_color_override("font_pressed_color", Color(1.0, 0.94, 0.82))
-			button.add_theme_color_override("font_hover_pressed_color", Color(1.0, 0.94, 0.82))
-			var hover := _choice_box(Color(1.0, 0.82, 0.45), Color(0.55, 0.36, 0.12))
-			var pressed := _choice_box(Color(0.42, 0.24, 0.12), Color(0.22, 0.12, 0.06))
-			button.add_theme_stylebox_override("normal", _choice_box(Color(0.62, 0.46, 0.30), Color(0.35, 0.22, 0.12)))
+			button.text = str(edge.get("label", ""))
+			button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			button.add_theme_color_override("font_color", Color(0.35, 1.0, 0.45))
+			button.add_theme_color_override("font_hover_color", Color(0.85, 1.0, 0.75))
+			button.add_theme_color_override("font_focus_color", Color(0.85, 1.0, 0.75))
+			button.add_theme_color_override("font_pressed_color", Color(0.15, 0.55, 0.25))
+			button.add_theme_color_override("font_hover_pressed_color", Color(0.15, 0.55, 0.25))
+			var hover := _choice_box(Color(0.08, 0.28, 0.12), Color(0.35, 1.0, 0.45))
+			var pressed := _choice_box(Color(0.04, 0.14, 0.08), Color(0.2, 0.7, 0.3))
+			button.add_theme_stylebox_override("normal", _choice_box(Color(0.03, 0.1, 0.05), Color(0.25, 0.85, 0.4)))
 			button.add_theme_stylebox_override("hover", hover)
 			button.add_theme_stylebox_override("focus", hover)
 			button.add_theme_stylebox_override("pressed", pressed)
 			button.add_theme_stylebox_override("hover_pressed", pressed)
 			var index := i
-			button.pressed.connect(func(): ThrongletSimServer.choose(index))
+			button.pressed.connect(func():
+				_play("console_select")
+				ThrongletSimServer.choose(index)
+			)
 			gaze_box.add_child(button)
 	gaze_panel.visible = true
 
@@ -1937,9 +1964,9 @@ func _sync_focus(delta: float) -> void:
 	var inner := frame.grow(-22.0)
 	var hole := inner
 	if talk:
-		var text_h := 220.0
+		var text_h := 240.0
 		hole.size.y = maxf(64.0, inner.size.y - text_h)
-		var text := Rect2(Vector2(inner.position.x, inner.position.y + hole.size.y), Vector2(inner.size.x, inner.size.y - hole.size.y))
+		var text := Rect2(Vector2(inner.position.x, inner.position.y + hole.size.y - 8.0), Vector2(inner.size.x, inner.size.y - hole.size.y + 8.0))
 		_set_box(gaze_panel, text)
 	var view_size := get_viewport_rect().size
 	var uv_pos := hole.position / view_size
@@ -2967,25 +2994,48 @@ func _build_ui() -> void:
 	gaze_panel = PanelContainer.new()
 	gaze_panel.visible = false
 	gaze_panel.z_index = 33
-	if ResourceLoader.exists("res://resources/ui/wood_panel.png"):
-		gaze_panel.add_theme_stylebox_override("panel", _box_style("res://resources/ui/wood_panel.png", 48, 28))
+	if ResourceLoader.exists("res://resources/ui/console_panel.png"):
+		var console := _box_style("res://resources/ui/console_panel.png", 18, 14)
+		gaze_panel.add_theme_stylebox_override("panel", console)
+	elif ResourceLoader.exists("res://resources/ui/console_border.png"):
+		var border_only := _box_style("res://resources/ui/console_border.png", 18, 14)
+		border_only.draw_center = false
+		gaze_panel.add_theme_stylebox_override("panel", border_only)
 	else:
-		var paper := StyleBoxFlat.new()
-		paper.bg_color = Color(0.73, 0.59, 0.45)
-		gaze_panel.add_theme_stylebox_override("panel", paper)
+		var terminal := StyleBoxFlat.new()
+		terminal.bg_color = Color(0.02, 0.06, 0.03, 0.94)
+		terminal.border_color = Color(0.25, 0.95, 0.4)
+		terminal.set_border_width_all(2)
+		gaze_panel.add_theme_stylebox_override("panel", terminal)
 	var gaze_margin := MarginContainer.new()
-	gaze_margin.add_theme_constant_override("margin_left", 4)
-	gaze_margin.add_theme_constant_override("margin_right", 4)
-	gaze_margin.add_theme_constant_override("margin_top", 4)
-	gaze_margin.add_theme_constant_override("margin_bottom", 4)
+	gaze_margin.add_theme_constant_override("margin_left", 8)
+	gaze_margin.add_theme_constant_override("margin_right", 8)
+	gaze_margin.add_theme_constant_override("margin_top", 8)
+	gaze_margin.add_theme_constant_override("margin_bottom", 8)
+	var gaze_row := HBoxContainer.new()
+	gaze_row.add_theme_constant_override("separation", 10)
+	gaze_face = TextureRect.new()
+	gaze_face.custom_minimum_size = Vector2(72, 72)
+	gaze_face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	gaze_face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	gaze_row.add_child(gaze_face)
 	var gaze_col := VBoxContainer.new()
-	gaze_text = Label.new()
-	gaze_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	gaze_text.add_theme_color_override("font_color", Color.WHITE)
+	gaze_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	gaze_text = RichTextLabel.new()
+	gaze_text.bbcode_enabled = true
+	gaze_text.fit_content = false
+	gaze_text.scroll_active = true
+	gaze_text.custom_minimum_size = Vector2(0, 96)
+	gaze_text.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	gaze_text.add_theme_color_override("default_color", Color(0.35, 1.0, 0.45))
 	gaze_col.add_child(gaze_text)
+	gaze_row.add_child(gaze_col)
 	gaze_box = VBoxContainer.new()
-	gaze_col.add_child(gaze_box)
-	gaze_margin.add_child(gaze_col)
+	gaze_box.custom_minimum_size = Vector2(210, 0)
+	gaze_box.size_flags_horizontal = Control.SIZE_SHRINK_END
+	gaze_box.add_theme_constant_override("separation", 6)
+	gaze_row.add_child(gaze_box)
+	gaze_margin.add_child(gaze_row)
 	gaze_panel.add_child(gaze_margin)
 	root.add_child(gaze_panel)
 	_build_marks()
@@ -3790,6 +3840,7 @@ func _fill_bank() -> void:
 	sfx_bank["dialogue_in"] = _clips(_seq("ui_dialogue_frame_in_", 1, 7))
 	sfx_bank["dialogue_out"] = _clips(_seq("ui_dialogue_frame_out_", 1, 8))
 	sfx_bank["console"] = _clips(_seq("ui_console_new_line_", 1, 4))
+	sfx_bank["console_select"] = _clips(PackedStringArray(["ui_console_select.wav", "ui_console_prompt.wav"]))
 	sfx_bank["speed"] = _clips(_seq("sfx_thronglet_speed_run_", 1, 6))
 	sfx_bank["superore"] = _clips(_seq("sfx_superOre_lift_", 1, 6))
 	sfx_bank["superore"].append_array(_clips(_seq("sfx_superOre_drop_", 1, 4)))

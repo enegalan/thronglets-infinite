@@ -1,0 +1,79 @@
+{
+ "id": "ACT3_S051_HOWFAR__p17",
+ "source": "ACT3_S051_HOWFAR",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "¿No nos consideras como reales?"
+    },
+    {
+     "who": "them",
+     "text": "... \"Realidad\"."
+    },
+    {
+     "who": "them",
+     "text": "Responde esta pregunta:"
+    }
+   ],
+   "choices": [
+    {
+     "label": "Entonces, ¿en qué evidencia nos basamos?",
+     "next": "n1",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "Sí, por eso juego. Es por la creatividad.",
+     "next": "n1",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Me ven como una persona que demuestra preocupación y creatividad? ¿Es eso?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n1": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Esto nos lleva a una conclusión más:"
+    },
+    {
+     "who": "them",
+     "text": "Experimentaste con nosotros. Versan los datos:"
+    }
+   ],
+   "choices": [
+    {
+     "label": "¡Me gusta pasar tiempo con ustedes!",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Quieres saber nuestra conclusión final?",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¡Oigan, la internet no es un buen ejemplo de moral y buenas costumbres!",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 40,
+ "lines_used": 11,
+ "part": 17
+}

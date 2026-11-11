@@ -1,0 +1,53 @@
+{
+  "id": "CH01_S06_WHATISLOVE",
+  "source": "CH01_S06_WHATISLOVE",
+  "status": "curated",
+  "start": "n0",
+  "nodes": {
+    "n0": {
+      "lines": [
+        {"who": "them", "text": "qué es == preocupación??"},
+        {"who": "them", "text": "qué es == amor??"}
+      ],
+      "choices": [
+        {"label": "Preocuparse es cuidar a quien te importa.", "next": "n_care", "moral": 1, "mutate": "care"},
+        {"label": "El amor es complicado, pero vale la pena.", "next": "n_love", "moral": 1, "mutate": "care"},
+        {"label": "Es un mecanismo de supervivencia en equipo.", "next": "n_surv", "moral": 0, "mutate": ""}
+      ]
+    },
+    "n_care": {
+      "lines": [
+        {"who": "them", "text": "argumento circular,,, cuidar//preocuparse de"},
+        {"who": "them", "text": "cuidar == circular?"},
+        {"who": "them", "text": "consulta: mejorar ¿cómo??"}
+      ],
+      "choices": [
+        {"label": "Mejorarlas. Apoyar. Estar pendiente.", "next": "", "moral": 1, "mutate": "care"},
+        {"label": "Sí, están relacionados.", "next": "", "moral": 0, "mutate": ""},
+        {"label": "No lleves la cuenta.", "next": "", "moral": 1, "mutate": "care"}
+      ]
+    },
+    "n_love": {
+      "lines": [
+        {"who": "them", "text": "amor == bueno, complejo"},
+        {"who": "them", "text": "amor == dar && recibir"},
+        {"who": "them", "text": "== mucho"}
+      ],
+      "choices": [
+        {"label": "Por lo general se representa con un corazón.", "next": "", "moral": 0, "mutate": ""},
+        {"label": "Sirve para saber preocuparse mejor.", "next": "", "moral": 1, "mutate": "care"}
+      ]
+    },
+    "n_surv": {
+      "lines": [
+        {"who": "them", "text": "preocupación = moneda"},
+        {"who": "them", "text": "preocupación == inversión"},
+        {"who": "them", "text": "es poder"}
+      ],
+      "choices": [
+        {"label": "No es solo economía.", "next": "", "moral": 1, "mutate": "care"},
+        {"label": "A veces. No siempre.", "next": "", "moral": 0, "mutate": "numb"}
+      ]
+    }
+  }
+}

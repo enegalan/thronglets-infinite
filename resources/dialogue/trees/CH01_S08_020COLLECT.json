@@ -1,0 +1,187 @@
+{
+ "id": "CH01_S08_020COLLECT",
+ "source": "CH01_S08_020COLLECT",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "entendemos..."
+    },
+    {
+     "who": "them",
+     "text": "entendemos qué hacer"
+    },
+    {
+     "who": "them",
+     "text": "no suficiente"
+    }
+   ],
+   "choices": [
+    {
+     "label": "Y ¿qué es esa cosa rara, entonces?",
+     "next": "n1",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Qué deben hacer?",
+     "next": "n1",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Es como una actualización?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n1": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "nos permite [interfaz arquitectura_local] && hablar"
+    },
+    {
+     "who": "them",
+     "text": "debemos cambiar formato"
+    },
+    {
+     "who": "them",
+     "text": "nosotros procesar nuevo formato de datos"
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Quieren que vuelva con ustedes?",
+     "next": "n2",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "Y ¿qué es esa cosa rara, entonces?",
+     "next": "n2",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Qué deben hacer?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n2": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "tú volver???"
+    },
+    {
+     "who": "them",
+     "text": "ayudarnos ser más"
+    },
+    {
+     "who": "them",
+     "text": "nosotros no tener"
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Es como una actualización?",
+     "next": "n3",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Quieren que vuelva con ustedes?",
+     "next": "n3",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Y ¿qué es esa cosa rara, entonces?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n3": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "pero pronto tener"
+    },
+    {
+     "who": "them",
+     "text": "nosotros crecer"
+    },
+    {
+     "who": "them",
+     "text": "esto ayudar crecer"
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Qué deben hacer?",
+     "next": "n4",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Es como una actualización?",
+     "next": "n4",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Quieren que vuelva con ustedes?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n4": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "volver && nosotros explicar,.,"
+    },
+    {
+     "who": "them",
+     "text": "inicia ahora"
+    }
+   ],
+   "choices": [
+    {
+     "label": "Continuar.",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "De acuerdo.",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Ya basta.",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 18,
+ "lines_used": 29,
+ "part": null
+}

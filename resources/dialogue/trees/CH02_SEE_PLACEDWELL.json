@@ -1,0 +1,31 @@
+{
+ "id": "CH02_SEE_PLACEDWELL",
+ "source": "CH02_SEE_PLACEDWELL",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "¿Olvidaste investigar nuestras nuevas herramientas?"
+    },
+    {
+     "who": "them",
+     "text": "La vivienda tiene una función doble. Mejorará la eficiencia en gran medida."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Olvidaste investigar nuestras nuevas herramientas?",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    }
+   ]
+  }
+ },
+ "lines_in": 2,
+ "lines_used": 3,
+ "part": null
+}

@@ -1,0 +1,43 @@
+{
+ "id": "CH02_SEE_300WORKLIF",
+ "source": "CH02_SEE_300WORKLIF",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": ", ¿podemos hacerte una pregunta?"
+    },
+    {
+     "who": "them",
+     "text": "Nos haces una consulta. Interesante."
+    }
+   ],
+   "choices": [
+    {
+     "label": "No tengo tiempo.",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Ajá?",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Genial. ¿Es todo?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 24,
+ "lines_used": 5,
+ "part": null
+}

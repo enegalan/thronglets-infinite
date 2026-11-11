@@ -1,0 +1,47 @@
+{
+ "id": "CH02_S04_032HINT4",
+ "source": "CH02_S04_032HINT4",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Te lo pedimos, ."
+    },
+    {
+     "who": "them",
+     "text": "Danos el progreso."
+    },
+    {
+     "who": "them",
+     "text": "Coloca el dispositivo y actívalo."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Continuar.",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "De acuerdo.",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Ya basta.",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 3,
+ "lines_used": 6,
+ "part": null
+}

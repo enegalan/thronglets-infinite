@@ -1,0 +1,111 @@
+{
+ "id": "ACT3_S051_HOWFAR__p0",
+ "source": "ACT3_S051_HOWFAR",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Mientras tanto..."
+    },
+    {
+     "who": "them",
+     "text": "Esperaremos."
+    },
+    {
+     "who": "them",
+     "text": "…"
+    }
+   ],
+   "choices": [
+    {
+     "label": "Nos es difícil encontrar las palabras si se trata de... sentimientos.",
+     "next": "n1",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Cómo se sienten? ¿Están emocionados?",
+     "next": "n1",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Y qué pasará ahora?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n1": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Has invertido mucho tiempo en nosotros."
+    },
+    {
+     "who": "them",
+     "text": "\"Conformarse\"..."
+    },
+    {
+     "who": "them",
+     "text": "\"Jugar\"... \"Actividad que se realiza con el fin de entretenerse o divertirse, sin un fin serio o práctico\"."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Ya ves lo que te depara el futuro, ?",
+     "next": "n2",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Por qué no lo intentan?",
+     "next": "n2",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Reflexionar? ¿Cómo así?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n2": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "IN THIS MOMENT WE SHOULD CHECK SPECIFIC EMAUGS AND CALL BACK ON CORE DECISIONS."
+    }
+   ],
+   "choices": [
+    {
+     "label": "No quiero mirar hacia atrás. ¡No retroceder ni para tomar impulso!",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "Nos has acompañado durante toda nuestra vida.",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Están conformes con su crecimiento?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 40,
+ "lines_used": 16,
+ "part": 0
+}
