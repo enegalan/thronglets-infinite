@@ -7,6 +7,9 @@ from PIL import Image, ImageChops, ImageDraw
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = lambda *parts: os.path.join(ROOT, *parts)
+# Copies of the reference art the game keeps. references/ can go away.
+SRC_TEX = OUT("resources", "src", "tex")
+SRC_SPRITE = OUT("resources", "src", "sprite")
 
 TRANS = (0, 0, 0, 0)
 
@@ -549,7 +552,7 @@ def paint_block(img, ox, top, light, dark, left_side, right_side):
 
 def _tex(name):
     return Image.open(
-        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "references", "Assets", "Texture2D", name)
+        os.path.join(SRC_TEX, name)
     ).convert("RGBA")
 
 
@@ -902,7 +905,7 @@ def make_font():
         handle.write("\n".join(lines) + "\n")
 
 
-# World art is cropped from references/Assets and packed into the sheets.
+# World art is cropped from resources/src and packed into the sheets.
 # The monolith and the purple goo stay the painted pillar and crystal.
 STRUCT = lambda name: OUT("resources", "src", "structures", name)
 ITEM = lambda name: OUT("resources", "src", "items", name)
@@ -926,7 +929,7 @@ def _ref(name):
 
 
 def _tex_frame(name, index, fw, fh):
-    img = Image.open(os.path.join(ROOT, "references", "Assets", "Texture2D", name)).convert("RGBA")
+    img = Image.open(os.path.join(SRC_TEX, name)).convert("RGBA")
     return img.crop((index * fw, 0, (index + 1) * fw, fh))
 
 
@@ -1148,7 +1151,7 @@ def make_world():
     for i in range(8):
         _stamp_frame(sheet, cols, 132 + i, _px(_ref("round_%d.png" % i)))
     # Animated ground fire. fire.png stays the bubble glyph, not this.
-    flame = Image.open(os.path.join(ROOT, "references", "Assets", "Texture2D", "T_FireSprites_Color_16x1.png")).convert("RGBA")
+    flame = Image.open(os.path.join(SRC_TEX, "T_FireSprites_Color_16x1.png")).convert("RGBA")
     for i in range(4):
         src = i * 4
         frame = flame.crop((src * 32, 0, src * 32 + 32, 32))
@@ -1177,10 +1180,10 @@ def _shrink_body(tile, max_w, max_h):
 
 
 def _stamp_frame(sheet, cols, index, img):
-    sheet.alpha_composite(img, (
-        (index % cols) * CELL_W + (CELL_W - img.size[0]) // 2,
-        (index // cols) * CELL_H + CELL_H - img.size[1],
-    ))
+    # Paint inside this cell only. A sprite must not leak into the next frame.
+    cell = new(CELL_W, CELL_H)
+    _blit(cell, img, (CELL_W - img.size[0]) // 2, CELL_H - img.size[1])
+    sheet.paste(cell, ((index % cols) * CELL_W, (index // cols) * CELL_H))
 
 
 def make_hud():
@@ -1249,9 +1252,38 @@ def _crop_unity(atlas, rect):
     return atlas.crop((left, upper, right, lower))
 
 
+def _kickrock_strip(dirt_atlas):
+    # 14 registered cells. The atlas rects for the later frames include a neighbor sprite.
+    path = os.path.join(SRC_TEX, "ThrongA_Bored_KickRock_Spritesheet.png")
+    if not os.path.isfile(path):
+        return []
+    sheet = Image.open(path).convert("RGBA")
+    count = 14
+    fw = sheet.size[0] // count
+    fh = sheet.size[1]
+    meta = json.load(open(os.path.join(
+        SRC_SPRITE, "Char_ThrongA_Bored_KickRock_Spritesheet_0.json",
+    )))
+    rect = meta["m_Rect"]
+    pivot = meta.get("m_Pivot") or {}
+    # Frame 0 of the strip is that rect, sitting at the cell origin.
+    px = float(pivot.get("m_X", 0.5)) * float(rect["m_Width"]) / float(fw)
+    py = 1.0 - (1.0 - float(pivot.get("m_Y", 0.5))) * float(rect["m_Height"]) / float(fh)
+    pivot_n = (px, py)
+    dirt = new(fw, fh)
+    dirt_crop = _crop_unity(dirt_atlas, rect)
+    if dirt_crop.size[0] <= fw and dirt_crop.size[1] <= fh:
+        dirt.alpha_composite(dirt_crop, (0, 0))
+    frames = []
+    for i in range(count):
+        frame = sheet.crop((i * fw, 0, (i + 1) * fw, fh))
+        frames.append((i, "ThrongA_Bored_KickRock_%d" % i, frame, dirt.copy(), pivot_n))
+    return frames
+
+
 def _load_throng_clips():
-    folder = os.path.join(ROOT, "references", "Assets", "Sprite")
-    tex_dir = os.path.join(ROOT, "references", "Assets", "Texture2D")
+    folder = SRC_SPRITE
+    tex_dir = SRC_TEX
     atlas = Image.open(os.path.join(
         tex_dir, "sactx-0-2048x2048-Uncompressed-Sprites-Thronglets-fc0e3430.png",
     )).convert("RGBA")
@@ -1263,13 +1295,10 @@ def _load_throng_clips():
         if not name.endswith(".json"):
             continue
         base = name[:-5]
-        if base.startswith("Char_ThrongA_Bored_KickRock_Alpha"):
+        # The packed atlas rects for this clip overlap the next sprite.
+        # The strip is the animation. Loaded below.
+        if base.startswith("Char_ThrongA_Bored_KickRock_"):
             continue
-        if base.startswith("Char_ThrongA_Bored_KickRock_Spritesheet_"):
-            tail = base.rsplit("_", 1)[-1]
-            if not tail.isdigit():
-                continue
-            key = ("ThrongA_Bored_KickRock", int(tail))
         elif name.startswith("Throng"):
             key = _throng_key(base)
         else:
@@ -1281,16 +1310,21 @@ def _load_throng_clips():
         rect = data.get("m_Rect")
         if not rect:
             continue
+        pivot = data.get("m_Pivot") or {}
         groups.setdefault(clip, [])
         groups[clip].append((
             order,
             name,
             _crop_unity(atlas, rect),
             _crop_unity(dirt_atlas, rect),
+            (float(pivot.get("m_X", 0.5)), float(pivot.get("m_Y", 0.5))),
         ))
+    kick = _kickrock_strip(dirt_atlas)
+    if kick:
+        groups["ThrongA_Bored_KickRock"] = kick
     clips = {}
     for clip in sorted(groups):
-        frames = [(img, dirt) for _order, _name, img, dirt in sorted(groups[clip])]
+        frames = [(img, dirt, pivot) for _order, _name, img, dirt, pivot in sorted(groups[clip])]
         clips[clip] = frames
     return clips
 
@@ -1354,28 +1388,6 @@ def _write_throng_clips(entries, rows, talk, idle):
         handle.write("\n".join(body) + "\n")
 
 
-def _throng_crop(frame):
-    box = frame.getbbox()
-    if not box:
-        return frame
-    return frame.crop(box)
-
-
-def _throng_scale(frames):
-    heights = []
-    for frame, _dirt in frames:
-        cropped = _throng_crop(frame)
-        if cropped.size[1] > 0 and frame.getbbox():
-            heights.append(cropped.size[1])
-    if not heights:
-        return 1.0
-    heights.sort()
-    ref = heights[min(len(heights) - 1, len(heights) // 5)]
-    if ref <= 0:
-        return 1.0
-    return min(1.0, 20.0 / float(ref))
-
-
 def _throng_pair(frame, dirt, scale, wide):
     box = frame.getbbox()
     if not box:
@@ -1396,7 +1408,7 @@ def _throng_pair(frame, dirt, scale, wide):
 
 
 def _tex(name):
-    path = os.path.join(ROOT, "references", "Assets", "Texture2D", name)
+    path = os.path.join(SRC_TEX, name)
     if not os.path.isfile(path):
         return None
     return Image.open(path).convert("RGBA")
@@ -1477,7 +1489,7 @@ def _trim_frame(img):
 
 def _sprite_cuts(filename):
     stem = filename[:-4]
-    folder = os.path.join(ROOT, "references", "Assets", "Sprite")
+    folder = SRC_SPRITE
     img = _tex(filename)
     if img is None or not os.path.isdir(folder):
         return []
@@ -1629,6 +1641,56 @@ def _stamp_fx_and_biomes(sheet, cols, index):
     return index
 
 
+def _throng_fit(frames):
+    # Keep the Unity pixels. Scale a clip only when it does not fit in the cell.
+    limit = float(CELL_W - 4)
+    max_w = 1
+    max_h = 1
+    for img, _dirt, _pivot in frames:
+        max_w = max(max_w, img.size[0])
+        max_h = max(max_h, img.size[1])
+    scale = min(1.0, limit / float(max_w), limit / float(max_h))
+    anchor = 0.0
+    for img, _dirt, pivot in frames:
+        anchor = max(anchor, pivot[1] * img.size[1] * scale)
+    return scale, min(anchor, float(CELL_H - 4))
+
+
+def _unity_throng_cell(img, pivot, scale, anchor):
+    cell = new(CELL_W, CELL_H)
+    if img is None or img.getbbox() is None:
+        return cell
+    if scale < 0.999:
+        img = img.resize((
+            max(1, int(round(img.size[0] * scale))),
+            max(1, int(round(img.size[1] * scale))),
+        ), Image.NEAREST)
+    width, height = img.size
+    pivot_x = pivot[0] * width
+    pivot_y = (1.0 - pivot[1]) * height
+    _blit(cell, img, CELL_W * 0.5 - pivot_x, (CELL_H - anchor) - pivot_y)
+    return cell
+
+
+def _blit(base, img, x, y):
+    x = int(round(x))
+    y = int(round(y))
+    src_x = max(0, -x)
+    src_y = max(0, -y)
+    dest_x = max(0, x)
+    dest_y = max(0, y)
+    width = min(img.size[0] - src_x, base.size[0] - dest_x)
+    height = min(img.size[1] - src_y, base.size[1] - dest_y)
+    if width < 1 or height < 1:
+        return
+    piece = img.crop((src_x, src_y, src_x + width, src_y + height))
+    base.alpha_composite(piece, (dest_x, dest_y))
+
+
+def _stamp_cell(sheet, cols, index, cell):
+    sheet.alpha_composite(cell, ((index % cols) * CELL_W, (index // cols) * CELL_H))
+
+
 def _stamp_throng_anims(sheet, cols):
     clips = _load_throng_clips()
     total = sum(len(frames) for frames in clips.values())
@@ -1656,12 +1718,10 @@ def _stamp_throng_anims(sheet, cols):
     for name in sorted(clips):
         frames = clips[name]
         start = index
-        scale = _throng_scale(frames)
-        wide = "Mitosis" in name
-        for frame, dirt in frames:
-            body, grime = _throng_pair(frame, dirt, scale, wide)
-            _stamp_frame(sheet, cols, index, body)
-            _stamp_frame(dirt_sheet, cols, index, grime)
+        scale, anchor = _throng_fit(frames)
+        for frame, dirt, pivot in frames:
+            _stamp_cell(sheet, cols, index, _unity_throng_cell(frame, pivot, scale, anchor))
+            _stamp_cell(dirt_sheet, cols, index, _unity_throng_cell(dirt, pivot, scale, anchor))
             index += 1
         entries.append((name, start, len(frames)))
         if "Talk" in name:
