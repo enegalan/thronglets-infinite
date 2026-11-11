@@ -2,6 +2,17 @@
 
 ## [Unreleased](https://github.com/enegalan/thronglets-infinite/compare/7851ab6...HEAD)
 
+### 2026-11-11
+
+- Buildings claim a footprint: the tub takes two tiles, homes and mines take a square, the theatre takes a wider pad. Ghost and place marks follow that shape.
+- A thronglet can sit in the bathtub and soak. The roundabout is a real ride. Apple trees grow fruit in the canopy and drop it nearby.
+- Trees grow back more slowly after you cut them.
+- Hold the hand tool on a thronglet to pick it up. A short click still opens its status.
+- Speech uses the old bubble shape and colors. Dirty thronglets show dirt on their fur.
+- Bridge tiles match the grass diamonds, with plank seams on the wood span.
+- Thronglets path with more curiosity, keep clearer thoughts over their heads, and the talk and tool copy is tighter Spanish.
+- Debug shots land under `shots/` and stay out of git.
+
 ### 2026-11-10
 
 - Thronglets act out what they are doing: walk, eat, bathe, play, work, talk, or stand still. A sad one looks sad. A happy one looks happy. Going west turns them to face west.
