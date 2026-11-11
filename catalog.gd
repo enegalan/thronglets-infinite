@@ -24,7 +24,21 @@ const APPLE_LAND_MIN := 10.0
 const APPLE_LAND_MAX := 24.0
 # Seat in the tub, world offset from the snap cell.
 const TUB_SEAT_OFF := Vector2(8.0, 12.0)
-const TUB_SPRITE_SCALE := 1.0
+const TUB_SPRITE_SCALE := 0.35
+const ROUND_SPRITE_SCALE := 0.45
+const FLOWER_SPRITE_SCALE := 0.5
+const NODE_SPRITE_SCALE := 0.7
+const SUPER_SPRITE_SCALE := 0.6
+const ORE_SPRITE_SCALE := 0.4
+const EGG_SPRITE_SCALE := 0.4
+const ROCK_SPRITE_SCALE := 0.25
+const ROCK_ORE_SPRITE_SCALE := 0.4
+const ORE_CLUSTER_SPRITE_SCALE := 0.4
+const BALL_SPRITE_SCALE := 0.25
+const WOOD_SPRITE_SCALE := 0.5
+const BONE_SPRITE_SCALE := 0.25
+const TNT_SPRITE_SCALE := 0.25
+const CURER_SPRITE_SCALE := 0.3
 const TUB_SOAK_LIFT := 4.0
 const TUB_ENTER_LIFT := 11.0
 const TOOL_CHARGE := 0.55
@@ -265,12 +279,20 @@ const BUILD_INFO := {
 # (13px): one tile is the 32px diamond. The sprite is drawn at the pad center.
 static func footprint_for_building(kind: int) -> Vector2i:
 	match kind:
-		BLD_FACTORY:
+		BLD_TUB:
 			return Vector2i(1, 2)
-		BLD_MINE, BLD_MINE2, BLD_FACTORY2, BLD_THEATRE:
-			return Vector2i(2, 2)
+		BLD_MINE:
+			return Vector2i(6, 5)
+		BLD_MINE2:
+			return Vector2i(5, 6)
+		BLD_FACTORY, BLD_FACTORY2:
+			return Vector2i(5, 5)
+		BLD_THEATRE:
+			return Vector2i(4, 6)
 		BLD_MARKET:
-			return Vector2i(3, 2)
+			return Vector2i(5, 4)
+		BLD_ROUND:
+			return Vector2i(2, 2)
 		BLD_DWELL, BLD_FANCY:
 			return Vector2i(3, 3)
 		_:
@@ -279,11 +301,113 @@ static func footprint_for_building(kind: int) -> Vector2i:
 static func footprint_for_feature(kind: int) -> Vector2i:
 	match kind:
 		FEAT_NODE, FEAT_MNODE:
-			return Vector2i(2, 2)
+			return Vector2i(5, 4)
 		FEAT_SUPER:
+			return Vector2i(6, 5)
+		FEAT_GLITCH_HOUSE:
 			return Vector2i(3, 3)
 		_:
 			return Vector2i(1, 1)
+
+
+static func building_sprite_scale(kind: int) -> float:
+	match kind:
+		BLD_TUB:
+			return TUB_SPRITE_SCALE
+		BLD_ROUND:
+			return ROUND_SPRITE_SCALE
+		BLD_FLOWER:
+			return FLOWER_SPRITE_SCALE
+		_:
+			return 1.0
+
+
+static func feature_sprite_scale(kind: int, ore: int = 0) -> float:
+	match kind:
+		FEAT_NODE, FEAT_MNODE:
+			return NODE_SPRITE_SCALE
+		FEAT_SUPER:
+			return SUPER_SPRITE_SCALE
+		FEAT_ROCK:
+			return ROCK_ORE_SPRITE_SCALE if ore == 1 else ROCK_SPRITE_SCALE
+		FEAT_ORE_MEGA, FEAT_ORE_SUPER, FEAT_ORE_ULTRA:
+			return ORE_CLUSTER_SPRITE_SCALE
+		FEAT_CURER:
+			return CURER_SPRITE_SCALE
+		_:
+			return 1.0
+
+
+static func item_sprite_scale(kind: int) -> float:
+	match kind:
+		ITEM_ORE:
+			return ORE_SPRITE_SCALE
+		ITEM_EGG:
+			return EGG_SPRITE_SCALE
+		ITEM_BALL:
+			return BALL_SPRITE_SCALE
+		ITEM_WOOD:
+			return WOOD_SPRITE_SCALE
+		ITEM_BONE:
+			return BONE_SPRITE_SCALE
+		ITEM_TNT:
+			return TNT_SPRITE_SCALE
+		_:
+			return 1.0
+
+
+static func building_draw_off(kind: int) -> Vector2:
+	match kind:
+		BLD_TUB:
+			return Vector2(1.0, 2.0)
+		BLD_ROUND, BLD_FLOWER:
+			return Vector2(4.0, 4.0)
+		BLD_FACTORY, BLD_FACTORY2:
+			return Vector2(-14.0, -14.0)
+		BLD_THEATRE:
+			return Vector2(-18.0, -4.0)
+		BLD_MARKET:
+			return Vector2(-12.0, -12.0)
+		_:
+			return Vector2.ZERO
+
+
+static func feature_draw_off(kind: int, ore: int = 0) -> Vector2:
+	match kind:
+		FEAT_STUMP, FEAT_MSTUMP:
+			return Vector2(-4.0, -4.0)
+		FEAT_ROCK:
+			return Vector2(1.0, 1.0) if ore == 1 else Vector2(2.0, 2.0)
+		FEAT_MONOLITH:
+			return Vector2(4.0, 4.0)
+		FEAT_GLITCH_TREE:
+			match ore:
+				0:
+					return Vector2(4.0, 4.0)
+				1:
+					return Vector2(6.0, 4.0)
+				2:
+					return Vector2(7.0, 7.0)
+				3:
+					return Vector2(3.0, 3.0)
+				4:
+					return Vector2(3.0, 5.0)
+				_:
+					return Vector2.ZERO
+		FEAT_GLITCH_HOUSE:
+			return Vector2(22.0, 25.0)
+		_:
+			return Vector2.ZERO
+
+
+static func item_draw_off(kind: int) -> Vector2:
+	match kind:
+		ITEM_BONE:
+			return Vector2(1.0, 1.0)
+		ITEM_TNT:
+			return Vector2(2.0, 2.0)
+		_:
+			return Vector2.ZERO
 
 # World offset from the snap cell to the center of the pad. 1x1 stays put.
 static func footprint_center(size: Vector2i) -> Vector2:

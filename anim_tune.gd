@@ -6,9 +6,19 @@ extends Object
 const PATH := "res://dev/anim_tune.json"
 
 const FPS := {}
-const SCALE := {}
+const SCALE := {
+	"egg": 0.4,
+}
 const FRAME_SCALE := {}
-const FRAME_OFF := {}
+const FRAME_OFF := {
+	"egg": {
+		"0": Vector2(2, 2),
+		"1": Vector2(2, 2),
+		"2": Vector2(2, 2),
+		"3": Vector2(2, 2),
+		"4": Vector2(2, 2),
+	},
+}
 const FRAME_ROT := {}
 
 const ORDER := [

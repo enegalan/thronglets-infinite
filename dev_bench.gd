@@ -30,7 +30,7 @@ var drag_id := ""
 var move_uid := -1
 var move_grab := Vector2i.ZERO
 var placed: Array = []
-var selected := -1
+var selected_uids: Array = []
 var next_uid := 1
 var nodes := {}
 var _fill := false
@@ -41,6 +41,12 @@ var clip_list: VBoxContainer
 var clip_filter: LineEdit
 var clip_buttons := {}
 var clip_name := ""
+var selected_clips: Array = []
+var selected_frames: Array = []
+var clip_order: Array = []
+var clip_anchor := ""
+var frame_anchor := 0
+var uid_anchor := -1
 var frame_buttons: Array = []
 var strip: HBoxContainer
 var fps_box: SpinBox
@@ -82,6 +88,12 @@ func open() -> void:
 	bar.visible = true
 	drag_id = ""
 	move_uid = -1
+	selected_clips.clear()
+	selected_frames.clear()
+	clip_name = ""
+	clip_anchor = ""
+	frame_anchor = 0
+	uid_anchor = -1
 	_arm("", -1)
 	tick()
 
@@ -143,7 +155,7 @@ func input(event: InputEvent) -> void:
 		main.get_viewport().set_input_as_handled()
 		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-		_click()
+		_click(event.shift_pressed, event.meta_pressed)
 		main.get_viewport().set_input_as_handled()
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
@@ -179,7 +191,7 @@ func _draw() -> void:
 	for inst in placed:
 		var tune: Dictionary = PropTune.get_tune(str(inst.id))
 		var origin: Vector2 = _live_at(inst)
-		var on := int(inst.uid) == selected
+		var on := _uid_picked(int(inst.uid))
 		var moving := int(inst.uid) == move_uid
 		var bad := moving and not _fits(origin, tune.footprint, int(inst.uid))
 		var fill := Color(0.9, 0.25, 0.2, 0.28) if bad else Color(1.0, 0.82, 0.25, 0.28) if on else Color(0.35, 0.85, 0.5, 0.16)
@@ -203,7 +215,7 @@ func _draw() -> void:
 		_stroke(cell, poly, ghost_edge, ghost_fill)
 
 
-func _click() -> void:
+func _click(shift: bool = false, meta: bool = false) -> void:
 	if drag_id != "":
 		return
 	var cell := _cursor_cell()
@@ -212,11 +224,20 @@ func _click() -> void:
 	var hit := _hit(cell)
 	if hit < 0:
 		move_uid = -1
-		_arm("", -1)
+		if not shift:
+			_arm("", -1)
+			uid_anchor = -1
 		return
 	var inst: Dictionary = placed[hit]
-	_arm(str(inst.id), int(inst.uid))
-	move_uid = int(inst.uid)
+	var uid := int(inst.uid)
+	var id := str(inst.id)
+	if shift and meta and not selected_uids.is_empty():
+		_range_uids(uid, id, cell)
+	elif shift:
+		_toggle_uid(uid, id)
+	else:
+		_arm(id, uid)
+	move_uid = uid
 	move_grab = cell - _cell_of(inst.at)
 
 
@@ -251,11 +272,70 @@ func release_drag() -> void:
 
 func _arm(id: String, uid: int) -> void:
 	armed = id
-	selected = uid
-	if id == "":
+	selected_uids.clear()
+	if uid >= 0:
+		selected_uids.append(uid)
+		uid_anchor = uid
+	else:
+		uid_anchor = -1
+	_refresh_prop_edit()
+
+
+func _toggle_uid(uid: int, id: String) -> void:
+	var at := selected_uids.find(uid)
+	if at >= 0:
+		selected_uids.remove_at(at)
+		if selected_uids.is_empty():
+			armed = ""
+			uid_anchor = -1
+			_refresh_prop_edit()
+			return
+		var primary := _primary_uid()
+		var index := _index_of(primary)
+		armed = str(placed[index].id) if index >= 0 else ""
+		_refresh_prop_edit()
+		return
+	selected_uids.append(uid)
+	armed = id
+	_refresh_prop_edit()
+
+
+func _range_uids(uid: int, id: String, cell: Vector2i) -> void:
+	var anchor_uid := uid_anchor if uid_anchor >= 0 else _primary_uid()
+	var index := _index_of(anchor_uid)
+	if index < 0:
+		_arm(id, uid)
+		uid_anchor = uid
+		return
+	var anchor_cell := _cell_of(placed[index].at)
+	var lo := Vector2i(mini(anchor_cell.x, cell.x), mini(anchor_cell.y, cell.y))
+	var hi := Vector2i(maxi(anchor_cell.x, cell.x), maxi(anchor_cell.y, cell.y))
+	selected_uids.clear()
+	for inst in placed:
+		var tune: Dictionary = PropTune.get_tune(str(inst.id))
+		for spot in _cells(inst.at, tune.footprint):
+			if spot.x < lo.x or spot.x > hi.x or spot.y < lo.y or spot.y > hi.y:
+				continue
+			var picked := int(inst.uid)
+			if selected_uids.find(picked) < 0:
+				selected_uids.append(picked)
+			break
+	if selected_uids.find(uid) < 0:
+		selected_uids.append(uid)
+	elif selected_uids.size() > 1:
+		selected_uids.erase(uid)
+		selected_uids.append(uid)
+	armed = id
+	_refresh_prop_edit()
+
+
+func _refresh_prop_edit() -> void:
+	if armed == "":
 		_clear_edit()
-	elif id == THRONG_ID:
+	elif armed == THRONG_ID:
 		name_label.text = "MULTI"
+		if selected_uids.size() > 1:
+			name_label.text = "MULTI  +%d" % (selected_uids.size() - 1)
 		_set_edit_enabled(false)
 	else:
 		_fill_inspector()
@@ -265,26 +345,63 @@ func _arm(id: String, uid: int) -> void:
 	_refresh_status()
 
 
+func _primary_uid() -> int:
+	if selected_uids.is_empty():
+		return -1
+	return int(selected_uids[selected_uids.size() - 1])
+
+
+func _uid_picked(uid: int) -> bool:
+	return selected_uids.find(uid) >= 0
+
+
+func _edit_ids() -> Array:
+	var ids: Array = []
+	var seen := {}
+	for raw in selected_uids:
+		var index := _index_of(int(raw))
+		if index < 0:
+			continue
+		var id := str(placed[index].id)
+		if id == "" or id == THRONG_ID or seen.has(id):
+			continue
+		seen[id] = true
+		ids.append(id)
+	if ids.is_empty() and armed != "" and armed != THRONG_ID:
+		ids.append(armed)
+	return ids
+
+
 func _remove_selected() -> void:
-	var index := _index_of(selected)
-	if index < 0:
+	if selected_uids.is_empty():
 		return
-	var uid := int(placed[index].uid)
-	if uid == move_uid:
-		move_uid = -1
-	placed.remove_at(index)
-	if nodes.has(uid):
-		var node: Node2D = nodes[uid]
-		nodes.erase(uid)
-		node.queue_free()
-	selected = -1
+	var uids: Array = selected_uids.duplicate()
+	for raw in uids:
+		var uid := int(raw)
+		var index := _index_of(uid)
+		if index < 0:
+			continue
+		if uid == move_uid:
+			move_uid = -1
+		placed.remove_at(index)
+		if nodes.has(uid):
+			var node: Node2D = nodes[uid]
+			nodes.erase(uid)
+			node.queue_free()
+	selected_uids.clear()
+	armed = ""
+	_clear_edit()
+	_mark_buttons()
 	_sync_quit()
+	_refresh_status()
 
 
 func _reset_kind() -> void:
-	if armed == "":
+	var ids := _edit_ids()
+	if ids.is_empty():
 		return
-	PropTune.reset(armed)
+	for id in ids:
+		PropTune.reset(str(id))
 	_fill_inspector()
 	_mark_buttons()
 	_refresh_status()
@@ -316,7 +433,7 @@ func _paint_ground() -> void:
 
 func _clear_placed() -> void:
 	placed.clear()
-	selected = -1
+	selected_uids.clear()
 	for uid in nodes.keys():
 		var node: Node2D = nodes[uid]
 		if is_instance_valid(node):
@@ -330,9 +447,8 @@ func _row_for(id: String) -> Dictionary:
 	return PropTune.entry(id)
 
 
-func _throng_frame(time: float) -> int:
-	var clip := "ThrongA_Default Blink" if int(time * 2.0) % 5 == 4 else "ThrongA_Default"
-	return ThrongClips.frame_at(clip, 0)
+func _throng_idle_clip(time: float) -> String:
+	return "ThrongA_Default Blink" if int(time * 2.0) % 5 == 4 else "ThrongA_Default"
 
 
 func _paint_inst(draws: Array, row: Dictionary, origin: Vector2, alpha: float, uid: int, used: Dictionary) -> void:
@@ -340,8 +456,11 @@ func _paint_inst(draws: Array, row: Dictionary, origin: Vector2, alpha: float, u
 		if throng_mode:
 			_paint_tuned(draws, origin, alpha)
 		else:
-			var frame := _throng_frame(Time.get_ticks_msec() / 1000.0)
-			main._push_iso(draws, origin, frame, Color(1, 1, 1, alpha), 0.0, 1.0)
+			var clip := _throng_idle_clip(Time.get_ticks_msec() / 1000.0)
+			var frame := ThrongClips.frame_at(clip, 0)
+			var off: Vector2 = ThrongTune.frame_offset(clip, 0)
+			main._push_iso(draws, origin + off, frame, Color(1, 1, 1, alpha), 0.0, ThrongTune.frame_scale(clip, 0))
+			draws[draws.size() - 1]["rot"] = ThrongTune.frame_rot(clip, 0)
 		return
 	var tune: Dictionary = PropTune.get_tune(str(row.id))
 	if bool(row.get("node", false)):
@@ -621,7 +740,7 @@ func _build_ui() -> void:
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 2)
 	var hint := Label.new()
-	hint.text = "ARRASTRA UN PUESTO PARA MOVERLO. EL GRID NO PISA OTRO. SAVE ESCRIBE dev/prop_tune.json, dev/throng_tune.json Y dev/anim_tune.json."
+	hint.text = "SHIFT+CLICK MULTI. SHIFT+CMD+CLICK RANGO. LOS CAMBIOS VAN A TODOS. SAVE ESCRIBE prop_tune, throng_tune Y anim_tune."
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(hint)
 	name_label = Label.new()
@@ -803,7 +922,11 @@ func _fill_inspector() -> void:
 	var tune: Dictionary = PropTune.get_tune(armed)
 	var size: Vector2i = tune.footprint
 	var off: Vector2 = tune.offset
-	name_label.text = "%s   %s" % [str(row.label), str(row.constant)]
+	var title := "%s   %s" % [str(row.label), str(row.constant)]
+	var kinds := _edit_ids()
+	if kinds.size() > 1:
+		title = "%s  +%d" % [title, kinds.size() - 1]
+	name_label.text = title
 	_fill = true
 	grid_x.set_value_no_signal(size.x)
 	grid_y.set_value_no_signal(size.y)
@@ -816,12 +939,15 @@ func _fill_inspector() -> void:
 
 
 func _mark_buttons() -> void:
+	var picked := {}
+	for id in _edit_ids():
+		picked[str(id)] = true
 	for id in buttons.keys():
 		var button: Button = buttons[id]
 		var dirty := PropTune.is_dirty(str(id))
 		if str(id) == drag_id:
 			button.modulate = Color(0.65, 0.88, 1.0)
-		elif str(id) == armed:
+		elif picked.has(str(id)) or str(id) == armed:
 			button.modulate = Color(1, 0.86, 0.4)
 		elif dirty:
 			button.modulate = Color(0.65, 1.0, 0.7)
@@ -831,7 +957,7 @@ func _mark_buttons() -> void:
 
 func _sync_quit() -> void:
 	if quit_button:
-		quit_button.disabled = selected < 0
+		quit_button.disabled = selected_uids.is_empty()
 
 
 func _refresh_status() -> void:
@@ -847,51 +973,72 @@ func _refresh_status() -> void:
 
 
 func _on_foot(_v: float) -> void:
-	if _fill or armed == "":
+	if _fill:
+		return
+	var ids := _edit_ids()
+	if ids.is_empty():
 		return
 	var next := Vector2i(int(grid_x.value), int(grid_y.value))
-	if not _foot_fits(armed, next):
-		var tune: Dictionary = PropTune.get_tune(armed)
-		var size: Vector2i = tune.footprint
-		_fill = true
-		grid_x.set_value_no_signal(size.x)
-		grid_y.set_value_no_signal(size.y)
-		_fill = false
-		_refuse()
-		return
-	PropTune.set_footprint(armed, next.x, next.y)
+	for id in ids:
+		if not _foot_fits(str(id), next):
+			var tune: Dictionary = PropTune.get_tune(armed)
+			var size: Vector2i = tune.footprint
+			_fill = true
+			grid_x.set_value_no_signal(size.x)
+			grid_y.set_value_no_signal(size.y)
+			_fill = false
+			_refuse()
+			return
+	for id in ids:
+		PropTune.set_footprint(str(id), next.x, next.y)
 	_mark_buttons()
 	_refresh_status()
 
 
 func _on_scale(v: float) -> void:
-	if _fill or armed == "":
+	if _fill:
 		return
-	PropTune.set_scale(armed, v)
+	var ids := _edit_ids()
+	if ids.is_empty():
+		return
+	for id in ids:
+		PropTune.set_scale(str(id), v)
 	_mark_buttons()
 	_refresh_status()
 
 
 func _on_offset(_v: float) -> void:
-	if _fill or armed == "":
+	if _fill:
 		return
-	PropTune.set_offset(armed, off_x.value, off_y.value)
+	var ids := _edit_ids()
+	if ids.is_empty():
+		return
+	for id in ids:
+		PropTune.set_offset(str(id), off_x.value, off_y.value)
 	_mark_buttons()
 	_refresh_status()
 
 
 func _on_z(v: float) -> void:
-	if _fill or armed == "":
+	if _fill:
 		return
-	PropTune.set_z(armed, v)
+	var ids := _edit_ids()
+	if ids.is_empty():
+		return
+	for id in ids:
+		PropTune.set_z(str(id), v)
 	_mark_buttons()
 	_refresh_status()
 
 
 func _on_rot(v: float) -> void:
-	if _fill or armed == "":
+	if _fill:
 		return
-	PropTune.set_rot(armed, v)
+	var ids := _edit_ids()
+	if ids.is_empty():
+		return
+	for id in ids:
+		PropTune.set_rot(str(id), v)
 	_mark_buttons()
 	_refresh_status()
 
@@ -938,7 +1085,7 @@ func _build_throng_ui(theme: Theme, root: Control) -> void:
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 2)
 	var hint := Label.new()
-	hint.text = "TODOS COPIA ESCALA, POSICION Y ROTACION A CADA FOTOGRAMA. SIN TODOS, SOLO AL QUE VES."
+	hint.text = "SHIFT+CLICK MULTI. SHIFT+CMD+CLICK RANGO EN CLIPS O FRAMES. VARIOS CLIPS = TODOS SUS FRAMES."
 	hint.clip_text = true
 	box.add_child(hint)
 	throng_name = Label.new()
@@ -952,10 +1099,10 @@ func _build_throng_ui(theme: Theme, root: Control) -> void:
 	throng_y = _spin(-160, 160, 1)
 	throng_rot = _spin(-180, 180, 1)
 	fps_box.tooltip_text = "Fotogramas por segundo. Un frame, mitosis y el bano no guardan fps."
-	throng_scale.tooltip_text = "Escala de este fotograma. Con TODOS, de todos."
-	throng_x.tooltip_text = "Mueve este fotograma en X. Con TODOS, mueve todos."
-	throng_y.tooltip_text = "Mueve este fotograma en Y. Con TODOS, mueve todos."
-	throng_rot.tooltip_text = "Rotacion de este fotograma. Con TODOS, gira todos. Positivo gira a la derecha."
+	throng_scale.tooltip_text = "Escala. Aplica a frames/clips seleccionados."
+	throng_x.tooltip_text = "Offset X. Aplica a frames/clips seleccionados."
+	throng_y.tooltip_text = "Offset Y. Aplica a frames/clips seleccionados."
+	throng_rot.tooltip_text = "Rotacion. Aplica a frames/clips seleccionados. Positivo gira a la derecha."
 	_pair(metrics, "FPS", fps_box)
 	_pair(metrics, "SC", throng_scale)
 	_pair(metrics, "X", throng_x)
@@ -979,7 +1126,7 @@ func _build_throng_ui(theme: Theme, root: Control) -> void:
 	mirror_button = _text_button("ESPEJO", _toggle_mirror)
 	actions.add_child(mirror_button)
 	all_button = _text_button("TODOS", _toggle_all)
-	all_button.tooltip_text = "La escala, la posicion y la rotacion que marques se copian a cada fotograma."
+	all_button.tooltip_text = "Copia escala, posicion y rotacion a cada fotograma del clip activo. Con varios clips, a todos."
 	actions.add_child(all_button)
 	actions.add_child(_text_button("RESET", _reset_clip))
 	box.add_child(actions)
@@ -1004,6 +1151,7 @@ func _build_throng_ui(theme: Theme, root: Control) -> void:
 
 
 func _build_clip_list() -> void:
+	clip_order.clear()
 	_clip_section("MULTIS")
 	var game: PackedStringArray = ThrongTune.game_names()
 	for clip in game:
@@ -1041,6 +1189,7 @@ func _add_clip_button(clip: String, title: String) -> void:
 	button.pressed.connect(_select_clip.bind(clip))
 	clip_list.add_child(button)
 	clip_buttons[clip] = button
+	clip_order.append(clip)
 
 
 func _is_anim(clip: String) -> bool:
@@ -1070,6 +1219,8 @@ func _show_throng() -> void:
 	if clip_name == "":
 		_select_clip("ThrongA_Default")
 	else:
+		if selected_clips.is_empty():
+			selected_clips = [clip_name]
 		_fill_clip()
 		_mark_clips()
 		_sync_play_button()
@@ -1092,7 +1243,7 @@ func _ensure_stage() -> void:
 	for inst in placed:
 		if str(inst.id) != THRONG_ID:
 			continue
-		if selected < 0:
+		if _primary_uid() < 0:
 			_arm(THRONG_ID, int(inst.uid))
 		return
 	var uid := next_uid
@@ -1102,8 +1253,20 @@ func _ensure_stage() -> void:
 
 
 func _select_clip(clip: String) -> void:
+	var shift := Input.is_key_pressed(KEY_SHIFT)
+	var meta := Input.is_key_pressed(KEY_META)
+	if shift and meta and clip_name != "":
+		_range_clips(clip)
+		return
+	if shift and clip_name != "":
+		_toggle_clip(clip)
+		return
 	clip_name = clip
+	selected_clips = [clip]
+	clip_anchor = clip
+	selected_frames.clear()
 	frame_i = 0
+	frame_anchor = 0
 	play_t = 0.0
 	playing = true
 	_rot_shown = -1
@@ -1111,6 +1274,65 @@ func _select_clip(clip: String) -> void:
 	_fill_clip()
 	_mark_clips()
 	_sync_play_button()
+
+
+func _toggle_clip(clip: String) -> void:
+	var at := selected_clips.find(clip)
+	if at >= 0:
+		if selected_clips.size() <= 1:
+			return
+		selected_clips.remove_at(at)
+		if clip == clip_name:
+			clip_name = str(selected_clips[selected_clips.size() - 1])
+			selected_frames.clear()
+			frame_i = 0
+			frame_anchor = 0
+			play_t = 0.0
+			_rot_shown = -1
+			_build_strip()
+			_fill_clip()
+	else:
+		selected_clips.append(clip)
+	_mark_clips()
+	_sync_play_button()
+	if throng_name and clip_name != "":
+		throng_name.text = _clip_title()
+
+
+func _range_clips(clip: String) -> void:
+	var anchor := clip_anchor if clip_anchor != "" else clip_name
+	var a := clip_order.find(anchor)
+	var b := clip_order.find(clip)
+	if a < 0 or b < 0:
+		_toggle_clip(clip)
+		return
+	var lo := mini(a, b)
+	var hi := maxi(a, b)
+	selected_clips.clear()
+	for i in range(lo, hi + 1):
+		selected_clips.append(str(clip_order[i]))
+	var focus_changed := clip != clip_name
+	clip_name = clip
+	if focus_changed:
+		selected_frames.clear()
+		frame_i = 0
+		frame_anchor = 0
+		play_t = 0.0
+		_rot_shown = -1
+		_build_strip()
+		_fill_clip()
+	_mark_clips()
+	_sync_play_button()
+	if throng_name:
+		throng_name.text = _clip_title()
+
+
+func _edit_clips() -> Array:
+	if not selected_clips.is_empty():
+		return selected_clips.duplicate()
+	if clip_name != "":
+		return [clip_name]
+	return []
 
 
 func _advance() -> void:
@@ -1123,12 +1345,16 @@ func _advance() -> void:
 		play_t += dt
 
 
-func _box() -> Vector2i:
-	if _is_anim(clip_name):
-		var row: Dictionary = AnimTune.entry(_anim_key(clip_name))
+func _box_of(clip: String) -> Vector2i:
+	if _is_anim(clip):
+		var row: Dictionary = AnimTune.entry(_anim_key(clip))
 		return Vector2i(int(row.get("start", 0)), int(row.get("count", 1)))
-	var raw: Vector2i = ThrongClips.CLIPS.get(clip_name, Vector2i(ThrongClips.BASE, 1))
+	var raw: Vector2i = ThrongClips.CLIPS.get(clip, Vector2i(ThrongClips.BASE, 1))
 	return raw
+
+
+func _box() -> Vector2i:
+	return _box_of(clip_name)
 
 
 func _clip_fps() -> float:
@@ -1168,6 +1394,10 @@ func _shown_index() -> int:
 func _clip_title() -> String:
 	var n := maxi(_box().y, 1)
 	var title := "%s   %d/%d" % [_short(clip_name), _shown_index() + 1, n]
+	if selected_clips.size() > 1:
+		title += "  +%d CLIPS" % (selected_clips.size() - 1)
+	elif selected_frames.size() > 1:
+		title += "  +%d FRAMES" % (selected_frames.size() - 1)
 	if clip_name == BATH_CLIP:
 		return title + "  + BANERA"
 	if clip_name == RIDE_CLIP:
@@ -1311,6 +1541,20 @@ func _step(dir: int) -> void:
 	var n := maxi(_box().y, 1)
 	frame_i = posmod(_shown_index() + dir, n)
 	playing = false
+	var shift := Input.is_key_pressed(KEY_SHIFT)
+	var meta := Input.is_key_pressed(KEY_META)
+	if shift and meta:
+		_range_frames(frame_i)
+		return
+	if not shift:
+		selected_frames = [frame_i]
+		frame_anchor = frame_i
+		apply_all = false
+	elif selected_frames.find(frame_i) < 0:
+		if selected_frames.is_empty():
+			selected_frames.append(posmod(frame_i - dir, n))
+		selected_frames.append(frame_i)
+		apply_all = false
 	_sync_play_button()
 	_sync_playhead()
 
@@ -1330,6 +1574,12 @@ func _build_strip() -> void:
 		child.queue_free()
 	frame_buttons.clear()
 	var box := _box()
+	var keep: Array = []
+	for raw in selected_frames:
+		var index := int(raw)
+		if index >= 0 and index < box.y:
+			keep.append(index)
+	selected_frames = keep
 	for i in box.y:
 		var button := Button.new()
 		button.icon = _frame_tex(box.x + i)
@@ -1343,7 +1593,54 @@ func _build_strip() -> void:
 
 func _pin_frame(i: int) -> void:
 	playing = false
+	var shift := Input.is_key_pressed(KEY_SHIFT)
+	var meta := Input.is_key_pressed(KEY_META)
+	if shift and meta:
+		_range_frames(i)
+		return
+	if shift:
+		_toggle_frame(i)
+		return
+	selected_frames = [i]
 	frame_i = i
+	frame_anchor = i
+	apply_all = false
+	_sync_play_button()
+	_sync_playhead()
+
+
+func _toggle_frame(i: int) -> void:
+	apply_all = false
+	var at := selected_frames.find(i)
+	if at >= 0:
+		if selected_frames.size() <= 1:
+			frame_i = i
+			_sync_play_button()
+			_sync_playhead()
+			return
+		selected_frames.remove_at(at)
+		frame_i = int(selected_frames[selected_frames.size() - 1])
+	else:
+		if selected_frames.is_empty():
+			selected_frames.append(frame_i)
+		if selected_frames.find(i) < 0:
+			selected_frames.append(i)
+		frame_i = i
+	_sync_play_button()
+	_sync_playhead()
+
+
+func _range_frames(i: int) -> void:
+	apply_all = false
+	var n := maxi(_box().y, 1)
+	var anchor := clampi(frame_anchor, 0, n - 1)
+	var target := clampi(i, 0, n - 1)
+	var lo := mini(anchor, target)
+	var hi := maxi(anchor, target)
+	selected_frames.clear()
+	for index in range(lo, hi + 1):
+		selected_frames.append(index)
+	frame_i = target
 	_sync_play_button()
 	_sync_playhead()
 
@@ -1377,12 +1674,14 @@ func _fill_clip() -> void:
 
 
 func _reset_clip() -> void:
-	if clip_name == "":
+	var clips := _edit_clips()
+	if clips.is_empty():
 		return
-	if _is_anim(clip_name):
-		AnimTune.reset(_anim_key(clip_name))
-	else:
-		ThrongTune.reset(clip_name)
+	for clip in clips:
+		if _is_anim(str(clip)):
+			AnimTune.reset(_anim_key(str(clip)))
+		else:
+			ThrongTune.reset(str(clip))
 	_fill_clip()
 	_mark_clips()
 	_refresh_status()
@@ -1397,11 +1696,14 @@ func _on_filter(text: String) -> void:
 
 
 func _mark_clips() -> void:
+	var picked := {}
+	for clip in _edit_clips():
+		picked[str(clip)] = true
 	for key in clip_buttons.keys():
 		var button: Button = clip_buttons[key]
 		var clip := str(key)
 		var dirty: bool = AnimTune.is_dirty(_anim_key(clip)) if _is_anim(clip) else ThrongTune.is_dirty(clip)
-		if clip == clip_name:
+		if picked.has(clip):
 			button.modulate = Color(1, 0.86, 0.4)
 		elif dirty:
 			button.modulate = Color(0.65, 1.0, 0.7)
@@ -1411,37 +1713,69 @@ func _mark_clips() -> void:
 
 func _mark_frames() -> void:
 	var index := _shown_index()
+	var picked := {}
+	if apply_all or selected_clips.size() > 1:
+		for i in frame_buttons.size():
+			picked[i] = true
+	elif not selected_frames.is_empty():
+		for raw in selected_frames:
+			picked[int(raw)] = true
+	else:
+		picked[index] = true
 	for i in frame_buttons.size():
 		var button: Button = frame_buttons[i]
 		if not is_instance_valid(button):
 			continue
-		button.modulate = Color(1, 0.86, 0.4) if i == index else Color.WHITE
+		button.modulate = Color(1, 0.86, 0.4) if picked.has(i) else Color.WHITE
 
 
 func _on_throng_fps(v: float) -> void:
 	if _fill or clip_name == "":
 		return
-	if _is_anim(clip_name):
-		AnimTune.set_fps(_anim_key(clip_name), v)
-	else:
-		ThrongTune.set_fps(clip_name, v)
+	for clip in _edit_clips():
+		if _is_anim(str(clip)):
+			if AnimTune.fps_editable(_anim_key(str(clip))):
+				AnimTune.set_fps(_anim_key(str(clip)), v)
+		elif ThrongTune.fps_editable(str(clip)):
+			ThrongTune.set_fps(str(clip), v)
 	_mark_clips()
 	_refresh_status()
 
 
 func _toggle_all() -> void:
 	apply_all = not apply_all
-	_sync_play_button()
-
-
-func _edit_indexes() -> Array:
-	var indexes: Array = []
 	if apply_all:
-		for i in maxi(_box().y, 1):
+		selected_frames.clear()
+	_sync_play_button()
+	_mark_frames()
+
+
+func _edit_indexes_for(clip: String) -> Array:
+	var indexes: Array = []
+	var n := maxi(_box_of(clip).y, 1)
+	var multi_clip := selected_clips.size() > 1
+	if multi_clip or apply_all:
+		for i in n:
 			indexes.append(i)
 		return indexes
-	indexes.append(_shown_index())
+	if not selected_frames.is_empty():
+		for raw in selected_frames:
+			var index := int(raw)
+			if index >= 0 and index < n:
+				indexes.append(index)
+		if not indexes.is_empty():
+			return indexes
+	indexes.append(clampi(_shown_index(), 0, n - 1))
 	return indexes
+
+
+func _edit_targets() -> Array:
+	var targets: Array = []
+	for clip in _edit_clips():
+		var name := str(clip)
+		for index in _edit_indexes_for(name):
+			targets.append({"clip": name, "index": int(index)})
+	return targets
 
 
 func _hold_frame() -> int:
@@ -1449,6 +1783,8 @@ func _hold_frame() -> int:
 	if playing:
 		frame_i = index
 		playing = false
+		if selected_frames.is_empty() and not apply_all and selected_clips.size() <= 1:
+			selected_frames = [index]
 		_sync_play_button()
 	return index
 
@@ -1457,11 +1793,13 @@ func _on_throng_scale(v: float) -> void:
 	if _fill or clip_name == "":
 		return
 	var shown := _hold_frame()
-	for index in _edit_indexes():
-		if _is_anim(clip_name):
-			AnimTune.set_frame_scale(_anim_key(clip_name), int(index), v)
+	for target in _edit_targets():
+		var clip := str(target.clip)
+		var index := int(target.index)
+		if _is_anim(clip):
+			AnimTune.set_frame_scale(_anim_key(clip), index, v)
 		else:
-			ThrongTune.set_frame_scale(clip_name, int(index), v)
+			ThrongTune.set_frame_scale(clip, index, v)
 	_rot_shown = shown
 	_mark_clips()
 	_refresh_status()
@@ -1471,11 +1809,13 @@ func _on_throng_offset(_v: float) -> void:
 	if _fill or clip_name == "":
 		return
 	var shown := _hold_frame()
-	for index in _edit_indexes():
-		if _is_anim(clip_name):
-			AnimTune.set_frame_offset(_anim_key(clip_name), int(index), throng_x.value, throng_y.value)
+	for target in _edit_targets():
+		var clip := str(target.clip)
+		var index := int(target.index)
+		if _is_anim(clip):
+			AnimTune.set_frame_offset(_anim_key(clip), index, throng_x.value, throng_y.value)
 		else:
-			ThrongTune.set_frame_offset(clip_name, int(index), throng_x.value, throng_y.value)
+			ThrongTune.set_frame_offset(clip, index, throng_x.value, throng_y.value)
 	_rot_shown = shown
 	_mark_clips()
 	_refresh_status()
@@ -1485,11 +1825,13 @@ func _on_throng_rot(v: float) -> void:
 	if _fill or clip_name == "":
 		return
 	var shown := _hold_frame()
-	for index in _edit_indexes():
-		if _is_anim(clip_name):
-			AnimTune.set_frame_rot(_anim_key(clip_name), int(index), v)
+	for target in _edit_targets():
+		var clip := str(target.clip)
+		var index := int(target.index)
+		if _is_anim(clip):
+			AnimTune.set_frame_rot(_anim_key(clip), index, v)
 		else:
-			ThrongTune.set_frame_rot(clip_name, int(index), v)
+			ThrongTune.set_frame_rot(clip, index, v)
 	_rot_shown = shown
 	_mark_clips()
 	_refresh_status()

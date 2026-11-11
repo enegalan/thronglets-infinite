@@ -222,16 +222,23 @@ static func _bld_name(kind: int) -> String:
 static func _defaults(row: Dictionary) -> Dictionary:
 	var size := Vector2i(1, 1)
 	var scale := 1.0
+	var offset := Vector2.ZERO
 	if not row.is_empty():
 		var group := str(row.group)
 		var kind := int(row.kind)
+		var ore := int(row.ore)
 		if group == "building":
 			size = Catalog.footprint_for_building(kind)
-			if kind == Catalog.BLD_TUB:
-				scale = Catalog.TUB_SPRITE_SCALE
+			scale = Catalog.building_sprite_scale(kind)
+			offset = Catalog.building_draw_off(kind)
 		elif group == "feature":
 			size = Catalog.footprint_for_feature(kind)
-	return {"footprint": size, "scale": scale, "offset": Vector2.ZERO, "z": 0.0, "rot": 0.0}
+			scale = Catalog.feature_sprite_scale(kind, ore)
+			offset = Catalog.feature_draw_off(kind, ore)
+		elif group == "item":
+			scale = Catalog.item_sprite_scale(kind)
+			offset = Catalog.item_draw_off(kind)
+	return {"footprint": size, "scale": scale, "offset": offset, "z": 0.0, "rot": 0.0}
 
 
 static func _assign(id: String, key: String, value) -> void:
@@ -380,7 +387,7 @@ static func _apply_in(row: Dictionary, key: String) -> String:
 		if bool(row.node):
 			return only + " In Main._sync_monolith set Node2D.scale to Vector2(scale, scale). It is unset today, which means (1, 1)."
 		if group == "building":
-			return only + " Pass this scale to _pad_nudge in Main._building_draw_at and to _push_iso for this building in _sync_actors, the carried ghost, the kit ghost, and the focus draw. BLD_TUB uses Catalog.TUB_SPRITE_SCALE today. Other buildings use 1.0."
+			return only + " Pass this scale to _pad_nudge in Main._building_draw_at and to _push_iso for this building in _sync_actors, the carried ghost, the kit ghost, and the focus draw. BLD_TUB uses Catalog.TUB_SPRITE_SCALE. BLD_ROUND uses Catalog.ROUND_SPRITE_SCALE. Other buildings use 1.0."
 		if group == "item":
 			return only + " Pass this scale to _pad_nudge in Main._item_draw_at and to _push_iso for this item. Items use 1.0 today."
 		return only + " Pass this scale to _pad_nudge in Main._feature_draw_at and to _push_iso for this feature, including the held-feature ghost. Features use 1.0 today."

@@ -29,6 +29,7 @@ const ZOOM_MAX := 4.5
 const ZOOM_STEP := 1.12
 const EGG_ANIM := 87
 const ROUND_ANIM := 132
+const THRONG_SPRITE_SCALE := 0.4
 const FIRE_ANIM := 140
 const RIVER_ATLAS := 12
 const WASTE_ATLAS := 48
@@ -92,6 +93,7 @@ var full_labels: Array = []
 var ring_lines: Array = []
 var shot_frames := 0
 var shot_done := false
+var shot_hud_saved := false
 var shot_board: SubViewport
 var glitch_bars: Array = []
 var glitch_label: Label
@@ -788,7 +790,7 @@ func _sync_actors() -> void:
 			continue
 		var p := Vector2(float(feat.x), float(feat.y))
 		if int(feat.kind) == Catalog.FEAT_MONOLITH:
-			_sync_monolith(int(feat.id), p)
+			_sync_monolith(int(feat.id), p + Catalog.feature_draw_off(Catalog.FEAT_MONOLITH))
 			continue
 		var feat_at := _feature_draw_at(int(feat.kind), p, int(feat.ore))
 		if view.has_point(p) or view.has_point(feat_at):
@@ -797,7 +799,7 @@ func _sync_actors() -> void:
 				feat_frame = _prop_frame(Catalog.icon_for_feature(int(feat.kind), int(feat.ore)))
 			if int(feat.kind) == Catalog.FEAT_FIRE and feat_frame < 0:
 				feat_frame = FIRE_ANIM + int(time_pre * 8.0) % 4
-			_push_iso(draws, feat_at, feat_frame, Color.WHITE)
+			_push_iso(draws, feat_at, feat_frame, Color.WHITE, 0.0, Catalog.feature_sprite_scale(int(feat.kind), int(feat.ore)))
 			_push_glitch_fumes(draws, int(feat.kind), feat_at, time_pre)
 			_push_anomaly_ray(draws, int(feat.kind), feat_at)
 	for it in sim.items:
@@ -814,10 +816,10 @@ func _sync_actors() -> void:
 				if float(it.get("shake", 0.0)) > 0.0:
 					p2 += Vector2(randf_range(-1.5, 1.5), randf_range(-1.0, 1.0))
 				if egg_lift > 0.0:
-					_push_iso(egg_front, p2, item_frame, Color.WHITE, egg_lift)
+					_push_iso(egg_front, p2, item_frame, Color.WHITE, egg_lift, Catalog.item_sprite_scale(int(it.kind)))
 					continue
 			elif int(it.kind) == Catalog.ITEM_APPLE and egg_lift > 0.0:
-				_push_iso(egg_front, p2, item_frame, Color.WHITE, egg_lift)
+				_push_iso(egg_front, p2, item_frame, Color.WHITE, egg_lift, Catalog.item_sprite_scale(int(it.kind)))
 				continue
 			elif int(it.kind) == Catalog.ITEM_BALL:
 				var spd := absf(float(it.get("vx", 0.0))) + absf(float(it.get("vy", 0.0)))
@@ -825,7 +827,7 @@ func _sync_actors() -> void:
 					egg_lift = absf(sin(time_pre * 14.0 + float(it.id))) * (3.0 if spd > 8.0 else 1.2)
 					if spd > 8.0:
 						p2 += Vector2(sin(time_pre * 20.0) * 1.0, cos(time_pre * 18.0) * 0.6)
-			_push_iso(draws, p2, item_frame, Color.WHITE, egg_lift)
+			_push_iso(draws, p2, item_frame, Color.WHITE, egg_lift, Catalog.item_sprite_scale(int(it.kind)))
 	for b in sim.buildings:
 		if b.dead or bool(b.get("lifted", false)):
 			continue
@@ -849,7 +851,7 @@ func _sync_actors() -> void:
 						b_tint = Color(1.0, 0.9, 0.82)
 					elif b_kind == Catalog.BLD_MINE or b_kind == Catalog.BLD_MINE2:
 						b_tint = Color(1.0, 0.95, 0.75)
-			var b_scale := Catalog.TUB_SPRITE_SCALE if b_kind == Catalog.BLD_TUB else 1.0
+			var b_scale := Catalog.building_sprite_scale(b_kind)
 			_push_iso(draws, draw_at, b_frame, b_tint, b_lift, b_scale)
 			if b_kind == Catalog.BLD_APPLE:
 				var fruit_sort := _prop_front_sort_y(p3)
@@ -896,7 +898,7 @@ func _sync_actors() -> void:
 	if not hand.is_empty():
 		if _drop_on_island():
 			var hand_at := grid_at if Catalog.item_snaps_grid(int(hand.kind)) else free_at
-			_push_iso(draws, _item_draw_at(int(hand.kind), hand_at), _prop_frame(Catalog.icon_for_item(int(hand.kind))), Color(1, 1, 1, 0.9), 10.0)
+			_push_iso(draws, _item_draw_at(int(hand.kind), hand_at), _prop_frame(Catalog.icon_for_item(int(hand.kind))), Color(1, 1, 1, 0.9), 10.0, Catalog.item_sprite_scale(int(hand.kind)))
 		else:
 			draws.append({
 				"p": get_global_mouse_position(),
@@ -908,12 +910,12 @@ func _sync_actors() -> void:
 			var scooped = sim.item_by_id.get(int(raw), {})
 			if scooped.is_empty() or scooped.dead:
 				continue
-			_push_iso(draws, _item_draw_at(int(scooped.kind), Vector2(float(scooped.x), float(scooped.y))), _prop_frame(Catalog.icon_for_item(int(scooped.kind))), Color(1, 1, 1, 0.92), 12.0)
+			_push_iso(draws, _item_draw_at(int(scooped.kind), Vector2(float(scooped.x), float(scooped.y))), _prop_frame(Catalog.icon_for_item(int(scooped.kind))), Color(1, 1, 1, 0.92), 12.0, Catalog.item_sprite_scale(int(scooped.kind)))
 	if sim.held_kind == "rock":
 		var rock = sim.feature_by_id.get(sim.held_ref, {})
 		if not rock.is_empty():
 			if _drop_on_island():
-				_push_iso(draws, _feature_draw_at(int(rock.kind), grid_at, int(rock.ore)), _prop_frame(Catalog.icon_for_feature(int(rock.kind), int(rock.ore))), Color(1, 1, 1, 0.9), 10.0)
+				_push_iso(draws, _feature_draw_at(int(rock.kind), grid_at, int(rock.ore)), _prop_frame(Catalog.icon_for_feature(int(rock.kind), int(rock.ore))), Color(1, 1, 1, 0.9), 10.0, Catalog.feature_sprite_scale(int(rock.kind), int(rock.ore)))
 			else:
 				draws.append({
 					"p": get_global_mouse_position(),
@@ -925,7 +927,7 @@ func _sync_actors() -> void:
 		if not carried.is_empty():
 			var carried_kind := int(carried.kind)
 			if _drop_on_island():
-				var carried_scale := Catalog.TUB_SPRITE_SCALE if carried_kind == Catalog.BLD_TUB else 1.0
+				var carried_scale := Catalog.building_sprite_scale(carried_kind)
 				_push_iso(draws, _building_draw_at(carried_kind, grid_at), _prop_frame(Catalog.icon_for_building(carried_kind)), Color(1, 1, 1, 0.9), 10.0, carried_scale)
 			else:
 				draws.append({
@@ -940,7 +942,7 @@ func _sync_actors() -> void:
 		if drag_icon >= 0:
 			if _want_place_grid() and _drop_on_island():
 				var ghost_kind := placing if str(kit_drag.get("type", "")) == "build" else -1
-				var ghost_scale := Catalog.TUB_SPRITE_SCALE if ghost_kind == Catalog.BLD_TUB else 1.0
+				var ghost_scale := Catalog.building_sprite_scale(ghost_kind)
 				_push_iso(drag_front, _building_draw_at(ghost_kind, grid_at), _prop_frame(drag_icon), ghost, 10.0, ghost_scale)
 			else:
 				drag_front.append({
@@ -1001,7 +1003,9 @@ func _sync_actors() -> void:
 		if prop_anchor.x == INF:
 			prop_anchor = _use_prop_anchor(pos)
 		var sort_y := NAN if prop_anchor.x == INF else _prop_front_sort_y(prop_anchor)
-		_push_iso(draws, pos, _frame(i, time), tint, lift, 1.0, sort_y)
+		var throng_frame := _frame(i, time)
+		var throng_scale := _throng_sprite_scale(throng_frame)
+		_push_iso(draws, pos + _throng_sprite_off(throng_frame), throng_frame, tint, lift, throng_scale, sort_y)
 		draws[draws.size() - 1]["flip"] = _throng_flip(i)
 		draws[draws.size() - 1]["dirty"] = _throng_dirty(sim.clean[i])
 		if sim.carry[i] != Catalog.CARRY_NONE:
@@ -1038,6 +1042,7 @@ func _sync_actors() -> void:
 			"tint": htint,
 			"flip": _throng_flip(hi),
 			"dirty": _throng_dirty(sim.clean[hi]),
+			"scale": THRONG_SPRITE_SCALE,
 		})
 		var hand_frame := AssetFrames.frame(AssetFrames.HAND, AssetFrames.HAND_N, int(time * 8.0))
 		if hand_frame >= 0:
@@ -1431,48 +1436,122 @@ func _push_iso(draws: Array, world_pos: Vector2, frame: int, tint: Color, lift: 
 # World offset that puts the opaque middle of a frame on the anchor.
 # Tall sprites are clamped to the pad so the base stays inside its cells.
 const _CENTER := {
-	24: Vector2(7.8, 7.2),
-	25: Vector2(6.8, 6.2),
-	27: Vector2(7.8, 7.2),
-	32: Vector2(8.0, 7.0),
-	33: Vector2(9.0, 8.0),
-	34: Vector2(7.2, 6.8),
-	47: Vector2(17.5, 16.5),
-	50: Vector2(11.2, 10.8),
-	64: Vector2(9.0, 8.0),
-	87: Vector2(9.0, 8.0),
-	96: Vector2(26.0, 25.0),
-	97: Vector2(7.0, 6.0),
-	98: Vector2(8.8, 8.2),
-	99: Vector2(18.0, 17.0),
-	100: Vector2(29.5, 28.5),
-	101: Vector2(26.0, 25.0),
-	102: Vector2(21.0, 20.0),
-	103: Vector2(13.2, 12.8),
-	104: Vector2(21.8, 21.2),
-	105: Vector2(24.5, 23.5),
-	106: Vector2(24.5, 23.5),
-	107: Vector2(25.0, 24.0),
-	108: Vector2(30.2, 29.8),
-	109: Vector2(40.0, 39.0),
-	110: Vector2(27.8, 27.2),
-	111: Vector2(19.2, 18.8),
-	112: Vector2(30.2, 29.8),
-	113: Vector2(16.5, 15.5),
-	114: Vector2(10.5, 9.5),
-	115: Vector2(9.5, 8.5),
-	116: Vector2(11.8, 11.2),
-	117: Vector2(22.8, 22.2),
-	118: Vector2(18.2, 17.8),
-	119: Vector2(10.8, 10.2),
-	120: Vector2(9.8, 9.2),
-	121: Vector2(13.2, 12.8),
-	122: Vector2(10.5, 9.5),
-	123: Vector2(15.0, 14.0),
-	124: Vector2(13.0, 12.0),
-	130: Vector2(7.8, 7.2),
-	131: Vector2(18.0, 17.0),
-	140: Vector2(11.5, 11.5),
+	24: Vector2(6.7, 6.7),
+	25: Vector2(22.5, 22.5),
+	26: Vector2(26.0, 26.0),
+	27: Vector2(6.7, 6.7),
+	28: Vector2(30.8, 30.8),
+	29: Vector2(20.5, 20.5),
+	30: Vector2(29.7, 29.7),
+	31: Vector2(47.4, 47.4),
+	32: Vector2(11.1, 11.1),
+	33: Vector2(28.3, 28.3),
+	34: Vector2(16.6, 16.6),
+	35: Vector2(26.0, 26.0),
+	36: Vector2(38.1, 38.1),
+	37: Vector2(24.5, 24.5),
+	38: Vector2(43.3, 43.3),
+	39: Vector2(45.4, 45.4),
+	40: Vector2(37.6, 37.6),
+	41: Vector2(36.2, 36.2),
+	42: Vector2(45.6, 45.6),
+	43: Vector2(53.8, 53.8),
+	44: Vector2(50.8, 50.8),
+	45: Vector2(36.2, 36.2),
+	46: Vector2(40.0, 40.0),
+	47: Vector2(26.1, 26.1),
+	48: Vector2(16.5, 16.5),
+	49: Vector2(30.0, 30.0),
+	50: Vector2(40.8, 40.8),
+	51: Vector2(16.5, 16.5),
+	52: Vector2(12.5, 12.5),
+	53: Vector2(30.4, 30.4),
+	54: Vector2(30.9, 30.9),
+	55: Vector2(29.6, 29.6),
+	56: Vector2(36.8, 36.8),
+	57: Vector2(25.6, 25.6),
+	58: Vector2(15.8, 15.8),
+	59: Vector2(27.1, 27.1),
+	60: Vector2(23.1, 23.1),
+	61: Vector2(29.7, 29.7),
+	62: Vector2(44.6, 44.6),
+	63: Vector2(28.9, 28.9),
+	64: Vector2(21.5, 21.5),
+	65: Vector2(5.6, 5.6),
+	66: Vector2(3.6, 3.6),
+	67: Vector2(14.5, 14.5),
+	68: Vector2(44.6, 44.6),
+	69: Vector2(29.8, 29.8),
+	70: Vector2(7.4, 7.4),
+	71: Vector2(11.4, 11.4),
+	72: Vector2(35.9, 35.9),
+	73: Vector2(30.2, 30.2),
+	74: Vector2(16.3, 16.3),
+	75: Vector2(16.1, 16.1),
+	76: Vector2(24.4, 24.4),
+	77: Vector2(16.5, 16.5),
+	78: Vector2(21.5, 21.5),
+	79: Vector2(21.7, 21.7),
+	80: Vector2(29.6, 29.6),
+	81: Vector2(21.9, 21.9),
+	82: Vector2(29.7, 29.7),
+	83: Vector2(15.6, 15.6),
+	84: Vector2(15.0, 15.0),
+	85: Vector2(6.7, 6.7),
+	86: Vector2(29.7, 29.7),
+	87: Vector2(21.5, 21.5),
+	88: Vector2(21.7, 21.7),
+	89: Vector2(21.7, 21.7),
+	90: Vector2(21.5, 21.5),
+	91: Vector2(21.3, 21.3),
+	96: Vector2(26.0, 26.0),
+	97: Vector2(30.8, 30.8),
+	98: Vector2(20.5, 20.5),
+	99: Vector2(29.7, 29.7),
+	100: Vector2(47.4, 47.4),
+	101: Vector2(26.0, 26.0),
+	102: Vector2(38.1, 38.1),
+	103: Vector2(24.5, 24.5),
+	104: Vector2(43.3, 43.3),
+	105: Vector2(45.4, 45.4),
+	106: Vector2(37.6, 37.6),
+	107: Vector2(36.2, 36.2),
+	108: Vector2(45.6, 45.6),
+	109: Vector2(53.8, 53.8),
+	110: Vector2(50.8, 50.8),
+	111: Vector2(36.2, 36.2),
+	112: Vector2(40.0, 40.0),
+	113: Vector2(30.0, 30.0),
+	114: Vector2(16.5, 16.5),
+	115: Vector2(16.5, 16.5),
+	116: Vector2(11.4, 11.4),
+	117: Vector2(35.9, 35.9),
+	118: Vector2(30.2, 30.2),
+	119: Vector2(16.3, 16.3),
+	120: Vector2(16.1, 16.1),
+	121: Vector2(24.4, 24.4),
+	122: Vector2(16.5, 16.5),
+	123: Vector2(21.5, 21.5),
+	124: Vector2(21.7, 21.7),
+	125: Vector2(29.6, 29.6),
+	126: Vector2(21.9, 21.9),
+	127: Vector2(29.7, 29.7),
+	128: Vector2(15.6, 15.6),
+	129: Vector2(15.0, 15.0),
+	130: Vector2(6.7, 6.7),
+	131: Vector2(29.7, 29.7),
+	132: Vector2(24.5, 24.5),
+	133: Vector2(24.5, 24.5),
+	134: Vector2(24.5, 24.5),
+	135: Vector2(24.5, 24.5),
+	136: Vector2(24.5, 24.5),
+	137: Vector2(24.5, 24.5),
+	138: Vector2(24.5, 24.5),
+	139: Vector2(24.5, 24.5),
+	140: Vector2(13.4, 13.4),
+	141: Vector2(13.0, 13.0),
+	142: Vector2(13.2, 13.2),
+	143: Vector2(12.2, 12.2),
 }
 
 
@@ -1488,19 +1567,21 @@ func _pad_nudge(frame: int, scale: float, size: Vector2i) -> Vector2:
 func _building_draw_at(kind: int, origin: Vector2) -> Vector2:
 	var size := Catalog.footprint_for_building(kind)
 	var frame := _prop_frame(Catalog.icon_for_building(kind))
-	var scale := Catalog.TUB_SPRITE_SCALE if kind == Catalog.BLD_TUB else 1.0
-	return origin + Catalog.footprint_center(size) + _pad_nudge(frame, scale, size)
+	var scale := Catalog.building_sprite_scale(kind)
+	return origin + Catalog.footprint_center(size) + _pad_nudge(frame, scale, size) + Catalog.building_draw_off(kind)
 
 
 func _feature_draw_at(kind: int, origin: Vector2, ore: int = 0) -> Vector2:
 	var size := Catalog.footprint_for_feature(kind)
 	var frame := FIRE_ANIM if kind == Catalog.FEAT_FIRE else _prop_frame(Catalog.icon_for_feature(kind, ore))
-	return origin + Catalog.footprint_center(size) + _pad_nudge(frame, 1.0, size)
+	var scale := Catalog.feature_sprite_scale(kind, ore)
+	return origin + Catalog.footprint_center(size) + _pad_nudge(frame, scale, size) + Catalog.feature_draw_off(kind, ore)
 
 
 func _item_draw_at(kind: int, origin: Vector2) -> Vector2:
 	var frame := EGG_ANIM if kind == Catalog.ITEM_EGG else _prop_frame(Catalog.icon_for_item(kind))
-	return origin + _pad_nudge(frame, 1.0, Vector2i(1, 1))
+	var scale := Catalog.item_sprite_scale(kind)
+	return origin + _pad_nudge(frame, scale, Vector2i(1, 1)) + Catalog.item_draw_off(kind)
 
 
 func _prop_front_sort_y(world_center: Vector2) -> float:
@@ -1572,6 +1653,26 @@ const _BIG := {
 
 func _throng_dirty(clean: float) -> float:
 	return 1.0 - clampf(clean / 100.0, 0.0, 1.0)
+
+
+func _throng_sprite_scale(frame: int) -> float:
+	if frame == 652 or frame == 653:
+		return 0.7
+	return THRONG_SPRITE_SCALE
+
+
+func _throng_sprite_off(frame: int) -> Vector2:
+	if frame >= 229 and frame <= 262:
+		return Vector2(21.0, 21.0)
+	if frame >= 263 and frame <= 298:
+		return Vector2(24.0, 24.0)
+	if frame >= 342 and frame <= 349:
+		return Vector2(15.0, 15.0)
+	if frame >= 492 and frame <= 494:
+		return Vector2(3.0, 3.0)
+	if frame >= 540 and frame <= 547:
+		return Vector2(-8.0, -4.0)
+	return Vector2.ZERO
 
 
 func _sync_monolith(id: int, world_pos: Vector2) -> void:
@@ -1669,7 +1770,7 @@ func _sync_hud(delta: float) -> void:
 		pop_face.texture = _tex(POP_FACES[face_key])
 	gem_panel.visible = sim.part_two
 	gem_label.text = str(sim.gems)
-	goal_label.text = "TAREA  " + sim.goal_line()
+	goal_label.text = sim.goal_line()
 	res_label.text = "MADERA %d   HUESO %d   MINERAL %d" % [
 		sim.count_item(Catalog.ITEM_WOOD),
 		sim.count_item(Catalog.ITEM_BONE),
@@ -1836,7 +1937,7 @@ func _sync_focus(delta: float) -> void:
 	var inner := frame.grow(-22.0)
 	var hole := inner
 	if talk:
-		var text_h := 124.0
+		var text_h := 220.0
 		hole.size.y = maxf(64.0, inner.size.y - text_h)
 		var text := Rect2(Vector2(inner.position.x, inner.position.y + hole.size.y), Vector2(inner.size.x, inner.size.y - hole.size.y))
 		_set_box(gaze_panel, text)
@@ -1944,7 +2045,7 @@ func _focus_draws() -> Array:
 			feat_frame = _prop_frame(Catalog.icon_for_feature(int(feat.kind), int(feat.ore)))
 		if int(feat.kind) == Catalog.FEAT_FIRE and feat_frame < 0:
 			feat_frame = FIRE_ANIM + int(time * 8.0) % 4
-		_push_iso(draws, feat_at, feat_frame, Color.WHITE)
+		_push_iso(draws, feat_at, feat_frame, Color.WHITE, 0.0, Catalog.feature_sprite_scale(int(feat.kind), int(feat.ore)))
 		_push_glitch_fumes(draws, int(feat.kind), feat_at, time)
 		_push_anomaly_ray(draws, int(feat.kind), feat_at)
 	for it in sim.items:
@@ -1955,15 +2056,16 @@ func _focus_draws() -> Array:
 		if not _focus_sees(p2, lift):
 			continue
 		var item_frame := _prop_frame(Catalog.icon_for_item(int(it.kind)))
+		var item_scale := Catalog.item_sprite_scale(int(it.kind))
 		if int(it.kind) == Catalog.ITEM_EGG:
 			item_frame = _egg_frame(it)
 			if lift > 0.0:
-				_push_iso(egg_front, p2, item_frame, Color.WHITE, lift)
+				_push_iso(egg_front, p2, item_frame, Color.WHITE, lift, item_scale)
 				continue
 		elif int(it.kind) == Catalog.ITEM_APPLE and lift > 0.0:
-			_push_iso(egg_front, p2, item_frame, Color.WHITE, lift)
+			_push_iso(egg_front, p2, item_frame, Color.WHITE, lift, item_scale)
 			continue
-		_push_iso(draws, p2, item_frame, Color.WHITE, lift)
+		_push_iso(draws, p2, item_frame, Color.WHITE, lift, item_scale)
 	for b in sim.buildings:
 		if talk or b.dead or bool(b.get("lifted", false)):
 			continue
@@ -1971,8 +2073,7 @@ func _focus_draws() -> Array:
 		var b_kind := int(b.kind)
 		var draw_at := _building_draw_at(b_kind, p3)
 		if _focus_sees(p3, 0.0) or _focus_sees(draw_at, 0.0):
-			var focus_scale := Catalog.TUB_SPRITE_SCALE if b_kind == Catalog.BLD_TUB else 1.0
-			_push_iso(draws, draw_at, _prop_frame(Catalog.icon_for_building(b_kind)), Color.WHITE, 0.0, focus_scale)
+			_push_iso(draws, draw_at, _prop_frame(Catalog.icon_for_building(b_kind)), Color.WHITE, 0.0, Catalog.building_sprite_scale(b_kind))
 	for i in sim.slot_count:
 		if sim.state[i] == Catalog.ST_VACANT:
 			continue
@@ -1984,7 +2085,8 @@ func _focus_draws() -> Array:
 		var tint: Color = Catalog.TINTS[int(sim.tint[i]) % Catalog.TINTS.size()]
 		if sim.state[i] == Catalog.ST_DEAD:
 			tint = Color.WHITE
-		_push_iso(draws, pos, _frame(i, time), tint, 0.0)
+		var throng_frame := _frame(i, time)
+		_push_iso(draws, pos + _throng_sprite_off(throng_frame), throng_frame, tint, 0.0, _throng_sprite_scale(throng_frame))
 		draws[draws.size() - 1]["flip"] = _throng_flip(i)
 		draws[draws.size() - 1]["dirty"] = _throng_dirty(sim.clean[i])
 	draws.sort_custom(func(a, b): return float(a.get("sy", a.p.y)) < float(b.get("sy", b.p.y)))
@@ -2620,9 +2722,11 @@ func _build_ui() -> void:
 	ui.add_child(root)
 	var theme := Theme.new()
 	var font := FontFile.new()
-	var dos: Font = load("res://resources/ui/PerfectDOSVGA437.ttf")
-	if dos != null:
-		theme.default_font = dos
+	if font.load_dynamic_font("res://resources/ui/aline_font.ttf") == OK:
+		theme.default_font = font
+		theme.default_font_size = 16
+	elif font.load_dynamic_font("res://resources/ui/PerfectDOSVGA437.ttf") == OK:
+		theme.default_font = font
 		theme.default_font_size = 16
 	elif font.load_bitmap_font("res://resources/ui/pixel_font.fnt") == OK:
 		theme.default_font = font
@@ -2649,7 +2753,11 @@ func _build_ui() -> void:
 	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var ring := TextureRect.new()
 	ring.texture = _tex("res://resources/ui/ui_circle.png")
+	ring.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	ring.custom_minimum_size = Vector2(56, 56)
+	ring.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ring.stretch_mode = TextureRect.STRETCH_KEEP
+	ring.size = Vector2(56, 56)
 	ring.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	badge.add_child(ring)
 	pop_face = TextureRect.new()
@@ -2658,14 +2766,20 @@ func _build_ui() -> void:
 	pop_face.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	pop_face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	pop_face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	pop_face.position = Vector2(6, 2)
-	pop_face.size = Vector2(44, 38)
+	# Face sits in the upper half of the dark well (~30px diameter).
+	pop_face.position = Vector2(15, 6)
+	pop_face.size = Vector2(26, 22)
 	pop_face.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	badge.add_child(pop_face)
 	pop_label = Label.new()
-	pop_label.position = Vector2(0, 40)
+	pop_label.position = Vector2(0, 30)
 	pop_label.size = Vector2(56, 12)
 	pop_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	pop_label.add_theme_font_size_override("font_size", 8)
+	pop_label.add_theme_color_override("font_color", Color.WHITE)
+	pop_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 1))
+	pop_label.add_theme_constant_override("shadow_offset_x", 1)
+	pop_label.add_theme_constant_override("shadow_offset_y", 1)
 	pop_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	badge.add_child(pop_label)
 	top_row.add_child(badge)
@@ -2687,10 +2801,42 @@ func _build_ui() -> void:
 	top_row.add_child(gem_panel)
 	var goal_panel := PanelContainer.new()
 	task_panel = goal_panel
-	goal_panel.add_theme_stylebox_override("panel", _slot_style())
+	goal_panel.add_theme_stylebox_override("panel", _goal_outer_style())
+	goal_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var goal_row := HBoxContainer.new()
+	goal_row.add_theme_constant_override("separation", 0)
+	goal_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var tag_panel := PanelContainer.new()
+	tag_panel.custom_minimum_size = Vector2(48, 0)
+	tag_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	tag_panel.add_theme_stylebox_override("panel", _goal_tag_style())
+	tag_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var tag_label := Label.new()
+	tag_label.text = "TAREA"
+	tag_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	tag_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	tag_label.add_theme_font_size_override("font_size", 8)
+	tag_label.add_theme_color_override("font_color", _goal_ink())
+	tag_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tag_panel.add_child(tag_label)
+	goal_row.add_child(tag_panel)
+	var body_panel := PanelContainer.new()
+	body_panel.custom_minimum_size = Vector2(260, 0)
+	body_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	body_panel.add_theme_stylebox_override("panel", _goal_body_style())
+	body_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	goal_label = Label.new()
-	goal_label.text = "TAREA"
-	goal_panel.add_child(goal_label)
+	goal_label.text = ""
+	goal_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	goal_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	goal_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	goal_label.text_overrun_behavior = TextServer.OVERRUN_NO_TRIMMING
+	goal_label.add_theme_font_size_override("font_size", 8)
+	goal_label.add_theme_color_override("font_color", _goal_ink())
+	goal_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	body_panel.add_child(goal_label)
+	goal_row.add_child(body_panel)
+	goal_panel.add_child(goal_row)
 	top_row.add_child(goal_panel)
 	root.add_child(top_row)
 
@@ -2822,16 +2968,16 @@ func _build_ui() -> void:
 	gaze_panel.visible = false
 	gaze_panel.z_index = 33
 	if ResourceLoader.exists("res://resources/ui/wood_panel.png"):
-		gaze_panel.add_theme_stylebox_override("panel", _box_style("res://resources/ui/wood_panel.png", 24, 24))
+		gaze_panel.add_theme_stylebox_override("panel", _box_style("res://resources/ui/wood_panel.png", 48, 28))
 	else:
 		var paper := StyleBoxFlat.new()
 		paper.bg_color = Color(0.73, 0.59, 0.45)
 		gaze_panel.add_theme_stylebox_override("panel", paper)
 	var gaze_margin := MarginContainer.new()
-	gaze_margin.add_theme_constant_override("margin_left", 16)
-	gaze_margin.add_theme_constant_override("margin_right", 16)
-	gaze_margin.add_theme_constant_override("margin_top", 16)
-	gaze_margin.add_theme_constant_override("margin_bottom", 16)
+	gaze_margin.add_theme_constant_override("margin_left", 4)
+	gaze_margin.add_theme_constant_override("margin_right", 4)
+	gaze_margin.add_theme_constant_override("margin_top", 4)
+	gaze_margin.add_theme_constant_override("margin_bottom", 4)
 	var gaze_col := VBoxContainer.new()
 	gaze_text = Label.new()
 	gaze_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -2954,6 +3100,22 @@ func _enter_game() -> void:
 	ThrongletSimServer.paused = false
 
 
+func _reset_camera() -> void:
+	zoom_level = 2.0
+	dragging = false
+	if camera == null:
+		return
+	camera.position = _to_iso(Vector2(256, 256))
+	camera.zoom = Vector2(zoom_level, zoom_level)
+	cam_from = camera.position
+
+
+func _start_new_game() -> void:
+	ThrongletSimServer.new_game()
+	_reset_camera()
+	_enter_game()
+
+
 func _enter_dev() -> void:
 	if dev_on and dev_bench != null:
 		return
@@ -3030,10 +3192,7 @@ func _fill_title() -> void:
 	_clear_menu(title_list)
 	if _has_continue():
 		_menu_button(title_list, "CONTINUAR", _continue_game)
-	_menu_button(title_list, "NUEVA PARTIDA", func():
-		ThrongletSimServer.new_game()
-		_enter_game()
-	)
+	_menu_button(title_list, "NUEVA PARTIDA", _start_new_game)
 	_menu_button(title_list, "CARGAR", _fill_title_slots)
 	_menu_button(title_list, "DESARROLLO", _enter_dev)
 	_menu_button(title_list, "SALIR", _quit_game)
@@ -3221,9 +3380,8 @@ func _fill_game_over() -> void:
 
 
 func _game_over_restart() -> void:
-	ThrongletSimServer.new_game()
 	over_panel.visible = false
-	_enter_game()
+	_start_new_game()
 
 
 func _game_over_load() -> void:
@@ -3278,6 +3436,10 @@ func _tex(path: String) -> Texture2D:
 	if textures.has(path):
 		return textures[path]
 	var tex: Texture2D = load(path)
+	if tex == null or tex.get_width() < 1:
+		var img := Image.load_from_file(ProjectSettings.globalize_path(path))
+		if img != null and not img.is_empty():
+			tex = ImageTexture.create_from_image(img)
 	textures[path] = tex
 	return tex
 
@@ -3303,6 +3465,23 @@ func _choice_box(fill: Color, edge: Color) -> StyleBoxFlat:
 	style.set_border_width_all(1)
 	style.set_content_margin_all(3)
 	return style
+
+
+func _goal_ink() -> Color:
+	return Color(0.188, 0.322, 0.416)
+
+
+func _goal_outer_style() -> StyleBoxTexture:
+	# Pad 3 keeps panes flush to the 1px cyan ring inside the 3px white border.
+	return _box_style("res://resources/ui/ui_goal_frame.png", 4, 3)
+
+
+func _goal_tag_style() -> StyleBoxTexture:
+	return _box_style("res://resources/ui/ui_goal_tag.png", 0, 5)
+
+
+func _goal_body_style() -> StyleBoxTexture:
+	return _box_style("res://resources/ui/ui_goal_body.png", 0, 5)
 
 
 func _box_style(path: String, edge: int, pad: int) -> StyleBoxTexture:
@@ -3338,6 +3517,22 @@ func _tick_shot() -> void:
 		camera.zoom = Vector2(zoom, zoom)
 		camera.position = _to_iso(sim.shot_focus)
 		shot_frames += 1
+		if not shot_hud_saved:
+			if ui != null:
+				ui.visible = true
+			_sync_hud(0.0)
+			if task_panel != null:
+				task_panel.visible = true
+			if shot_frames < 12:
+				return
+			if not _save_shot(get_viewport(), "res://shots/hud_task.png"):
+				get_tree().quit(1)
+				return
+			if ui != null:
+				ui.visible = false
+			shot_hud_saved = true
+			shot_frames = 0
+			return
 		if shot_frames < 12:
 			return
 		if not _save_shot(get_viewport(), "res://shots/island_all.png"):
@@ -3427,9 +3622,10 @@ func _build_asset_shot() -> void:
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	labels.add_child(root)
 	var theme := Theme.new()
-	var dos: Font = load("res://resources/ui/PerfectDOSVGA437.ttf")
-	if dos != null:
-		theme.default_font = dos
+	var font := FontFile.new()
+	if font.load_dynamic_font("res://resources/ui/aline_font.ttf") == OK \
+			or font.load_dynamic_font("res://resources/ui/PerfectDOSVGA437.ttf") == OK:
+		theme.default_font = font
 		theme.default_font_size = 8
 	root.theme = theme
 	var scale := 0.55
