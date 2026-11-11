@@ -6,6 +6,9 @@ var camera: Camera2D
 var tilemap: TileMapLayer
 var world: MultiMeshInstance2D
 var world_mesh: MultiMesh
+var world_layer: Node2D
+var _prop_bands: Array = []
+var _monoliths := {}
 var place_marks: Node2D
 var place_fills: Array[Polygon2D] = []
 var place_edges: Array[Line2D] = []
@@ -26,6 +29,21 @@ const ZOOM_STEP := 1.12
 const EGG_ANIM := 87
 const ROUND_ANIM := 132
 const FIRE_ANIM := 140
+const RIVER_ATLAS := 12
+const WASTE_ATLAS := 48
+const WASTE_VARIANTS := 6
+const WEAR_ATLAS := 54
+const CALM: Array[String] = [
+	"ThrongA_Default", "ThrongA_Default Blink", "ThrongA_Happy", "ThrongA_EarWiggleLow",
+	"ThrongA_Celebrate_Spritesheet", "ThrongA_Shrug", "Throng_Think_Spritesheet",
+	"ThrongA_Jump", "ThrongA_Bored_KickRock", "ThrongA_Default_Ghost",
+]
+const SING: Array[String] = [
+	"Throng_Sing_Spritesheet", "Throng_SingB_Spritesheet", "Throng_SingC_Spritesheet",
+	"ThrongA_SingToThronglet_Spritesheet2",
+]
+# Matches tools/make_art.py CELL. The quad is the whole cell; sprites sit on its bottom edge.
+const WORLD_CELL := 128.0
 var zoom_level := 2.0
 var dragging := false
 var drag_from := Vector2.ZERO
@@ -52,6 +70,11 @@ const POP_FACES := {
 	"suspicious": "res://resources/ui/face_suspicious.png",
 	"freak": "res://resources/ui/face_freak.png",
 	"trance": "res://resources/ui/face_trance.png",
+	"epilogue_angry": "res://resources/ui/face_Epilogue_Angry.png",
+	"epilogue_bewildered": "res://resources/ui/face_Epilogue_Bewildered.png",
+	"epilogue_caretaker": "res://resources/ui/face_Epilogue_Caretaker.png",
+	"epilogue_birthday": "res://resources/ui/face_Epilogue_Birthday.png",
+	"epilogue_capitalist": "res://resources/ui/face_Epilogue_Capitalist.png",
 }
 var gem_panel: PanelContainer
 var gem_label: Label
@@ -68,6 +91,7 @@ var full_labels: Array = []
 var ring_lines: Array = []
 var shot_frames := 0
 var shot_done := false
+var shot_board: SubViewport
 var glitch_bars: Array = []
 var glitch_label: Label
 var ui_theme: Theme
@@ -116,9 +140,15 @@ var sfx_bank := {}
 var sfx_pool: Array = []
 var music: AudioStreamPlayer
 var amb: AudioStreamPlayer
+var sting: AudioStreamPlayer
 var music_mode := ""
+var spot_mode := ""
+var video_played := {}
+var video_player: VideoStreamPlayer
+var video_from_title := false
 var bird_wait := 8.0
 var textures := {}
+var biome_plates: Array[Sprite2D] = []
 
 
 func _ready() -> void:
@@ -136,10 +166,16 @@ func _ready() -> void:
 			if ui != null:
 				ui.visible = false
 	else:
-		_show_title()
+		if not _play_video("tuckersoft_logo_30fps_1MB", true):
+			_show_title()
 
 
 func _input(event: InputEvent) -> void:
+	if video_player != null and video_player.visible and event is InputEventMouseButton and event.pressed:
+		video_player.stop()
+		_on_video_finished()
+		get_viewport().set_input_as_handled()
+		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
 		if not kit_drag.is_empty():
 			_end_kit_drag()
@@ -273,6 +309,7 @@ func _process(delta: float) -> void:
 	_tick_hand_hold(delta)
 	_sync_world()
 	_sync_actors()
+	_sync_biome_plates()
 	_sync_place_mark()
 	_sync_charge_mark()
 	if not sim.shot_mode:
@@ -508,13 +545,13 @@ func _world_view() -> Rect2:
 func _to_iso(world_pos: Vector2) -> Vector2:
 	var tile := Vector2(tilemap.tile_set.tile_size)
 	var cell := world_pos / float(Catalog.TILE) - Vector2(0.5, 0.5)
-	return Vector2(tile.x * 0.5 * (1.0 + cell.x - cell.y), tile.y * 0.5 * (1.0 + cell.x + cell.y))
+	return Vector2(tile.x * 0.5 * (cell.x - cell.y), tile.y * 0.5 * (cell.x + cell.y))
 
 
 func _from_iso(iso: Vector2) -> Vector2:
 	var tile := Vector2(tilemap.tile_set.tile_size)
-	var a := iso.x / (tile.x * 0.5) - 1.0
-	var b := iso.y / (tile.y * 0.5) - 1.0
+	var a := iso.x / (tile.x * 0.5)
+	var b := iso.y / (tile.y * 0.5)
 	var cell := Vector2((a + b) * 0.5, (b - a) * 0.5)
 	return (cell + Vector2(0.5, 0.5)) * float(Catalog.TILE)
 
@@ -658,9 +695,66 @@ func _paint_chunk(ck: String, fog: bool, into = null) -> void:
 					var stage: int = sim.wear_stage(cell.x, cell.y)
 					if stage > 0:
 						atlas_x = _wear_atlas(atlas_x, stage)
+				elif tile == Catalog.TILE_WATER:
+					atlas_x = _river_atlas(cell)
+				elif tile == Catalog.TILE_GOO:
+					atlas_x = WASTE_ATLAS + absi((cell.x * 3 + cell.y * 5) % WASTE_VARIANTS)
 				map.set_cell(cell, 0, Vector2i(atlas_x, 0))
 	if into == null:
 		painted[ck] = "real"
+
+
+func _biome_plate_paths(biome: String) -> PackedStringArray:
+	if biome == "epilogue":
+		return PackedStringArray([
+			"res://resources/sprites/plates/T_Epilogue_Tree1.png",
+			"res://resources/sprites/plates/T_Epilogue_Tree2.png",
+			"res://resources/sprites/plates/T_Epilogue_Tree3_Neurons.png",
+		])
+	if biome == "anomaly":
+		return PackedStringArray([
+			"res://resources/sprites/plates/Anomaly_Base_Shape.png",
+			"res://resources/sprites/plates/Anomaly_Blue_Outline.png",
+			"res://resources/sprites/plates/Anomaly_Pink_Outline.png",
+		])
+	return PackedStringArray()
+
+
+func _sync_biome_plates() -> void:
+	if biome_plates.is_empty():
+		for biome in ["epilogue", "anomaly"]:
+			var paths := _biome_plate_paths(biome)
+			for i in paths.size():
+				var sprite := Sprite2D.new()
+				sprite.texture = _tex(paths[i])
+				sprite.centered = true
+				sprite.z_index = 1
+				sprite.visible = false
+				sprite.set_meta("biome", biome)
+				sprite.set_meta("plate", i)
+				add_child(sprite)
+				biome_plates.append(sprite)
+	var shown := {}
+	for key in ThrongletSimServer.special_biomes:
+		var biome := str(ThrongletSimServer.special_biomes[key])
+		if _biome_plate_paths(biome).is_empty() or shown.has(biome):
+			continue
+		shown[biome] = str(key)
+	var pick := int(Time.get_ticks_msec() / 1400.0)
+	for sprite in biome_plates:
+		var biome := str(sprite.get_meta("biome"))
+		var paths := _biome_plate_paths(biome)
+		var on := shown.has(biome) and sprite.texture != null and int(sprite.get_meta("plate")) == posmod(pick, paths.size())
+		sprite.visible = on
+		if not on:
+			continue
+		var parts := str(shown[biome]).split(",")
+		var cx := int(parts[0])
+		var cy := int(parts[1])
+		var center := Vector2(float(cx * Catalog.CHUNK + Catalog.CHUNK / 2) * Catalog.TILE, float(cy * Catalog.CHUNK + Catalog.CHUNK / 2) * Catalog.TILE)
+		sprite.position = _to_iso(center)
+		sprite.scale = Vector2.ONE * (280.0 / maxf(float(sprite.texture.get_width()), 1.0))
+		sprite.modulate = Color(1, 1, 1, 0.72 if biome == "anomaly" else 0.42)
 
 
 func _sync_actors() -> void:
@@ -675,17 +769,24 @@ func _sync_actors() -> void:
 		if not sim.chunk_shown("%d,%d" % [int(feat.cx), int(feat.cy)]):
 			continue
 		var p := Vector2(float(feat.x), float(feat.y))
-		if view.has_point(p):
-			var feat_frame := _prop_frame(Catalog.icon_for_feature(int(feat.kind), int(feat.ore)))
-			if int(feat.kind) == Catalog.FEAT_FIRE:
+		if int(feat.kind) == Catalog.FEAT_MONOLITH:
+			_sync_monolith(int(feat.id), p)
+			continue
+		var feat_at := _feature_draw_at(int(feat.kind), p, int(feat.ore))
+		if view.has_point(p) or view.has_point(feat_at):
+			var feat_frame := _feature_frame(int(feat.kind), time_pre, int(feat.ore))
+			if feat_frame < 0:
+				feat_frame = _prop_frame(Catalog.icon_for_feature(int(feat.kind), int(feat.ore)))
+			if int(feat.kind) == Catalog.FEAT_FIRE and feat_frame < 0:
 				feat_frame = FIRE_ANIM + int(time_pre * 8.0) % 4
-			_push_iso(draws, p, feat_frame, Color.WHITE)
+			_push_iso(draws, feat_at, feat_frame, Color.WHITE)
+			_push_glitch_fumes(draws, int(feat.kind), feat_at, time_pre)
 	for it in sim.items:
 		if it.dead or it.held:
 			continue
 		if not sim.chunk_shown(sim.chunk_key_at(float(it.x), float(it.y))):
 			continue
-		var p2 := Vector2(float(it.x), float(it.y))
+		var p2 := _item_draw_at(int(it.kind), Vector2(float(it.x), float(it.y)))
 		if view.has_point(p2):
 			var egg_lift := float(it.get("air", 0.0))
 			var item_frame := _prop_frame(Catalog.icon_for_item(int(it.kind)))
@@ -750,7 +851,7 @@ func _sync_actors() -> void:
 				var spark := Vector2(cos(time_pre * 10.0 + float(b.id)) * 6.0, sin(time_pre * 10.0) * 4.0)
 				_push_iso(draws, seat + spark, _prop_frame(Catalog.ICON_SPONGE), Color(1, 1, 1, 0.7), 8.0)
 	var bridge: Dictionary = sim.bridge_marker()
-	if not bridge.is_empty() and sim.chunk_shown(str(bridge.ck)):
+	if not sim.shot_mode and not bridge.is_empty() and sim.chunk_shown(str(bridge.ck)):
 		var site := Vector2(float(bridge.x), float(bridge.y))
 		var drop := Vector2(float(bridge.drop_x), float(bridge.drop_y))
 		var pulse := 0.55 + 0.45 * absf(sin(Time.get_ticks_msec() / 280.0))
@@ -776,7 +877,7 @@ func _sync_actors() -> void:
 	if not hand.is_empty():
 		if _drop_on_island():
 			var hand_at := grid_at if Catalog.item_snaps_grid(int(hand.kind)) else free_at
-			_push_iso(draws, hand_at, _prop_frame(Catalog.icon_for_item(int(hand.kind))), Color(1, 1, 1, 0.9), 10.0)
+			_push_iso(draws, _item_draw_at(int(hand.kind), hand_at), _prop_frame(Catalog.icon_for_item(int(hand.kind))), Color(1, 1, 1, 0.9), 10.0)
 		else:
 			draws.append({
 				"p": get_global_mouse_position(),
@@ -788,12 +889,12 @@ func _sync_actors() -> void:
 			var scooped = sim.item_by_id.get(int(raw), {})
 			if scooped.is_empty() or scooped.dead:
 				continue
-			_push_iso(draws, Vector2(float(scooped.x), float(scooped.y)), _prop_frame(Catalog.icon_for_item(int(scooped.kind))), Color(1, 1, 1, 0.92), 12.0)
+			_push_iso(draws, _item_draw_at(int(scooped.kind), Vector2(float(scooped.x), float(scooped.y))), _prop_frame(Catalog.icon_for_item(int(scooped.kind))), Color(1, 1, 1, 0.92), 12.0)
 	if sim.held_kind == "rock":
 		var rock = sim.feature_by_id.get(sim.held_ref, {})
 		if not rock.is_empty():
 			if _drop_on_island():
-				_push_iso(draws, grid_at, _prop_frame(Catalog.icon_for_feature(int(rock.kind), int(rock.ore))), Color(1, 1, 1, 0.9), 10.0)
+				_push_iso(draws, _feature_draw_at(int(rock.kind), grid_at, int(rock.ore)), _prop_frame(Catalog.icon_for_feature(int(rock.kind), int(rock.ore))), Color(1, 1, 1, 0.9), 10.0)
 			else:
 				draws.append({
 					"p": get_global_mouse_position(),
@@ -855,13 +956,8 @@ func _sync_actors() -> void:
 					pos += Vector2(sin(time * 18.0 + float(i)) * 1.4, cos(time * 16.0 + float(i)) * 0.8)
 				else:
 					riding = true
-					var center := Vector2(float(ride.x), float(ride.y))
-					var off := pos - center
-					if off.length() < 1.0:
-						off = Vector2(12.0, 0.0)
-					pos = center + off.normalized() * 12.0
-					lift = 0.0
-					prop_anchor = center
+					lift = absf(sin(time * 10.0 + float(i))) * 1.5
+					prop_anchor = Vector2(float(ride.x), float(ride.y))
 			elif doing == ThrongletSimServer.ACT_BATH:
 				var tub: Dictionary = sim.seat_of(i)
 				if tub.is_empty():
@@ -893,10 +989,21 @@ func _sync_actors() -> void:
 			_push_iso(draws, pos, _carry_icon(int(sim.carry[i])), Color.WHITE, 12.0, 1.0, sort_y)
 		if not sim.frozen and doing == ThrongletSimServer.ACT_WASH:
 			var bub := Vector2(cos(time * 14.0) * 7.0, sin(time * 14.0) * 4.0)
-			_push_iso(draws, pos + bub, _prop_frame(Catalog.ICON_SPONGE), Color(1, 1, 1, 0.85), 8.0, 1.0, sort_y)
+			var bubble := AssetFrames.frame(AssetFrames.SUDS, AssetFrames.SUDS_N, 0)
+			if bubble < 0:
+				bubble = _prop_frame(Catalog.ICON_SPONGE)
+			_push_iso(draws, pos + bub, bubble, Color(1, 1, 1, 0.85), 8.0, 1.0, sort_y)
+			var spark := AssetFrames.frame(AssetFrames.CLEAN, AssetFrames.CLEAN_N, int(time * 10.0))
+			if spark >= 0:
+				_push_iso(draws, pos + bub * 0.4, spark, Color(1, 1, 1, 0.7), 10.0, 1.0, sort_y)
 		elif not sim.frozen and doing == ThrongletSimServer.ACT_BATH and not seated:
 			var suds := Vector2(cos(time * 11.0 + float(i)) * 6.0, sin(time * 11.0) * 3.5)
-			_push_iso(draws, pos + suds, _prop_frame(Catalog.ICON_SPONGE), Color(0.85, 0.95, 1.0, 0.8), 7.0, 1.0, sort_y)
+			var foam := AssetFrames.frame(AssetFrames.SUDS, AssetFrames.SUDS_N, 0)
+			if foam < 0:
+				foam = AssetFrames.frame(AssetFrames.SPLASH, AssetFrames.SPLASH_N, int(time * 8.0))
+			if foam < 0:
+				foam = _prop_frame(Catalog.ICON_SPONGE)
+			_push_iso(draws, pos + suds, foam, Color(0.85, 0.95, 1.0, 0.8), 7.0, 1.0, sort_y)
 		elif not sim.frozen and doing == ThrongletSimServer.ACT_PLAY and not riding and not ball_play:
 			var toy := Vector2(cos(time * 12.0 + float(i)) * 8.0, sin(time * 12.0) * 4.0)
 			_push_iso(draws, pos + toy, _prop_frame(Catalog.ICON_BALL), Color(1, 1, 1, 0.9), 9.0 + lift, 1.0, sort_y)
@@ -913,13 +1020,22 @@ func _sync_actors() -> void:
 			"flip": _throng_flip(hi),
 			"dirty": _throng_dirty(sim.clean[hi]),
 		})
+		var hand_frame := AssetFrames.frame(AssetFrames.HAND, AssetFrames.HAND_N, int(time * 8.0))
+		if hand_frame >= 0:
+			draws.append({
+				"p": get_global_mouse_position() + Vector2(10, 6),
+				"icon": hand_frame,
+				"tint": Color.WHITE,
+				"flip": 1.0,
+				"dirty": 0.0,
+			})
 	for pop in sim.pops:
 		var fade := clampf(float(pop.t) / 0.55, 0.0, 1.0)
 		_push_iso(draws, Vector2(float(pop.x), float(pop.y)), _pop_frame(int(pop.icon)), Color(1, 1, 1, fade), float(pop.lift))
 	draws.sort_custom(func(a, b): return float(a.get("sy", a.p.y)) < float(b.get("sy", b.p.y)))
 	draws.append_array(egg_front)
 	draws.append_array(drag_front)
-	_write_mesh(world_mesh, draws)
+	_paint_props(draws)
 
 
 func _frame(i: int, time: float) -> int:
@@ -928,7 +1044,7 @@ func _frame(i: int, time: float) -> int:
 		var clip := "ThrongA_Dead_001" if int(time * 2.0) % 2 == 0 else "ThrongA_Dead_002"
 		return ThrongClips.frame_at(clip, 0)
 	if sim.frozen:
-		return ThrongClips.frame_at("ThrongA_Talk", int(time * 6.0))
+		return _clip_pool(ThrongClips.TALK, i, time, 2.4, "ThrongA_Talk")
 	if sim.mito_t[i] > 0.0 or sim.mito_charge[i] > 0.0:
 		var along := 0.0
 		if sim.mito_t[i] > 0.0:
@@ -978,10 +1094,10 @@ func _frame(i: int, time: float) -> int:
 	if sim.amused[i] < 25.0:
 		return ThrongClips.frame_at("ThrongA_Grumpy", 0)
 	if sim.fed[i] >= Catalog.NEED_OK and sim.amused[i] >= Catalog.NEED_OK and sim.clean[i] >= Catalog.NEED_OK:
-		return ThrongClips.frame_at("ThrongA_Happy", int(time * 6.0))
-	if int(time + float(i) * 1.7) % 6 == 0:
-		return ThrongClips.frame_at("ThrongA_Default Blink", 0)
-	return ThrongClips.frame_at("ThrongA_Default", 0)
+		if posmod(i + int(time), 9) < 3:
+			return _clip_pool(SING, i, time, 1.6, "ThrongA_Happy")
+		return _clip_pool(CALM, i, time, 2.2, "ThrongA_Happy")
+	return _clip_pool(CALM, i, time, 2.8, "ThrongA_Default")
 
 
 func _throng_flip(i: int) -> float:
@@ -1003,6 +1119,78 @@ func _throng_flip(i: int) -> float:
 	if absf(sim.dir_x[i]) > absf(sim.dir_y[i]) and sim.dir_x[i] < 0.0:
 		return -1.0
 	return 1.0
+
+
+func _clip_pool(pool: Array, index: int, time: float, hold: float, fallback: String) -> int:
+	var usable: Array[String] = []
+	for raw in pool:
+		var clip := str(raw)
+		if ThrongClips.has_clip(clip):
+			usable.append(clip)
+	if usable.is_empty():
+		return ThrongClips.frame_at(fallback, int(time * 6.0))
+	return ThrongClips.pick(usable, index, time, hold)
+
+
+func _camera_biome() -> String:
+	if camera == null:
+		return ""
+	var world_pos := _from_iso(camera.position) if is_inside_tree() else camera.position
+	return ThrongletSimServer.biome_at(world_pos.x, world_pos.y)
+
+
+func _feature_frame(kind: int, time: float, ore: int = 0) -> int:
+	var tick := int(time * 8.0)
+	if kind == Catalog.FEAT_GLITCH_TREE:
+		return _listed_frame(ore, [
+			[AssetFrames.GLITCH_TREE, AssetFrames.GLITCH_TREE_N],
+			[AssetFrames.WASTE_TREE, AssetFrames.WASTE_TREE_N],
+			[AssetFrames.GLITCH_TREE_C, AssetFrames.GLITCH_TREE_C_N],
+			[AssetFrames.GLITCH_TREE_D, AssetFrames.GLITCH_TREE_D_N],
+			[AssetFrames.WASTE_TREE_B, AssetFrames.WASTE_TREE_B_N],
+		], tick)
+	if kind == Catalog.FEAT_GLITCH_HOUSE:
+		return AssetFrames.frame(AssetFrames.GLITCH_HOUSE, AssetFrames.GLITCH_HOUSE_N, tick)
+	if kind == Catalog.FEAT_ANOMALY:
+		return _listed_frame(int(time), [
+			[AssetFrames.ANOMALY, AssetFrames.ANOMALY_N],
+			[AssetFrames.ANOMALY_RAY, AssetFrames.ANOMALY_RAY_N],
+		], tick)
+	if kind == Catalog.FEAT_FIRE:
+		if int(time) % 2 == 1:
+			var blob := AssetFrames.frame(AssetFrames.FIRE_BLOB, AssetFrames.FIRE_BLOB_N, tick)
+			if blob >= 0:
+				return blob
+		var flame := AssetFrames.frame(AssetFrames.FIRE, AssetFrames.FIRE_N, tick)
+		return flame if flame >= 0 else FIRE_ANIM + tick % 4
+	if kind == Catalog.FEAT_EPILOGUE:
+		return _listed_frame(ore, [
+			[AssetFrames.EPILOGUE, AssetFrames.EPILOGUE_N],
+			[AssetFrames.ROTTEN_APPLE, AssetFrames.ROTTEN_APPLE_N],
+		], tick)
+	if kind == Catalog.FEAT_MOUNTAIN:
+		return _listed_frame(ore, [
+			[AssetFrames.MOUNT_BIG, AssetFrames.MOUNT_BIG_N],
+			[AssetFrames.MOUNT_SMALL, AssetFrames.MOUNT_SMALL_N],
+			[AssetFrames.MOUNT_GLITCH, AssetFrames.MOUNT_GLITCH_N],
+			[AssetFrames.GRASS_PATCH, AssetFrames.GRASS_PATCH_N],
+		], tick)
+	return -1
+
+
+func _listed_frame(pick: int, rows: Array, tick: int) -> int:
+	if rows.is_empty():
+		return -1
+	var row: Array = rows[posmod(pick, rows.size())]
+	return AssetFrames.frame(int(row[0]), int(row[1]), tick)
+
+
+func _push_glitch_fumes(draws: Array, kind: int, at: Vector2, time: float) -> void:
+	if kind != Catalog.FEAT_GLITCH_HOUSE and kind != Catalog.FEAT_GLITCH_TREE:
+		return
+	var frame := AssetFrames.frame(AssetFrames.FUMES, AssetFrames.FUMES_N, int(time * 8.0))
+	if frame >= 0:
+		_push_iso(draws, at + Vector2(0, -18), frame, Color.WHITE)
 
 
 func _prop_frame(icon: int) -> int:
@@ -1217,10 +1405,79 @@ func _push_iso(draws: Array, world_pos: Vector2, frame: int, tint: Color, lift: 
 	draws.append({"p": draw_p, "sy": sy, "icon": frame, "tint": tint, "scale": sprite_scale})
 
 
+# World offset that puts the opaque middle of a frame on the anchor.
+# Tall sprites are clamped to the pad so the base stays inside its cells.
+const _CENTER := {
+	24: Vector2(7.8, 7.2),
+	25: Vector2(6.8, 6.2),
+	27: Vector2(7.8, 7.2),
+	32: Vector2(8.0, 7.0),
+	33: Vector2(9.0, 8.0),
+	34: Vector2(7.2, 6.8),
+	47: Vector2(17.5, 16.5),
+	50: Vector2(11.2, 10.8),
+	64: Vector2(9.0, 8.0),
+	87: Vector2(9.0, 8.0),
+	96: Vector2(26.0, 25.0),
+	97: Vector2(7.0, 6.0),
+	98: Vector2(8.8, 8.2),
+	99: Vector2(18.0, 17.0),
+	100: Vector2(29.5, 28.5),
+	101: Vector2(26.0, 25.0),
+	102: Vector2(21.0, 20.0),
+	103: Vector2(13.2, 12.8),
+	104: Vector2(21.8, 21.2),
+	105: Vector2(24.5, 23.5),
+	106: Vector2(24.5, 23.5),
+	107: Vector2(25.0, 24.0),
+	108: Vector2(30.2, 29.8),
+	109: Vector2(40.0, 39.0),
+	110: Vector2(27.8, 27.2),
+	111: Vector2(19.2, 18.8),
+	112: Vector2(30.2, 29.8),
+	113: Vector2(16.5, 15.5),
+	114: Vector2(10.5, 9.5),
+	115: Vector2(9.5, 8.5),
+	116: Vector2(11.8, 11.2),
+	117: Vector2(22.8, 22.2),
+	118: Vector2(18.2, 17.8),
+	119: Vector2(10.8, 10.2),
+	120: Vector2(9.8, 9.2),
+	121: Vector2(13.2, 12.8),
+	122: Vector2(10.5, 9.5),
+	123: Vector2(15.0, 14.0),
+	124: Vector2(13.0, 12.0),
+	130: Vector2(7.8, 7.2),
+	131: Vector2(18.0, 17.0),
+	140: Vector2(11.5, 11.5),
+}
+
+
+func _pad_nudge(frame: int, scale: float, size: Vector2i) -> Vector2:
+	var raw: Vector2 = _CENTER.get(frame, Vector2.ZERO)
+	var dsy := (raw.x + raw.y) * 0.5
+	var half_h := 4.0 * float(size.x + size.y)
+	if dsy > half_h and dsy > 0.0:
+		raw *= half_h / dsy
+	return raw * scale
+
+
 func _building_draw_at(kind: int, origin: Vector2) -> Vector2:
-	if kind == Catalog.BLD_TUB:
-		return origin + Catalog.TUB_DRAW_OFF
-	return origin
+	var size := Catalog.footprint_for_building(kind)
+	var frame := _prop_frame(Catalog.icon_for_building(kind))
+	var scale := Catalog.TUB_SPRITE_SCALE if kind == Catalog.BLD_TUB else 1.0
+	return origin + Catalog.footprint_center(size) + _pad_nudge(frame, scale, size)
+
+
+func _feature_draw_at(kind: int, origin: Vector2, ore: int = 0) -> Vector2:
+	var size := Catalog.footprint_for_feature(kind)
+	var frame := FIRE_ANIM if kind == Catalog.FEAT_FIRE else _prop_frame(Catalog.icon_for_feature(kind, ore))
+	return origin + Catalog.footprint_center(size) + _pad_nudge(frame, 1.0, size)
+
+
+func _item_draw_at(kind: int, origin: Vector2) -> Vector2:
+	var frame := EGG_ANIM if kind == Catalog.ITEM_EGG else _prop_frame(Catalog.icon_for_item(kind))
+	return origin + _pad_nudge(frame, 1.0, Vector2i(1, 1))
 
 
 func _prop_front_sort_y(world_center: Vector2) -> float:
@@ -1294,6 +1551,66 @@ func _throng_dirty(clean: float) -> float:
 	return 1.0 - clampf(clean / 100.0, 0.0, 1.0)
 
 
+func _sync_monolith(id: int, world_pos: Vector2) -> void:
+	var node: Node2D = _monoliths.get(id)
+	if node == null:
+		node = (load("res://monolith_prop.gd") as GDScript).new()
+		world_layer.add_child(node)
+		_monoliths[id] = node
+	node.position = _to_iso(world_pos)
+	node.visible = true
+	node.set_meta("seen", true)
+
+
+func _paint_props(draws: Array) -> void:
+	var live: Array = []
+	for id in _monoliths.keys():
+		var node: Node2D = _monoliths[id]
+		if not bool(node.get_meta("seen", false)):
+			node.visible = false
+			continue
+		node.set_meta("seen", false)
+		live.append({"sy": node.position.y, "node": node})
+	live.sort_custom(func(a, b): return float(a.sy) < float(b.sy))
+	var cursor := 0
+	var order: Array = []
+	for i in live.size():
+		var chunk: Array = []
+		var sy := float(live[i].sy)
+		while cursor < draws.size() and float(draws[cursor].get("sy", draws[cursor].p.y)) <= sy:
+			chunk.append(draws[cursor])
+			cursor += 1
+		var band := _prop_band(i)
+		_write_mesh(band.multimesh, chunk)
+		band.visible = true
+		order.append(band)
+		order.append(live[i].node)
+	var rest: Array = []
+	while cursor < draws.size():
+		rest.append(draws[cursor])
+		cursor += 1
+	var tail := _prop_band(live.size())
+	_write_mesh(tail.multimesh, rest)
+	tail.visible = true
+	order.append(tail)
+	for j in range(live.size() + 1, _prop_bands.size()):
+		_write_mesh(_prop_bands[j].multimesh, [])
+		_prop_bands[j].visible = false
+	for i in order.size():
+		world_layer.move_child(order[i], i)
+
+
+func _prop_band(index: int) -> MultiMeshInstance2D:
+	while _prop_bands.size() <= index:
+		var band := MultiMeshInstance2D.new()
+		band.material = world.material
+		band.texture = world.texture
+		band.multimesh = _mesh(true, Vector2(WORLD_CELL, WORLD_CELL))
+		world_layer.add_child(band)
+		_prop_bands.append(band)
+	return _prop_bands[index]
+
+
 func _write_mesh(mesh: MultiMesh, draws: Array) -> void:
 	var n := draws.size()
 	if mesh.instance_count < n:
@@ -1303,7 +1620,7 @@ func _write_mesh(mesh: MultiMesh, draws: Array) -> void:
 	for i in n:
 		var sprite_scale := float(draws[i].get("scale", 1.0))
 		var flip := float(draws[i].get("flip", 1.0))
-		xf = Transform2D(0.0, Vector2(sprite_scale * flip, sprite_scale), 0.0, draws[i].p + Vector2(0, -32.0 * sprite_scale))
+		xf = Transform2D(0.0, Vector2(sprite_scale * flip, sprite_scale), 0.0, draws[i].p + Vector2(0, -WORLD_CELL * 0.5 * sprite_scale))
 		mesh.set_instance_transform_2d(i, xf)
 		mesh.set_instance_custom_data(i, Color(float(draws[i].icon), float(draws[i].get("dirty", 0.0)), 0, 0))
 		mesh.set_instance_color(i, draws[i].tint)
@@ -1317,6 +1634,9 @@ func _sync_hud(delta: float) -> void:
 		face_key = "cry" if sim.peak > 0 else "base"
 	elif sim.frozen:
 		face_key = "trance"
+	elif _camera_biome() == "epilogue":
+		var faces := ["epilogue_caretaker", "epilogue_bewildered", "epilogue_angry", "epilogue_birthday", "epilogue_capitalist"]
+		face_key = faces[int(Time.get_ticks_msec() / 2400) % faces.size()]
 	elif POP_FACES.has(sim.mood_face):
 		face_key = sim.mood_face
 	if face_key != pop_face_key:
@@ -1361,6 +1681,7 @@ func _sync_hud(delta: float) -> void:
 	hint.text = info
 	for note in sim.take_notes():
 		toast_queue.append(str(note))
+		_play("console")
 	if toast_t <= 0.0 and not toast_queue.is_empty():
 		toast_msg = str(toast_queue.pop_front())
 		toast_t = 2.8
@@ -1411,16 +1732,24 @@ func _sync_market() -> void:
 func _sync_gaze() -> void:
 	var sim: ThrongletSim = ThrongletSimServer
 	if sim.game_over or sim.modal.is_empty():
+		if shown_event != "":
+			_play("dialogue_out")
 		gaze_panel.visible = false
 		shown_event = ""
 		return
 	var event := str(sim.modal.event)
 	if event != shown_event:
+		if shown_event != "":
+			_play("dialogue_out")
 		shown_event = event
+		_play("dialogue_in")
 		for child in gaze_box.get_children():
 			child.queue_free()
 		var gaze: Dictionary = Catalog.GAZE[event]
-		gaze_text.text = str(gaze.text)
+		var quote := LineBook.line_for(event)
+		gaze_text.text = quote if quote != "" else str(gaze.text)
+		if quote != "":
+			gaze_text.text = quote + "\n" + str(gaze.text)
 		var choices: Array = gaze.choices
 		for i in choices.size():
 			var button := Button.new()
@@ -1580,17 +1909,23 @@ func _focus_draws() -> Array:
 		if talk and _talk_hides_feat(int(feat.kind)):
 			continue
 		var p := Vector2(float(feat.x), float(feat.y))
-		if not _focus_sees(p, 0.0):
+		if int(feat.kind) == Catalog.FEAT_MONOLITH:
 			continue
-		var feat_frame := _prop_frame(Catalog.icon_for_feature(int(feat.kind), int(feat.ore)))
-		if int(feat.kind) == Catalog.FEAT_FIRE:
+		var feat_at := _feature_draw_at(int(feat.kind), p, int(feat.ore))
+		if not _focus_sees(p, 0.0) and not _focus_sees(feat_at, 0.0):
+			continue
+		var feat_frame := _feature_frame(int(feat.kind), time, int(feat.ore))
+		if feat_frame < 0:
+			feat_frame = _prop_frame(Catalog.icon_for_feature(int(feat.kind), int(feat.ore)))
+		if int(feat.kind) == Catalog.FEAT_FIRE and feat_frame < 0:
 			feat_frame = FIRE_ANIM + int(time * 8.0) % 4
-		_push_iso(draws, p, feat_frame, Color.WHITE)
+		_push_iso(draws, feat_at, feat_frame, Color.WHITE)
+		_push_glitch_fumes(draws, int(feat.kind), feat_at, time)
 	for it in sim.items:
 		if it.dead or it.held:
 			continue
 		var lift := float(it.get("air", 0.0))
-		var p2 := Vector2(float(it.x), float(it.y))
+		var p2 := _item_draw_at(int(it.kind), Vector2(float(it.x), float(it.y)))
 		if not _focus_sees(p2, lift):
 			continue
 		var item_frame := _prop_frame(Catalog.icon_for_item(int(it.kind)))
@@ -2111,13 +2446,16 @@ func _build_world() -> void:
 	charge_ring.end_cap_mode = Line2D.LINE_CAP_ROUND
 	charge_ring.visible = false
 	add_child(charge_ring)
+	world_layer = Node2D.new()
+	world_layer.z_index = 2
+	add_child(world_layer)
 	world = MultiMeshInstance2D.new()
-	world.z_index = 2
 	world.material = _material(16, ThrongClips.SHEET_ROWS)
 	world.texture = _tex("res://resources/sprites/world_iso.png")
-	world_mesh = _mesh(true, Vector2(64, 64))
+	world_mesh = _mesh(true, Vector2(WORLD_CELL, WORLD_CELL))
 	world.multimesh = world_mesh
-	add_child(world)
+	world_layer.add_child(world)
+	_prop_bands = [world]
 	var bar_colors := [
 		Color(0.86, 0.22, 0.24),
 		Color(0.95, 0.72, 0.22),
@@ -2159,13 +2497,44 @@ func _make_tileset() -> TileSet:
 	return tileset
 
 
+func _river_atlas(cell: Vector2i) -> int:
+	var n := _shore(cell, 0, -1)
+	var e := _shore(cell, 1, 0)
+	var s := _shore(cell, 0, 1)
+	var w := _shore(cell, -1, 0)
+	var role := 0
+	if n and e and not s and not w:
+		role = 5
+	elif n and w and not s and not e:
+		role = 6
+	elif s and e and not n and not w:
+		role = 7
+	elif s and w and not n and not e:
+		role = 8
+	elif n and not s:
+		role = 1
+	elif s and not n:
+		role = 2
+	elif w and not e:
+		role = 3
+	elif e and not w:
+		role = 4
+	var variant := absi(cell.x * 3 + cell.y * 5) % 4
+	return RIVER_ATLAS + role * 4 + variant
+
+
+func _shore(cell: Vector2i, dx: int, dy: int) -> bool:
+	var at := Catalog.cell_world(cell + Vector2i(dx, dy))
+	return ThrongletSimServer._tile_at(at.x, at.y) != Catalog.TILE_WATER
+
+
 func _wear_atlas(grass_x: int, stage: int) -> int:
 	var which := 0
 	if grass_x == 10:
 		which = 1
 	elif grass_x == 11:
 		which = 2
-	return 12 + which * ThrongletSimServer.WEAR_STEPS + stage - 1
+	return WEAR_ATLAS + which * ThrongletSimServer.WEAR_STEPS + stage - 1
 
 
 func _wear_texture(source: Texture2D) -> Texture2D:
@@ -2225,9 +2594,13 @@ func _build_ui() -> void:
 	ui.add_child(root)
 	var theme := Theme.new()
 	var font := FontFile.new()
-	if font.load_bitmap_font("res://resources/ui/pixel_font.fnt") == OK:
+	var dos: Font = load("res://resources/ui/PerfectDOSVGA437.ttf")
+	if dos != null:
+		theme.default_font = dos
+		theme.default_font_size = 16
+	elif font.load_bitmap_font("res://resources/ui/pixel_font.fnt") == OK:
 		theme.default_font = font
-	theme.default_font_size = 8
+		theme.default_font_size = 8
 	var panel := _panel_style()
 	var slot := _slot_style()
 	theme.set_stylebox("panel", "PanelContainer", panel)
@@ -2403,7 +2776,7 @@ func _build_ui() -> void:
 	focus_world.z_index = 2
 	focus_world.material = _material(16, ThrongClips.SHEET_ROWS)
 	focus_world.texture = world.texture
-	focus_mesh = _mesh(true, Vector2(64, 64))
+	focus_mesh = _mesh(true, Vector2(WORLD_CELL, WORLD_CELL))
 	focus_world.multimesh = focus_mesh
 	focus_port.add_child(focus_world)
 	focus_cam_node = Camera2D.new()
@@ -2422,9 +2795,12 @@ func _build_ui() -> void:
 	gaze_panel = PanelContainer.new()
 	gaze_panel.visible = false
 	gaze_panel.z_index = 33
-	var paper := StyleBoxFlat.new()
-	paper.bg_color = Color(0.73, 0.59, 0.45)
-	gaze_panel.add_theme_stylebox_override("panel", paper)
+	if ResourceLoader.exists("res://resources/ui/wood_panel.png"):
+		gaze_panel.add_theme_stylebox_override("panel", _box_style("res://resources/ui/wood_panel.png", 24, 24))
+	else:
+		var paper := StyleBoxFlat.new()
+		paper.bg_color = Color(0.73, 0.59, 0.45)
+		gaze_panel.add_theme_stylebox_override("panel", paper)
 	var gaze_margin := MarginContainer.new()
 	gaze_margin.add_theme_constant_override("margin_left", 16)
 	gaze_margin.add_theme_constant_override("margin_right", 16)
@@ -2720,6 +3096,7 @@ func _sync_game_over() -> void:
 	over_panel.visible = show
 	if not show:
 		return
+	_play("gameover")
 	gaze_panel.visible = false
 	kit_open = false
 	kit_panel.visible = false
@@ -2844,38 +3221,174 @@ func _speech_bubble_style() -> StyleBoxTexture:
 
 func _tick_shot() -> void:
 	var sim: ThrongletSim = ThrongletSimServer
-	var tub_at := Vector2.ZERO
-	var has_tub := false
-	for b in sim.buildings:
-		if b.dead or int(b.kind) != Catalog.BLD_TUB:
-			continue
-		tub_at = Vector2(float(b.x), float(b.y))
-		has_tub = true
-		break
-	if has_tub:
-		camera.position = _to_iso(tub_at + Catalog.TUB_SEAT_OFF)
-	elif not sim.barks.is_empty():
-		var mid := Vector2.ZERO
-		var n := 0
-		for bark in sim.barks:
-			mid += Vector2(float(bark.x), float(bark.y))
-			n += 1
-		if n > 0:
-			camera.position = _to_iso(mid / float(n))
+	if shot_board == null:
+		var reach := sim.shot_span
+		var half_w := reach * sqrt(2.0)
+		var half_h := reach * 0.70710678
+		var view := get_viewport_rect().size
+		var zoom := minf(view.x / (half_w * 2.0 + 64.0), view.y / (half_h * 2.0 + 96.0))
+		zoom_level = zoom
+		camera.zoom = Vector2(zoom, zoom)
+		camera.position = _to_iso(sim.shot_focus)
+		shot_frames += 1
+		if shot_frames < 12:
+			return
+		if not _save_shot(get_viewport(), "res://shots/island_all.png"):
+			get_tree().quit(1)
+			return
+		_build_asset_shot()
+		shot_frames = 0
+		return
 	shot_frames += 1
-	if shot_frames < 12:
+	if shot_frames < 4:
 		return
 	shot_done = true
-	var image := get_viewport().get_texture().get_image()
-	if image == null:
-		print("SHOT FAIL no viewport image")
-		get_tree().quit(1)
-		return
+	var ok := _save_shot(shot_board, "res://shots/wired_assets.png")
+	get_tree().quit(0 if ok else 1)
+
+
+func _save_shot(source: Viewport, path: String) -> bool:
+	var image := source.get_texture().get_image()
+	if image == null or image.get_width() < 2:
+		print("SHOT FAIL no image %s" % path)
+		return false
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://shots"))
-	var path := "res://shots/tub_now.png"
 	var err := image.save_png(path)
-	print("SHOT %s path=%s tub=%s barks=%s" % ["OK" if err == OK else "FAIL", path, has_tub, sim.barks.size()])
-	get_tree().quit(0 if err == OK else 1)
+	print("SHOT %s path=%s size=%sx%s" % ["OK" if err == OK else "FAIL", path, image.get_width(), image.get_height()])
+	return err == OK
+
+
+func _build_asset_shot() -> void:
+	var board := SubViewport.new()
+	board.size = Vector2i(960, 980)
+	board.disable_3d = true
+	board.transparent_bg = false
+	board.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	add_child(board)
+	shot_board = board
+	var sheet := MultiMeshInstance2D.new()
+	sheet.texture = world.texture
+	sheet.material = world.material
+	sheet.multimesh = _mesh(true, Vector2(WORLD_CELL, WORLD_CELL))
+	board.add_child(sheet)
+	var samples: Array = [
+		["idle", ThrongClips.frame_at("ThrongA_Default", 0), 0.0],
+		["talk", ThrongClips.frame_at("ThrongA_Talk", 2), 0.0],
+		["dead", ThrongClips.frame_at("ThrongA_Dead_001", 0), 0.0],
+		["bones", ThrongClips.frame_at("ThrongA_Bones", 0), 0.0],
+		["sing", ThrongClips.frame_at("Throng_Sing_Spritesheet", 2), 0.0],
+		["kick", ThrongClips.frame_at("ThrongA_Bored_KickRock", 6), 0.0],
+		["ghost", ThrongClips.frame_at("ThrongA_Default_Ghost", 0), 0.0],
+		["outline", ThrongClips.frame_at("Thronglet_Outline", 0), 0.0],
+		["celebrate", ThrongClips.frame_at("ThrongA_Celebrate_Spritesheet", 4), 0.0],
+		["shrug", ThrongClips.frame_at("ThrongA_Shrug", 1), 0.0],
+		["think", ThrongClips.frame_at("ThrongA_DeepThought_Spritesheet", 1), 0.0],
+		["jump", ThrongClips.frame_at("ThrongA_Jump", 0), 0.0],
+		["dirty", ThrongClips.frame_at("ThrongA_Default", 0), 1.0],
+		["bubble", AssetFrames.frame(AssetFrames.BUBBLE, AssetFrames.BUBBLE_N, 0), 0.0],
+		["foam", AssetFrames.frame(AssetFrames.BUBBLE_LIGHT, AssetFrames.BUBBLE_LIGHT_N, 1), 0.0],
+		["clean", AssetFrames.frame(AssetFrames.CLEAN, AssetFrames.CLEAN_N, 1), 0.0],
+		["splash", AssetFrames.frame(AssetFrames.SPLASH, AssetFrames.SPLASH_N, 1), 0.0],
+		["smoke", AssetFrames.frame(AssetFrames.SMOKE, AssetFrames.SMOKE_N, 1), 0.0],
+		["aura", AssetFrames.frame(AssetFrames.AURA, AssetFrames.AURA_N, 1), 0.0],
+		["spark", AssetFrames.frame(AssetFrames.SPARK, AssetFrames.SPARK_N, 1), 0.0],
+		["glitch", AssetFrames.frame(AssetFrames.GLITCH, AssetFrames.GLITCH_N, 3), 0.0],
+		["tile", AssetFrames.frame(AssetFrames.TILE_GLITCH, AssetFrames.TILE_GLITCH_N, 1), 0.0],
+		["hand", AssetFrames.frame(AssetFrames.HAND, AssetFrames.HAND_N, 1), 0.0],
+		["fire", AssetFrames.FIRE, 0.0],
+		["blob", AssetFrames.FIRE_BLOB, 0.0],
+		["house", AssetFrames.GLITCH_HOUSE, 0.0],
+		["gtree", AssetFrames.GLITCH_TREE, 0.0],
+		["treec", AssetFrames.GLITCH_TREE_C, 0.0],
+		["treed", AssetFrames.GLITCH_TREE_D, 0.0],
+		["waste", AssetFrames.WASTE_TREE, 0.0],
+		["wasteb", AssetFrames.WASTE_TREE_B, 0.0],
+		["anomaly", AssetFrames.ANOMALY, 0.0],
+		["ray", AssetFrames.ANOMALY_RAY, 0.0],
+		["epilogue", AssetFrames.EPILOGUE, 0.0],
+		["rotten", AssetFrames.ROTTEN_APPLE, 0.0],
+		["mount", AssetFrames.MOUNT_BIG, 0.0],
+		["fumes", AssetFrames.FUMES, 0.0],
+		["grass", AssetFrames.GRASS_PATCH, 0.0],
+		["suds", AssetFrames.SUDS, 0.0],
+	]
+	var draws: Array = []
+	var labels := CanvasLayer.new()
+	board.add_child(labels)
+	var root := Control.new()
+	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	labels.add_child(root)
+	var theme := Theme.new()
+	var dos: Font = load("res://resources/ui/PerfectDOSVGA437.ttf")
+	if dos != null:
+		theme.default_font = dos
+		theme.default_font_size = 8
+	root.theme = theme
+	var scale := 0.55
+	var cols := 8
+	for i in samples.size():
+		var sample: Array = samples[i]
+		var col := i % cols
+		var row := int(i / cols)
+		var center := Vector2(56 + col * 116, 58 + row * 108)
+		var frame := int(sample[1])
+		if frame < 0:
+			continue
+		draws.append({
+			"p": center + Vector2(0, WORLD_CELL * 0.5 * scale),
+			"icon": frame,
+			"tint": Color.WHITE,
+			"scale": scale,
+			"dirty": float(sample[2]),
+		})
+		var tag := Label.new()
+		tag.text = str(sample[0])
+		tag.position = center + Vector2(-40, 34)
+		tag.size = Vector2(80, 12)
+		tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		root.add_child(tag)
+	_write_mesh(sheet.multimesh, draws)
+	var panel := PanelContainer.new()
+	panel.position = Vector2(16, 820)
+	panel.custom_minimum_size = Vector2(620, 120)
+	if ResourceLoader.exists("res://resources/ui/wood_panel.png"):
+		panel.add_theme_stylebox_override("panel", _box_style("res://resources/ui/wood_panel.png", 24, 24))
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 28)
+	margin.add_theme_constant_override("margin_right", 28)
+	margin.add_theme_constant_override("margin_top", 22)
+	margin.add_theme_constant_override("margin_bottom", 18)
+	panel.add_child(margin)
+	var quote := Label.new()
+	quote.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	quote.custom_minimum_size = Vector2(540, 70)
+	quote.add_theme_font_size_override("font_size", 16)
+	var line := LineBook.line_for("shot_check")
+	quote.text = line if line != "" else "SIN LINEA"
+	margin.add_child(quote)
+	root.add_child(panel)
+	var faces := ["epilogue_angry", "epilogue_bewildered", "epilogue_caretaker", "epilogue_birthday", "epilogue_capitalist"]
+	for i in faces.size():
+		var face := TextureRect.new()
+		face.texture = _tex(POP_FACES[faces[i]])
+		face.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		face.position = Vector2(660 + (i % 3) * 96, 820 + int(i / 3) * 70)
+		face.size = Vector2(88, 64)
+		root.add_child(face)
+	var plates: PackedStringArray = _biome_plate_paths("epilogue")
+	plates.append_array(_biome_plate_paths("anomaly"))
+	for i in plates.size():
+		var plate := TextureRect.new()
+		plate.texture = _tex(plates[i])
+		plate.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		plate.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		plate.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		plate.position = Vector2(16 + i * 100, 760)
+		plate.size = Vector2(92, 28)
+		root.add_child(plate)
 
 
 func _build_audio() -> void:
@@ -2889,7 +3402,11 @@ func _build_audio() -> void:
 	amb = AudioStreamPlayer.new()
 	amb.volume_db = -16.0
 	add_child(amb)
+	sting = AudioStreamPlayer.new()
+	sting.volume_db = -4.0
+	add_child(sting)
 	_fill_bank()
+	_build_video()
 
 
 func _fill_bank() -> void:
@@ -2966,6 +3483,32 @@ func _fill_bank() -> void:
 	sfx_bank["bird"] = _clips(_seq("ambScatter_act1n2_bird_", 1, 8))
 	sfx_bank["voice_prrr"] = _clips(_seq("vo_thronglet_prrr_", 1, 13))
 	sfx_bank["voice_sing"] = _clips(_seq("vo_thronglet_sing_", 1, 6))
+	sfx_bank["voice_sing"].append_array(_clips(_seq("vo_throng_sing_group_small_", 1, 13)))
+	sfx_bank["dialogue_in"] = _clips(_seq("ui_dialogue_frame_in_", 1, 7))
+	sfx_bank["dialogue_out"] = _clips(_seq("ui_dialogue_frame_out_", 1, 8))
+	sfx_bank["console"] = _clips(_seq("ui_console_new_line_", 1, 4))
+	sfx_bank["speed"] = _clips(_seq("sfx_thronglet_speed_run_", 1, 6))
+	sfx_bank["superore"] = _clips(_seq("sfx_superOre_lift_", 1, 6))
+	sfx_bank["superore"].append_array(_clips(_seq("sfx_superOre_drop_", 1, 4)))
+	sfx_bank["splash"] = _clips(_seq("sfx_water_splash_", 1, 4))
+	sfx_bank["uplink"] = _clips(_seq("sfx_uplink_add_negative_", 1, 3))
+	sfx_bank["uplink"].append_array(_clips(_seq("sfx_uplink_add_positive_", 1, 3)))
+	sfx_bank["uplink"].append_array(_clips(_seq("sfx_uplink_add_thronglet_single_", 1, 3)))
+	sfx_bank["gameover"] = _clips(PackedStringArray([
+		"sfx_data_overload_gameOver_1stPopUp_head.wav",
+		"sfx_data_overload_gameOver_1stPopUp_lp.wav",
+	]))
+	sfx_bank["gameover"].append_array(_clips(_seq("sfx_data_overload_gameOver_popUp_other_", 1, 6)))
+	sfx_bank["monolith_reveal"] = _clips(PackedStringArray(["monolith_reveal_nobeat_nobar.ogg"]))
+	sfx_bank["nuked"] = _clips(PackedStringArray(["thronglets_nuked_nobpm_nobar.ogg"]))
+	sfx_bank["artifact_finale"] = _clips(PackedStringArray(["artifact_finale_140bpm_44bar.ogg"]))
+	sfx_bank["finale_outro"] = _clips(PackedStringArray(["finale_outro.ogg"]))
+	sfx_bank["code_layer"] = _clips(PackedStringArray([
+		"code_layer_in_a.ogg",
+		"code_layer_loop_120bpm_23bar.ogg",
+		"code_layer_out_a.ogg",
+	]))
+	_fill_loose_clips()
 	sfx_bank["voice_upset"] = _clips(PackedStringArray([
 		"vo_thronglet_upset_04.wav", "vo_thronglet_upset_06.wav", "vo_thronglet_upset_09.wav",
 		"vo_thronglet_upset_11.wav", "vo_thronglet_upset_12.wav",
@@ -2977,6 +3520,79 @@ func _seq(prefix: String, first: int, last: int) -> PackedStringArray:
 	for i in range(first, last + 1):
 		names.append("%s%02d.wav" % [prefix, i])
 	return names
+
+
+func _fill_loose_clips() -> void:
+	var packed := {}
+	for key in sfx_bank.keys():
+		for stream in sfx_bank[key]:
+			packed[stream] = true
+	var dir := DirAccess.open("res://resources/audio")
+	if dir == null:
+		return
+	dir.list_dir_begin()
+	var file_name := dir.get_next()
+	while file_name != "":
+		if not dir.current_is_dir() and (file_name.ends_with(".wav") or file_name.ends_with(".ogg")):
+			var stream: AudioStream = load("res://resources/audio/" + file_name)
+			if stream != null and not packed.has(stream):
+				sfx_bank[file_name.get_basename()] = [stream]
+				packed[stream] = true
+		file_name = dir.get_next()
+
+
+func _build_video() -> void:
+	video_player = VideoStreamPlayer.new()
+	video_player.visible = false
+	video_player.z_index = 80
+	video_player.set_anchors_preset(Control.PRESET_FULL_RECT)
+	video_player.expand = true
+	video_player.finished.connect(_on_video_finished)
+	var layer := CanvasLayer.new()
+	layer.layer = 40
+	add_child(layer)
+	layer.add_child(video_player)
+
+
+func _play_video(base: String, from_title: bool) -> bool:
+	var path := "res://resources/video/" + base + ".ogv"
+	if not ResourceLoader.exists(path):
+		return false
+	var stream: VideoStream = load(path)
+	if stream == null:
+		return false
+	video_player.stream = stream
+	video_player.visible = true
+	video_player.play()
+	video_played[base] = true
+	video_from_title = from_title
+	return true
+
+
+func _on_video_finished() -> void:
+	if video_player != null:
+		video_player.visible = false
+	if video_from_title:
+		video_from_title = false
+		_show_title()
+
+
+func _maybe_play_sequence(mode: String) -> void:
+	var clips := {
+		"mountain": "SEQ_2.1",
+		"glitch": "ConsoleText",
+		"anomaly": "SEQ_7.3",
+		"epilogue": "SEQ_8.3",
+	}
+	if not clips.has(mode) or video_played.has(mode):
+		return
+	if _play_video(str(clips[mode]), false):
+		video_played[mode] = true
+		if mode == "glitch":
+			_play_file("code_layer_in_a.ogg", false)
+		elif mode == "epilogue":
+			_play("artifact_finale")
+			_play("finale_outro")
 
 
 func _clips(names: PackedStringArray) -> Array:
@@ -3018,19 +3634,113 @@ func _free_sfx() -> AudioStreamPlayer:
 func _sync_music() -> void:
 	var mode := "title"
 	if not in_title:
-		mode = "waste" if ThrongletSimServer.part_two else "field"
+		mode = _camera_biome()
+		if mode == "":
+			mode = "meadow"
 	if mode == music_mode:
+		_sync_spot_amb()
 		return
+	var previous := music_mode
 	music_mode = mode
+	_play_biome_bed(mode)
+	_play_biome_stinger(mode, previous)
+	_sync_spot_amb()
+	_maybe_play_sequence(mode)
+
+
+func _play_biome_bed(mode: String) -> void:
 	if mode == "title":
 		_loop_bed(music, "thronglets_title_theme_180bpm_24bar.ogg")
 		amb.stop()
+	elif mode == "mountain":
+		_loop_bed(music, "thronglets_megafm_b_140bpm_88bar.ogg")
+		_loop_bed(amb, "amb_spot_mountainVoidOpening_lp.wav")
+	elif mode == "glitch":
+		_loop_bed(music, "wasteland_one_160bpm_134bar.ogg")
+		_loop_bed(amb, "ambBed_act3_lp.ogg")
+	elif mode == "anomaly":
+		_loop_bed(music, "wasteland_part_two_160bpm_156bar.ogg")
+		_loop_bed(amb, "amb_spot_pollution.ogg")
+	elif mode == "epilogue":
+		_loop_bed(music, "toward_the_artifact_140bpm_208bar.ogg")
+		_loop_bed(amb, "artifact_hum_loop.ogg")
 	elif mode == "waste":
 		_loop_bed(music, "wasteland_one_160bpm_134bar.ogg")
 		_loop_bed(amb, "ambBed_act1n2_barrenWind.ogg")
 	else:
 		_loop_bed(music, "fieldwork_140bpm_108bar.ogg")
 		_loop_bed(amb, "ambBed_act1n2_softWindBirds_lp.ogg")
+
+
+func _play_biome_stinger(mode: String, previous: String) -> void:
+	if previous == "":
+		return
+	var once := {
+		"mountain": "thronglets_megafm_a_140bpm_72bar.ogg",
+		"glitch": "actIII_millions_oneshot_A.ogg",
+		"anomaly": "artifact_reveal_140bpm_10bar.ogg",
+		"epilogue": "thronglets_finale_76bpm_74bar.ogg",
+	}
+	if once.has(mode):
+		_play_file(str(once[mode]), false)
+
+
+func _sync_spot_amb() -> void:
+	if in_title or music_mode == "mountain" or music_mode == "glitch" or music_mode == "anomaly" or music_mode == "epilogue":
+		return
+	var spot := _near_spot()
+	if spot == spot_mode:
+		return
+	spot_mode = spot
+	if spot == "mine":
+		_loop_bed(amb, "amb_spot_mine_lp.wav")
+	elif spot == "market":
+		_loop_bed(amb, "amb_spot_market_lp.ogg")
+	elif spot == "pollution":
+		_loop_bed(amb, "amb_spot_pollution.ogg")
+	elif music_mode == "waste":
+		_loop_bed(amb, "ambBed_act1n2_barrenWind.ogg")
+	else:
+		_loop_bed(amb, "ambBed_act1n2_softWindBirds_lp.ogg")
+
+
+func _near_spot() -> String:
+	var sim: ThrongletSim = ThrongletSimServer
+	var at := _from_iso(camera.position)
+	var mine := false
+	var market := false
+	for building in sim.buildings:
+		if bool(building.get("dead", false)):
+			continue
+		var kind := int(building.get("kind", -1))
+		var dist := at.distance_to(Vector2(float(building.x), float(building.y)))
+		if dist > 180.0:
+			continue
+		if kind == Catalog.BLD_MINE or kind == Catalog.BLD_MINE2:
+			mine = true
+		elif kind == Catalog.BLD_MARKET:
+			market = true
+	if mine:
+		return "mine"
+	if market:
+		return "market"
+	return ""
+
+
+func _play_file(file_name: String, looped: bool) -> void:
+	var loaded: AudioStream = load("res://resources/audio/" + file_name)
+	if loaded == null:
+		return
+	var stream := loaded
+	if loaded is AudioStreamOggVorbis:
+		var ogg := loaded.duplicate() as AudioStreamOggVorbis
+		if ogg != null:
+			ogg.loop = looped
+			stream = ogg
+	if sting == null:
+		return
+	sting.stream = stream
+	sting.play()
 
 
 func _loop_bed(player: AudioStreamPlayer, file_name: String) -> void:

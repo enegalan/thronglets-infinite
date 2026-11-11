@@ -70,5 +70,41 @@
     "super": 0.0,
     "mountain": 0.0,
     "rubble": 0.0
+  },
+  {
+    "id": "glitch",
+    "land": true,
+    "tree": 0.04,
+    "rock": 0.02,
+    "ore": 0.01,
+    "flower": 0.0,
+    "node": 0.0,
+    "super": 0.0,
+    "mountain": 0.0,
+    "rubble": 0.08
+  },
+  {
+    "id": "anomaly",
+    "land": true,
+    "tree": 0.02,
+    "rock": 0.03,
+    "ore": 0.02,
+    "flower": 0.01,
+    "node": 0.004,
+    "super": 0.002,
+    "mountain": 0.0,
+    "rubble": 0.04
+  },
+  {
+    "id": "epilogue",
+    "land": true,
+    "tree": 0.05,
+    "rock": 0.0,
+    "ore": 0.0,
+    "flower": 0.04,
+    "node": 0.0,
+    "super": 0.0,
+    "mountain": 0.0,
+    "rubble": 0.0
   }
 ]

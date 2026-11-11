@@ -22,8 +22,7 @@ const APPLE_LIFTS := [32.0, 30.0, 40.0]
 const APPLE_FALL_T := 1.7
 const APPLE_LAND_MIN := 10.0
 const APPLE_LAND_MAX := 24.0
-# Tub pad is 1x2 along +Y. Draw/scale alignment left for later; seat is for bathing.
-const TUB_DRAW_OFF := Vector2.ZERO
+# Seat in the tub, world offset from the snap cell.
 const TUB_SEAT_OFF := Vector2(8.0, 12.0)
 const TUB_SPRITE_SCALE := 1.0
 const TUB_SOAK_LIFT := 4.0
@@ -73,6 +72,11 @@ const FEAT_TOTEM := 15
 const FEAT_CURER := 16
 const FEAT_MSTUMP := 18
 const FEAT_MNODE := 19
+const FEAT_GLITCH_TREE := 20
+const FEAT_GLITCH_HOUSE := 21
+const FEAT_ANOMALY := 22
+const FEAT_EPILOGUE := 23
+const FEAT_MOUNTAIN := 24
 
 const ITEM_APPLE := 1
 const ITEM_BALL := 2
@@ -257,26 +261,37 @@ const BUILD_INFO := {
 	BLD_WOOD: {"unlock": "sculpture", "wood": 1, "label": "TALLA", "icon": ICON_WOOD_STATUE},
 }
 
-# Ground tiles claimed around the snap cell (centered). Matches wide structure sprites.
+# Tiles the sprite stands on. Measured against the thronglet (18px) and the rock
+# (13px): one tile is the 32px diamond. The sprite is drawn at the pad center.
 static func footprint_for_building(kind: int) -> Vector2i:
 	match kind:
-		BLD_TUB:
+		BLD_FACTORY:
 			return Vector2i(1, 2)
-		BLD_ROUND, BLD_DWELL, BLD_FANCY, BLD_MINE, BLD_MINE2, BLD_FACTORY, BLD_FACTORY2, BLD_MARKET:
+		BLD_MINE, BLD_MINE2, BLD_FACTORY2, BLD_THEATRE:
 			return Vector2i(2, 2)
-		BLD_THEATRE:
+		BLD_MARKET:
 			return Vector2i(3, 2)
+		BLD_DWELL, BLD_FANCY:
+			return Vector2i(3, 3)
 		_:
 			return Vector2i(1, 1)
 
 static func footprint_for_feature(kind: int) -> Vector2i:
 	match kind:
-		FEAT_NODE, FEAT_SUPER, FEAT_MNODE, FEAT_ORE_MEGA, FEAT_ORE_SUPER, FEAT_ORE_ULTRA, FEAT_MONOLITH:
+		FEAT_NODE, FEAT_MNODE:
 			return Vector2i(2, 2)
-		FEAT_BIGROCK:
-			return Vector2i(2, 1)
+		FEAT_SUPER:
+			return Vector2i(3, 3)
 		_:
 			return Vector2i(1, 1)
+
+# World offset from the snap cell to the center of the pad. 1x1 stays put.
+static func footprint_center(size: Vector2i) -> Vector2:
+	var ox0 := -((size.x - 1) >> 1)
+	var oy0 := -((size.y - 1) >> 1)
+	var cx := float(ox0) + float(size.x - 1) * 0.5
+	var cy := float(oy0) + float(size.y - 1) * 0.5
+	return Vector2(cx, cy) * float(TILE)
 
 static func footprint_offsets(size: Vector2i) -> Array[Vector2i]:
 	var out: Array[Vector2i] = []
