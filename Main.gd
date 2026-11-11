@@ -1,11 +1,14 @@
 extends Node2D
 
+const ThrongletSim := preload("res://ThrongletSimServer.gd")
+
 var camera: Camera2D
 var tilemap: TileMapLayer
 var world: MultiMeshInstance2D
 var world_mesh: MultiMesh
-var place_fill: Polygon2D
-var place_edge: Line2D
+var place_marks: Node2D
+var place_fills: Array[Polygon2D] = []
+var place_edges: Array[Line2D] = []
 var charge_ring: Line2D
 var charge_area: Line2D
 
@@ -58,10 +61,13 @@ var toast: Label
 var need_show := false
 var need_backs: Array = []
 var need_fills: Array = []
-var bubble_labels: Array = []
+var bubble_panels: Array = []
+var bubble_tails: Array = []
 var bubble_icons: Array = []
 var full_labels: Array = []
 var ring_lines: Array = []
+var shot_frames := 0
+var shot_done := false
 var glitch_bars: Array = []
 var glitch_label: Label
 var ui_theme: Theme
@@ -75,6 +81,10 @@ var in_title := true
 var title_root: Control
 var title_list: VBoxContainer
 var hand_from := Vector2.ZERO
+const HAND_HOLD := 0.22
+var hand_pending := false
+var hand_pending_id := -1
+var hand_hold_t := 0.0
 var sponge_last := Vector2.ZERO
 var sponge_dir := Vector2.ZERO
 var sponge_tracking := false
@@ -120,6 +130,11 @@ func _ready() -> void:
 	camera.zoom = Vector2(zoom_level, zoom_level)
 	if ThrongletSimServer.testing:
 		in_title = false
+		if ThrongletSimServer.shot_mode:
+			zoom_level = 3.0
+			camera.zoom = Vector2(zoom_level, zoom_level)
+			if ui != null:
+				ui.visible = false
 	else:
 		_show_title()
 
@@ -174,7 +189,7 @@ func _zoom_factor(factor: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if in_title or ThrongletSimServer.game_over:
 		return
-	var sim := ThrongletSimServer
+	var sim: ThrongletSim = ThrongletSimServer
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT:
 		dragging = event.pressed
 		drag_from = event.position
@@ -229,7 +244,7 @@ func _process(delta: float) -> void:
 			_sync_need_bars()
 		_hide_marks()
 		return
-	var sim := ThrongletSimServer
+	var sim: ThrongletSim = ThrongletSimServer
 	_sync_game_over()
 	if sim.game_over:
 		return
@@ -255,11 +270,13 @@ func _process(delta: float) -> void:
 	else:
 		sponge_tracking = false
 	_tick_tool_charge(delta)
+	_tick_hand_hold(delta)
 	_sync_world()
 	_sync_actors()
 	_sync_place_mark()
 	_sync_charge_mark()
-	_sync_hud(delta)
+	if not sim.shot_mode:
+		_sync_hud(delta)
 	_sync_need_bars()
 	_sync_marks()
 	_sync_glitch(delta)
@@ -268,10 +285,12 @@ func _process(delta: float) -> void:
 	_sync_focus(delta)
 	for name in sim.take_sfx():
 		_play(str(name))
+	if sim.shot_mode and not shot_done:
+		_tick_shot()
 
 
 func _world_click() -> void:
-	var sim := ThrongletSimServer
+	var sim: ThrongletSim = ThrongletSimServer
 	var at := _aim_thronglet(false)
 	selected = sim.find_thronglet(at.x, at.y, 14.0, false)
 	selected_bld = -1
@@ -292,7 +311,7 @@ func _is_charge_tool(tool_id: int) -> bool:
 
 
 func _charge_tool_id() -> int:
-	var sim := ThrongletSimServer
+	var sim: ThrongletSim = ThrongletSimServer
 	if sim.has_scoop():
 		return -1
 	if not kit_drag.is_empty() and str(kit_drag.get("type", "")) == "tool":
@@ -311,7 +330,7 @@ func _clear_tool_charge() -> void:
 
 
 func _tick_tool_charge(delta: float) -> void:
-	var sim := ThrongletSimServer
+	var sim: ThrongletSim = ThrongletSimServer
 	var at := _pointer()
 	if sim.has_scoop():
 		_clear_tool_charge()
@@ -322,7 +341,7 @@ func _tick_tool_charge(delta: float) -> void:
 	if used < 0 or sim.frozen or sim.paused or not _drop_on_island():
 		_clear_tool_charge()
 		return
-	var target := sim.charge_tool_target(used, at.x, at.y)
+	var target: Dictionary = sim.charge_tool_target(used, at.x, at.y)
 	if target.is_empty():
 		_clear_tool_charge()
 		return
@@ -350,22 +369,51 @@ func _tick_tool_charge(delta: float) -> void:
 	_clear_tool_charge()
 
 
+func _clear_hand_pending() -> void:
+	hand_pending = false
+	hand_pending_id = -1
+	hand_hold_t = 0.0
+
+
+func _tick_hand_hold(delta: float) -> void:
+	if not hand_pending:
+		return
+	var sim: ThrongletSim = ThrongletSimServer
+	if not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) or sim.frozen or sim.paused:
+		_clear_hand_pending()
+		return
+	hand_hold_t += delta
+	if hand_hold_t < HAND_HOLD:
+		return
+	var id := hand_pending_id
+	_clear_hand_pending()
+	if sim.grab_thronglet(id):
+		selected = id
+		selected_bld = -1
+
+
 func _hand_press() -> void:
-	var sim := ThrongletSimServer
+	var sim: ThrongletSim = ThrongletSimServer
+	_clear_hand_pending()
 	var at := _aim_thronglet(true)
 	if _throng_under_cursor(true) < 0:
 		var egg := _egg_under_cursor()
 		if not egg.is_empty():
 			at = Vector2(float(egg.x), float(egg.y))
 	hand_from = get_viewport().get_mouse_position()
+	var throng := _throng_under_cursor(true)
+	if throng >= 0:
+		selected = throng
+		selected_bld = -1
+		hand_pending = true
+		hand_pending_id = throng
+		hand_hold_t = 0.0
+		return
 	if sim.grab_at(at.x, at.y):
 		selected_bld = -1
-		if sim.held_kind == "thronglet":
-			selected = sim.held_ref
-		else:
-			selected = -1
+		selected = -1
 		return
-	var hit := sim.eye_use(at.x, at.y)
+	var hit: Dictionary = sim.eye_use(at.x, at.y)
 	var kind := str(hit.get("type", ""))
 	if kind == "thronglet":
 		selected = int(hit.id)
@@ -383,7 +431,8 @@ func _hand_press() -> void:
 
 
 func _hand_release() -> void:
-	var sim := ThrongletSimServer
+	_clear_hand_pending()
+	var sim: ThrongletSim = ThrongletSimServer
 	if not sim.is_holding():
 		return
 	var short_click := get_viewport().get_mouse_position().distance_to(hand_from) < 12.0
@@ -394,12 +443,12 @@ func _hand_release() -> void:
 	if sim.held_kind == "building" or sim.held_kind == "rock":
 		at = _grid_pointer()
 	elif sim.hand_id != -1:
-		var held := sim.hand_item()
+		var held: Dictionary = sim.hand_item()
 		if not held.is_empty() and Catalog.item_snaps_grid(int(held.kind)):
 			at = _grid_pointer()
-	var held_thronglet := sim.held_kind == "thronglet"
-	var held_id := sim.held_ref
-	var hit := sim.release_at(at.x, at.y, short_click)
+	var held_thronglet: bool = sim.held_kind == "thronglet"
+	var held_id: int = sim.held_ref
+	var hit: Dictionary = sim.release_at(at.x, at.y, short_click)
 	var kind := str(hit.get("type", ""))
 	if kind == "thronglet":
 		selected = int(hit.id)
@@ -478,12 +527,12 @@ func _aim_thronglet(living_only: bool) -> Vector2:
 	var id := _throng_under_cursor(living_only)
 	if id < 0:
 		return _pointer()
-	var sim := ThrongletSimServer
+	var sim: ThrongletSim = ThrongletSimServer
 	return Vector2(sim.pos_x[id], sim.pos_y[id])
 
 
 func _throng_under_cursor(living_only: bool) -> int:
-	var sim := ThrongletSimServer
+	var sim: ThrongletSim = ThrongletSimServer
 	var mouse := get_global_mouse_position()
 	var probe := _from_iso(mouse + Vector2(0.0, 10.0))
 	var best := -1
@@ -541,13 +590,13 @@ func _is_care_tool(tool_id: int) -> bool:
 func _want_place_grid() -> bool:
 	if in_title or not _drop_on_island():
 		return false
-	var sim := ThrongletSimServer
+	var sim: ThrongletSim = ThrongletSimServer
 	if not kit_drag.is_empty():
 		if str(kit_drag.get("type", "")) == "build":
 			return true
 		return not _is_care_tool(int(kit_drag.get("id", -1))) and int(kit_drag.get("id", -1)) == Catalog.TOOL_TNT
 	if sim.hand_id != -1:
-		var hand := sim.hand_item()
+		var hand: Dictionary = sim.hand_item()
 		return not hand.is_empty() and Catalog.item_snaps_grid(int(hand.kind))
 	if sim.held_kind == "building" or sim.held_kind == "rock":
 		return true
@@ -555,7 +604,7 @@ func _want_place_grid() -> bool:
 
 
 func _sync_world() -> void:
-	var sim := ThrongletSimServer
+	var sim: ThrongletSim = ThrongletSimServer
 	if sim.paint_epoch != seen_epoch:
 		seen_epoch = sim.paint_epoch
 		painted.clear()
@@ -580,7 +629,8 @@ func _sync_world() -> void:
 
 func _paint_chunk(ck: String, fog: bool, into = null) -> void:
 	var map: TileMapLayer = tilemap if into == null else into
-	var origin := ThrongletSimServer.chunk_origin(ck)
+	var sim: ThrongletSim = ThrongletSimServer
+	var origin: Vector2i = sim.chunk_origin(ck)
 	if fog:
 		for ly in Catalog.CHUNK:
 			for lx in Catalog.CHUNK:
@@ -588,13 +638,13 @@ func _paint_chunk(ck: String, fog: bool, into = null) -> void:
 		if into == null:
 			painted[ck] = "fog"
 		return
-	var tiles := ThrongletSimServer.chunk_tiles(ck)
+	var tiles: PackedByteArray = sim.chunk_tiles(ck)
 	if tiles.is_empty():
 		return
 	for ly in Catalog.CHUNK:
 		for lx in Catalog.CHUNK:
 			var tile := int(tiles[ly * Catalog.CHUNK + lx])
-			var cell := origin + Vector2i(lx, ly)
+			var cell: Vector2i = origin + Vector2i(lx, ly)
 			if tile == Catalog.TILE_VOID:
 				map.erase_cell(cell)
 			else:
@@ -605,7 +655,7 @@ func _paint_chunk(ck: String, fog: bool, into = null) -> void:
 						atlas_x = 10
 					elif pick == 2:
 						atlas_x = 11
-					var stage := ThrongletSimServer.wear_stage(cell.x, cell.y)
+					var stage: int = sim.wear_stage(cell.x, cell.y)
 					if stage > 0:
 						atlas_x = _wear_atlas(atlas_x, stage)
 				map.set_cell(cell, 0, Vector2i(atlas_x, 0))
@@ -614,7 +664,7 @@ func _paint_chunk(ck: String, fog: bool, into = null) -> void:
 
 
 func _sync_actors() -> void:
-	var sim := ThrongletSimServer
+	var sim: ThrongletSim = ThrongletSimServer
 	var view := _world_view().grow(64.0)
 	var draws: Array = []
 	var egg_front: Array = []
@@ -646,6 +696,9 @@ func _sync_actors() -> void:
 				if egg_lift > 0.0:
 					_push_iso(egg_front, p2, item_frame, Color.WHITE, egg_lift)
 					continue
+			elif int(it.kind) == Catalog.ITEM_APPLE and egg_lift > 0.0:
+				_push_iso(egg_front, p2, item_frame, Color.WHITE, egg_lift)
+				continue
 			elif int(it.kind) == Catalog.ITEM_BALL:
 				var spd := absf(float(it.get("vx", 0.0))) + absf(float(it.get("vy", 0.0)))
 				if spd > 2.0:
@@ -659,41 +712,44 @@ func _sync_actors() -> void:
 		if not sim.chunk_shown(sim.chunk_key_at(float(b.x), float(b.y))):
 			continue
 		var p3 := Vector2(float(b.x), float(b.y))
-		if view.has_point(p3):
+		var b_kind := int(b.kind)
+		var draw_at := _building_draw_at(b_kind, p3)
+		if view.has_point(p3) or view.has_point(draw_at):
 			var b_lift := 0.0
 			var b_tint := Color.WHITE
-			var b_kind := int(b.kind)
 			var b_frame := _prop_frame(Catalog.icon_for_building(b_kind))
-			if b_kind == Catalog.BLD_ROUND:
+			if b_kind == Catalog.BLD_ROUND and bool(b.get("active", false)):
 				b_frame = ROUND_ANIM + int(time_pre * 8.0) % 8
-			if bool(b.get("active", false)):
-				b_lift = absf(sin(time_pre * 8.0 + float(b.id))) * 2.2
+			if bool(b.get("active", false)) and b_kind != Catalog.BLD_APPLE:
 				if b_kind == Catalog.BLD_TUB:
 					b_tint = Color(0.85, 0.95, 1.0)
-				elif b_kind == Catalog.BLD_FACTORY or b_kind == Catalog.BLD_FACTORY2:
-					b_tint = Color(1.0, 0.9, 0.82)
-				elif b_kind == Catalog.BLD_MINE or b_kind == Catalog.BLD_MINE2:
-					b_tint = Color(1.0, 0.95, 0.75)
-			_push_iso(draws, p3, b_frame, b_tint, b_lift)
+				elif b_kind != Catalog.BLD_ROUND:
+					b_lift = absf(sin(time_pre * 8.0 + float(b.id))) * 2.2
+					if b_kind == Catalog.BLD_FACTORY or b_kind == Catalog.BLD_FACTORY2:
+						b_tint = Color(1.0, 0.9, 0.82)
+					elif b_kind == Catalog.BLD_MINE or b_kind == Catalog.BLD_MINE2:
+						b_tint = Color(1.0, 0.95, 0.75)
+			var b_scale := Catalog.TUB_SPRITE_SCALE if b_kind == Catalog.BLD_TUB else 1.0
+			_push_iso(draws, draw_at, b_frame, b_tint, b_lift, b_scale)
 			if b_kind == Catalog.BLD_APPLE:
-				var spots := [Vector2(-10, 4), Vector2(10, 6), Vector2(0, 2)]
-				var lifts := [34.0, 30.0, 40.0]
+				var fruit_sort := _prop_front_sort_y(p3)
 				for fruit in b.get("fruits", []):
 					var slot := clampi(int(fruit.slot), 0, 2)
-					var grown := clampf(float(fruit.s), 0.2, 1.0)
+					var grown := clampf(float(fruit.s), 0.15, 1.0)
 					_push_iso(
 						draws,
-						Vector2(float(b.x), float(b.y)) + spots[slot],
+						Vector2(float(b.x), float(b.y)) + Catalog.APPLE_SPOTS[slot],
 						_prop_frame(Catalog.ICON_APPLE),
 						Color.WHITE,
-						lifts[slot],
-						0.7 + 0.3 * grown
+						Catalog.APPLE_LIFTS[slot],
+						0.55 + 0.45 * grown,
+						fruit_sort
 					)
-			if bool(b.get("active", false)) and (b_kind == Catalog.BLD_TUB or b_kind == Catalog.BLD_ROUND):
-				var spark := Vector2(cos(time_pre * 10.0 + float(b.id)) * 10.0, sin(time_pre * 10.0) * 6.0)
-				var spark_icon := Catalog.ICON_SPONGE if b_kind == Catalog.BLD_TUB else Catalog.ICON_BALL
-				_push_iso(draws, Vector2(float(b.x), float(b.y)) + spark, _prop_frame(spark_icon), Color(1, 1, 1, 0.7), 10.0)
-	var bridge := sim.bridge_marker()
+			if bool(b.get("active", false)) and b_kind == Catalog.BLD_TUB:
+				var seat := p3 + Catalog.TUB_SEAT_OFF
+				var spark := Vector2(cos(time_pre * 10.0 + float(b.id)) * 6.0, sin(time_pre * 10.0) * 4.0)
+				_push_iso(draws, seat + spark, _prop_frame(Catalog.ICON_SPONGE), Color(1, 1, 1, 0.7), 8.0)
+	var bridge: Dictionary = sim.bridge_marker()
 	if not bridge.is_empty() and sim.chunk_shown(str(bridge.ck)):
 		var site := Vector2(float(bridge.x), float(bridge.y))
 		var drop := Vector2(float(bridge.drop_x), float(bridge.drop_y))
@@ -716,7 +772,7 @@ func _sync_actors() -> void:
 				_push_iso(draws, drop + Vector2(gx, gy), _prop_frame(Catalog.ICON_WOOD), Color(1.0, 1.0, 1.0, 0.22 * pulse), 10.0)
 	var grid_at := _grid_pointer()
 	var free_at := _pointer()
-	var hand := sim.hand_item()
+	var hand: Dictionary = sim.hand_item()
 	if not hand.is_empty():
 		if _drop_on_island():
 			var hand_at := grid_at if Catalog.item_snaps_grid(int(hand.kind)) else free_at
@@ -747,23 +803,27 @@ func _sync_actors() -> void:
 	elif sim.held_kind == "building":
 		var carried = sim.building_by_id.get(sim.held_ref, {})
 		if not carried.is_empty():
+			var carried_kind := int(carried.kind)
 			if _drop_on_island():
-				_push_iso(draws, grid_at, _prop_frame(Catalog.icon_for_building(int(carried.kind))), Color(1, 1, 1, 0.9), 10.0)
+				var carried_scale := Catalog.TUB_SPRITE_SCALE if carried_kind == Catalog.BLD_TUB else 1.0
+				_push_iso(draws, _building_draw_at(carried_kind, grid_at), _prop_frame(Catalog.icon_for_building(carried_kind)), Color(1, 1, 1, 0.9), 10.0, carried_scale)
 			else:
 				draws.append({
 					"p": get_global_mouse_position(),
-					"icon": _prop_frame(Catalog.icon_for_building(int(carried.kind))),
+					"icon": _prop_frame(Catalog.icon_for_building(carried_kind)),
 					"tint": Color.WHITE,
 				})
+	var drag_front: Array = []
 	if not kit_drag.is_empty():
 		var ghost := Color(1, 1, 1, 0.85)
 		var drag_icon := _kit_drag_icon()
 		if drag_icon >= 0:
-			if _drop_on_island():
-				var ghost_at := grid_at if _want_place_grid() else free_at
-				_push_iso(draws, ghost_at, _prop_frame(drag_icon), ghost, 10.0)
+			if _want_place_grid() and _drop_on_island():
+				var ghost_kind := placing if str(kit_drag.get("type", "")) == "build" else -1
+				var ghost_scale := Catalog.TUB_SPRITE_SCALE if ghost_kind == Catalog.BLD_TUB else 1.0
+				_push_iso(drag_front, _building_draw_at(ghost_kind, grid_at), _prop_frame(drag_icon), ghost, 10.0, ghost_scale)
 			else:
-				draws.append({
+				drag_front.append({
 					"p": get_global_mouse_position(),
 					"icon": _prop_frame(drag_icon),
 					"tint": ghost,
@@ -777,19 +837,19 @@ func _sync_actors() -> void:
 		var tint: Color = Catalog.TINTS[int(sim.tint[i]) % Catalog.TINTS.size()]
 		if sim.state[i] == Catalog.ST_DEAD:
 			tint = Color.WHITE
-		elif sim.clean[i] < 12.0:
-			tint = Color(0.62, 0.82, 0.34)
 		var lift := 0.0
 		var doing := int(sim.act[i])
 		var seated := false
 		var riding := false
+		var prop_anchor := Vector2.INF
+		var ball_play: bool = doing == ThrongletSim.ACT_PLAY and not sim.ball_of(i).is_empty()
 		if not sim.frozen:
 			if sim.shake_t[i] > 0.0:
 				pos += Vector2(randf_range(-1.5, 1.5), randf_range(-1.5, 1.5))
-			if doing == ThrongletSimServer.ACT_EAT:
+			if doing == ThrongletSim.ACT_EAT:
 				lift = sin(time * 10.0 + float(i)) * 1.0
-			elif doing == ThrongletSimServer.ACT_PLAY:
-				var ride := sim.ride_of(i)
+			elif doing == ThrongletSim.ACT_PLAY and not ball_play:
+				var ride: Dictionary = sim.ride_of(i)
 				if ride.is_empty():
 					lift = absf(sin(time * 14.0 + float(i))) * 5.5
 					pos += Vector2(sin(time * 18.0 + float(i)) * 1.4, cos(time * 16.0 + float(i)) * 0.8)
@@ -800,73 +860,109 @@ func _sync_actors() -> void:
 					if off.length() < 1.0:
 						off = Vector2(12.0, 0.0)
 					pos = center + off.normalized() * 12.0
-					lift = absf(sin(time * 8.0 + float(i))) * 1.5
+					lift = 0.0
+					prop_anchor = center
 			elif doing == ThrongletSimServer.ACT_BATH:
-				var tub := sim.seat_of(i)
+				var tub: Dictionary = sim.seat_of(i)
 				if tub.is_empty():
 					lift = absf(sin(time * 9.0 + float(i))) * 2.2
 				else:
 					seated = true
-					pos = Vector2(float(tub.x), float(tub.y))
-					lift = -7.0
+					var tub_origin := Vector2(float(tub.x), float(tub.y))
+					pos = tub_origin + Catalog.TUB_SEAT_OFF
+					var age := float(tub.get("bath_t", 0.0))
+					# Sink with the FallInBath enter frames, then hold still in the water.
+					if age < 0.0:
+						lift = Catalog.TUB_ENTER_LIFT
+					elif age < ThrongletSimServer.BATH_ENTER_T:
+						lift = lerpf(Catalog.TUB_ENTER_LIFT, Catalog.TUB_SOAK_LIFT, age / ThrongletSimServer.BATH_ENTER_T)
+					else:
+						lift = Catalog.TUB_SOAK_LIFT
+					prop_anchor = _building_draw_at(Catalog.BLD_TUB, tub_origin)
 			elif doing == ThrongletSimServer.ACT_WORK:
 				lift = absf(sin(time * 12.0 + float(i))) * 3.0
 			elif sim.act_t[i] > 0.0:
 				lift = sin(time * 16.0 + float(i)) * 3.5
-		_push_iso(draws, pos, _frame(i, time), tint, lift)
+		if prop_anchor.x == INF:
+			prop_anchor = _use_prop_anchor(pos)
+		var sort_y := NAN if prop_anchor.x == INF else _prop_front_sort_y(prop_anchor)
+		_push_iso(draws, pos, _frame(i, time), tint, lift, 1.0, sort_y)
 		draws[draws.size() - 1]["flip"] = _throng_flip(i)
+		draws[draws.size() - 1]["dirty"] = _throng_dirty(sim.clean[i])
 		if sim.carry[i] != Catalog.CARRY_NONE:
-			_push_iso(draws, pos, _carry_icon(int(sim.carry[i])), Color.WHITE, 12.0)
+			_push_iso(draws, pos, _carry_icon(int(sim.carry[i])), Color.WHITE, 12.0, 1.0, sort_y)
 		if not sim.frozen and doing == ThrongletSimServer.ACT_WASH:
 			var bub := Vector2(cos(time * 14.0) * 7.0, sin(time * 14.0) * 4.0)
-			_push_iso(draws, pos + bub, _prop_frame(Catalog.ICON_SPONGE), Color(1, 1, 1, 0.85), 8.0)
+			_push_iso(draws, pos + bub, _prop_frame(Catalog.ICON_SPONGE), Color(1, 1, 1, 0.85), 8.0, 1.0, sort_y)
 		elif not sim.frozen and doing == ThrongletSimServer.ACT_BATH and not seated:
 			var suds := Vector2(cos(time * 11.0 + float(i)) * 6.0, sin(time * 11.0) * 3.5)
-			_push_iso(draws, pos + suds, _prop_frame(Catalog.ICON_SPONGE), Color(0.85, 0.95, 1.0, 0.8), 7.0)
-		elif not sim.frozen and doing == ThrongletSimServer.ACT_PLAY and not riding:
+			_push_iso(draws, pos + suds, _prop_frame(Catalog.ICON_SPONGE), Color(0.85, 0.95, 1.0, 0.8), 7.0, 1.0, sort_y)
+		elif not sim.frozen and doing == ThrongletSimServer.ACT_PLAY and not riding and not ball_play:
 			var toy := Vector2(cos(time * 12.0 + float(i)) * 8.0, sin(time * 12.0) * 4.0)
-			_push_iso(draws, pos + toy, _prop_frame(Catalog.ICON_BALL), Color(1, 1, 1, 0.9), 9.0 + lift)
+			_push_iso(draws, pos + toy, _prop_frame(Catalog.ICON_BALL), Color(1, 1, 1, 0.9), 9.0 + lift, 1.0, sort_y)
 		elif not sim.frozen and doing == ThrongletSimServer.ACT_WORK:
 			var chip := Vector2(sin(time * 15.0 + float(i)) * 6.0, -4.0)
-			_push_iso(draws, pos + chip, _prop_frame(Catalog.ICON_ORE), Color(1, 1, 1, 0.75), 8.0)
+			_push_iso(draws, pos + chip, _prop_frame(Catalog.ICON_ORE), Color(1, 1, 1, 0.75), 8.0, 1.0, sort_y)
 	if sim.held_kind == "thronglet" and sim.held_ref >= 0 and sim.held_ref < sim.slot_count:
-		var hi := sim.held_ref
+		var hi: int = sim.held_ref
 		var htint: Color = Catalog.TINTS[int(sim.tint[hi]) % Catalog.TINTS.size()]
 		draws.append({
 			"p": get_global_mouse_position(),
 			"icon": _frame(hi, time),
 			"tint": htint,
 			"flip": _throng_flip(hi),
+			"dirty": _throng_dirty(sim.clean[hi]),
 		})
 	for pop in sim.pops:
 		var fade := clampf(float(pop.t) / 0.55, 0.0, 1.0)
 		_push_iso(draws, Vector2(float(pop.x), float(pop.y)), _pop_frame(int(pop.icon)), Color(1, 1, 1, fade), float(pop.lift))
-	draws.sort_custom(func(a, b): return float(a.p.y) < float(b.p.y))
+	draws.sort_custom(func(a, b): return float(a.get("sy", a.p.y)) < float(b.get("sy", b.p.y)))
 	draws.append_array(egg_front)
+	draws.append_array(drag_front)
 	_write_mesh(world_mesh, draws)
 
 
 func _frame(i: int, time: float) -> int:
-	var sim := ThrongletSimServer
+	var sim: ThrongletSim = ThrongletSimServer
 	if sim.state[i] == Catalog.ST_DEAD:
 		var clip := "ThrongA_Dead_001" if int(time * 2.0) % 2 == 0 else "ThrongA_Dead_002"
 		return ThrongClips.frame_at(clip, 0)
 	if sim.frozen:
 		return ThrongClips.frame_at("ThrongA_Talk", int(time * 6.0))
 	if sim.mito_t[i] > 0.0 or sim.mito_charge[i] > 0.0:
-		var along := 1.0
-		if sim.mito_t[i] <= 0.0:
-			along = clampf(sim.mito_charge[i] / ThrongletSimServer.MITOSIS_CHARGE, 0.0, 0.999)
+		var along := 0.0
+		if sim.mito_t[i] > 0.0:
+			var split_t := 1.0 - clampf(sim.mito_t[i] / ThrongletSimServer.MITOSIS_ANIM, 0.0, 1.0)
+			along = lerpf(ThrongletSimServer.MITOSIS_SPLIT_ALONG, 0.999, split_t)
+		else:
+			along = clampf(sim.mito_charge[i] / ThrongletSimServer.MITOSIS_CHARGE, 0.0, 1.0) * ThrongletSimServer.MITOSIS_SPLIT_ALONG
 		return ThrongClips.frame_along("ThrongA_Mitosis_Spritesheet", along)
 	var doing := int(sim.act[i])
 	var moving := absf(sim.dir_x[i]) + absf(sim.dir_y[i]) >= 0.01
 	if doing == ThrongletSimServer.ACT_EAT:
 		return ThrongClips.frame_at("ThrongA_Eat", int(time * 6.0))
 	if doing == ThrongletSimServer.ACT_BATH:
-		return ThrongClips.frame_at("Throng_FallInBath_Spritesheet", int(time * 8.0))
+		var tub: Dictionary = sim.seat_of(i)
+		if tub.is_empty():
+			return ThrongClips.frame_at("ThrongA_Happy", int(time * 6.0))
+		var age := float(tub.get("bath_t", 0.0))
+		var enter_t := ThrongletSimServer.BATH_ENTER_T
+		if age < 0.0:
+			return ThrongClips.frame_at("Throng_FallInBath_Spritesheet", 0)
+		if age < enter_t:
+			# Frames 0-4: climb / fall into the water.
+			return ThrongClips.frame_along("Throng_FallInBath_Spritesheet", (age / enter_t) * (5.0 / 8.0))
+		# Frames 5-7: soak loop (head above water, eyes closed).
+		return ThrongClips.frame_at("Throng_FallInBath_Spritesheet", 5 + int((age - enter_t) * 2.5) % 3)
 	if doing == ThrongletSimServer.ACT_WASH:
 		return ThrongClips.frame_at("ThrongA_Happy", int(time * 6.0))
 	if doing == ThrongletSimServer.ACT_PLAY:
+		if not sim.ball_of(i).is_empty():
+			if moving:
+				if absf(sim.dir_y[i]) > absf(sim.dir_x[i]) and sim.dir_y[i] < 0.0:
+					return ThrongClips.frame_at("Throng_WalkBack_Anim_Spritesheet", int(time * 8.0 + float(i)))
+				return ThrongClips.frame_at("Throng_Walk_Anim_Spritesheet", int(time * 8.0 + float(i)))
+			return ThrongClips.frame_at("ThrongA_Happy", int(time * 6.0))
 		var play := "ThrongA_Jump_VariantA_Spritesheet"
 		if not sim.ride_of(i).is_empty():
 			play = "ThrongA_Roundabout_SpriteSheet"
@@ -889,14 +985,16 @@ func _frame(i: int, time: float) -> int:
 
 
 func _throng_flip(i: int) -> float:
-	var sim := ThrongletSimServer
+	var sim: ThrongletSim = ThrongletSimServer
 	if sim.state[i] != Catalog.ST_LIVING or sim.frozen:
 		return 1.0
 	if sim.mito_t[i] > 0.0 or sim.mito_charge[i] > 0.0:
 		return 1.0
 	var doing := int(sim.act[i])
 	var moving := absf(sim.dir_x[i]) + absf(sim.dir_y[i]) >= 0.01
-	if doing == ThrongletSimServer.ACT_EAT or doing == ThrongletSimServer.ACT_BATH or doing == ThrongletSimServer.ACT_WASH or doing == ThrongletSimServer.ACT_PLAY:
+	if doing == ThrongletSimServer.ACT_EAT or doing == ThrongletSimServer.ACT_BATH or doing == ThrongletSimServer.ACT_WASH:
+		return 1.0
+	if doing == ThrongletSimServer.ACT_PLAY and sim.ball_of(i).is_empty():
 		return 1.0
 	if doing == ThrongletSimServer.ACT_WORK and not moving:
 		return 1.0
@@ -948,37 +1046,92 @@ func _place_cell_poly() -> PackedVector2Array:
 	])
 
 
+func _place_footprint_kind() -> Dictionary:
+	var sim: ThrongletSim = ThrongletSimServer
+	if placing >= 0:
+		return {"building": true, "kind": placing}
+	if sim.held_kind == "building":
+		var b = sim.building_by_id.get(sim.held_ref, {})
+		if not b.is_empty():
+			return {"building": true, "kind": int(b.kind)}
+	if sim.held_kind == "rock":
+		var feat = sim.feature_by_id.get(sim.held_ref, {})
+		if not feat.is_empty():
+			return {"building": false, "kind": int(feat.kind)}
+	return {"building": true, "kind": -1}
+
+
+func _ensure_place_marks(n: int) -> void:
+	while place_fills.size() < n:
+		var fill := Polygon2D.new()
+		fill.z_index = 1
+		place_marks.add_child(fill)
+		place_fills.append(fill)
+		var edge := Line2D.new()
+		edge.z_index = 1
+		edge.width = 2.0
+		edge.joint_mode = Line2D.LINE_JOINT_ROUND
+		edge.begin_cap_mode = Line2D.LINE_CAP_ROUND
+		edge.end_cap_mode = Line2D.LINE_CAP_ROUND
+		place_marks.add_child(edge)
+		place_edges.append(edge)
+
+
+func _hide_place_marks() -> void:
+	for fill in place_fills:
+		fill.visible = false
+	for edge in place_edges:
+		edge.visible = false
+
+
 func _sync_place_mark() -> void:
-	if place_fill == null or place_edge == null:
+	if place_marks == null:
 		return
 	if not _want_place_grid():
-		place_fill.visible = false
-		place_edge.visible = false
+		_hide_place_marks()
 		return
-	var sim := ThrongletSimServer
+	var sim: ThrongletSim = ThrongletSimServer
 	var at := _grid_pointer()
-	var building_id := sim.held_ref if sim.held_kind == "building" else -1
-	var ignore_item := sim.hand_id
+	var building_id: int = sim.held_ref if sim.held_kind == "building" else -1
+	var ignore_item: int = sim.hand_id
+	var info := _place_footprint_kind()
+	var kind: int = int(info.kind)
 	var ok := false
 	if placing >= 0:
 		ok = sim.can_place_building(placing, at.x, at.y)
+	elif kind >= 0 and bool(info.building):
+		ok = sim.spot_ok(at.x, at.y, building_id, ignore_item, kind)
+	elif kind >= 0 and not bool(info.building):
+		ok = sim.can_drop_feature(sim.held_ref, at.x, at.y)
 	else:
 		ok = sim.spot_ok(at.x, at.y, building_id, ignore_item)
+	var spots: Array = [at]
+	if kind >= 0:
+		spots = sim.footprint_world(kind, at.x, at.y, bool(info.building))
+	_ensure_place_marks(spots.size())
 	var poly := _place_cell_poly()
-	place_fill.polygon = poly
-	place_fill.color = Color(0.3, 1.0, 0.5, 0.55) if ok else Color(1.0, 0.25, 0.22, 0.55)
-	place_fill.position = _to_iso(at)
-	place_fill.visible = true
-	place_edge.points = poly + PackedVector2Array([poly[0]])
-	place_edge.default_color = Color(0.75, 1.0, 0.85, 1.0) if ok else Color(1.0, 0.55, 0.5, 1.0)
-	place_edge.position = place_fill.position
-	place_edge.visible = true
+	var fill_c := Color(0.3, 1.0, 0.5, 0.55) if ok else Color(1.0, 0.25, 0.22, 0.55)
+	var edge_c := Color(0.75, 1.0, 0.85, 1.0) if ok else Color(1.0, 0.55, 0.5, 1.0)
+	for i in place_fills.size():
+		if i >= spots.size():
+			place_fills[i].visible = false
+			place_edges[i].visible = false
+			continue
+		var pos := _to_iso(spots[i])
+		place_fills[i].polygon = poly
+		place_fills[i].color = fill_c
+		place_fills[i].position = pos
+		place_fills[i].visible = true
+		place_edges[i].points = poly + PackedVector2Array([poly[0]])
+		place_edges[i].default_color = edge_c
+		place_edges[i].position = pos
+		place_edges[i].visible = true
 
 
 func _sync_charge_mark() -> void:
 	if charge_ring == null or charge_area == null:
 		return
-	var sim := ThrongletSimServer
+	var sim: ThrongletSim = ThrongletSimServer
 	var at := _pointer()
 	if sim.has_scoop():
 		charge_area.points = _iso_circle_points(at, Catalog.GRAB_RADIUS * 0.35, 20)
@@ -991,7 +1144,7 @@ func _sync_charge_mark() -> void:
 		charge_ring.visible = false
 		charge_area.visible = false
 		return
-	var target := sim.charge_tool_target(used, at.x, at.y)
+	var target: Dictionary = sim.charge_tool_target(used, at.x, at.y)
 	if target.is_empty() and used != Catalog.TOOL_GRAB:
 		charge_ring.visible = false
 		charge_area.visible = false
@@ -1057,10 +1210,44 @@ func _bridge_view_point(world_pos: Vector2, view: Rect2) -> Vector2:
 	return center + delta / scale
 
 
-func _push_iso(draws: Array, world_pos: Vector2, frame: int, tint: Color, lift: float = 0.0, sprite_scale: float = 1.0) -> void:
+func _push_iso(draws: Array, world_pos: Vector2, frame: int, tint: Color, lift: float = 0.0, sprite_scale: float = 1.0, sort_y: float = NAN) -> void:
 	var at := _to_iso(world_pos)
-	at.y -= lift
-	draws.append({"p": at, "icon": frame, "tint": tint, "scale": sprite_scale})
+	var draw_p := Vector2(at.x, at.y - lift)
+	var sy := at.y if is_nan(sort_y) else sort_y
+	draws.append({"p": draw_p, "sy": sy, "icon": frame, "tint": tint, "scale": sprite_scale})
+
+
+func _building_draw_at(kind: int, origin: Vector2) -> Vector2:
+	if kind == Catalog.BLD_TUB:
+		return origin + Catalog.TUB_DRAW_OFF
+	return origin
+
+
+func _prop_front_sort_y(world_center: Vector2) -> float:
+	return _to_iso(world_center).y + 1.0
+
+
+func _use_prop_anchor(pos: Vector2) -> Vector2:
+	var sim: ThrongletSim = ThrongletSimServer
+	var best := Vector2.ZERO
+	var best_d := 28.0
+	var found := false
+	for b in sim.buildings:
+		if b.dead:
+			continue
+		var kind := int(b.kind)
+		if kind != Catalog.BLD_TUB and kind != Catalog.BLD_ROUND:
+			continue
+		var center := Vector2(float(b.x), float(b.y))
+		if kind == Catalog.BLD_TUB:
+			center += Catalog.TUB_SEAT_OFF
+		var limit := 18.0 if kind == Catalog.BLD_TUB else 28.0
+		var d := pos.distance_to(center)
+		if d <= limit and d < best_d:
+			best_d = d
+			best = _building_draw_at(kind, Vector2(float(b.x), float(b.y)))
+			found = true
+	return best if found else Vector2.INF
 
 
 const _BIG := {
@@ -1103,6 +1290,10 @@ const _BIG := {
 }
 
 
+func _throng_dirty(clean: float) -> float:
+	return 1.0 - clampf(clean / 100.0, 0.0, 1.0)
+
+
 func _write_mesh(mesh: MultiMesh, draws: Array) -> void:
 	var n := draws.size()
 	if mesh.instance_count < n:
@@ -1114,16 +1305,18 @@ func _write_mesh(mesh: MultiMesh, draws: Array) -> void:
 		var flip := float(draws[i].get("flip", 1.0))
 		xf = Transform2D(0.0, Vector2(sprite_scale * flip, sprite_scale), 0.0, draws[i].p + Vector2(0, -32.0 * sprite_scale))
 		mesh.set_instance_transform_2d(i, xf)
-		mesh.set_instance_custom_data(i, Color(float(draws[i].icon), 0, 0, 0))
+		mesh.set_instance_custom_data(i, Color(float(draws[i].icon), float(draws[i].get("dirty", 0.0)), 0, 0))
 		mesh.set_instance_color(i, draws[i].tint)
 
 
 func _sync_hud(delta: float) -> void:
-	var sim := ThrongletSimServer
+	var sim: ThrongletSim = ThrongletSimServer
 	pop_label.text = str(sim.living)
 	var face_key := "base"
 	if sim.living <= 0:
 		face_key = "cry" if sim.peak > 0 else "base"
+	elif sim.frozen:
+		face_key = "trance"
 	elif POP_FACES.has(sim.mood_face):
 		face_key = sim.mood_face
 	if face_key != pop_face_key:
@@ -1182,7 +1375,7 @@ func _sync_hud(delta: float) -> void:
 
 
 func _sync_market() -> void:
-	var sim := ThrongletSimServer
+	var sim: ThrongletSim = ThrongletSimServer
 	market_panel.visible = market_open and sim.has_building_kind(Catalog.BLD_MARKET)
 	if not market_panel.visible:
 		return
@@ -1216,7 +1409,7 @@ func _sync_market() -> void:
 
 
 func _sync_gaze() -> void:
-	var sim := ThrongletSimServer
+	var sim: ThrongletSim = ThrongletSimServer
 	if sim.game_over or sim.modal.is_empty():
 		gaze_panel.visible = false
 		shown_event = ""
@@ -1251,7 +1444,7 @@ func _sync_gaze() -> void:
 
 
 func _sync_focus(delta: float) -> void:
-	var sim := ThrongletSimServer
+	var sim: ThrongletSim = ThrongletSimServer
 	if sim.game_over:
 		focus_on = false
 		focus_hold = 0.0
@@ -1260,15 +1453,15 @@ func _sync_focus(delta: float) -> void:
 		focus_box.visible = false
 		task_panel.visible = false
 		return
-	var talk := not sim.modal.is_empty() and Catalog.GAZE.has(str(sim.modal.event))
+	var talk: bool = not sim.modal.is_empty() and Catalog.GAZE.has(str(sim.modal.event))
 	var egg := _starter_egg()
 	var falling := not egg.is_empty() and float(egg.get("air", 0.0)) > 0.0
 	if falling:
 		focus_hold = 0.45
 	elif focus_hold > 0.0:
 		focus_hold = maxf(0.0, focus_hold - delta)
-	var show_egg := not talk and not egg.is_empty() and (falling or focus_hold > 0.0)
-	var show := talk or show_egg
+	var show_egg: bool = not talk and not egg.is_empty() and (falling or focus_hold > 0.0)
+	var show: bool = talk or show_egg
 	if show and not focus_on:
 		focus_on = true
 	if not show and focus_on:
@@ -1345,7 +1538,7 @@ func _talk_iso() -> Vector2:
 
 
 func _talk_world() -> Vector2:
-	var sim := ThrongletSimServer
+	var sim: ThrongletSim = ThrongletSimServer
 	var sum := Vector2.ZERO
 	var n := 0
 	for key in sim.gaze_home.keys():
@@ -1361,8 +1554,8 @@ func _talk_world() -> Vector2:
 
 func _paint_focus(anchor: Vector2) -> void:
 	focus_tilemap.clear()
-	var sim := ThrongletSimServer
-	var key := sim.chunk_key_at(anchor.x, anchor.y)
+	var sim: ThrongletSim = ThrongletSimServer
+	var key: String = sim.chunk_key_at(anchor.x, anchor.y)
 	if sim.chunk_shown(key):
 		_paint_chunk(key, false, focus_tilemap)
 
@@ -1376,12 +1569,15 @@ func _focus_sees(world_pos: Vector2, lift: float) -> bool:
 
 
 func _focus_draws() -> Array:
-	var sim := ThrongletSimServer
+	var sim: ThrongletSim = ThrongletSimServer
+	var talk: bool = not sim.modal.is_empty() and Catalog.GAZE.has(str(sim.modal.event))
 	var draws: Array = []
 	var egg_front: Array = []
 	var time := Time.get_ticks_msec() / 1000.0
 	for feat in sim.features:
 		if feat.dead or bool(feat.get("lifted", false)):
+			continue
+		if talk and _talk_hides_feat(int(feat.kind)):
 			continue
 		var p := Vector2(float(feat.x), float(feat.y))
 		if not _focus_sees(p, 0.0):
@@ -1403,15 +1599,23 @@ func _focus_draws() -> Array:
 			if lift > 0.0:
 				_push_iso(egg_front, p2, item_frame, Color.WHITE, lift)
 				continue
+		elif int(it.kind) == Catalog.ITEM_APPLE and lift > 0.0:
+			_push_iso(egg_front, p2, item_frame, Color.WHITE, lift)
+			continue
 		_push_iso(draws, p2, item_frame, Color.WHITE, lift)
 	for b in sim.buildings:
-		if b.dead or bool(b.get("lifted", false)):
+		if talk or b.dead or bool(b.get("lifted", false)):
 			continue
 		var p3 := Vector2(float(b.x), float(b.y))
-		if _focus_sees(p3, 0.0):
-			_push_iso(draws, p3, _prop_frame(Catalog.icon_for_building(int(b.kind))), Color.WHITE)
+		var b_kind := int(b.kind)
+		var draw_at := _building_draw_at(b_kind, p3)
+		if _focus_sees(p3, 0.0) or _focus_sees(draw_at, 0.0):
+			var focus_scale := Catalog.TUB_SPRITE_SCALE if b_kind == Catalog.BLD_TUB else 1.0
+			_push_iso(draws, draw_at, _prop_frame(Catalog.icon_for_building(b_kind)), Color.WHITE, 0.0, focus_scale)
 	for i in sim.slot_count:
 		if sim.state[i] == Catalog.ST_VACANT:
+			continue
+		if talk and not sim.gaze_home.has(i):
 			continue
 		var pos := Vector2(sim.pos_x[i], sim.pos_y[i])
 		if not _focus_sees(pos, 0.0):
@@ -1421,9 +1625,14 @@ func _focus_draws() -> Array:
 			tint = Color.WHITE
 		_push_iso(draws, pos, _frame(i, time), tint, 0.0)
 		draws[draws.size() - 1]["flip"] = _throng_flip(i)
-	draws.sort_custom(func(a, b): return float(a.p.y) < float(b.p.y))
+		draws[draws.size() - 1]["dirty"] = _throng_dirty(sim.clean[i])
+	draws.sort_custom(func(a, b): return float(a.get("sy", a.p.y)) < float(b.get("sy", b.p.y)))
 	draws.append_array(egg_front)
 	return draws
+
+
+func _talk_hides_feat(kind: int) -> bool:
+	return kind == Catalog.FEAT_TREE or kind == Catalog.FEAT_COSMETIC or kind == Catalog.FEAT_COSMETIC_BAD or kind == Catalog.FEAT_MONOLITH or kind == Catalog.FEAT_TOTEM
 
 
 func _set_box(node: Control, rect: Rect2) -> void:
@@ -1452,7 +1661,7 @@ func _tool_entry(id: int) -> Dictionary:
 
 
 func _tab_ready(tab: Dictionary) -> bool:
-	var sim := ThrongletSimServer
+	var sim: ThrongletSim = ThrongletSimServer
 	for id in tab.tools:
 		var entry := _tool_entry(int(id))
 		if not entry.is_empty() and bool(sim.unlocks.get(str(entry.unlock), false)):
@@ -1465,7 +1674,7 @@ func _tab_ready(tab: Dictionary) -> bool:
 
 
 func _rebuild_bars() -> void:
-	var sim := ThrongletSimServer
+	var sim: ThrongletSim = ThrongletSimServer
 	for child in kit_tabs.get_children():
 		child.queue_free()
 	for child in kit_icons.get_children():
@@ -1528,7 +1737,7 @@ func _begin_kit_drag(kind: String, id: int) -> void:
 
 
 func _drop_scoop() -> void:
-	var sim := ThrongletSimServer
+	var sim: ThrongletSim = ThrongletSimServer
 	if not sim.has_scoop():
 		return
 	var at := _pointer()
@@ -1653,24 +1862,33 @@ func _hotkey(code: int) -> void:
 
 func _build_marks() -> void:
 	for _i in 3:
-		var label := Label.new()
-		label.theme = ui_theme
-		label.visible = false
-		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		label.z_index = 8
-		label.add_theme_color_override("font_color", Color.WHITE)
-		add_child(label)
-		bubble_labels.append(label)
-		var flame := TextureRect.new()
-		flame.texture = _tex("res://resources/src/ref/fire.png")
-		flame.custom_minimum_size = Vector2(12, 14)
-		flame.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		flame.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		flame.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		flame.visible = false
-		flame.z_index = 8
-		add_child(flame)
-		bubble_icons.append(flame)
+		var panel := PanelContainer.new()
+		panel.visible = false
+		panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		panel.z_index = 8
+		panel.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		panel.add_theme_stylebox_override("panel", _speech_bubble_style())
+		var hold := CenterContainer.new()
+		hold.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		panel.add_child(hold)
+		var glyph := TextureRect.new()
+		glyph.custom_minimum_size = Vector2(14, 14)
+		glyph.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		glyph.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		glyph.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		glyph.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		hold.add_child(glyph)
+		add_child(panel)
+		bubble_panels.append(panel)
+		bubble_icons.append(glyph)
+		var tail := TextureRect.new()
+		tail.texture = _tex("res://resources/ui/speech_bubble_tail.png")
+		tail.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		tail.z_index = 8
+		tail.visible = false
+		tail.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		add_child(tail)
+		bubble_tails.append(tail)
 	for _i in 24:
 		var label := Label.new()
 		label.theme = ui_theme
@@ -1709,10 +1927,10 @@ func _build_glitch(root: Control) -> void:
 
 
 func _hide_marks() -> void:
-	for label in bubble_labels:
-		label.visible = false
-	for flame in bubble_icons:
-		flame.visible = false
+	for panel in bubble_panels:
+		panel.visible = false
+	for tail in bubble_tails:
+		tail.visible = false
 	for label in full_labels:
 		label.visible = false
 	for line in ring_lines:
@@ -1720,39 +1938,47 @@ func _hide_marks() -> void:
 
 
 func _sync_marks() -> void:
-	var sim := ThrongletSimServer
+	var sim: ThrongletSim = ThrongletSimServer
 	var view := _world_view()
-	for i in bubble_labels.size():
-		var label: Label = bubble_labels[i]
+	for i in bubble_panels.size():
+		var panel: PanelContainer = bubble_panels[i]
+		var glyph: TextureRect = bubble_icons[i]
+		var tail: TextureRect = bubble_tails[i]
 		if i >= sim.barks.size():
-			label.visible = false
-			if i < bubble_icons.size():
-				bubble_icons[i].visible = false
+			panel.visible = false
+			tail.visible = false
 			continue
 		var bark: Dictionary = sim.barks[i]
 		var at := Vector2(float(bark.x), float(bark.y))
-		var flame: TextureRect = bubble_icons[i]
 		if not view.has_point(at):
-			label.visible = false
-			flame.visible = false
+			panel.visible = false
+			tail.visible = false
 			continue
-		var spot := _to_iso(at) + Vector2(-8, -28)
-		if int(bark.get("icon", -1)) == Catalog.ICON_FIRE:
-			label.visible = false
-			flame.visible = true
-			flame.position = spot
+		var icon := int(bark.get("icon", -1))
+		if icon < 0:
+			panel.visible = false
+			tail.visible = false
 			continue
-		flame.visible = false
-		label.visible = true
-		label.text = str(bark.text)
-		label.position = spot
+		glyph.texture = _atlas_icon(icon)
+		glyph.visible = true
+		panel.reset_size()
+		var size := panel.get_combined_minimum_size()
+		size.x = maxf(size.x, 22.0)
+		size.y = maxf(size.y, 18.0)
+		panel.size = size
+		var tip := _to_iso(at) + Vector2(0, -22)
+		panel.position = tip - Vector2(size.x * 0.5, size.y + 5.0)
+		panel.visible = true
+		var tail_size := tail.texture.get_size() if tail.texture != null else Vector2(11, 8)
+		tail.position = Vector2(tip.x - tail_size.x * 0.5, panel.position.y + size.y - 1.0)
+		tail.visible = true
 	var full_n := 0
 	for b in sim.buildings:
 		if full_n >= full_labels.size():
 			break
 		if b.dead:
 			continue
-		var cap_text := sim.occupancy_text(b)
+		var cap_text: String = sim.occupancy_text(b)
 		if cap_text == "":
 			continue
 		if not sim.chunk_shown(sim.chunk_key_at(float(b.x), float(b.y))):
@@ -1781,10 +2007,10 @@ func _sync_marks() -> void:
 
 
 func _sync_glitch(delta: float) -> void:
-	var sim := ThrongletSimServer
+	var sim: ThrongletSim = ThrongletSimServer
 	if sim.glitch_t > 0.0:
 		sim.glitch_t = maxf(0.0, sim.glitch_t - delta)
-	var on := sim.glitch_t > 0.0
+	var on: bool = sim.glitch_t > 0.0
 	if glitch_label != null:
 		glitch_label.visible = on
 	for i in glitch_bars.size():
@@ -1800,8 +2026,8 @@ func _sync_glitch(delta: float) -> void:
 
 
 func _sync_need_bars() -> void:
-	var sim := ThrongletSimServer
-	var show := selected >= 0 and selected < sim.slot_count and sim.state[selected] != Catalog.ST_VACANT
+	var sim: ThrongletSim = ThrongletSimServer
+	var show: bool = selected >= 0 and selected < sim.slot_count and sim.state[selected] != Catalog.ST_VACANT
 	need_show = show
 	if not show:
 		for node in need_backs:
@@ -1866,18 +2092,9 @@ func _build_world() -> void:
 	tilemap.tile_set = _make_tileset()
 	tilemap.z_index = 0
 	add_child(tilemap)
-	place_fill = Polygon2D.new()
-	place_fill.z_index = 1
-	place_fill.visible = false
-	add_child(place_fill)
-	place_edge = Line2D.new()
-	place_edge.z_index = 1
-	place_edge.width = 2.0
-	place_edge.joint_mode = Line2D.LINE_JOINT_ROUND
-	place_edge.begin_cap_mode = Line2D.LINE_CAP_ROUND
-	place_edge.end_cap_mode = Line2D.LINE_CAP_ROUND
-	place_edge.visible = false
-	add_child(place_edge)
+	place_marks = Node2D.new()
+	place_marks.z_index = 1
+	add_child(place_marks)
 	charge_area = Line2D.new()
 	charge_area.z_index = 3
 	charge_area.width = 2.5
@@ -1954,7 +2171,7 @@ func _wear_atlas(grass_x: int, stage: int) -> int:
 func _wear_texture(source: Texture2D) -> Texture2D:
 	var image := source.get_image()
 	var bases: Array[int] = [0, 10, 11]
-	var steps := ThrongletSimServer.WEAR_STEPS
+	var steps: int = ThrongletSim.WEAR_STEPS
 	var wide := Image.create(image.get_width() + bases.size() * steps * 32, image.get_height(), false, image.get_format())
 	wide.blit_rect(image, Rect2i(0, 0, image.get_width(), image.get_height()), Vector2i.ZERO)
 	var dirt := image.get_region(Rect2i(32, 0, 32, 32))
@@ -1982,6 +2199,7 @@ func _material(h_frames: int, v_frames: int) -> ShaderMaterial:
 	mat.shader = load("res://thronglet_shader.gdshader")
 	mat.set_shader_parameter("h_frames", h_frames)
 	mat.set_shader_parameter("v_frames", v_frames)
+	mat.set_shader_parameter("dirt_tex", _tex("res://resources/sprites/world_iso_dirt.png"))
 	return mat
 
 
@@ -2311,7 +2529,7 @@ func _build_ui() -> void:
 
 
 func _show_title() -> void:
-	var sim := ThrongletSimServer
+	var sim: ThrongletSim = ThrongletSimServer
 	sim.cancel_hold()
 	in_title = true
 	sim.paused = true
@@ -2343,12 +2561,11 @@ func _fill_title() -> void:
 		_enter_game()
 	)
 	_menu_button(title_list, "CARGAR", _fill_title_slots)
-	_menu_button(title_list, "BORRAR", _fill_title_delete)
 	_menu_button(title_list, "SALIR", _quit_game)
 
 
 func _has_continue() -> bool:
-	var sim := ThrongletSimServer
+	var sim: ThrongletSim = ThrongletSimServer
 	if sim.session_live:
 		return true
 	for row in sim.list_slots():
@@ -2371,6 +2588,7 @@ func _fill_title_slots() -> void:
 		var used := bool(row.used)
 		var text := _slot_text(index, row)
 		_menu_button(title_list, text, _title_load.bind(index), not used)
+	_menu_button(title_list, "BORRAR", _fill_title_delete)
 	_menu_button(title_list, "VOLVER", _fill_title)
 
 
@@ -2386,7 +2604,7 @@ func _fill_title_delete() -> void:
 		_menu_button(title_list, _slot_text(index, row), _ask_title_delete.bind(index))
 	if not any:
 		_menu_label(title_list, "NO HAY PARTIDAS")
-	_menu_button(title_list, "VOLVER", _fill_title)
+	_menu_button(title_list, "VOLVER", _fill_title_slots)
 
 
 func _ask_title_delete(index: int) -> void:
@@ -2495,7 +2713,8 @@ func _slot_text(index: int, row: Dictionary) -> String:
 func _sync_game_over() -> void:
 	if over_panel == null:
 		return
-	var show := ThrongletSimServer.game_over and not in_title
+	var sim: ThrongletSim = ThrongletSimServer
+	var show: bool = sim.game_over and not in_title
 	if over_panel.visible == show:
 		return
 	over_panel.visible = show
@@ -2535,17 +2754,18 @@ func _game_over_load() -> void:
 
 
 func _quit_game() -> void:
-	var sim := ThrongletSimServer
+	var sim: ThrongletSim = ThrongletSimServer
 	if sim.current_slot >= 0:
 		sim.save_slot(sim.current_slot)
 	get_tree().quit()
 
 
 func _save_current() -> void:
-	var index := ThrongletSimServer.current_slot
+	var sim: ThrongletSim = ThrongletSimServer
+	var index: int = sim.current_slot
 	if index < 0:
 		index = 0
-	ThrongletSimServer.save_slot(index)
+	sim.save_slot(index)
 	if slots_panel.visible:
 		_fill_slots(true)
 
@@ -2610,6 +2830,52 @@ func _box_style(path: String, edge: int, pad: int) -> StyleBoxTexture:
 	style.texture_margin_bottom = edge
 	style.set_content_margin_all(pad)
 	return style
+
+
+func _speech_bubble_style() -> StyleBoxTexture:
+	# Margins stay near the 1px outline so the border does not look thick when sliced.
+	var style := _box_style("res://resources/ui/speech_bubble_9patch.png", 3, 3)
+	style.content_margin_left = 3
+	style.content_margin_right = 3
+	style.content_margin_top = 2
+	style.content_margin_bottom = 2
+	return style
+
+
+func _tick_shot() -> void:
+	var sim: ThrongletSim = ThrongletSimServer
+	var tub_at := Vector2.ZERO
+	var has_tub := false
+	for b in sim.buildings:
+		if b.dead or int(b.kind) != Catalog.BLD_TUB:
+			continue
+		tub_at = Vector2(float(b.x), float(b.y))
+		has_tub = true
+		break
+	if has_tub:
+		camera.position = _to_iso(tub_at + Catalog.TUB_SEAT_OFF)
+	elif not sim.barks.is_empty():
+		var mid := Vector2.ZERO
+		var n := 0
+		for bark in sim.barks:
+			mid += Vector2(float(bark.x), float(bark.y))
+			n += 1
+		if n > 0:
+			camera.position = _to_iso(mid / float(n))
+	shot_frames += 1
+	if shot_frames < 12:
+		return
+	shot_done = true
+	var image := get_viewport().get_texture().get_image()
+	if image == null:
+		print("SHOT FAIL no viewport image")
+		get_tree().quit(1)
+		return
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://shots"))
+	var path := "res://shots/tub_now.png"
+	var err := image.save_png(path)
+	print("SHOT %s path=%s tub=%s barks=%s" % ["OK" if err == OK else "FAIL", path, has_tub, sim.barks.size()])
+	get_tree().quit(0 if err == OK else 1)
 
 
 func _build_audio() -> void:

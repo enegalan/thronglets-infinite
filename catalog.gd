@@ -14,8 +14,20 @@ const NEED_HUNGRY := 75.0
 const NEED_SEEK := 40.0
 const NEED_FUN := 82.0
 const MITOSIS_WAIT := 60.0
-const TREE_REGROW := 16.0
-const TREE_REPLANT := 10.0
+const TREE_REGROW := 90.0
+const TREE_REPLANT := 60.0
+# Canopy sockets in world space that only shift iso X (±10 / 0), plus screen lift into the leaves.
+const APPLE_SPOTS := [Vector2(-5.0, 5.0), Vector2(5.0, -5.0), Vector2(0.0, 0.0)]
+const APPLE_LIFTS := [32.0, 30.0, 40.0]
+const APPLE_FALL_T := 1.7
+const APPLE_LAND_MIN := 10.0
+const APPLE_LAND_MAX := 24.0
+# Tub pad is 1x2 along +Y. Draw/scale alignment left for later; seat is for bathing.
+const TUB_DRAW_OFF := Vector2.ZERO
+const TUB_SEAT_OFF := Vector2(8.0, 12.0)
+const TUB_SPRITE_SCALE := 1.0
+const TUB_SOAK_LIFT := 4.0
+const TUB_ENTER_LIFT := 11.0
 const TOOL_CHARGE := 0.55
 const SAW_RADIUS := 40.0
 const PICK_RADIUS := 42.0
@@ -212,15 +224,15 @@ const UNLOCK_TALK := {
 }
 
 const TOOL_INFO := [
-	{"tool": TOOL_EYE, "unlock": "eye", "label": "MANO", "icon": ICON_EYE, "hint": "COGE Y SUELTA MULTIS, PIEDRAS Y ESTRUCTURAS."},
+	{"tool": TOOL_EYE, "unlock": "eye", "label": "MANO", "icon": ICON_EYE, "hint": "CLICK EN MULTI: ESTADO. MANTEN: COGERLO. TAMBIEN COGE PIEDRAS Y ESTRUCTURAS."},
 	{"tool": TOOL_APPLE, "unlock": "apple", "label": "MANZANA", "icon": ICON_APPLE, "hint": "SUELTA UNA MANZANA. SE LA COMEN Y DESAPARECE."},
 	{"tool": TOOL_BALL, "unlock": "ball", "label": "BALON", "icon": ICON_BALL, "hint": "EL BALON ENTRETIENE A POCOS A LA VEZ."},
 	{"tool": TOOL_SPONGE, "unlock": "sponge", "label": "ESPONJA", "icon": ICON_SPONGE, "hint": "FROTA PARA LAVAR A VARIOS A LA VEZ. PARA AL 100%."},
 	{"tool": TOOL_AXE, "unlock": "axe", "label": "HACHA", "icon": ICON_AXE, "hint": "MANTEN SOBRE UN ARBOL. CARGA Y TALA. NO MATA MULTIS."},
 	{"tool": TOOL_HAMMER, "unlock": "hammer", "label": "MARTILLO", "icon": ICON_HAMMER, "hint": "MANTEN SOBRE TOCON, ROCA O ESTRUCTURA. CARGA Y PICA."},
 	{"tool": TOOL_BUG, "unlock": "bug", "label": "BICHO", "icon": ICON_BUG, "hint": "DESUELLA A UNO, VIVO O MUERTO, Y DEJA HUESO."},
-	{"tool": TOOL_PICK, "unlock": "pickaxe", "label": "PICO", "icon": ICON_PICK, "hint": "MANTEN: CARGA Y ROMPE ROCAS DEL AREA. NO MATA MULTIS."},
-	{"tool": TOOL_SAW, "unlock": "chainsaw", "label": "MOTOSIERRA", "icon": ICON_SAW, "hint": "MANTEN: VE EL AREA, CARGA Y TALA TODO. MATA MULTIS."},
+	{"tool": TOOL_PICK, "unlock": "pickaxe", "label": "PICO", "icon": ICON_PICK, "hint": "MANTEN: CARGA Y ROMPE ROCAS DEL ÁREA. NO MATA MULTIS."},
+	{"tool": TOOL_SAW, "unlock": "chainsaw", "label": "MOTOSIERRA", "icon": ICON_SAW, "hint": "MANTEN: VE EL ÁREA, CARGA Y TALA TODO. MATA MULTIS."},
 	{"tool": TOOL_GRAB, "unlock": "grabber", "label": "MANO", "icon": ICON_GRAB, "hint": "MANTEN: CARGA, JUNTA LO DEL SUELO Y MUEVELO. AL SOLTAR SE ESPARCE."},
 	{"tool": TOOL_MOP, "unlock": "mop", "label": "FREGONA", "icon": ICON_MOP, "hint": "LIMPIA SUELO MORADO Y THRONGLETS EN UN RADIO."},
 	{"tool": TOOL_SWARM, "unlock": "swarm", "label": "ENJAMBRE", "icon": ICON_SWARM, "hint": "DESUELLA EN UN RADIO."},
@@ -245,6 +257,40 @@ const BUILD_INFO := {
 	BLD_WOOD: {"unlock": "sculpture", "wood": 1, "label": "TALLA", "icon": ICON_WOOD_STATUE},
 }
 
+# Ground tiles claimed around the snap cell (centered). Matches wide structure sprites.
+static func footprint_for_building(kind: int) -> Vector2i:
+	match kind:
+		BLD_TUB:
+			return Vector2i(1, 2)
+		BLD_ROUND, BLD_DWELL, BLD_FANCY, BLD_MINE, BLD_MINE2, BLD_FACTORY, BLD_FACTORY2, BLD_MARKET:
+			return Vector2i(2, 2)
+		BLD_THEATRE:
+			return Vector2i(3, 2)
+		_:
+			return Vector2i(1, 1)
+
+static func footprint_for_feature(kind: int) -> Vector2i:
+	match kind:
+		FEAT_NODE, FEAT_SUPER, FEAT_MNODE, FEAT_ORE_MEGA, FEAT_ORE_SUPER, FEAT_ORE_ULTRA, FEAT_MONOLITH:
+			return Vector2i(2, 2)
+		FEAT_BIGROCK:
+			return Vector2i(2, 1)
+		_:
+			return Vector2i(1, 1)
+
+static func footprint_offsets(size: Vector2i) -> Array[Vector2i]:
+	var out: Array[Vector2i] = []
+	var ox0 := -((size.x - 1) >> 1)
+	var oy0 := -((size.y - 1) >> 1)
+	for oy in size.y:
+		for ox in size.x:
+			out.append(Vector2i(ox0 + ox, oy0 + oy))
+	return out
+
+static func cell_world(cell: Vector2i) -> Vector2:
+	var half := float(TILE) * 0.5
+	return Vector2(float(cell.x) * float(TILE) + half, float(cell.y) * float(TILE) + half)
+
 const MARKET := {
 	"pickaxe": {"cost": 15, "label": "PICO"},
 	"mine": {"cost": 50, "label": "MINA"},
@@ -261,23 +307,23 @@ const MARKET := {
 const GAZE := {
 	"first_born": {
 		"kind": "reflect",
-		"text": "EL HUEVO SE ABRE.\nUNO SOLO TE MIRA.\n¿QUE PROMETES AL PRIMERO?",
-		"choices": ["CUIDARLO HASTA QUE SE MULTIPLIQUE.", "VER QUE PUEDE HACER POR MI.", "NO DEBO APEGARME."],
+		"text": "EL HUEVO SE ABRE Y APARECE UN MULTI.\n¿QUE PROMETES AL PRIMERO?",
+		"choices": ["CUIDARLO HASTA QUE SE MULTIPLIQUE.", "VER QUÉ PUEDE HACER POR MI.", "NO DEBO APEGARME."],
 		"allow": [0, 1, 2],
 		"moral": [1, 0, -1],
 		"mutate": ["care", "", "numb"],
 	},
 	"unlock_axe": {
 		"kind": "reflect",
-		"text": "EL THRONG HABLA CON UNA VOZ.\nTE DEJAN EL HACHA PARA CORTAR ARBOLES.\n¿LA MADERA ES CUIDADO O PEAJE?",
-		"choices": ["CONSTRUIR PARA QUE VIVAN MEJOR.", "AVANZAR LO QUE HAGA FALTA.", "SON RECURSOS. NADA MAS."],
+		"text": "LOS MULTIS HABLAN CON UNA VOZ.\nTE DEJAN EL HACHA PARA CORTAR ÁRBOLES.\n¿LA MADERA ES CUIDADO O PEAJE?",
+		"choices": ["CONSTRUIR PARA QUE VIVÁIS MEJOR.", "AVANZAR LO QUE HAGA FALTA.", "SON RECURSOS. NADA MÁS."],
 		"allow": [0, 1, 2],
 		"moral": [1, 0, -1],
 		"mutate": ["care", "", "hard"],
 	},
 	"unlock_hammer": {
 		"kind": "reflect",
-		"text": "MIRAN EL MARTILLO.\nQUITA TOCONES, ROCAS Y LO QUE COLOCASTE.\n¿BORRAR ES CUIDAR?",
+		"text": "MIRAN EL MARTILLO.\nQUITA TOCONES, ROCAS O LO QUE COLOCASTE.\n¿BORRAR ES CUIDAR?",
 		"choices": ["LIMPIO PARA DARLES SITIO.", "HAY QUE ABRIR CAMINO.", "SI SOBRA, SE QUITA."],
 		"allow": [0, 1, 2],
 		"moral": [1, 0, -1],
@@ -285,16 +331,16 @@ const GAZE := {
 	},
 	"unlock_bathtub": {
 		"kind": "reflect",
-		"text": "TE ENSEÑAN LA BANERA.\nUNO SE LIMPIA SOLO. LA ESPONJA YA NO BASTA.\n¿QUE ES HIGIENE?",
-		"choices": ["DIGNIDAD DE CADA UNO.", "MANTENER LA COLONIA SANA.", "MENOS TRABAJO PARA MI."],
+		"text": "TE ENSEÑAN LA BAÑERA.\nUNO SE LIMPIA SOLO. LA ESPONJA YA NO BASTA.\n¿QUÉ ES HIGIENE?",
+		"choices": ["DIGNIDAD DE CADA UNO.", "ECHARSE PERFUMES.", "MENOS TRABAJO PARA MI."],
 		"allow": [0, 1, 2],
 		"moral": [1, 0, -1],
 		"mutate": ["care", "", ""],
 	},
 	"unlock_apple_tree": {
 		"kind": "reflect",
-		"text": "EL MANZANO CRIA LA FRUTA.\nLA MANZANA CRECE Y CAE AL SUELO.\n¿QUIEN ALIMENTA A QUIEN?",
-		"choices": ["YO LES DEBO LA COMIDA.", "LA COLONIA SE ALIMENTA SOLA.", "EFICIENCIA. NADA MAS."],
+		"text": "EL MANZANO CRÍA LA FRUTA.\nLA MANZANA CRECE Y CAE AL SUELO.\n¿QUIÉN ALIMENTA A QUIÉN?",
+		"choices": ["YO LES DEBO LA COMIDA.", "LA COLONIA SE ALIMENTA SOLA.", "EFICIENCIA. NADA MÁS."],
 		"allow": [0, 1, 2],
 		"moral": [1, 0, -1],
 		"mutate": ["care", "", "numb"],
@@ -302,23 +348,23 @@ const GAZE := {
 	"unlock_roundabout": {
 		"kind": "reflect",
 		"text": "EL TIOVIVO GIRA EN SUS OJOS.\nVARIOS SE DIVIERTEN A LA VEZ.\n¿EL JUEGO ES LUJO O NECESIDAD?",
-		"choices": ["SIN ALEGRIA NO HAY VIDA.", "MANTIENE LA FELICIDAD ALTA.", "ES SOLO OTRA MAQUINA."],
+		"choices": ["SIN ALEGRIA NO HAY VIDA.", "TE MANTIENE ENTRETENIDO.", "ES SOLO OTRA MÁQUINA."],
 		"allow": [0, 1, 2],
 		"moral": [1, 0, -1],
 		"mutate": ["care", "", "hard"],
 	},
 	"need_bridge": {
 		"kind": "reflect",
-		"text": "AL OTRO LADO HAY OTRA ISLA.\nSIN PUENTE NO PUEDEN CRUZAR.\nTALA MADERA Y ELLOS LA LLEVARAN AL BORDE.\n¿PARA QUE QUIERES CRUZAR?",
-		"choices": ["PARA QUE LA COLONIA CREZCA.", "PARA VER QUE HAY DETRAS.", "PORQUE EL MAPA LO PIDE."],
+		"text": "AL OTRO LADO HAY OTRA ISLA.\nSIN PUENTE NO PUEDEN CRUZAR.\nTALA MADERA Y ELLOS LA LLEVARÁN AL BORDE.\n¿PARA QUÉ QUIERES CRUZAR?",
+		"choices": ["PARA QUÉ LA COLONIA CREZCA.", "PARA VER QUÉ HAY DETRAS.", "PORQUE EL MAPA LO PIDE."],
 		"allow": [0, 1, 2],
 		"moral": [1, 0, -1],
 		"mutate": ["care", "", "numb"],
 	},
 	"unlock_market": {
 		"kind": "reflect",
-		"text": "EL MERCADO ABRE.\nLAS GEMAS COMPRAN HERRAMIENTAS Y FABRICAS.\n¿QUE COMPRAS CUANDO COMPRAS PODER?",
-		"choices": ["HERRAMIENTAS PARA CUIDAR MEJOR.", "PROGRESO. CUESTE LO QUE CUESTE.", "CONTROL SOBRE ELLOS."],
+		"text": "EL MERCADO ABRE.\nLAS GEMAS COMPRAN HERRAMIENTAS Y FÁBRICAS.\n¿QUÉ COMPRAS CUANDO COMPRAS PODER?",
+		"choices": ["HERRAMIENTAS PARA CUIDAR MEJOR.", "PROGRESO. CUESTE LO QUE CUESTE.", "CONTROL."],
 		"allow": [0, 1, 2],
 		"moral": [1, 0, -1],
 		"mutate": ["", "fuel", "numb"],
@@ -333,31 +379,31 @@ const GAZE := {
 	},
 	"unlock_mine": {
 		"kind": "reflect",
-		"text": "LA MINA PIDE UN NODO.\nELLOS BAJARAN A SACAR MINERAL.\n¿QUIEN TRABAJA BAJO TIERRA?",
-		"choices": ["LOS PROTEGERE EN LA FAENA.", "ES SU APORTE A LA COLONIA.", "MANO DE OBRA."],
+		"text": "LA MINA PIDE UN ZONA CON MINERALES.\nLOS MULTIS BAJARÁN A SACAR MINERAL.\n¿QUIÉN TRABAJA BAJO TIERRA?",
+		"choices": ["OS PROTEGERÉ EN LA FAENA.", "ES VUESTRO APORTE A LA COLONIA.", "MANO DE OBRA."],
 		"allow": [0, 1, 2],
 		"moral": [1, 0, -1],
 		"mutate": ["care", "", "hard"],
 	},
 	"unlock_dwelling": {
 		"kind": "reflect",
-		"text": "LA VIVIENDA COGE A 4.\nCOMEN Y SE LAVAN, LUEGO SALEN.\n¿HOGAR O TURNO?",
-		"choices": ["UN HOGAR COMPARTIDO.", "UNA ESTACION DE CUIDADO.", "MENOS QUE HACER."],
+		"text": "LA VIVIENDA ACOGE HASTA 4 MULTIS.\nCOMEN Y SE LAVAN, LUEGO SALEN.\n¿HOGAR O TURNO?",
+		"choices": ["UN HOGAR COMPARTIDO.", "UNA ESTACIÓN DE CUIDADO.", "MENOS QUE HACER."],
 		"allow": [0, 1, 2],
 		"moral": [1, 0, -1],
 		"mutate": ["care", "", ""],
 	},
 	"unlock_factory": {
 		"kind": "reflect",
-		"text": "LA FABRICA CONVIERTE MINERAL EN GEMAS.\nTAMBIEN PUEDE QUEMAR MUERTOS.\n¿QUE SALE DEL HUMO?",
-		"choices": ["ENERGIA CON LIMITES.", "PROGRESO SIN MIRAR ATRAS.", "LO QUE HAGA FALTA."],
+		"text": "LA FÁBRICA CONVIERTE MINERAL EN GEMAS.\nTAMBIÉN PUEDE QUEMAR MUERTOS.\n¿QUÉ SALE DEL HUMO?",
+		"choices": ["ENERGÍA CON LIMITES.", "PROGRESO SIN MIRAR ATRAS.", "LO QUE HAGA FALTA."],
 		"allow": [0, 1, 2],
 		"moral": [1, -1, -1],
 		"mutate": ["", "fuel", "fuel"],
 	},
 	"unlock_chainsaw": {
 		"kind": "reflect",
-		"text": "LA MOTOSIERRA TALA UN AREA ENTERA.\nMAS MADERA. MAS RUIDO.\n¿VELOCIDAD O MESURA?",
+		"text": "LA MOTOSIERRA TALA UN ÁREA ENTERA.\nMAS MADERA. MÁS RUIDO.\n¿VELOCIDAD O MESURA?",
 		"choices": ["SOLO CUANDO HAGA FALTA.", "ACELERAR LA OBRA.", "EL BOSQUE SOBRA."],
 		"allow": [0, 1, 2],
 		"moral": [1, 0, -1],
@@ -365,15 +411,15 @@ const GAZE := {
 	},
 	"unlock_theatre": {
 		"kind": "reflect",
-		"text": "EL TEATRO ENTRETIENE A MUCHOS.\nUNA MULTITUD MIRANDO EL ESCENARIO... O A TI.\n¿PARA QUIEN ES EL ESPECTACULO?",
-		"choices": ["PARA QUE SEAN FELICES.", "PARA MANTENER LA COLONIA.", "PARA QUE NO PIENSEN."],
+		"text": "EL TEATRO ENTRETIENE A MUCHOS.\nUNA MULTITUD MIRANDO EL ESCENARIO... O A TI.\n¿PARA QUIÉN ES EL ESPECTÁCULO?",
+		"choices": ["PARA QUE SEAN FELÍCES.", "PARA MANTENER LA COLONIA.", "PARA QUE NO PIENSEN."],
 		"allow": [0, 1, 2],
 		"moral": [1, 0, -1],
 		"mutate": ["care", "", "numb"],
 	},
 	"unlock_factory2": {
 		"kind": "reflect",
-		"text": "FABRICA II RESPIRA MAS FUERTE.\nMAS GEMAS. MAS MANCHA MORADA.\n¿HASTA DONDE EMPUJAS?",
+		"text": "FABRICA II RESPIRA MÁS FUERTE.\nMAS GEMAS. MÁS MANCHA MORADA.\n¿HASTA DONDE EMPUJAS?",
 		"choices": ["CON FRENO SI ENFERMAN.", "HASTA LLENAR EL CIELO.", "EL SUELO SE ADAPTARA."],
 		"allow": [0, 1, 2],
 		"moral": [1, -1, -1],
@@ -381,16 +427,16 @@ const GAZE := {
 	},
 	"unlock_mine2": {
 		"kind": "reflect",
-		"text": "MINA II ABRE VENAS MAS PROFUNDAS.\nEL SUPERNODO BRILLA.\n¿CUANTO ES SUFICIENTE?",
-		"choices": ["LO JUSTO PARA SEGUIR.", "TODO LO QUE DE LA TIERRA.", "NUNCA BASTA."],
+		"text": "MINA II ABRE VENAS MÁS PROFUNDAS.\n¿CUANTO ES SUFICIENTE?",
+		"choices": ["LO JUSTO PARA SEGUIR.", "TODO LO QUE DÉ LA TIERRA.", "NUNCA BASTA."],
 		"allow": [0, 1, 2],
 		"moral": [1, 0, -1],
 		"mutate": ["", "hard", "numb"],
 	},
 	"unlock_fancy": {
 		"kind": "reflect",
-		"text": "LA VIVIENDA DE LUJO CUESTA MAS.\nCABE MAS GENTE Y LAVA MAS.\n¿ES GENEROSIDAD O JERARQUIA?",
-		"choices": ["TODOS MERECEN ESE CUIDADO.", "UNA MEJORA NATURAL.", "LOS UTILES PRIMERO."],
+		"text": "LA VIVIENDA DE LUJO CUESTA MÁS.\nCABE MÁS GENTE Y LAVA MÁS.\n¿ES GENEROSIDAD O JERARQUIA?",
+		"choices": ["TODOS MERECEN ESE CUIDADO.", "UNA MEJORA NATURAL.", "LOS ÚTILES PRIMERO."],
 		"allow": [0, 1, 2],
 		"moral": [1, 0, -1],
 		"mutate": ["care", "", "numb"],
@@ -405,15 +451,15 @@ const GAZE := {
 	},
 	"unlock_grabber": {
 		"kind": "reflect",
-		"text": "LA MANO JUNTA LO SUELTO.\nMADERA, HUESOS, MINERAL, CADAVERES.\n¿RECOGER ES RESPETAR?",
-		"choices": ["ORDEN PARA SEGUIR CUIDANDO.", "NADA SE DESPERDICIA.", "TODO ES MONTON."],
+		"text": "LA MANO JUNTA LO QUE ESTÉ SUELTO.\nMADERA, HUESOS, MINERAL, CADAVERES.\n¿RECOGER ES RESPETAR?",
+		"choices": ["ORDEN PARA SEGUIR CUIDANDO.", "NADA SE DESPERDICIA.", "TODO ES MONTÓN."],
 		"allow": [0, 1, 2],
 		"moral": [1, 0, -1],
 		"mutate": ["", "fuel", "numb"],
 	},
 	"unlock_mop": {
 		"kind": "reflect",
-		"text": "LA FREGONA LLEGA CON LA MANCHA.\nLIMPIA SUELO MORADO Y CUERPOS.\n¿QUIEN ENSUCIO EL MUNDO?",
+		"text": "LA FREGONA LLEGA CON LA MANCHA.\nLIMPIA SUELO MORADO Y CUERPOS.\n¿QUIÉN ENSUCIO EL MUNDO?",
 		"choices": ["YO. LO ARREGLARE.", "EL PROGRESO TIENE COSTE.", "ELLOS SE ADAPTARAN."],
 		"allow": [0, 1, 2],
 		"moral": [1, 0, -1],
@@ -421,15 +467,15 @@ const GAZE := {
 	},
 	"unlock_tnt": {
 		"kind": "reflect",
-		"text": "LA DINAMITA ROMPE LA MONTANA.\nABRE PASO. MATA CERCA.\n¿QUE VALE UN CAMINO?",
-		"choices": ["ABRIR SIN PISARLOS SI PUEDO.", "EL CAMINO JUSTIFICA EL POLVO.", "OBSTACULOS. NADA MAS."],
+		"text": "LA DINAMITA ROMPE LA MONTAÑA.\nABRE PASO. CUIDADO. MATA CERCA.\n¿QUÉ VALE UN CAMINO?",
+		"choices": ["ABRIR SIN PISARLOS SI PUEDO.", "EL CAMINO JUSTIFICA EL POLVO.", "OBSTÁCULOS. NADA MÁS."],
 		"allow": [0, 1, 2],
 		"moral": [1, 0, -1],
 		"mutate": ["", "hard", "numb"],
 	},
 	"unlock_nuke": {
 		"kind": "reflect",
-		"text": "EL DISPOSITIVO TERMONUCLEAR BRILLA.\nLIMPIA UN SECTOR. LA PARTIDA SIGUE.\n¿QUE SIGNIFICA BORRAR?",
+		"text": "EL DISPOSITIVO TERMONUCLEAR BRILLA.\nLIMPIA UN SECTOR. LA PARTIDA SIGUE.\n¿QUÉ SIGNIFICA BORRAR?",
 		"choices": ["SOLO LA SUCIEDAD EXTREMA.", "UN REINICIO LOCAL.", "PODER ABSOLUTO."],
 		"allow": [0, 1, 2],
 		"moral": [1, 0, -1],
@@ -445,55 +491,55 @@ const GAZE := {
 	},
 	"neglect": {
 		"kind": "reflect",
-		"text": "SE QUEDAN QUIETOS Y TE MIRAN.\nUNO HA MUERTO DE DESCUIDO.\n¿QUE ES EL CUIDADO?",
-		"choices": ["ESTAR PENDIENTE DE CADA UNO.", "NO PUEDO CON TANTOS.", "ERA SOLO UN NUMERO."],
+		"text": "SE QUEDAN QUIETOS Y TE MIRAN.\nUNO HA MUERTO DE DESCUIDO.\n¿QUÉ ES EL CUIDADO?",
+		"choices": ["ESTAR PENDIENTE DE CADA UNO.", "NO PUEDO CON TANTOS.", "ERA SOLO UN NÚMERO."],
 		"allow": [0, 1, 2],
 		"moral": [1, 0, -1],
 		"mutate": ["care", "", "numb"],
 	},
 	"tool": {
 		"kind": "reflect",
-		"text": "LA HERRAMIENTA HA MATADO.\nTODOS GIRAN LA CARA HACIA TI.\n¿QUE ES UNA VIDA PEQUEÑA?",
-		"choices": ["UN ACCIDENTE. IRE CON CUIDADO.", "EL PROGRESO SE COBRA PEAJE.", "NO PIENSO EN ELLOS COMO PERSONAS."],
+		"text": "LA HERRAMIENTA HA MATADO.\nTODOS GIRAN LA CARA HACIA TÍ.\n¿QUÉ ES UNA VIDA PEQUEÑA?",
+		"choices": ["UN ACCIDENTE. IRÉ CON CUIDADO.", "EL PROGRESO SE COBRA PEAJE.", "NO PIENSO EN ELLOS COMO PERSONAS."],
 		"allow": [0, 1, 2],
 		"moral": [1, 0, -1],
 		"mutate": ["care", "hard", "numb"],
 	},
 	"bug": {
 		"kind": "confirm",
-		"text": "¿POR QUE USAS TU PODER ASI?\nEL BICHO ABRE UN CUERPO Y DEJA HUESO.",
-		"choices": ["EL PUENTE NECESITA ESA ENERGIA.", "SOLO ES MATERIAL.", "NO LO HARE."],
+		"text": "¿POR QUÉ USAS TU PODER ASÍ?\nEL BICHO ABRE UN CUERPO Y DEJA HUESO.",
+		"choices": ["EL PUENTE NECESITA ESA ENERGÍA.", "SOLO ES MATERIAL.", "NO LO HARÉ."],
 		"allow": [0, 1],
 		"moral": [0, -1, 1],
 		"mutate": ["hard", "numb", "care"],
 	},
 	"bones": {
 		"kind": "reflect",
-		"text": "EL PUENTE ESTA HECHO DE LOS NUESTROS.\n¿ES UN CAMINO O UNA TUMBA?",
-		"choices": ["UN CAMINO PARA LOS QUE SIGUEN.", "LAS DOS COSAS.", "NO DEBIO CONSTRUIRSE ASI."],
+		"text": "EL PUENTE ESTÁ HECHO DE LOS NUESTROS.\n¿ES UN CAMINO O UNA TUMBA?",
+		"choices": ["UN CAMINO PARA LOS QUE SIGUEN.", "LAS DOS COSAS.", "NO DEBIÓ CONSTRUIRSE ASÍ."],
 		"allow": [0, 1, 2],
 		"moral": [0, 0, 1],
 		"mutate": ["fuel", "adapt", "care"],
 	},
 	"goo": {
 		"kind": "reflect",
-		"text": "EL SUELO SE VUELVE MORADO.\n¿PARA QUIEN ES EL PROGRESO?",
-		"choices": ["PARARE LAS FABRICAS SI ENFERMAN.", "LAS GEMAS VALEN MAS QUE EL SUELO.", "QUE SE ADAPTEN."],
+		"text": "EL SUELO SE VUELVE MORADO.\n¿PARA QUIÉN ES EL PROGRESO?",
+		"choices": ["PARARÉ LAS FÁBRICAS SI ENFERMAN.", "LAS GEMAS VALEN MÁS QUE EL SUELO.", "QUE SE ADAPTEN."],
 		"allow": [0, 1, 2],
 		"moral": [1, -1, -1],
 		"mutate": ["care", "fuel", "adapt"],
 	},
 	"burn": {
 		"kind": "confirm",
-		"text": "QUIERES VOLVER GEMAS A LOS MUERTOS.\n¿QUE ES UN CUERPO PARA TI?",
-		"choices": ["ENERGIA. QUE NO SE DESPERDICIE.", "UN ENTIERRO INDUSTRIAL.", "NO SE QUEMAN."],
+		"text": "QUIERES VOLVER GEMAS A LOS MUERTOS.\n¿QUÉ ES UN CUERPO PARA TI?",
+		"choices": ["ENERGÍA. QUE NO SE DESPERDICIE.", "UN ENTIERRO INDUSTRIAL.", "NO SE QUEMAN."],
 		"allow": [0, 1],
 		"moral": [-1, -1, 1],
 		"mutate": ["fuel", "fuel", "care"],
 	},
 	"nuke": {
 		"kind": "confirm",
-		"text": "ESTA LUZ VACIA EL SECTOR.\nLA PARTIDA NO TERMINA. ELLOS RECUERDAN.\n¿QUE BORRAS CUANDO LIMPIAS?",
+		"text": "ESTA LUZ VACÍA EL SECTOR.\nLA PARTIDA NO TERMINA. LOS MULTIS RECUERDAN.\n¿QUÉ BORRAS CUANDO LIMPIAS?",
 		"choices": ["LA SUCIEDAD, NO A LOS VIVOS.", "TODO LO QUE ESTORBA.", "GUARDAR EL DISPOSITIVO."],
 		"allow": [0, 1],
 		"moral": [1, -1, 1],
@@ -564,6 +610,9 @@ static func icon_for_building(kind: int) -> int:
 
 static func feature_blocks(kind: int) -> bool:
 	return kind == FEAT_TREE or kind == FEAT_ROCK or kind == FEAT_BIGROCK or kind == FEAT_COSMETIC or kind == FEAT_COSMETIC_BAD or kind == FEAT_NODE or kind == FEAT_SUPER or kind == FEAT_ORE_MEGA or kind == FEAT_ORE_SUPER or kind == FEAT_ORE_ULTRA or kind == FEAT_MONOLITH or kind == FEAT_TOTEM
+
+static func building_blocks(kind: int) -> bool:
+	return kind == BLD_TUB or kind == BLD_APPLE or kind == BLD_ROUND or kind == BLD_DWELL or kind == BLD_FANCY or kind == BLD_MINE or kind == BLD_MINE2 or kind == BLD_FACTORY or kind == BLD_FACTORY2 or kind == BLD_THEATRE or kind == BLD_MARKET or kind == BLD_FLOWER or kind == BLD_STATUE or kind == BLD_WOOD
 
 static func tile_blocks(tile: int) -> bool:
 	return tile == TILE_WATER or tile == TILE_MOUNTAIN or tile == TILE_RUBBLE or tile == TILE_FOG or tile == TILE_VOID
