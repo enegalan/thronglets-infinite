@@ -578,9 +578,40 @@ def _sample_tile(img, ox, src):
                 px(img, ox + x, y, (int(color[0] * shade), int(color[1] * shade), int(color[2] * shade), 255))
 
 
-def _stamp_tile(img, ox, src):
-    fitted = _fit(src.convert("RGBA"), 32, 22)
-    img.alpha_composite(fitted, (ox + (32 - fitted.size[0]) // 2, 4))
+def _opaque_fill(src):
+    src = src.convert("RGBA")
+    opaque = [pixel for pixel in src.getdata() if pixel[3] > 16]
+    if not opaque:
+        return src
+    count = len(opaque)
+    fill = (
+        sum(pixel[0] for pixel in opaque) // count,
+        sum(pixel[1] for pixel in opaque) // count,
+        sum(pixel[2] for pixel in opaque) // count,
+        255,
+    )
+    out = src.copy()
+    pixels = out.load()
+    for y in range(out.size[1]):
+        for x in range(out.size[0]):
+            if pixels[x, y][3] < 16:
+                pixels[x, y] = fill
+    return out
+
+
+def _plank_seams(img, ox):
+    seam = (72, 48, 28, 255)
+    for y in range(32):
+        for x in range(32):
+            nx = (x + 0.5 - 16.0) / 16.0
+            ny = (y + 0.5 - 16.0) / 8.0
+            if abs(nx) + abs(ny) > 1.0:
+                continue
+            # Thin grooves between ~3 planks across the diamond top.
+            across = ((nx - ny) + 2.0) * 1.5
+            frac = across - int(across)
+            if frac < 0.08 or frac > 0.92:
+                px(img, ox + x, y, seam)
 
 
 def make_terrain():
@@ -593,15 +624,14 @@ def make_terrain():
     mountain = _tex("TEMP_Mountain_Bright.png")
     rubble = _tex("TEMP_Mountain_Darker.png")
     goo = _tex("T_PollutedTile_GroundVariant.png")
-    wood = _tex("Bridge_Wood_Iso_A.png")
-    bone = _tex("Bridge_Bones_Iso_A.png")
+    # Bridge_*_Iso_A are full segment sprites, not terrain diamonds.
+    # Sample their material into the same iso tile shape as grass/dirt.
+    wood = _opaque_fill(_tex("Bridge_Wood_Iso_A.png"))
+    bone = _opaque_fill(_tex("Bridge_Bones_Iso_A.png"))
     tiles = (grass, dirt, water, mountain, rubble, goo, wood, bone, None, grass_dark, ground_a, ground_b)
     img = new(32 * len(tiles), 32)
     for i, src in enumerate(tiles):
         if src is None:
-            continue
-        if i in (6, 7):
-            _stamp_tile(img, i * 32, src)
             continue
         _sample_tile(img, i * 32, src)
         if i == 3:
@@ -609,6 +639,8 @@ def make_terrain():
             light = tuple(min(255, int(channel * 1.3)) for channel in mid[:3]) + (255,)
             dark = tuple(int(channel * 0.55) for channel in mid[:3]) + (255,)
             _peak(img, i * 32, light, dark)
+        elif i == 6:
+            _plank_seams(img, i * 32)
     img.save(OUT("resources", "tiles", "terrain_tileset.png"))
     make_space()
 
@@ -664,6 +696,67 @@ def make_frame():
     rect(slot, 2, 2, 20, 20, (232, 214, 176, 255))
     rect(slot, 4, 4, 16, 16, (244, 232, 204, 255))
     slot.save(OUT("resources", "ui", "ui_slot.png"))
+    make_speech_bubble()
+
+
+# Original Thronglets passive-dialogue bubble colors (Sprites-Misc speechbubble).
+BUBBLE_FILL = (190, 213, 221, 255)
+BUBBLE_HI = (214, 228, 232, 255)
+BUBBLE_SHADE = (150, 172, 182, 255)
+BUBBLE_OUT = (19, 10, 68, 255)
+
+
+def _bubble_round_rect(img, x, y, w, h, fill, outline):
+    for yy in range(h):
+        for xx in range(w):
+            if (xx, yy) in ((0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1)):
+                continue
+            px(img, x + xx, y + yy, fill)
+    for xx in range(1, w - 1):
+        px(img, x + xx, y, outline)
+        px(img, x + xx, y + h - 1, outline)
+    for yy in range(1, h - 1):
+        px(img, x, y + yy, outline)
+        px(img, x + w - 1, y + yy, outline)
+    for cx, cy in (
+        (1, 0), (0, 1), (w - 2, 0), (w - 1, 1),
+        (1, h - 1), (0, h - 2), (w - 2, h - 1), (w - 1, h - 2),
+    ):
+        px(img, x + cx, y + cy, outline)
+
+
+def make_speech_bubble():
+    # Compact 9-slice matched to Sprites-Misc speechbubble (fill/outline).
+    bw, bh = 24, 20
+    body = new(bw, bh)
+    _bubble_round_rect(body, 0, 0, bw, bh, BUBBLE_FILL, BUBBLE_OUT)
+    for xx in range(2, bw - 2):
+        px(body, xx, 1, BUBBLE_HI)
+        px(body, xx, bh - 2, BUBBLE_SHADE)
+    for yy in range(2, bh - 2):
+        px(body, 1, yy, BUBBLE_HI)
+        px(body, bw - 2, yy, BUBBLE_SHADE)
+    body.save(OUT("resources", "ui", "speech_bubble_9patch.png"))
+
+    tw, th = 11, 8
+    tail = new(tw, th)
+    rows = (
+        "OOOOOOOOOOO",
+        "O#########O",
+        "O#########O",
+        " O#######O ",
+        "  O#####O  ",
+        "   O###O   ",
+        "    O#O    ",
+        "     O     ",
+    )
+    for y, row in enumerate(rows):
+        for x, ch in enumerate(row):
+            if ch == "O":
+                px(tail, x, y, BUBBLE_OUT)
+            elif ch == "#":
+                px(tail, x, y, BUBBLE_FILL)
+    tail.save(OUT("resources", "ui", "speech_bubble_tail.png"))
 
 
 # 5x7 glyphs. Rows are the low 5 bits, top to bottom.
@@ -961,7 +1054,8 @@ def _item_box(icon):
 
 def _cell_sprite(img):
     cell = new(CELL_W, CELL_H)
-    cell.alpha_composite(img, ((CELL_W - img.size[0]) // 2, CELL_H - img.size[1]))
+    x = (CELL_W - img.size[0]) // 2
+    cell.alpha_composite(img, (x, CELL_H - img.size[1]))
     return cell
 
 
@@ -1012,6 +1106,15 @@ def make_world():
         _stamp_frame(sheet, cols, 140 + i, _fit(frame, 24, 30))
     sheet = _stamp_throng_anims(sheet, cols)
     sheet.save(OUT("resources", "sprites", "world_iso.png"))
+    # Drop Godot's cached .ctex so the next run picks up the new sheet.
+    imported = OUT(".godot", "imported")
+    if os.path.isdir(imported):
+        for name in os.listdir(imported):
+            if name.startswith("world_iso.png-") or name.startswith("world_iso_dirt.png-"):
+                try:
+                    os.remove(os.path.join(imported, name))
+                except OSError:
+                    pass
 
 
 def _shrink_body(tile, max_w, max_h):
@@ -1099,9 +1202,12 @@ def _crop_unity(atlas, rect):
 
 def _load_throng_clips():
     folder = os.path.join(ROOT, "references", "Assets", "Sprite")
+    tex_dir = os.path.join(ROOT, "references", "Assets", "Texture2D")
     atlas = Image.open(os.path.join(
-        ROOT, "references", "Assets", "Texture2D",
-        "sactx-0-2048x2048-Uncompressed-Sprites-Thronglets-fc0e3430.png",
+        tex_dir, "sactx-0-2048x2048-Uncompressed-Sprites-Thronglets-fc0e3430.png",
+    )).convert("RGBA")
+    dirt_atlas = Image.open(os.path.join(
+        tex_dir, "sactx-0-2048x2048-Uncompressed-Sprites-Thronglets-fc0e3430?_DirtTex.png",
     )).convert("RGBA")
     groups = {}
     for name in sorted(os.listdir(folder)):
@@ -1116,10 +1222,15 @@ def _load_throng_clips():
         if not rect:
             continue
         groups.setdefault(clip, [])
-        groups[clip].append((order, name, _crop_unity(atlas, rect)))
+        groups[clip].append((
+            order,
+            name,
+            _crop_unity(atlas, rect),
+            _crop_unity(dirt_atlas, rect),
+        ))
     clips = {}
     for clip in sorted(groups):
-        frames = [img for _order, _name, img in sorted(groups[clip])]
+        frames = [(img, dirt) for _order, _name, img, dirt in sorted(groups[clip])]
         clips[clip] = frames
     return clips
 
@@ -1192,7 +1303,7 @@ def _throng_crop(frame):
 
 def _throng_scale(frames):
     heights = []
-    for frame in frames:
+    for frame, _dirt in frames:
         cropped = _throng_crop(frame)
         if cropped.size[1] > 0 and frame.getbbox():
             heights.append(cropped.size[1])
@@ -1205,14 +1316,23 @@ def _throng_scale(frames):
     return min(1.0, 20.0 / float(ref))
 
 
-def _throng_frame(frame, scale, wide):
-    cropped = _throng_crop(frame)
+def _throng_pair(frame, dirt, scale, wide):
+    box = frame.getbbox()
+    if not box:
+        empty = new(1, 1)
+        fitted = _fit(empty, 56 if wide else 24, 20)
+        return fitted, fitted.copy()
+    body = frame.crop(box)
+    grime = dirt.crop(box) if dirt is not None else new(body.size[0], body.size[1])
     if scale < 0.999:
-        cropped = cropped.resize(
-            (max(1, int(round(cropped.size[0] * scale))), max(1, int(round(cropped.size[1] * scale)))),
-            Image.NEAREST,
+        size = (
+            max(1, int(round(body.size[0] * scale))),
+            max(1, int(round(body.size[1] * scale))),
         )
-    return _fit(cropped, 56 if wide else 24, 20)
+        body = body.resize(size, Image.NEAREST)
+        grime = grime.resize(size, Image.NEAREST)
+    target = (56 if wide else 24, 20)
+    return _fit(body, target[0], target[1]), _fit(grime, target[0], target[1])
 
 
 def _stamp_throng_anims(sheet, cols):
@@ -1220,6 +1340,7 @@ def _stamp_throng_anims(sheet, cols):
     total = sum(len(frames) for frames in clips.values())
     rows = (THRONG_BASE + total + cols - 1) // cols
     sheet = _grow_sheet(sheet, cols, rows)
+    dirt_sheet = new(sheet.size[0], sheet.size[1])
     reserved = {
         "Throng_Walk_Anim_Spritesheet",
         "Throng_WalkBack_Anim_Spritesheet",
@@ -1243,8 +1364,10 @@ def _stamp_throng_anims(sheet, cols):
         start = index
         scale = _throng_scale(frames)
         wide = "Mitosis" in name
-        for frame in frames:
-            _stamp_frame(sheet, cols, index, _throng_frame(frame, scale, wide))
+        for frame, dirt in frames:
+            body, grime = _throng_pair(frame, dirt, scale, wide)
+            _stamp_frame(sheet, cols, index, body)
+            _stamp_frame(dirt_sheet, cols, index, grime)
             index += 1
         entries.append((name, start, len(frames)))
         if "Talk" in name:
@@ -1252,6 +1375,7 @@ def _stamp_throng_anims(sheet, cols):
         elif name not in reserved:
             idle.append(name)
     _write_throng_clips(entries, rows, talk, idle)
+    dirt_sheet.save(OUT("resources", "sprites", "world_iso_dirt.png"))
     print("throng clips", len(entries), "frames", total, "rows", rows)
     return sheet
 
