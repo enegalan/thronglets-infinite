@@ -2,6 +2,13 @@
 
 ## [Unreleased](https://github.com/enegalan/thronglets-infinite/compare/7851ab6...HEAD)
 
+### 2026-11-12
+
+- The task banner uses the OldOS goal frame: a cyan tag and a stretchable body. Letters use the Aline font, with the DOS face as a fallback. The wood panel is filled solid.
+- Thronglets draw smaller, and so do the tub, roundabout, egg, rocks, ore, and carried goods. Each kind has its own scale.
+- Talk follows trees drafted from the Spanish book. The console uses the original panel and border. Choices walk the tree, and ambient lines can open when nothing else is waiting.
+- On the development bench, you can pick several props at once and nudge them together.
+
 ### 2026-11-11
 
 - Buildings claim a footprint: the tub takes two tiles, homes and mines take a square, the theatre takes a wider pad. Ghost and place marks follow that shape.
