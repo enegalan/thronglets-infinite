@@ -781,6 +781,7 @@ func _sync_actors() -> void:
 				feat_frame = FIRE_ANIM + int(time_pre * 8.0) % 4
 			_push_iso(draws, feat_at, feat_frame, Color.WHITE)
 			_push_glitch_fumes(draws, int(feat.kind), feat_at, time_pre)
+			_push_anomaly_ray(draws, int(feat.kind), feat_at)
 	for it in sim.items:
 		if it.dead or it.held:
 			continue
@@ -1152,10 +1153,7 @@ func _feature_frame(kind: int, time: float, ore: int = 0) -> int:
 	if kind == Catalog.FEAT_GLITCH_HOUSE:
 		return AssetFrames.frame(AssetFrames.GLITCH_HOUSE, AssetFrames.GLITCH_HOUSE_N, tick)
 	if kind == Catalog.FEAT_ANOMALY:
-		return _listed_frame(int(time), [
-			[AssetFrames.ANOMALY, AssetFrames.ANOMALY_N],
-			[AssetFrames.ANOMALY_RAY, AssetFrames.ANOMALY_RAY_N],
-		], tick)
+		return AssetFrames.ANOMALY
 	if kind == Catalog.FEAT_FIRE:
 		if int(time) % 2 == 1:
 			var blob := AssetFrames.frame(AssetFrames.FIRE_BLOB, AssetFrames.FIRE_BLOB_N, tick)
@@ -1183,6 +1181,13 @@ func _listed_frame(pick: int, rows: Array, tick: int) -> int:
 		return -1
 	var row: Array = rows[posmod(pick, rows.size())]
 	return AssetFrames.frame(int(row[0]), int(row[1]), tick)
+
+
+func _push_anomaly_ray(draws: Array, kind: int, at: Vector2) -> void:
+	if kind != Catalog.FEAT_ANOMALY:
+		return
+	_push_iso(draws, at, AssetFrames.ANOMALY_RAY, Color.WHITE)
+	draws[draws.size() - 1]["sy"] = float(draws[draws.size() - 1].get("sy", 0.0)) + 0.5
 
 
 func _push_glitch_fumes(draws: Array, kind: int, at: Vector2, time: float) -> void:
@@ -1921,6 +1926,7 @@ func _focus_draws() -> Array:
 			feat_frame = FIRE_ANIM + int(time * 8.0) % 4
 		_push_iso(draws, feat_at, feat_frame, Color.WHITE)
 		_push_glitch_fumes(draws, int(feat.kind), feat_at, time)
+		_push_anomaly_ray(draws, int(feat.kind), feat_at)
 	for it in sim.items:
 		if it.dead or it.held:
 			continue
