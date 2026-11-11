@@ -1,6 +1,7 @@
 extends Node2D
 
 const ThrongletSim := preload("res://ThrongletSimServer.gd")
+const DevBench := preload("res://dev_bench.gd")
 
 var camera: Camera2D
 var tilemap: TileMapLayer
@@ -102,6 +103,9 @@ var res_label: Label
 var kit_open := false
 var kit_tab := 0
 var in_title := true
+var dev_on := false
+var dev_bench = null
+var dev_hud_vis := {}
 var title_root: Control
 var title_list: VBoxContainer
 var hand_from := Vector2.ZERO
@@ -166,7 +170,9 @@ func _ready() -> void:
 			if ui != null:
 				ui.visible = false
 	else:
-		if not _play_video("tuckersoft_logo_30fps_1MB", true):
+		if PropTune.consume_boot():
+			_enter_dev()
+		elif not _play_video("tuckersoft_logo_30fps_1MB", true):
 			_show_title()
 
 
@@ -176,7 +182,10 @@ func _input(event: InputEvent) -> void:
 		_on_video_finished()
 		get_viewport().set_input_as_handled()
 		return
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed and dev_on:
+		if dev_bench != null:
+			dev_bench.release_drag()
+	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
 		if not kit_drag.is_empty():
 			_end_kit_drag()
 		elif ThrongletSimServer.has_scoop():
@@ -223,6 +232,10 @@ func _zoom_factor(factor: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if dev_on:
+		if dev_bench != null:
+			dev_bench.input(event)
+		return
 	if in_title or ThrongletSimServer.game_over:
 		return
 	var sim: ThrongletSim = ThrongletSimServer
@@ -267,6 +280,11 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _process(delta: float) -> void:
+	if dev_on:
+		_move_camera(delta)
+		if dev_bench != null:
+			dev_bench.tick()
+		return
 	_sync_music()
 	_tick_birds(delta)
 	if in_title:
@@ -504,13 +522,13 @@ func _hand_release() -> void:
 
 func _move_camera(delta: float) -> void:
 	var keys := Vector2.ZERO
-	if Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT):
+	if Input.is_key_pressed(KEY_A) or (not dev_on and Input.is_key_pressed(KEY_LEFT)):
 		keys.x -= 1.0
-	if Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT):
+	if Input.is_key_pressed(KEY_D) or (not dev_on and Input.is_key_pressed(KEY_RIGHT)):
 		keys.x += 1.0
-	if Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP):
+	if Input.is_key_pressed(KEY_W) or (not dev_on and Input.is_key_pressed(KEY_UP)):
 		keys.y -= 1.0
-	if Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN):
+	if Input.is_key_pressed(KEY_S) or (not dev_on and Input.is_key_pressed(KEY_DOWN)):
 		keys.y += 1.0
 	camera.position += keys * 220.0 * delta / zoom_level
 	if dragging:
@@ -1625,7 +1643,9 @@ func _write_mesh(mesh: MultiMesh, draws: Array) -> void:
 	for i in n:
 		var sprite_scale := float(draws[i].get("scale", 1.0))
 		var flip := float(draws[i].get("flip", 1.0))
-		xf = Transform2D(0.0, Vector2(sprite_scale * flip, sprite_scale), 0.0, draws[i].p + Vector2(0, -WORLD_CELL * 0.5 * sprite_scale))
+		var rot := deg_to_rad(float(draws[i].get("rot", 0.0)))
+		var center := Vector2(0, -WORLD_CELL * 0.5 * sprite_scale).rotated(rot)
+		xf = Transform2D(rot, Vector2(sprite_scale * flip, sprite_scale), 0.0, draws[i].p + center)
 		mesh.set_instance_transform_2d(i, xf)
 		mesh.set_instance_custom_data(i, Color(float(draws[i].icon), float(draws[i].get("dirty", 0.0)), 0, 0))
 		mesh.set_instance_color(i, draws[i].tint)
@@ -2934,6 +2954,78 @@ func _enter_game() -> void:
 	ThrongletSimServer.paused = false
 
 
+func _enter_dev() -> void:
+	if dev_on and dev_bench != null:
+		return
+	var sim: ThrongletSim = ThrongletSimServer
+	sim.cancel_hold()
+	sim.paused = true
+	dev_on = true
+	in_title = false
+	if title_root:
+		title_root.visible = false
+	market_open = false
+	_cancel_kit_drag()
+	kit_open = false
+	_blank_play_ui()
+	if charge_ring:
+		charge_ring.visible = false
+	if charge_area:
+		charge_area.visible = false
+	for back in need_backs:
+		back.visible = false
+	for fill in need_fills:
+		fill.visible = false
+	_hide_marks()
+	for plate in biome_plates:
+		plate.visible = false
+	for id in _monoliths.keys():
+		var node: Node2D = _monoliths[id]
+		node.visible = false
+	dev_bench = DevBench.new()
+	dev_bench.setup(self)
+	add_child(dev_bench)
+	dev_bench.open()
+
+
+func _leave_dev() -> void:
+	if not dev_on:
+		return
+	dev_on = false
+	if dev_bench != null:
+		dev_bench.close()
+		dev_bench.queue_free()
+		dev_bench = null
+	_paint_props([])
+	painted.clear()
+	seen_epoch = -1
+	if tilemap:
+		tilemap.clear()
+	_restore_play_ui()
+	_show_title()
+
+
+func _blank_play_ui() -> void:
+	dev_hud_vis.clear()
+	if ui == null or ui.get_child_count() == 0:
+		return
+	var root := ui.get_child(0)
+	for child in root.get_children():
+		dev_hud_vis[child.get_instance_id()] = child.visible
+		child.visible = false
+
+
+func _restore_play_ui() -> void:
+	if ui == null or ui.get_child_count() == 0:
+		return
+	var root := ui.get_child(0)
+	for child in root.get_children():
+		var id := child.get_instance_id()
+		if dev_hud_vis.has(id):
+			child.visible = bool(dev_hud_vis[id])
+	dev_hud_vis.clear()
+
+
 func _fill_title() -> void:
 	_clear_menu(title_list)
 	if _has_continue():
@@ -2943,6 +3035,7 @@ func _fill_title() -> void:
 		_enter_game()
 	)
 	_menu_button(title_list, "CARGAR", _fill_title_slots)
+	_menu_button(title_list, "DESARROLLO", _enter_dev)
 	_menu_button(title_list, "SALIR", _quit_game)
 
 
@@ -3058,6 +3151,7 @@ func _menu_label(list: VBoxContainer, text: String) -> void:
 	title.text = text
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title.add_theme_color_override("font_color", _menu_ink())
 	list.add_child(title)
 
 
@@ -3075,8 +3169,11 @@ func _menu_button(list: VBoxContainer, text: String, call: Callable, disabled: b
 	button.add_theme_stylebox_override("focus", hover)
 	button.add_theme_stylebox_override("pressed", pressed)
 	button.add_theme_stylebox_override("hover_pressed", pressed)
-	button.add_theme_color_override("font_hover_color", Color(0.28, 0.14, 0.05))
-	button.add_theme_color_override("font_focus_color", Color(0.28, 0.14, 0.05))
+	var ink := _menu_ink()
+	button.add_theme_color_override("font_color", ink)
+	button.add_theme_color_override("font_hover_color", ink)
+	button.add_theme_color_override("font_focus_color", ink)
+	button.add_theme_color_override("font_disabled_color", Color(0.45, 0.32, 0.22))
 	button.add_theme_color_override("font_pressed_color", Color(1.0, 0.94, 0.82))
 	button.add_theme_color_override("font_hover_pressed_color", Color(1.0, 0.94, 0.82))
 	button.pressed.connect(func() -> void:
@@ -3183,6 +3280,10 @@ func _tex(path: String) -> Texture2D:
 	var tex: Texture2D = load(path)
 	textures[path] = tex
 	return tex
+
+
+func _menu_ink() -> Color:
+	return Color(0.28, 0.14, 0.05)
 
 
 func _panel_style() -> StyleBoxTexture:
