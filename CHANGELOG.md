@@ -18,6 +18,11 @@
 - The monolith is the original model. Anomaly and epilogue land show a plate over the chunk.
 - Talk quotes a line from the Spanish book, then the choice. The interface uses the DOS font, the wood frame, and the epilogue faces.
 - Mines and the market have their own ambience. Singing, splashes, and the rest of the original effects are in the bank. Thronglets also play the extra original clips, including the bored kick.
+- The anomaly is a pile with a ray above it, instead of one picture swapping for the other.
+- Thronglets use their original sprites and stand on their feet. Kicking a rock, the fire, and the hand no longer include a piece of another sprite.
+- The art the game builds from is stored with the game. The reference dump is only there to copy from, and can go when the game is finished.
+- The title opens a development bench for placing props and nudging each animation. Scale, position, and rotation can apply to the frame you see, or to every frame. Those notes stay out of the repository.
+- Title menu letters stay dark on the wood.
 
 ### 2026-11-10
 
