@@ -12,6 +12,12 @@
 - Bridge tiles match the grass diamonds, with plank seams on the wood span.
 - Thronglets path with more curiosity, keep clearer thoughts over their heads, and the talk and tool copy is tighter Spanish.
 - Debug shots land under `shots/` and stay out of git.
+- Pads were measured again. The factory is a short pad, mines and the theatre take a square, the market is wider, and homes take a larger square. Sprites sit on the middle of that pad. Several thronglets can ride the roundabout at once.
+- Grass wears down to a path, then to dirt, where they walk. Rivers and the wasteland use their own ground tiles.
+- Later, the world opens a mountain, a glitch land, an anomaly, and an epilogue. Each has its own props, music, and a short film the first time the camera arrives. A click skips a film. The Tuckersoft logo plays before the title.
+- The monolith is the original model. Anomaly and epilogue land show a plate over the chunk.
+- Talk quotes a line from the Spanish book, then the choice. The interface uses the DOS font, the wood frame, and the epilogue faces.
+- Mines and the market have their own ambience. Singing, splashes, and the rest of the original effects are in the bank. Thronglets also play the extra original clips, including the bored kick.
 
 ### 2026-11-10
 
