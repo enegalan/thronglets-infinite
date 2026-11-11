@@ -127,7 +127,31 @@ def _promote_panel():
             best_area = area
             best = path
     if best:
-        shutil.copy2(best, os.path.join(RES, "ui", "wood_panel.png"))
+        dest = os.path.join(RES, "ui", "wood_panel.png")
+        shutil.copy2(best, dest)
+        _fill_wood_panel(dest)
+
+
+def _fill_wood_panel(path):
+    from PIL import Image
+    from collections import deque
+
+    image = Image.open(path).convert("RGBA")
+    width, height = image.size
+    pixels = image.load()
+    fill = (58, 38, 24, 255)
+    queue = deque([(width // 2, height // 2)])
+    seen = set()
+    while queue:
+        x, y = queue.popleft()
+        if (x, y) in seen or x < 0 or y < 0 or x >= width or y >= height:
+            continue
+        seen.add((x, y))
+        if pixels[x, y][3] > 16:
+            continue
+        pixels[x, y] = fill
+        queue.extend(((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)))
+    image.save(path)
 
 
 def copy_audio(rows):
@@ -150,11 +174,16 @@ def copy_audio(rows):
 
 
 def copy_font(rows):
-    src = os.path.join(REF, "Font", "PerfectDOSVGA437.ttf")
-    dest = os.path.join(RES, "ui", "PerfectDOSVGA437.ttf")
-    if os.path.isfile(src):
-        shutil.copy2(src, dest)
-        rows.append(row(rel(src), rel(dest), "Main.gd _build_ui", "enganchado"))
+    fonts = [
+        ("Resources", "aline_font.ttf", "aline_font.ttf"),
+        ("Font", "PerfectDOSVGA437.ttf", "PerfectDOSVGA437.ttf"),
+    ]
+    for folder, name, dest_name in fonts:
+        src = os.path.join(REF, folder, name)
+        dest = os.path.join(RES, "ui", dest_name)
+        if os.path.isfile(src):
+            shutil.copy2(src, dest)
+            rows.append(row(rel(src), rel(dest), "Main.gd _build_ui", "enganchado"))
 
 
 def copy_faces(rows):

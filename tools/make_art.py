@@ -154,9 +154,9 @@ def _paint_corpse(img):
 
 # World sheet cell. Main.gd WORLD_CELL must match. Sprites are bottom-centered in the cell.
 CELL_W, CELL_H = 128, 128
-# Buildings and props grow by 2 so a 30x34 thronglet stays smaller than a house.
+# Small HUD/fallback glyphs in the low icon band. Big props keep Unity pixels.
 PROP_SCALE = 2
-# Screen pixels per original unity unit. Thronglet is 0.34u -> 18px. One tile is 32px.
+# Reference only. Props pack at native size; throng draw scale carries world size.
 PX_PER_UNIT = 52.0
 
 
@@ -946,12 +946,12 @@ def _fit(img, max_w, max_h, zoom=1):
 
 
 def _px(img, ppu=100.0):
-    scale = PX_PER_UNIT / float(ppu)
-    dw = max(1, int(round(img.size[0] * scale)))
-    dh = max(1, int(round(img.size[1] * scale)))
-    if dw == img.size[0] and dh == img.size[1]:
+    # Keep Unity pixels. Draw scale (throngs) or footprint sizing carries world size.
+    # Only shrink when the sprite cannot fit the world cell.
+    _ = ppu
+    if img.size[0] <= CELL_W and img.size[1] <= CELL_H:
         return img
-    return img.resize((dw, dh), Image.NEAREST)
+    return _fit(img, CELL_W, CELL_H)
 
 
 def _gray(img):
@@ -980,10 +980,10 @@ def _tint(img, mul):
 
 
 def _world_sprites():
-    # Rocks and stumps stay small. Everything else shares the thronglet scale.
+    # Keep Unity pixels for world props. Only shrink when a sprite cannot fit the cell.
     tree = _px(_ref("tree.png"), 54)
-    rock = _fit(_ref("rock.png"), 14, 12)
-    ore = _fit(_ref("ore_rock.png"), 18, 16)
+    rock = _px(_ref("rock.png"))
+    ore = _px(_ref("ore_rock.png"))
     node = _px(_ref("node.png"))
     super_gem = _px(_ref("super.png"))
     apple = tree
@@ -1001,7 +1001,7 @@ def _world_sprites():
     monolith = _px(_ref("monolith.png"))
     statue = _px(_ref("statue.png"))
     goo = _px(_ref("goo.png"))
-    bigrock = _fit(_ref("bigrock.png"), 24, 22)
+    bigrock = _px(_ref("bigrock.png"))
     cosmetic = _px(_ref("cosmetic.png"))
     cosmetic_bad = _px(_ref("cosmetic_bad.png"))
     ore_mega = _px(_ref("ore_mega.png"))
@@ -1015,7 +1015,7 @@ def _world_sprites():
     superbug = _px(_ref("superbug.png"))
     theatre2 = _px(_ref("theatre2.png"))
     maw = _px(_ref("maw.png"))
-    mstump = _fit(_ref("mstump.png"), 16, 14)
+    mstump = _px(_ref("mstump.png"))
     mnode = _px(_ref("mnode.png"))
     sprites = (
         tree, rock, ore, node, super_gem, apple, tub, merry, dwell, fancy,
@@ -1024,14 +1024,14 @@ def _world_sprites():
         wood_statue, fire, totem, curer, jack, superbug, theatre2, maw, mstump, mnode,
     )
     extras = {
-        3: _fit(_ref("stump.png"), 16, 14),
+        3: _px(_ref("stump.png")),
         23: _px(_ref("flower.png")),
-        41: _fit(_ref("fx_chop.png"), 32, 32),
-        42: _fit(_ref("fx_hammer.png"), 32, 32),
-        43: _fit(_ref("fx_spark.png"), 28, 28),
-        44: _fit(_ref("fx_boom.png"), 36, 36),
-        45: _fit(_ref("fx_poof.png"), 36, 36),
-        46: _fit(_ref("fx_blood.png"), 40, 16),
+        41: _px(_ref("fx_chop.png")),
+        42: _px(_ref("fx_hammer.png")),
+        43: _px(_ref("fx_spark.png")),
+        44: _px(_ref("fx_boom.png")),
+        45: _px(_ref("fx_poof.png")),
+        46: _px(_ref("fx_blood.png")),
     }
     icons = {
         2: tree, 3: extras[3], 4: rock, 5: ore, 6: node, 7: super_gem,
@@ -1090,20 +1090,6 @@ def _ui_icon(index):
     return tile
 
 
-def _item_box(icon):
-    # Loose props match the log (18x14). The apple source is the 12x14 frame.
-    boxes = {
-        0: (12, 14),
-        1: (12, 12),
-        8: (18, 14),
-        9: (26, 16),
-        10: (16, 14),
-        26: (14, 22),
-        40: (12, 16),
-    }
-    return boxes.get(icon, (16, 16))
-
-
 def _cell_sprite(img):
     cell = new(CELL_W, CELL_H)
     x = (CELL_W - img.size[0]) // 2
@@ -1130,14 +1116,13 @@ def make_world():
         if icon in WORLD_EXTRAS:
             tile = WORLD_EXTRAS[icon]
         elif icon in ITEM_ICONS:
-            box = _item_box(icon)
-            tile = _fit(ITEM_ICONS[icon], box[0], box[1])
+            tile = _px(ITEM_ICONS[icon])
         elif icon in WORLD_ICONS:
-            tile = _fit(WORLD_ICONS[icon], 16 * PROP_SCALE, 16 * PROP_SCALE)
+            tile = _px(WORLD_ICONS[icon])
         else:
             tile = new(16, 16)
             draw_icon(tile, 0, 0, icon)
-            tile = tile.resize((16 * PROP_SCALE, 16 * PROP_SCALE), Image.NEAREST)
+            tile = _px(tile.resize((16 * PROP_SCALE, 16 * PROP_SCALE), Image.NEAREST))
         sheet.alpha_composite(tile, (
             (index % cols) * CELL_W + (CELL_W - tile.size[0]) // 2,
             (index // cols) * CELL_H + CELL_H - tile.size[1],
@@ -1147,7 +1132,7 @@ def make_world():
         sheet.alpha_composite(_cell_sprite(img), ((index % cols) * CELL_W, (index // cols) * CELL_H))
     # Egg wiggle/crack/hatch and the roundabout spin. Frames 87-91 and 132-139 are free.
     for i in range(5):
-        _stamp_frame(sheet, cols, 87 + i, _fit(_ref("egg_%d.png" % i), 12, 16))
+        _stamp_frame(sheet, cols, 87 + i, _px(_ref("egg_%d.png" % i)))
     for i in range(8):
         _stamp_frame(sheet, cols, 132 + i, _px(_ref("round_%d.png" % i)))
     # Animated ground fire. fire.png stays the bubble glyph, not this.
@@ -1155,7 +1140,7 @@ def make_world():
     for i in range(4):
         src = i * 4
         frame = flame.crop((src * 32, 0, src * 32 + 32, 32))
-        _stamp_frame(sheet, cols, 140 + i, _fit(frame, 24, 30))
+        _stamp_frame(sheet, cols, 140 + i, _px(frame))
     sheet = _stamp_throng_anims(sheet, cols)
     sheet.save(OUT("resources", "sprites", "world_iso.png"))
     # Drop Godot's cached .ctex so the next run picks up the new sheet.
@@ -1187,13 +1172,37 @@ def _stamp_frame(sheet, cols, index, img):
 
 
 def make_hud():
-    ring = new(56, 56)
-    for y in range(56):
-        for x in range(56):
-            d = ((x - 27.5) ** 2 + (y - 27.5) ** 2) ** 0.5
-            if d <= 26.0:
-                color = (92, 58, 28, 255) if d >= 22.0 else (244, 228, 196, 255)
-                px(ring, x, y, color)
+    # Real ThrongletCounter frame from the Unity atlas (cream ring + dark well).
+    atlas_path = os.path.join(
+        SRC_TEX, "sactx-0-512x256-Uncompressed-Sprites-ThrongletCounter-5537a982.png",
+    )
+    if not os.path.isfile(atlas_path):
+        atlas_path = OUT(
+            "references", "Assets", "Texture2D",
+            "sactx-0-512x256-Uncompressed-Sprites-ThrongletCounter-5537a982.png",
+        )
+    meta_path = os.path.join(SRC_SPRITE, "ThrongletCounter.json")
+    if os.path.isfile(atlas_path) and os.path.isfile(meta_path):
+        atlas = Image.open(atlas_path).convert("RGBA")
+        meta = json.load(open(meta_path))
+        settings = int((meta.get("m_RD") or {}).get("m_SettingsRaw") or 0)
+        ring = _crop_unity(atlas, meta["m_Rect"], settings)
+        out = new(56, 56)
+        # Native cell is ~60px; center-crop into the 56 HUD badge.
+        ox = (ring.size[0] - 56) // 2
+        oy = (ring.size[1] - 56) // 2
+        out.alpha_composite(ring, (-ox, -oy))
+        ring = out
+    else:
+        ring = new(56, 56)
+        for y in range(56):
+            for x in range(56):
+                d = ((x - 27.5) ** 2 + (y - 27.5) ** 2) ** 0.5
+                if d <= 26.0:
+                    color = (92, 58, 28, 255) if d >= 22.0 else (232, 189, 152, 255)
+                    if d < 15.0:
+                        color = (75, 49, 35, 255)
+                    px(ring, x, y, color)
     ring.save(OUT("resources", "ui", "ui_circle.png"))
     kit = new(32, 32)
     for y in range(32):
@@ -1213,6 +1222,22 @@ def make_hud():
     rect(kit, 24, 6, 3, 7, metal)
     rect(kit, 20, 8, 4, 3, hole)
     kit.save(OUT("resources", "ui", "ui_kit.png"))
+    # OldOS goal banner: white outer, cyan ring, stretchable panes.
+    white = (255, 255, 255, 255)
+    cyan_ring = (3, 209, 255, 255)
+    cyan_fill = (88, 200, 218, 255)
+    grey_fill = (213, 210, 209, 255)
+    goal = new(16, 16)
+    rect(goal, 0, 0, 16, 16, white)
+    rect(goal, 3, 3, 10, 10, cyan_ring)
+    rect(goal, 4, 4, 8, 8, (0, 0, 0, 0))
+    goal.save(OUT("resources", "ui", "ui_goal_frame.png"))
+    tag = new(8, 8)
+    rect(tag, 0, 0, 8, 8, cyan_fill)
+    tag.save(OUT("resources", "ui", "ui_goal_tag.png"))
+    body = new(8, 8)
+    rect(body, 0, 0, 8, 8, grey_fill)
+    body.save(OUT("resources", "ui", "ui_goal_body.png"))
 
 
 THRONG_SKIP = (
@@ -1237,7 +1262,23 @@ def _throng_key(base):
     return base, 0
 
 
-def _crop_unity(atlas, rect):
+def _unity_unpack(img, settings_raw):
+    # Undo SpritePackingRotation from settingsRaw when the atlas cell is packed.
+    if not (int(settings_raw) & 1):
+        return img
+    rotation = (int(settings_raw) >> 2) & 0xF
+    if rotation == 1:
+        return img.transpose(Image.FLIP_LEFT_RIGHT)
+    if rotation == 2:
+        return img.transpose(Image.FLIP_TOP_BOTTOM)
+    if rotation == 3:
+        return img.transpose(Image.ROTATE_180)
+    if rotation == 4:
+        return img.transpose(Image.ROTATE_270)
+    return img
+
+
+def _crop_unity(atlas, rect, settings_raw=0):
     x = int(round(rect["m_X"]))
     y = int(round(rect["m_Y"]))
     w = max(1, int(round(rect["m_Width"])))
@@ -1249,7 +1290,7 @@ def _crop_unity(atlas, rect):
     lower = min(atlas.size[1], top + h)
     if right <= left or lower <= upper:
         return new(1, 1)
-    return atlas.crop((left, upper, right, lower))
+    return _unity_unpack(atlas.crop((left, upper, right, lower)), settings_raw)
 
 
 def _kickrock_strip(dirt_atlas):
@@ -1311,12 +1352,13 @@ def _load_throng_clips():
         if not rect:
             continue
         pivot = data.get("m_Pivot") or {}
+        settings_raw = int((data.get("m_RD") or {}).get("m_SettingsRaw") or 0)
         groups.setdefault(clip, [])
         groups[clip].append((
             order,
             name,
-            _crop_unity(atlas, rect),
-            _crop_unity(dirt_atlas, rect),
+            _crop_unity(atlas, rect, settings_raw),
+            _crop_unity(dirt_atlas, rect, settings_raw),
             (float(pivot.get("m_X", 0.5)), float(pivot.get("m_Y", 0.5))),
         ))
     kick = _kickrock_strip(dirt_atlas)
@@ -1509,7 +1551,8 @@ def _sprite_cuts(filename):
         rect = data.get("m_Rect")
         if not rect or float(rect.get("m_Width", 0)) < 1:
             continue
-        found.append((int(tail) if tail else 0, _crop_unity(img, rect)))
+        settings_raw = int((data.get("m_RD") or {}).get("m_SettingsRaw") or 0)
+        found.append((int(tail) if tail else 0, _crop_unity(img, rect, settings_raw)))
     found.sort(key=lambda item: item[0])
     frames = [frame for _order, frame in found]
     if not frames:
@@ -1607,7 +1650,7 @@ def _stamp_fx_and_biomes(sheet, cols, index):
     take("TILE_GLITCH", "Tile_Glitch_Anim_Spritesheet.png", (40, 40))
     take("HAND", "Hand_PickUp_Spritesheet.png", (36, 36), 4)
     take("FIRE", "T_FireSprites_Color_16x1.png", (32, 24), 16)
-    take("GLITCH_HOUSE", "Prop_Dwelling_Glitchy_Act3.png", (48, 44))
+    take("GLITCH_HOUSE", "Prop_Dwelling_Glitchy_Act3.png", (CELL_W, CELL_H))
     take("GLITCH_TREE", "Prop_Tree_B_Glitchy_Act3.png", (40, 48))
     take("WASTE_TREE", "Props_Wasteland_Tree_A.png", (40, 48))
     take("ANOMALY", "Map_Anomaly_Pile_Sprite.png", (44, 36))
