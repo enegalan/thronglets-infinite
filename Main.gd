@@ -75,6 +75,9 @@ var shown_event := ""
 var toast_queue: Array = []
 var toast_msg := ""
 var toast_t := 0.0
+var save_flash_t := 0.0
+var save_pulse_seen := 0
+
 var ui: CanvasLayer
 var pop_label: Label
 var pop_face: TextureRect
@@ -129,6 +132,7 @@ var kit_tab := 0
 var in_title := true
 var hud_top: Control
 var menu_button: Button
+var save_icon: TextureRect
 var dos_root: Control
 var dos_label: Label
 var dos_full := ""
@@ -2011,6 +2015,13 @@ func _sync_hud(delta: float) -> void:
 	elif _want_place_grid():
 		info = "REJILLA ACTIVA  SUELTA EN UNA CELDA"
 	hint.text = info
+	if sim.save_pulse != save_pulse_seen:
+		save_pulse_seen = sim.save_pulse
+		save_flash_t = 1.6
+	if save_flash_t > 0.0:
+		save_flash_t -= delta
+	if save_icon != null:
+		save_icon.visible = save_flash_t > 0.0 and menu_button != null and menu_button.visible
 	for note in sim.take_notes():
 		toast_queue.append(str(note))
 		_play("console")
@@ -3988,14 +3999,35 @@ func _build_ui() -> void:
 	menu_button.offset_bottom = 28
 	menu_button.z_index = 42
 	menu_button.pressed.connect(_toggle_slots)
-	for i in 3:
-		var bar := ColorRect.new()
-		bar.color = Color(0.28, 0.16, 0.08)
-		bar.position = Vector2(5, 6 + i * 5)
-		bar.size = Vector2(16, 2)
-		bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		menu_button.add_child(bar)
+	var empty := StyleBoxEmpty.new()
+	menu_button.add_theme_stylebox_override("normal", empty)
+	menu_button.add_theme_stylebox_override("hover", empty)
+	menu_button.add_theme_stylebox_override("focus", empty)
+	menu_button.add_theme_stylebox_override("pressed", empty)
+	menu_button.add_theme_stylebox_override("hover_pressed", empty)
+	var menu_icon := TextureRect.new()
+	menu_icon.set_anchors_preset(Control.PRESET_FULL_RECT)
+	menu_icon.texture = _tex("res://resources/ui/menu_bars.png")
+	menu_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	menu_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	menu_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	menu_button.add_child(menu_icon)
 	root.add_child(menu_button)
+	save_icon = TextureRect.new()
+	save_icon.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	save_icon.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	save_icon.offset_left = -54
+	save_icon.offset_top = 4
+	save_icon.offset_right = -32
+	save_icon.offset_bottom = 28
+	save_icon.z_index = 42
+	save_icon.texture = _tex("res://resources/ui/save_disk.png")
+	save_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	save_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	save_icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	save_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	save_icon.visible = false
+	root.add_child(save_icon)
 	var pause_center := CenterContainer.new()
 	pause_center.set_anchors_preset(Control.PRESET_FULL_RECT)
 	pause_center.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -4295,6 +4327,8 @@ func _set_hud_shown(shown: bool) -> void:
 		hud_top.visible = shown
 	if menu_button != null:
 		menu_button.visible = shown
+	if save_icon != null and not shown:
+		save_icon.visible = false
 	if not shown:
 		_set_kit_shown(false)
 

@@ -164,6 +164,7 @@ var game_over := false
 # Seconds between autosaves. A later settings screen can change this. Zero turns it off.
 var autosave_interval := 60.0
 var autosave_t := 0.0
+var save_pulse := 0
 var hash_head := PackedInt32Array()
 var hash_next := PackedInt32Array()
 
@@ -3592,7 +3593,7 @@ func save_game() -> bool:
 			_line_up_gaze()
 		return false
 	file.store_var(data, true)
-	notes.append("PARTIDA GUARDADA.")
+	save_pulse += 1
 	if gazing:
 		_line_up_gaze()
 	return true
