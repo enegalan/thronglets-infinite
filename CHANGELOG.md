@@ -14,6 +14,12 @@
 - The console sits across the bottom, over the wood frame. The log and each choice have their own glyphs and swirls, and the border is a solid line. Opening a talk glitches the screen.
 - Speech uses the original animated bubble, with the tail aimed at the thronglet.
 - A factory fills one wedge per ore, up to eight, and then it takes no more. Ore stacks beside it in the order it arrived, and the factory spends the oldest first.
+- The development bench lists every strip on the sprite sheet. The egg and the roundabout stay off that list, because the sheet does not own them.
+- The population badge is the native counter cell. The ring and the face use the soft filter, so the cream ring stays whole.
+- After the Tuckersoft logo, a green DOS session types itself out: `TS-DOZ`, `TUCK96.IMG`, `HIMEM`, and the `.COM` directory. A click skips it.
+- The title has settings: video captions, a CRT overlay, and the language row with the original icons. Captions and the overlay are remembered.
+- The first minutes stay inside the wood frame. A plank sign steps through the opening lines before the tray and the counter appear. The counter reads `?` until that stretch ends. The first talk waits. A hatch pops a spark.
+- After that talk, the game asks what the thronglets should call you, asks you to confirm, and refuses an empty, unknown, or banned name.
 
 ### 2026-11-11
 
