@@ -6665,6 +6665,10 @@ func _check_opening(errors: Array) -> void:
 		errors.append("dos text")
 	if "TROPELES" not in dos or "NOHZDYVE" not in dos or "TSOFT_EDITOR" not in dos:
 		errors.append("dos dir")
+	var crt := LineBook.row("SYS.SETTINGS", 14)
+	print("OPENING CRT " + crt)
+	if crt != "Filtro de TRC":
+		errors.append("crt label")
 
 
 func _run_checks() -> void:

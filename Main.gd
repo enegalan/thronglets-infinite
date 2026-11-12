@@ -129,6 +129,9 @@ var dos_label: Label
 var dos_full := ""
 var dos_shown := 0
 var dos_hold := 0.0
+var crt_overlay: ColorRect
+var captions_on := false
+var crt_on := false
 var dev_on := false
 var dev_bench = null
 var dev_hud_vis := {}
@@ -3966,11 +3969,24 @@ func _build_ui() -> void:
 	title_root.add_child(title_center)
 	root.add_child(title_root)
 	_build_opening(root)
+	if not ThrongletSimServer.testing:
+		_load_prefs()
+	_apply_crt()
 
 	_rebuild_bars()
 
 
 func _build_opening(root: Control) -> void:
+	crt_overlay = ColorRect.new()
+	crt_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	crt_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	crt_overlay.z_index = 60
+	crt_overlay.visible = false
+	var crt_mat := ShaderMaterial.new()
+	crt_mat.shader = load("res://resources/ui/crt_overlay.gdshader")
+	crt_overlay.material = crt_mat
+	root.add_child(crt_overlay)
+
 	dos_root = Control.new()
 	dos_root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	dos_root.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -4101,6 +4117,64 @@ func _finish_dos() -> void:
 		_show_title()
 
 
+func _load_prefs() -> void:
+	var cfg := ConfigFile.new()
+	if cfg.load("user://opening.cfg") != OK:
+		return
+	captions_on = bool(cfg.get_value("opening", "captions", false))
+	crt_on = bool(cfg.get_value("opening", "crt", false))
+
+
+func _save_prefs() -> void:
+	var cfg := ConfigFile.new()
+	cfg.set_value("opening", "captions", captions_on)
+	cfg.set_value("opening", "crt", crt_on)
+	cfg.save("user://opening.cfg")
+
+
+func _apply_crt() -> void:
+	if crt_overlay != null:
+		crt_overlay.visible = crt_on
+
+
+func _fill_settings() -> void:
+	_clear_menu(title_list)
+	_menu_label(title_list, LineBook.row("SYS.MESSAGES", 28))
+	var yes := LineBook.row("SYS.SETTINGS", 6)
+	var no := LineBook.row("SYS.SETTINGS", 7)
+	_menu_button(title_list, "%s   %s" % [LineBook.row("SYS.SETTINGS", 13), yes if captions_on else no], _toggle_captions)
+	_menu_button(title_list, "%s   %s" % [LineBook.row("SYS.SETTINGS", 14), yes if crt_on else no], _toggle_crt)
+	_menu_label(title_list, "%s   Español" % LineBook.row("SYS.SETTINGS", 0))
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 6)
+	var icons := ["settings_mail.png", "settings_cog.png", "settings_sound.png", "settings_edit.png"]
+	for i in icons.size():
+		var icon := TextureRect.new()
+		icon.texture = _tex("res://resources/ui/" + icons[i])
+		icon.custom_minimum_size = Vector2(28, 28)
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		icon.modulate = Color.WHITE if i == 1 else Color(0.72, 0.72, 0.72)
+		row.add_child(icon)
+	title_list.add_child(row)
+	_menu_button(title_list, LineBook.row("SYS.SETTINGS", 3), _fill_title)
+
+
+func _toggle_captions() -> void:
+	captions_on = not captions_on
+	_save_prefs()
+	_fill_settings()
+
+
+func _toggle_crt() -> void:
+	crt_on = not crt_on
+	_apply_crt()
+	_save_prefs()
+	_fill_settings()
+
+
 func _show_title() -> void:
 	var sim: ThrongletSim = ThrongletSimServer
 	sim.cancel_hold()
@@ -4218,6 +4292,7 @@ func _fill_title() -> void:
 	if _has_continue():
 		_menu_button(title_list, "CONTINUAR", _continue_game)
 	_menu_button(title_list, "NUEVA PARTIDA", _start_new_game)
+	_menu_button(title_list, LineBook.row("SYS.MESSAGES", 28), _fill_settings)
 	_menu_button(title_list, "CARGAR", _fill_title_slots)
 	_menu_button(title_list, "DESARROLLO", _enter_dev)
 	_menu_button(title_list, "SALIR", _quit_game)
