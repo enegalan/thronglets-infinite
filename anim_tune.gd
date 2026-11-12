@@ -9,7 +9,14 @@ const FPS := {}
 const SCALE := {
 	"egg": 0.4,
 }
-const FRAME_SCALE := {}
+const FRAME_SCALE := {
+	"hand": {
+		"0": 0.6,
+		"1": 0.6,
+		"2": 0.6,
+		"3": 0.6,
+	},
+}
 const FRAME_OFF := {
 	"egg": {
 		"0": Vector2(2, 2),
