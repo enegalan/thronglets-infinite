@@ -18,6 +18,7 @@ const STARVE_GRACE := 30.0
 const EGG_NEED := 4
 const EGG_FALL := 140.0
 const BALL_LIFE := 60.0
+const FACTORY_QUEUE := 8
 const TALK_OPEN_DELAY := 1.0
 const BATH_CLEAN_RATE := 9.0
 const BATH_DONE := 95.0
@@ -957,9 +958,16 @@ func _deliver(i: int, speed: float, dt: float) -> bool:
 	_walk(i, tx, ty, speed, dt)
 	if _dist_i(i, tx, ty) < 64.0:
 		if carry[i] == Catalog.CARRY_ORE:
-			factory.buffer = int(factory.get("buffer", 0)) + maxi(1, carry_value[i])
+			var room := FACTORY_QUEUE - int(factory.get("buffer", 0))
+			if room <= 0:
+				return true
+			var put := mini(room, maxi(1, carry_value[i]))
+			_factory_stack(factory, put)
+			carry_value[i] = maxi(0, carry_value[i] - put)
 			factory.active = true
 			_pop(float(factory.x), float(factory.y) - 4.0, Catalog.ICON_ORE)
+			if carry_value[i] > 0:
+				return true
 		else:
 			_drop_on_bridge(float(bridge.x), float(bridge.y), carry[i])
 		carry[i] = Catalog.CARRY_NONE
@@ -1846,7 +1854,7 @@ func _tick_buildings(dt: float) -> void:
 			if float(b.timer) <= 0.0:
 				var buffered := int(b.get("buffer", 0))
 				if buffered > 0:
-					b.buffer = buffered - 1
+					_factory_spend(b)
 					b.timer = 0.7 if kind == Catalog.BLD_FACTORY2 else 2.0
 					gems += 2 if kind == Catalog.BLD_FACTORY2 else 1
 					b.active = true
@@ -6467,6 +6475,107 @@ func _smoke_find_spot(kind: int, hints: Array) -> Vector2:
 	return Vector2.ZERO
 
 
+func _shot_fill_factory(b: Dictionary) -> void:
+	var piled: Array = []
+	for n in FACTORY_QUEUE:
+		piled.append(n + 1)
+	b.pile = piled
+	b.buffer = piled.size()
+
+
+func _factory_pile(b: Dictionary) -> Array:
+	var found = b.get("pile", [])
+	if found is Array:
+		return found
+	var fresh: Array = []
+	b.pile = fresh
+	return fresh
+
+
+func _factory_stack(b: Dictionary, n: int) -> void:
+	var pile := _factory_pile(b)
+	var start := pile.size()
+	for k in n:
+		pile.append(start + k + 1)
+	b.pile = pile
+	b.buffer = pile.size()
+
+
+func _factory_spend(b: Dictionary) -> void:
+	var pile := _factory_pile(b)
+	if pile.is_empty():
+		b.buffer = maxi(0, int(b.get("buffer", 0)) - 1)
+		return
+	pile.pop_front()
+	b.pile = pile
+	b.buffer = pile.size()
+
+
+func _check_factory_fill(errors: Array) -> void:
+	var factory := {}
+	for b in buildings:
+		if b.dead:
+			continue
+		var kind := int(b.kind)
+		if kind == Catalog.BLD_FACTORY or kind == Catalog.BLD_FACTORY2:
+			factory = b
+			break
+	if factory.is_empty():
+		var spot := _smoke_find_spot(Catalog.BLD_FACTORY, [
+			Vector2(300.0, 300.0), Vector2(140.0, 200.0), Vector2(360.0, 180.0), Vector2(160.0, 320.0),
+		])
+		if spot != Vector2.ZERO:
+			factory = _add_building(Catalog.BLD_FACTORY, spot.x, spot.y)
+	if factory.is_empty():
+		errors.append("factory fill: no building")
+		return
+	var main := get_tree().current_scene
+	if main == null or not main.has_method("_sync_factory_mark"):
+		errors.append("factory fill: no view")
+		return
+	factory.buffer = 0
+	factory.pile = []
+	main.selected_bld = int(factory.id)
+	var i := 0
+	pos_x[i] = float(factory.x)
+	pos_y[i] = float(factory.y)
+	var seen := PackedStringArray()
+	for step in FACTORY_QUEUE + 2:
+		if step > 0:
+			carry[i] = Catalog.CARRY_ORE
+			carry_value[i] = 1
+			pos_x[i] = float(factory.x)
+			pos_y[i] = float(factory.y)
+			_deliver(i, MOVE_SPEED, 0.05)
+		var buf := int(factory.get("buffer", 0))
+		main._sync_factory_mark(self)
+		var shown := 0
+		for slice in main.factory_slices:
+			if slice.visible:
+				shown += 1
+		seen.append("%d:%d" % [buf, shown])
+		var expect := mini(step, FACTORY_QUEUE)
+		if buf != expect or shown != expect:
+			errors.append("factory fill step %s buffer %s slices %s" % [step, buf, shown])
+	print("FACTORY FILL " + " ".join(seen))
+	var piled: Array = factory.get("pile", [])
+	var order := PackedStringArray()
+	for token in piled:
+		order.append(str(int(token)))
+	print("FACTORY PILE " + " ".join(order))
+	var want := PackedStringArray()
+	for n in FACTORY_QUEUE:
+		want.append(str(n + 1))
+	if " ".join(order) != " ".join(want):
+		errors.append("factory pile order " + " ".join(order))
+	_factory_spend(factory)
+	var left: Array = factory.get("pile", [])
+	if left.size() != FACTORY_QUEUE - 1:
+		errors.append("factory pile spend")
+	elif int(left[0]) != 2:
+		errors.append("factory pile spend")
+
+
 func _run_checks() -> void:
 	var errors: Array = []
 	DialogueBook.ensure()
@@ -6922,6 +7031,7 @@ func _run_checks() -> void:
 		_deflesh(last_one, false)
 	if not game_over:
 		errors.append("no game over")
+	_check_factory_fill(errors)
 	print("SMOKE " + ("OK" if errors.is_empty() else "FAIL"))
 	for err in errors:
 		print(" - " + str(err))

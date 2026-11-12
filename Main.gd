@@ -151,6 +151,8 @@ var glitch_overlay: ColorRect
 var glitch_mat: ShaderMaterial
 var console_line := ""
 var console_reveal := 0
+var factory_frame: Sprite2D
+var factory_slices: Array[Sprite2D] = []
 var pollution_mark: Sprite2D
 var pollution_bld: Sprite2D
 var market_signs: Node2D
@@ -997,6 +999,8 @@ func _sync_actors() -> void:
 						b_tint = Color(1.0, 0.95, 0.75)
 			var b_scale := Catalog.building_sprite_scale(b_kind)
 			_push_iso(draws, draw_at, b_frame, b_tint, b_lift, b_scale)
+			if b_kind == Catalog.BLD_FACTORY or b_kind == Catalog.BLD_FACTORY2:
+				_push_factory_pile(draws, b, draw_at)
 			if b_kind == Catalog.BLD_APPLE:
 				var fruit_sort := _prop_front_sort_y(p3)
 				for fruit in b.get("fruits", []):
@@ -1568,6 +1572,20 @@ func _bridge_view_point(world_pos: Vector2, view: Rect2) -> Vector2:
 	if scale <= 1.0:
 		return world_pos
 	return center + delta / scale
+
+
+func _push_factory_pile(draws: Array, b: Dictionary, at: Vector2) -> void:
+	var stacked := int(b.get("buffer", 0))
+	if b.has("pile") and b.get("pile") is Array:
+		stacked = (b.get("pile") as Array).size()
+	if stacked <= 0:
+		return
+	# Right of the factory wall. Layer 0 is the first deposit and stays on the ground.
+	var ore_at := at + Vector2(24.0, -10.0)
+	var ore_sy := _to_iso(ore_at).y
+	var frame := _prop_frame(Catalog.ICON_ORE_ULTRA)
+	for layer in stacked:
+		_push_iso(draws, ore_at, frame, Color.WHITE, float(layer) * 6.0, Catalog.ORE_CLUSTER_SPRITE_SCALE, ore_sy + float(stacked - layer) * 0.05)
 
 
 func _push_iso(draws: Array, world_pos: Vector2, frame: int, tint: Color, lift: float = 0.0, sprite_scale: float = 1.0, sort_y: float = NAN) -> void:
@@ -3143,7 +3161,79 @@ func _sync_marks() -> void:
 	else:
 		for line in ring_lines:
 			line.visible = false
+	_sync_factory_mark(sim)
 	_sync_building_alert(sim)
+
+
+func _build_factory_slices() -> void:
+	var src := _tex("res://resources/ui/factory_slice.png")
+	if src == null:
+		return
+	var img := src.get_image()
+	if img == null:
+		return
+	img = img.duplicate()
+	var w := img.get_width()
+	var h := img.get_height()
+	var count := ThrongletSimServer.FACTORY_QUEUE
+	var parts: Array[Image] = []
+	for _i in count:
+		parts.append(Image.create(w, h, false, Image.FORMAT_RGBA8))
+	var cx := (float(w) - 1.0) * 0.5
+	var cy := (float(h) - 1.0) * 0.5
+	var step := 360.0 / float(count)
+	for y in h:
+		for x in w:
+			var px := img.get_pixel(x, y)
+			if px.a <= 0.05:
+				continue
+			var deg := rad_to_deg(atan2(float(x) - cx, -(float(y) - cy)))
+			if deg < 0.0:
+				deg += 360.0
+			var sector := int((deg + step * 0.5) / step) % count
+			parts[sector].set_pixel(x, y, px)
+	var fill_scale := 0.55 * (19.0 / 16.87)
+	for part in parts:
+		var slice := Sprite2D.new()
+		slice.texture = ImageTexture.create_from_image(part)
+		slice.visible = false
+		slice.z_index = 6
+		slice.scale = Vector2(fill_scale, fill_scale)
+		slice.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		add_child(slice)
+		factory_slices.append(slice)
+
+
+func _sync_factory_mark(sim: ThrongletSim) -> void:
+	if factory_frame == null:
+		return
+	var b: Dictionary = sim.building_by_id.get(selected_bld, {})
+	var kind := int(b.get("kind", -1))
+	var show := not b.is_empty() and not bool(b.get("dead", true)) and (kind == Catalog.BLD_FACTORY or kind == Catalog.BLD_FACTORY2)
+	if not show:
+		for other in sim.buildings:
+			if other.dead:
+				continue
+			var other_kind := int(other.kind)
+			if other_kind != Catalog.BLD_FACTORY and other_kind != Catalog.BLD_FACTORY2:
+				continue
+			if int(other.get("buffer", 0)) <= 0:
+				continue
+			b = other
+			show = true
+			break
+	factory_frame.visible = show
+	var filled := 0
+	if show:
+		filled = clampi(int(b.get("buffer", 0)), 0, ThrongletSimServer.FACTORY_QUEUE)
+	for i in factory_slices.size():
+		factory_slices[i].visible = show and i < filled
+	if not show:
+		return
+	var at := _to_iso(Vector2(float(b.x), float(b.y))) + Vector2(0, -28)
+	factory_frame.position = at
+	for slice in factory_slices:
+		slice.position = at
 
 
 func _sync_building_alert(sim: ThrongletSim) -> void:
@@ -3287,6 +3377,14 @@ func _build_world() -> void:
 	market_signs = Node2D.new()
 	market_signs.z_index = 8
 	add_child(market_signs)
+	factory_frame = Sprite2D.new()
+	factory_frame.texture = _tex("res://resources/ui/factory_frame.png")
+	factory_frame.visible = false
+	factory_frame.z_index = 6
+	factory_frame.scale = Vector2(0.55, 0.55)
+	factory_frame.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	add_child(factory_frame)
+	_build_factory_slices()
 	pollution_mark = Sprite2D.new()
 	pollution_mark.texture = _tex("res://resources/ui/pollution_throng.png")
 	pollution_mark.visible = false
