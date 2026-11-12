@@ -18,7 +18,8 @@ const STARVE_GRACE := 30.0
 const EGG_NEED := 4
 const EGG_FALL := 140.0
 const BALL_LIFE := 60.0
-const FACTORY_QUEUE := 8
+# The ring art is eight wedges. Past eight it stays full and ore still stacks.
+const FACTORY_WEDGES := 8
 const TALK_OPEN_DELAY := 1.0
 const BATH_CLEAN_RATE := 9.0
 const BATH_DONE := 95.0
@@ -962,16 +963,9 @@ func _deliver(i: int, speed: float, dt: float) -> bool:
 	_walk(i, tx, ty, speed, dt)
 	if _dist_i(i, tx, ty) < 64.0:
 		if carry[i] == Catalog.CARRY_ORE:
-			var room := FACTORY_QUEUE - int(factory.get("buffer", 0))
-			if room <= 0:
-				return true
-			var put := mini(room, maxi(1, carry_value[i]))
-			_factory_stack(factory, put)
-			carry_value[i] = maxi(0, carry_value[i] - put)
+			_factory_stack(factory, maxi(1, carry_value[i]))
 			factory.active = true
 			_pop(float(factory.x), float(factory.y) - 4.0, Catalog.ICON_ORE)
-			if carry_value[i] > 0:
-				return true
 		else:
 			_drop_on_bridge(float(bridge.x), float(bridge.y), carry[i])
 		carry[i] = Catalog.CARRY_NONE
@@ -6564,7 +6558,7 @@ func _smoke_find_spot(kind: int, hints: Array) -> Vector2:
 
 func _shot_fill_factory(b: Dictionary) -> void:
 	var piled: Array = []
-	for n in FACTORY_QUEUE:
+	for n in 24:
 		piled.append(n + 1)
 	b.pile = piled
 	b.buffer = piled.size()
@@ -6627,7 +6621,8 @@ func _check_factory_fill(errors: Array) -> void:
 	pos_x[i] = float(factory.x)
 	pos_y[i] = float(factory.y)
 	var seen := PackedStringArray()
-	for step in FACTORY_QUEUE + 2:
+	var deposits := FACTORY_WEDGES + 2
+	for step in deposits + 1:
 		if step > 0:
 			carry[i] = Catalog.CARRY_ORE
 			carry_value[i] = 1
@@ -6641,8 +6636,8 @@ func _check_factory_fill(errors: Array) -> void:
 			if slice.visible:
 				shown += 1
 		seen.append("%d:%d" % [buf, shown])
-		var expect := mini(step, FACTORY_QUEUE)
-		if buf != expect or shown != expect:
+		var wedges := mini(step, FACTORY_WEDGES)
+		if buf != step or shown != wedges:
 			errors.append("factory fill step %s buffer %s slices %s" % [step, buf, shown])
 	print("FACTORY FILL " + " ".join(seen))
 	var piled: Array = factory.get("pile", [])
@@ -6651,13 +6646,13 @@ func _check_factory_fill(errors: Array) -> void:
 		order.append(str(int(token)))
 	print("FACTORY PILE " + " ".join(order))
 	var want := PackedStringArray()
-	for n in FACTORY_QUEUE:
+	for n in deposits:
 		want.append(str(n + 1))
 	if " ".join(order) != " ".join(want):
 		errors.append("factory pile order " + " ".join(order))
 	_factory_spend(factory)
 	var left: Array = factory.get("pile", [])
-	if left.size() != FACTORY_QUEUE - 1:
+	if left.size() != deposits - 1:
 		errors.append("factory pile spend")
 	elif int(left[0]) != 2:
 		errors.append("factory pile spend")

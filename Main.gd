@@ -1584,8 +1584,10 @@ func _push_factory_pile(draws: Array, b: Dictionary, at: Vector2) -> void:
 	var ore_at := at + Vector2(24.0, -10.0)
 	var ore_sy := _to_iso(ore_at).y
 	var frame := _prop_frame(Catalog.ICON_ORE_ULTRA)
-	for layer in stacked:
-		_push_iso(draws, ore_at, frame, Color.WHITE, float(layer) * 6.0, Catalog.ORE_CLUSTER_SPRITE_SCALE, ore_sy + float(stacked - layer) * 0.05)
+	# 120 layers at 6px clear the view at the widest zoom. The rest stay in the pile.
+	var drawn := mini(stacked, 120)
+	for layer in drawn:
+		_push_iso(draws, ore_at, frame, Color.WHITE, float(layer) * 6.0, Catalog.ORE_CLUSTER_SPRITE_SCALE, ore_sy + float(drawn - layer) * 0.05)
 
 
 func _push_iso(draws: Array, world_pos: Vector2, frame: int, tint: Color, lift: float = 0.0, sprite_scale: float = 1.0, sort_y: float = NAN) -> void:
@@ -3175,7 +3177,7 @@ func _build_factory_slices() -> void:
 	img = img.duplicate()
 	var w := img.get_width()
 	var h := img.get_height()
-	var count := ThrongletSimServer.FACTORY_QUEUE
+	var count := ThrongletSimServer.FACTORY_WEDGES
 	var parts: Array[Image] = []
 	for _i in count:
 		parts.append(Image.create(w, h, false, Image.FORMAT_RGBA8))
@@ -3225,7 +3227,7 @@ func _sync_factory_mark(sim: ThrongletSim) -> void:
 	factory_frame.visible = show
 	var filled := 0
 	if show:
-		filled = clampi(int(b.get("buffer", 0)), 0, ThrongletSimServer.FACTORY_QUEUE)
+		filled = mini(int(b.get("buffer", 0)), ThrongletSimServer.FACTORY_WEDGES)
 	for i in factory_slices.size():
 		factory_slices[i].visible = show and i < filled
 	if not show:
