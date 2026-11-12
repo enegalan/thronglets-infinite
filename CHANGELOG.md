@@ -20,6 +20,7 @@
 - The title has settings: video captions, a CRT overlay, and the language row with the original icons. Captions and the overlay are remembered.
 - The first minutes stay inside the wood frame. A plank sign steps through the opening lines before the tray and the counter appear. The counter reads `?` until that stretch ends. The first talk waits. A hatch pops a spark.
 - After that talk, the game asks what the thronglets should call you, asks you to confirm, and refuses an empty, unknown, or banned name.
+- The title is a painted scene: sky, sun flare, drifting clouds, grass, thronglets, an egg, and the logo. The menu sits on the grass.
 
 ### 2026-11-11
 

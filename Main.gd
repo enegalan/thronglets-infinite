@@ -75,7 +75,6 @@ var shown_event := ""
 var toast_queue: Array = []
 var toast_msg := ""
 var toast_t := 0.0
-
 var ui: CanvasLayer
 var pop_label: Label
 var pop_face: TextureRect
@@ -144,6 +143,15 @@ var dev_bench = null
 var dev_hud_vis := {}
 var title_root: Control
 var title_list: VBoxContainer
+var title_clouds: Array = []
+var title_time := 0.0
+var title_flare: TextureRect
+var title_grass: TextureRect
+var title_logo: TextureRect
+var title_front: TextureRect
+var title_side: TextureRect
+var title_egg: TextureRect
+var title_layout_size := Vector2.ZERO
 var hand_from := Vector2.ZERO
 const HAND_HOLD := 0.22
 var hand_pending := false
@@ -354,6 +362,7 @@ func _process(delta: float) -> void:
 	_sync_music()
 	_tick_birds(delta)
 	if in_title:
+		_tick_title(delta)
 		_sync_place_mark()
 		if charge_ring != null:
 			charge_ring.visible = false
@@ -4010,33 +4019,26 @@ func _build_ui() -> void:
 	title_root.mouse_filter = Control.MOUSE_FILTER_STOP
 	title_root.visible = false
 	title_root.z_index = 70
-	var title_bg := ColorRect.new()
-	title_bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	title_bg.color = Color(0.02, 0.025, 0.05, 1)
-	title_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	title_root.add_child(title_bg)
-	var title_center := CenterContainer.new()
-	title_center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_build_title_backdrop(title_root)
+	var title_center := VBoxContainer.new()
+	title_center.anchor_left = 0.0
+	title_center.anchor_right = 1.0
+	title_center.anchor_top = 1.0
+	title_center.anchor_bottom = 1.0
+	title_center.offset_left = 16
+	title_center.offset_right = -16
+	title_center.offset_top = -132
+	title_center.offset_bottom = -10
+	title_center.alignment = BoxContainer.ALIGNMENT_END
 	title_center.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var title_col := VBoxContainer.new()
-	title_col.alignment = BoxContainer.ALIGNMENT_CENTER
-	title_col.add_theme_constant_override("separation", 8)
-	var logo := TextureRect.new()
-	logo.texture = _tex("res://resources/ui/logo.png")
-	logo.custom_minimum_size = Vector2(220, 64)
-	logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	logo.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
-	logo.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	logo.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	title_col.add_child(logo)
+	title_center.clip_contents = true
 	var title_panel := PanelContainer.new()
 	title_panel.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	title_panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
 	title_list = VBoxContainer.new()
 	title_list.add_theme_constant_override("separation", 3)
 	title_panel.add_child(title_list)
-	title_col.add_child(title_panel)
-	title_center.add_child(title_col)
+	title_center.add_child(title_panel)
 	title_root.add_child(title_center)
 	root.add_child(title_root)
 	_build_opening(root)
@@ -4320,7 +4322,169 @@ func _show_title() -> void:
 	if menu_dim:
 		menu_dim.visible = false
 	title_root.visible = true
+	title_layout_size = Vector2.ZERO
 	_fill_title()
+
+
+func _build_title_backdrop(root: Control) -> void:
+	title_clouds.clear()
+	title_time = 0.0
+	title_layout_size = Vector2.ZERO
+	var stage := Control.new()
+	stage.name = "TitleBackdrop"
+	stage.set_anchors_preset(Control.PRESET_FULL_RECT)
+	stage.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(stage)
+
+	var sky := _title_sprite("res://resources/ui/menu/sky_gradient.png")
+	sky.set_anchors_preset(Control.PRESET_FULL_RECT)
+	sky.stretch_mode = TextureRect.STRETCH_SCALE
+	stage.add_child(sky)
+
+	title_flare = _title_sprite("res://resources/ui/menu/sun_flare.png", true)
+	title_flare.stretch_mode = TextureRect.STRETCH_SCALE
+	# Soft alpha lives in the PNG; mix keeps the falloff (ADD washed it to solid white).
+	title_flare.modulate = Color(1, 1, 1, 1)
+	stage.add_child(title_flare)
+
+	var cloud_layer := Control.new()
+	cloud_layer.name = "TitleClouds"
+	cloud_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	cloud_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cloud_layer.clip_contents = false
+	stage.add_child(cloud_layer)
+	# 3 elliptical sky lanes; 2 clouds per lane, same right→left upper-arc direction.
+	var cloud_tracks := [
+		{"path": "res://resources/ui/menu/cloud_3.png", "width": 0.20, "cy": 0.13, "rx": 0.50, "ry": 0.045, "speed": 0.045, "phase": 0.10},
+		{"path": "res://resources/ui/menu/cloud_2.png", "width": 0.28, "cy": 0.25, "rx": 0.56, "ry": 0.065, "speed": 0.038, "phase": 0.25},
+		{"path": "res://resources/ui/menu/cloud_1.png", "width": 0.34, "cy": 0.37, "rx": 0.62, "ry": 0.080, "speed": 0.030, "phase": 0.40},
+	]
+	for track in cloud_tracks:
+		for twin in [0.0, 0.5]:
+			var cloud := _title_sprite(str(track.path), true)
+			cloud.stretch_mode = TextureRect.STRETCH_SCALE
+			cloud_layer.add_child(cloud)
+			title_clouds.append({
+				"node": cloud,
+				"phase": float(track.phase) + twin,
+				"speed": float(track.speed),
+				"width": float(track.width),
+				"cy": float(track.cy),
+				"rx": float(track.rx),
+				"ry": float(track.ry),
+			})
+
+	title_grass = _title_sprite("res://resources/ui/menu/grass.png", true)
+	title_grass.stretch_mode = TextureRect.STRETCH_SCALE
+	stage.add_child(title_grass)
+
+	var cast := Control.new()
+	cast.name = "TitleCast"
+	cast.set_anchors_preset(Control.PRESET_FULL_RECT)
+	cast.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stage.add_child(cast)
+
+	title_front = _title_sprite("res://resources/ui/menu/thronglet_front.png", true)
+	title_front.stretch_mode = TextureRect.STRETCH_SCALE
+	cast.add_child(title_front)
+
+	title_side = _title_sprite("res://resources/ui/menu/thronglet_side.png", true)
+	title_side.stretch_mode = TextureRect.STRETCH_SCALE
+	cast.add_child(title_side)
+
+	title_egg = _title_sprite("res://resources/ui/menu/egg.png", true)
+	title_egg.stretch_mode = TextureRect.STRETCH_SCALE
+	cast.add_child(title_egg)
+
+	title_logo = _title_sprite("res://resources/ui/menu/logo.png", true)
+	title_logo.stretch_mode = TextureRect.STRETCH_SCALE
+	stage.add_child(title_logo)
+
+
+func _title_sprite(path: String, keep_alpha: bool = false) -> TextureRect:
+	var node := TextureRect.new()
+	node.texture = _tex_rgba(path) if keep_alpha else _tex(path)
+	node.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	node.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	node.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return node
+
+
+func _title_fit(node: TextureRect, height: float) -> Vector2:
+	var tex: Texture2D = node.texture
+	if tex == null or tex.get_height() < 1:
+		return Vector2(height, height)
+	var aspect := float(tex.get_width()) / float(tex.get_height())
+	return Vector2(height * aspect, height)
+
+
+func _title_place(node: TextureRect, center: Vector2, size: Vector2) -> void:
+	node.size = size
+	node.position = Vector2(center.x - size.x * 0.5, center.y - size.y)
+
+
+func _sync_title_layout(area: Vector2) -> void:
+	if title_flare == null:
+		return
+	# Flare: compact backlight behind the cast (ref is smaller than full-screen wash).
+	var flare_size := Vector2(area.x * 0.78, area.y * 0.58)
+	title_flare.size = flare_size
+	title_flare.position = Vector2((area.x - flare_size.x) * 0.5, area.y * 0.22)
+
+	# Full grass sprite, bottom-aligned (COVERED was clipping the tree tops).
+	var grass_tex: Texture2D = title_grass.texture
+	var grass_aspect := 2.285
+	if grass_tex != null and grass_tex.get_height() > 0:
+		grass_aspect = float(grass_tex.get_width()) / float(grass_tex.get_height())
+	var grass_h := area.x / grass_aspect
+	title_grass.size = Vector2(area.x, grass_h)
+	title_grass.position = Vector2(0.0, area.y - grass_h)
+
+	# Shared ground line under egg + thronglets.
+	var feet := area.y * 0.60
+	var front_size := _title_fit(title_front, area.y * 0.355)
+	var side_size := _title_fit(title_side, area.y * 0.285)
+	var egg_size := _title_fit(title_egg, area.y * 0.180)
+	_title_place(title_front, Vector2(area.x * 0.515, feet), front_size)
+	_title_place(title_side, Vector2(area.x * 0.665, feet), side_size)
+	_title_place(title_egg, Vector2(area.x * 0.365, feet), egg_size)
+
+	# Logo larger, closer to ref (~half screen wide).
+	var logo_size := _title_fit(title_logo, area.y * 0.21)
+	if logo_size.x > area.x * 0.58 and title_logo.texture != null:
+		logo_size.x = area.x * 0.58
+		logo_size.y = logo_size.x * float(title_logo.texture.get_height()) / float(title_logo.texture.get_width())
+	title_logo.size = logo_size
+	title_logo.position = Vector2((area.x - logo_size.x) * 0.5, area.y * 0.035)
+
+
+func _tick_title(delta: float) -> void:
+	if title_root == null or not title_root.visible:
+		return
+	title_time += delta
+	var area := title_root.size
+	if area.x < 8.0 or area.y < 8.0:
+		return
+	if area != title_layout_size:
+		title_layout_size = area
+		_sync_title_layout(area)
+	# Full off-screen→off-screen X; Y follows the ellipse while inside its span.
+	var cx := area.x * 0.5
+	for cloud in title_clouds:
+		var node: TextureRect = cloud.node
+		var tex: Texture2D = node.texture
+		if tex == null:
+			continue
+		var tw := area.x * float(cloud.width)
+		var th := tw * float(tex.get_height()) / maxf(float(tex.get_width()), 1.0)
+		var t: float = fposmod(float(cloud.phase) + title_time * float(cloud.speed), 1.0)
+		var x := lerpf(area.x, -tw, t)
+		var cloud_cx := x + tw * 0.5
+		var rx_px := area.x * float(cloud.rx)
+		var nx := clampf((cloud_cx - cx) / maxf(rx_px, 1.0), -1.0, 1.0)
+		var y := area.y * float(cloud.cy) - area.y * float(cloud.ry) * sqrt(1.0 - nx * nx) - th * 0.5
+		node.position = Vector2(x, y)
+		node.size = Vector2(tw, th)
 
 
 func _enter_game() -> void:
@@ -4671,6 +4835,20 @@ func _tex(path: String) -> Texture2D:
 		if img != null and not img.is_empty():
 			tex = ImageTexture.create_from_image(img)
 	textures[path] = tex
+	return tex
+
+
+func _tex_rgba(path: String) -> Texture2D:
+	var key := path + "::rgba"
+	if textures.has(key):
+		return textures[key]
+	var img := Image.load_from_file(ProjectSettings.globalize_path(path))
+	if img == null or img.is_empty():
+		return _tex(path)
+	if img.get_format() != Image.FORMAT_RGBA8:
+		img.convert(Image.FORMAT_RGBA8)
+	var tex := ImageTexture.create_from_image(img)
+	textures[key] = tex
 	return tex
 
 
