@@ -1203,15 +1203,28 @@ func _wear_ground(i: int) -> void:
 	wear_from[i] = key
 	if _tile_at(pos_x[i], pos_y[i]) != Catalog.TILE_GRASS:
 		return
-	var before := wear_stage(cell.x, cell.y)
 	var n := int(wear.get(key, 0)) + 1
-	if n >= WEAR_NEED:
-		wear.erase(key)
-		_set_world_cell(cell.x, cell.y, Catalog.TILE_DIRT, true)
+	if n > WEAR_NEED:
 		return
 	wear[key] = n
-	if wear_stage(cell.x, cell.y) != before:
-		_mark_dirty(_ck(_floor_div(cell.x, Catalog.CHUNK), _floor_div(cell.y, Catalog.CHUNK)))
+	if n == WEAR_NEED:
+		_mark_path(cell)
+
+
+func path_at(cx: int, cy: int) -> bool:
+	return int(wear.get("%d,%d" % [cx, cy], 0)) >= WEAR_NEED
+
+
+func _mark_path(cell: Vector2i) -> void:
+	var spots: Array[Vector2i] = [
+		cell,
+		cell + Vector2i(1, 0),
+		cell + Vector2i(-1, 0),
+		cell + Vector2i(0, 1),
+		cell + Vector2i(0, -1),
+	]
+	for spot in spots:
+		_mark_dirty(_ck(_floor_div(spot.x, Catalog.CHUNK), _floor_div(spot.y, Catalog.CHUNK)))
 
 
 func wear_stage(cx: int, cy: int) -> int:

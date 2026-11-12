@@ -6,6 +6,14 @@ const DialogueBook := preload("res://dialogue_book.gd")
 
 var camera: Camera2D
 var tilemap: TileMapLayer
+var pathmap: TileMapLayer
+var path_root: Node2D
+var path_nodes := {}
+var focus_path_root: Node2D
+var focus_path_nodes := {}
+var path_sheet: Image
+var path_iso := {}
+var focus_pathmap: TileMapLayer
 var world: MultiMeshInstance2D
 var world_mesh: MultiMesh
 var world_layer: Node2D
@@ -35,7 +43,13 @@ const FIRE_ANIM := 140
 const RIVER_ATLAS := 12
 const WASTE_ATLAS := 48
 const WASTE_VARIANTS := 6
-const WEAR_ATLAS := 54
+# Neighbor mask: N=1, E=2, S=4, W=8. Each piece is a TEMP_Path index plus
+# flips: h, v, and r (90 degrees counter-clockwise). The draw maps sprite east
+# onto the east neighbor, so the bar sits inside the grass diamond.
+const PATH_PIECE := [
+	"0h", "6rv", "6h", "5h", "6r", "4rv", "5hv", "2rrr",
+	"6", "5", "4", "2", "5r", "2rv", "2rrh", "1",
+]
 const CALM: Array[String] = [
 	"ThrongA_Default", "ThrongA_Default Blink", "ThrongA_Happy", "ThrongA_EarWiggleLow",
 	"ThrongA_Celebrate_Spritesheet", "ThrongA_Shrug", "Throng_Think_Spritesheet",
@@ -121,7 +135,6 @@ var sponge_dir := Vector2.ZERO
 var sponge_tracking := false
 var market_panel: PanelContainer
 var market_list: VBoxContainer
-var gaze_panel: PanelContainer
 var gaze_text: RichTextLabel
 var gaze_box: VBoxContainer
 var gaze_face: TextureRect
@@ -669,6 +682,10 @@ func _sync_world() -> void:
 		seen_epoch = sim.paint_epoch
 		painted.clear()
 		tilemap.clear()
+		if pathmap != null:
+			pathmap.clear()
+			for cell in path_nodes.keys():
+				_drop_path_at(cell, true)
 	for ck in sim.take_dirty():
 		_paint_chunk(str(ck), not sim.chunk_shown(str(ck)))
 	var rect := _world_view().grow(128.0)
@@ -689,12 +706,15 @@ func _sync_world() -> void:
 
 func _paint_chunk(ck: String, fog: bool, into = null) -> void:
 	var map: TileMapLayer = tilemap if into == null else into
+	var paths: TileMapLayer = pathmap if into == null else focus_pathmap
 	var sim: ThrongletSim = ThrongletSimServer
 	var origin: Vector2i = sim.chunk_origin(ck)
 	if fog:
 		for ly in Catalog.CHUNK:
 			for lx in Catalog.CHUNK:
-				map.erase_cell(origin + Vector2i(lx, ly))
+				var cell := origin + Vector2i(lx, ly)
+				map.erase_cell(cell)
+				_drop_path_at(cell, into == null)
 		if into == null:
 			painted[ck] = "fog"
 		return
@@ -707,6 +727,7 @@ func _paint_chunk(ck: String, fog: bool, into = null) -> void:
 			var cell: Vector2i = origin + Vector2i(lx, ly)
 			if tile == Catalog.TILE_VOID:
 				map.erase_cell(cell)
+				_drop_path_at(cell, into == null)
 			else:
 				var atlas_x := tile
 				if tile == Catalog.TILE_GRASS:
@@ -715,16 +736,120 @@ func _paint_chunk(ck: String, fog: bool, into = null) -> void:
 						atlas_x = 10
 					elif pick == 2:
 						atlas_x = 11
-					var stage: int = sim.wear_stage(cell.x, cell.y)
-					if stage > 0:
-						atlas_x = _wear_atlas(atlas_x, stage)
 				elif tile == Catalog.TILE_WATER:
 					atlas_x = _river_atlas(cell)
 				elif tile == Catalog.TILE_GOO:
 					atlas_x = WASTE_ATLAS + absi((cell.x * 3 + cell.y * 5) % WASTE_VARIANTS)
 				map.set_cell(cell, 0, Vector2i(atlas_x, 0))
+				_paint_path_cell(paths, cell, tile)
 	if into == null:
 		painted[ck] = "real"
+
+
+func _paint_path_cell(paths: TileMapLayer, cell: Vector2i, tile: int) -> void:
+	var main := paths == pathmap
+	var show := tile == Catalog.TILE_GRASS and ThrongletSimServer.path_at(cell.x, cell.y)
+	if not show:
+		_drop_path_at(cell, main)
+		return
+	var sprite := _path_sprite_at(cell, main)
+	sprite.texture = _path_iso_tex(PATH_PIECE[_path_mask(cell)])
+	sprite.position = _to_iso(Catalog.cell_world(cell))
+	sprite.scale = Vector2.ONE
+
+
+func _path_mask(cell: Vector2i) -> int:
+	var mask := 0
+	if ThrongletSimServer.path_at(cell.x, cell.y - 1):
+		mask |= 1
+	if ThrongletSimServer.path_at(cell.x + 1, cell.y):
+		mask |= 2
+	if ThrongletSimServer.path_at(cell.x, cell.y + 1):
+		mask |= 4
+	if ThrongletSimServer.path_at(cell.x - 1, cell.y):
+		mask |= 8
+	return mask
+
+
+func _path_iso_tex(piece: String) -> Texture2D:
+	if path_iso.has(piece):
+		return path_iso[piece]
+	var tile := _path_raw(piece.to_int())
+	var ops := piece
+	while not ops.is_empty() and ops.substr(0, 1).is_valid_int():
+		ops = ops.substr(1)
+	for i in ops.length():
+		tile = _path_turn(tile, ops.substr(i, 1))
+	var baked := Image.create(36, 20, false, Image.FORMAT_RGBA8)
+	baked.fill(Color(0, 0, 0, 0))
+	for py in 20:
+		for px in 36:
+			var dx := px - 18
+			var dy := py - 10
+			var lx := dx * 0.5 + float(dy)
+			var ly := float(dy) - dx * 0.5
+			var sx := int(round(lx + 7.5))
+			var sy := int(round(ly + 7.5))
+			if sx < 0 or sy < 0 or sx > 15 or sy > 15:
+				continue
+			var color := tile.get_pixel(sx, sy)
+			if color.a <= 40.0 / 255.0:
+				continue
+			baked.set_pixel(px, py, color)
+	var tex := ImageTexture.create_from_image(baked)
+	path_iso[piece] = tex
+	return tex
+
+
+func _path_raw(index: int) -> Image:
+	if path_sheet == null:
+		var tex := _tex("res://resources/tiles/path_overlay.png")
+		path_sheet = tex.get_image()
+	var raw := Image.create(16, 16, false, Image.FORMAT_RGBA8)
+	var ox := index * 32
+	for y in 16:
+		for x in 16:
+			raw.set_pixel(x, y, path_sheet.get_pixel(ox + x * 2, y * 2))
+	return raw
+
+
+func _path_turn(src: Image, op: String) -> Image:
+	var out := Image.create(16, 16, false, Image.FORMAT_RGBA8)
+	for y in 16:
+		for x in 16:
+			var sx := x
+			var sy := y
+			if op == "h":
+				sx = 15 - x
+			elif op == "v":
+				sy = 15 - y
+			else:
+				sx = 15 - y
+				sy = x
+			out.set_pixel(x, y, src.get_pixel(sx, sy))
+	return out
+
+
+func _path_sprite_at(cell: Vector2i, main: bool) -> Sprite2D:
+	var nodes: Dictionary = path_nodes if main else focus_path_nodes
+	if nodes.has(cell):
+		return nodes[cell]
+	var sprite := Sprite2D.new()
+	sprite.centered = true
+	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	var root := path_root if main else focus_path_root
+	root.add_child(sprite)
+	nodes[cell] = sprite
+	return sprite
+
+
+func _drop_path_at(cell: Vector2i, main: bool) -> void:
+	var nodes: Dictionary = path_nodes if main else focus_path_nodes
+	if not nodes.has(cell):
+		return
+	var sprite: Sprite2D = nodes[cell]
+	sprite.queue_free()
+	nodes.erase(cell)
 
 
 func _biome_plate_paths(biome: String) -> PackedStringArray:
@@ -2036,6 +2161,8 @@ func _talk_world() -> Vector2:
 
 func _paint_focus(anchor: Vector2) -> void:
 	focus_tilemap.clear()
+	for cell in focus_path_nodes.keys():
+		_drop_path_at(cell, false)
 	var sim: ThrongletSim = ThrongletSimServer
 	var key: String = sim.chunk_key_at(anchor.x, anchor.y)
 	if sim.chunk_shown(key):
@@ -2582,6 +2709,14 @@ func _build_world() -> void:
 	tilemap.tile_set = _make_tileset()
 	tilemap.z_index = 0
 	add_child(tilemap)
+	pathmap = TileMapLayer.new()
+	pathmap.tile_set = _make_path_tileset()
+	pathmap.z_index = 1
+	pathmap.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	add_child(pathmap)
+	path_root = Node2D.new()
+	path_root.z_index = 1
+	add_child(path_root)
 	place_marks = Node2D.new()
 	place_marks.z_index = 1
 	add_child(place_marks)
@@ -2641,7 +2776,7 @@ func _make_tileset() -> TileSet:
 	tileset.tile_layout = TileSet.TILE_LAYOUT_DIAMOND_DOWN
 	tileset.tile_size = Vector2i(32, 16)
 	var atlas := TileSetAtlasSource.new()
-	var terrain := _wear_texture(_tex("res://resources/tiles/terrain_tileset.png"))
+	var terrain := _tex("res://resources/tiles/terrain_tileset.png")
 	atlas.texture = terrain
 	atlas.texture_region_size = Vector2i(32, 32)
 	tileset.add_source(atlas, 0)
@@ -2683,39 +2818,19 @@ func _shore(cell: Vector2i, dx: int, dy: int) -> bool:
 	return ThrongletSimServer._tile_at(at.x, at.y) != Catalog.TILE_WATER
 
 
-func _wear_atlas(grass_x: int, stage: int) -> int:
-	var which := 0
-	if grass_x == 10:
-		which = 1
-	elif grass_x == 11:
-		which = 2
-	return WEAR_ATLAS + which * ThrongletSimServer.WEAR_STEPS + stage - 1
-
-
-func _wear_texture(source: Texture2D) -> Texture2D:
-	var image := source.get_image()
-	var bases: Array[int] = [0, 10, 11]
-	var steps: int = ThrongletSim.WEAR_STEPS
-	var wide := Image.create(image.get_width() + bases.size() * steps * 32, image.get_height(), false, image.get_format())
-	wide.blit_rect(image, Rect2i(0, 0, image.get_width(), image.get_height()), Vector2i.ZERO)
-	var dirt := image.get_region(Rect2i(32, 0, 32, 32))
-	var column := image.get_width() / 32
-	for which in bases.size():
-		var grass := image.get_region(Rect2i(bases[which] * 32, 0, 32, 32))
-		for step in steps:
-			var mixed := grass.duplicate()
-			var amount := float(step + 1) / float(steps + 1)
-			for y in 32:
-				for x in 32:
-					var a := grass.get_pixel(x, y)
-					if a.a < 0.05:
-						continue
-					var b := dirt.get_pixel(x, y)
-					if b.a < 0.05:
-						continue
-					mixed.set_pixel(x, y, a.lerp(b, amount))
-			wide.blit_rect(mixed, Rect2i(0, 0, 32, 32), Vector2i((column + which * steps + step) * 32, 0))
-	return ImageTexture.create_from_image(wide)
+func _make_path_tileset() -> TileSet:
+	var tileset := TileSet.new()
+	tileset.tile_shape = TileSet.TILE_SHAPE_ISOMETRIC
+	tileset.tile_layout = TileSet.TILE_LAYOUT_DIAMOND_DOWN
+	tileset.tile_size = Vector2i(32, 16)
+	var atlas := TileSetAtlasSource.new()
+	var path_tex := _tex("res://resources/tiles/path_overlay.png")
+	atlas.texture = path_tex
+	atlas.texture_region_size = Vector2i(32, 32)
+	tileset.add_source(atlas, 0)
+	for i in 15:
+		atlas.create_tile(Vector2i(i, 0))
+	return tileset
 
 
 func _material(h_frames: int, v_frames: int) -> ShaderMaterial:
@@ -2971,6 +3086,13 @@ func _build_ui() -> void:
 	focus_tilemap = TileMapLayer.new()
 	focus_tilemap.tile_set = tilemap.tile_set
 	focus_port.add_child(focus_tilemap)
+	focus_pathmap = TileMapLayer.new()
+	focus_pathmap.tile_set = pathmap.tile_set
+	focus_pathmap.z_index = 1
+	focus_port.add_child(focus_pathmap)
+	focus_path_root = Node2D.new()
+	focus_path_root.z_index = 1
+	focus_port.add_child(focus_path_root)
 	var focus_world := MultiMeshInstance2D.new()
 	focus_world.z_index = 2
 	focus_world.material = _material(16, ThrongClips.SHEET_ROWS)
