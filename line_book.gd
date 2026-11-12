@@ -50,12 +50,38 @@ static func ensure() -> void:
 	tables = raw
 
 
-static func line_for(event: String) -> String:
+static func lines_for(event: String) -> Array:
 	ensure()
-	var key := str(POOL.get(event, ""))
-	if key == "":
+	var key := ""
+	if Catalog.GAZE.has(event):
+		key = str(Catalog.GAZE[event].get("tree", ""))
+	if key == "" or not tables.has(key):
+		key = str(POOL.get(event, ""))
+	var rows = tables.get(key, [])
+	if typeof(rows) != TYPE_ARRAY:
+		return []
+	var out: Array = []
+	for row in rows:
+		var text := str(row).strip_edges()
+		if text != "":
+			out.append(text)
+	return out
+
+
+static func bark_line(n: int) -> String:
+	ensure()
+	var keys: Array = POOL.values()
+	if keys.is_empty():
 		return ""
+	var key := str(keys[posmod(n, keys.size())])
 	var rows = tables.get(key, [])
 	if typeof(rows) != TYPE_ARRAY or rows.is_empty():
 		return ""
-	return str(rows[absi(event.hash()) % rows.size()])
+	return str(rows[0])
+
+
+static func line_for(event: String) -> String:
+	var rows := lines_for(event)
+	if rows.is_empty():
+		return ""
+	return str(rows[0])

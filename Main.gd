@@ -139,9 +139,18 @@ var sponge_dir := Vector2.ZERO
 var sponge_tracking := false
 var market_panel: PanelContainer
 var market_list: VBoxContainer
+var gaze_panel: Control
+var gaze_log: Control
 var gaze_text: RichTextLabel
 var gaze_box: VBoxContainer
 var gaze_face: TextureRect
+var console_glyph: TextureRect
+var console_glyphs: Array[Texture2D] = []
+var console_corner_glyphs: Array[TextureRect] = []
+var glitch_overlay: ColorRect
+var glitch_mat: ShaderMaterial
+var console_line := ""
+var console_reveal := 0
 var pollution_mark: Sprite2D
 var pollution_bld: Sprite2D
 var market_signs: Node2D
@@ -1991,6 +2000,282 @@ func _sync_market() -> void:
 	market_list.add_child(close)
 
 
+func _build_console_frame(panel: Control, edge: float = 2.0, pattern: int = -1) -> void:
+	var frame := Control.new()
+	frame.set_anchors_preset(Control.PRESET_FULL_RECT)
+	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(frame)
+	var fill := ColorRect.new()
+	fill.color = Color(0.0, 0.02, 0.0, 0.94)
+	fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fill.set_anchors_preset(Control.PRESET_FULL_RECT)
+	fill.offset_left = edge
+	fill.offset_top = edge
+	fill.offset_right = -edge
+	fill.offset_bottom = -edge
+	frame.add_child(fill)
+	var ink := Color(0.0, 224.0 / 255.0, 0.0)
+	_console_rule(frame, true, false, edge, ink)
+	_console_rule(frame, true, true, edge, ink)
+	_console_rule(frame, false, false, edge, ink)
+	_console_rule(frame, false, true, edge, ink)
+	if pattern >= 0:
+		panel.clip_contents = true
+		panel.set_meta("pattern", pattern)
+		_add_swirls(panel, pattern)
+		_add_side_glyphs(panel, edge)
+		_add_corner_glyphs(panel, pattern)
+
+
+func _console_rule(frame: Control, horizontal: bool, at_end: bool, thick: float, ink: Color) -> void:
+	var bar := ColorRect.new()
+	bar.color = ink
+	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if horizontal:
+		bar.anchor_right = 1.0
+		if at_end:
+			bar.anchor_top = 1.0
+			bar.anchor_bottom = 1.0
+			bar.offset_top = -thick
+		else:
+			bar.offset_bottom = thick
+	elif at_end:
+		bar.anchor_left = 1.0
+		bar.anchor_right = 1.0
+		bar.anchor_bottom = 1.0
+		bar.offset_left = -thick
+	else:
+		bar.anchor_bottom = 1.0
+		bar.offset_right = thick
+	frame.add_child(bar)
+
+
+func _add_swirls(panel: Control, pattern: int) -> void:
+	var atlas := "res://resources/src/ref/atlas/Sprites-ConsoleUI/"
+	if pattern == 0:
+		_swirl_rect(panel, atlas + "UI_DialogueUI_E_SwirlFX_Background_Left.png", "swirl_l")
+	_swirl_rect(panel, atlas + "UI_DialogueUI_E_SwirlFX_Background_Right.png", "swirl_r")
+	var line := _swirl_rect(panel, atlas + "UI_DialogueUI_E_SwirlFX_Background.png", "swirl_line")
+	line.anchor_right = 1.0
+
+
+func _swirl_rect(panel: Control, path: String, node_name: String) -> TextureRect:
+	var rect := TextureRect.new()
+	rect.name = node_name
+	rect.texture = _tex(path)
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	rect.stretch_mode = TextureRect.STRETCH_SCALE
+	rect.anchor_top = 0.0
+	rect.anchor_bottom = 0.0
+	if node_name.ends_with("_r"):
+		rect.anchor_left = 1.0
+		rect.anchor_right = 1.0
+	panel.add_child(rect)
+	return rect
+
+
+func _add_side_glyphs(panel: Control, edge: float) -> void:
+	var atlas := "res://resources/src/ref/atlas/Sprites-ConsoleUI/"
+	_side_glyph(panel, atlas + "UI_DialogueUI_E_AddlGlyphs_Left_Background_Map.png", true, edge, "side_back_l")
+	_side_glyph(panel, atlas + "UI_DialogueUI_E_AddlGlyphs_Right_Background_Map.png", false, edge, "side_back_r")
+	_side_glyph(panel, atlas + "UI_DialogueUI_UI_E_AddlGlyphs_Left_Foreground_Map.png", true, edge, "side_glyph_l")
+	_side_glyph(panel, atlas + "UI_DialogueUI_E_AddlGlyphs_Right_Foreground_Map.png", false, edge, "side_glyph_r")
+
+
+func _side_glyph(panel: Control, path: String, left: bool, edge: float, node_name: String) -> void:
+	var strip := TextureRect.new()
+	strip.name = node_name
+	strip.texture = _tex(path)
+	strip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	strip.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	strip.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	strip.stretch_mode = TextureRect.STRETCH_SCALE
+	strip.anchor_top = 0.0
+	strip.anchor_bottom = 0.0
+	if left:
+		strip.anchor_left = 0.0
+		strip.anchor_right = 0.0
+	else:
+		strip.anchor_left = 1.0
+		strip.anchor_right = 1.0
+	strip.offset_top = edge
+	strip.offset_bottom = edge
+	strip.set_meta("edge", edge)
+	panel.add_child(strip)
+
+
+func _add_corner_glyphs(panel: Control, pattern: int) -> void:
+	var presets: Array[int] = [
+		Control.PRESET_TOP_LEFT,
+		Control.PRESET_TOP_RIGHT,
+		Control.PRESET_BOTTOM_LEFT,
+		Control.PRESET_BOTTOM_RIGHT,
+	]
+	for i in presets.size():
+		var glyph := TextureRect.new()
+		glyph.name = "corner_%d" % i
+		glyph.set_anchors_preset(presets[i])
+		glyph.flip_h = i == 0 or i == 2
+		glyph.flip_v = i <= 1
+		glyph.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		glyph.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		glyph.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		glyph.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		glyph.self_modulate = Color(0.0, 1.0, 0.0)
+		glyph.set_meta("corner", i)
+		glyph.set_meta("phase", pattern * 2)
+		if not console_glyphs.is_empty():
+			glyph.texture = console_glyphs[i % console_glyphs.size()]
+		console_corner_glyphs.append(glyph)
+		panel.add_child(glyph)
+
+
+func _fit_corner_glyphs(panel: Control, height: float) -> void:
+	var size := minf(36.0, maxf(14.0, height * 0.42))
+	for child in panel.get_children():
+		var glyph := child as TextureRect
+		if glyph == null or not str(glyph.name).begins_with("corner_"):
+			continue
+		var corner := int(glyph.get_meta("corner", 0))
+		var right := corner == 1 or corner == 3
+		var bottom := corner >= 2
+		glyph.offset_left = -size if right else 0.0
+		glyph.offset_right = 0.0 if right else size
+		glyph.offset_top = -size if bottom else 0.0
+		glyph.offset_bottom = 0.0 if bottom else size
+
+
+func _fit_console_art(panel: Control, panel_h: float, slot_h: float) -> void:
+	var pattern := int(panel.get_meta("pattern", 0))
+	var shift_l := 0.0
+	var shift_r := 0.0
+	if pattern == 1:
+		shift_l = 0.08
+		shift_r = 0.62
+	elif pattern == 2:
+		shift_l = 0.48
+		shift_r = 0.18
+	elif pattern >= 3:
+		shift_l = 0.72
+		shift_r = 0.40
+	var slide := 0.0 if pattern == 0 else float(pattern - 1) * slot_h
+	_fit_swirls(panel, panel_h, slot_h, slide)
+	_fit_side_glyphs(panel, panel_h, shift_l, shift_r)
+	_fit_corner_glyphs(panel, slot_h)
+
+
+func _fit_swirls(panel: Control, panel_h: float, slot_h: float, slide: float) -> void:
+	var pattern := int(panel.get_meta("pattern", 0))
+	var edge := 2.0
+	var inner := maxf(8.0, panel_h - edge * 2.0)
+	for child in panel.get_children():
+		var rect := child as TextureRect
+		if rect == null or not str(rect.name).begins_with("swirl_"):
+			continue
+		if str(rect.name) == "swirl_line":
+			var along := 0.55 if pattern == 0 else float((pattern - 1) % 3) / 2.0
+			var y := edge + maxf(0.0, slot_h - edge * 2.0 - 4.0) * along
+			rect.offset_left = edge
+			rect.offset_right = -edge
+			rect.offset_top = y
+			rect.offset_bottom = y + 4.0
+			continue
+		var tex := rect.texture
+		if tex == null or tex.get_height() <= 0:
+			continue
+		var width := inner * float(tex.get_width()) / float(tex.get_height())
+		rect.offset_top = edge - slide
+		rect.offset_bottom = edge - slide + inner
+		if str(rect.name).ends_with("_l"):
+			rect.offset_left = edge
+			rect.offset_right = edge + width
+		else:
+			rect.offset_right = -edge
+			rect.offset_left = -(edge + width)
+
+
+func _fit_side_glyphs(panel: Control, height: float, shift_l: float = 0.0, shift_r: float = 0.0) -> void:
+	for child in panel.get_children():
+		var strip := child as TextureRect
+		if strip == null or not str(strip.name).begins_with("side_"):
+			continue
+		var tex := strip.texture
+		if tex == null or tex.get_height() <= 0:
+			continue
+		var edge := float(strip.get_meta("edge", 3.0))
+		var inner := maxf(8.0, height - edge * 2.0)
+		var width := inner * float(tex.get_width()) / float(tex.get_height())
+		var shift := shift_l if str(strip.name).ends_with("_l") else shift_r
+		strip.offset_top = edge - shift * inner
+		strip.offset_bottom = strip.offset_top + inner
+		if str(strip.name).ends_with("_l"):
+			strip.offset_left = edge
+			strip.offset_right = edge + width
+		else:
+			strip.offset_right = -edge
+			strip.offset_left = -(edge + width)
+
+
+func _pin_glyphs(panel: Control, size: float) -> void:
+	var corners: Array[int] = [
+		Control.PRESET_TOP_LEFT,
+		Control.PRESET_TOP_RIGHT,
+		Control.PRESET_BOTTOM_LEFT,
+		Control.PRESET_BOTTOM_RIGHT,
+	]
+	for i in corners.size():
+		var glyph := TextureRect.new()
+		glyph.set_anchors_preset(corners[i])
+		glyph.flip_h = i == 1 or i == 3
+		glyph.flip_v = i >= 2
+		glyph.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		glyph.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		glyph.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		glyph.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		glyph.offset_left = -size if glyph.flip_h else 0.0
+		glyph.offset_right = 0.0 if glyph.flip_h else size
+		glyph.offset_top = -size if glyph.flip_v else 0.0
+		glyph.offset_bottom = 0.0 if glyph.flip_v else size
+		if not console_glyphs.is_empty():
+			glyph.texture = console_glyphs[i % console_glyphs.size()]
+		panel.add_child(glyph)
+		console_corner_glyphs.append(glyph)
+	if size < 40.0:
+		return
+	for side in 2:
+		var glyph := TextureRect.new()
+		glyph.anchor_top = 0.5
+		glyph.anchor_bottom = 0.5
+		glyph.anchor_left = 0.0 if side == 0 else 1.0
+		glyph.anchor_right = glyph.anchor_left
+		glyph.flip_h = side == 1
+		glyph.offset_left = -size if side == 1 else 0.0
+		glyph.offset_right = 0.0 if side == 1 else size
+		glyph.offset_top = -size * 0.5
+		glyph.offset_bottom = size * 0.5
+		glyph.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		glyph.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		glyph.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		glyph.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		if not console_glyphs.is_empty():
+			glyph.texture = console_glyphs[side % console_glyphs.size()]
+		panel.add_child(glyph)
+		console_corner_glyphs.append(glyph)
+
+
+func _on_console_input(event: InputEvent) -> void:
+	if not (event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT):
+		return
+	var sim: ThrongletSim = ThrongletSimServer
+	if sim.modal.is_empty() or not sim.modal.has("lines"):
+		return
+	_play("console_select")
+	sim.choose(0)
+	get_viewport().set_input_as_handled()
+
+
 func _sync_gaze() -> void:
 	var sim: ThrongletSim = ThrongletSimServer
 	if sim.game_over or sim.modal.is_empty():
@@ -1999,6 +2284,7 @@ func _sync_gaze() -> void:
 		gaze_panel.visible = false
 		shown_event = ""
 		shown_seq = 0
+		console_line = ""
 		return
 	var event := str(sim.modal.event)
 	var seq := int(sim.modal.get("seq", 1))
@@ -2019,43 +2305,110 @@ func _sync_gaze() -> void:
 			"log": sim.modal.get("log", []),
 			"seq": seq,
 		}
-		gaze_text.clear()
-		gaze_text.add_theme_color_override("default_color", Color(0.35, 1.0, 0.45))
-		gaze_text.append_text(DialogueBook.log_text(session).replace("[", "(").replace("]", ")"))
+		console_line = DialogueBook.log_text(session).replace("[", "(").replace("]", ")")
+		console_reveal = 1
+		var line_talk: bool = sim.modal.has("lines")
 		if gaze_face != null:
-			var face_key := "epilogue_caretaker"
-			if POP_FACES.has(sim.mood_face):
-				face_key = sim.mood_face
-			elif bool(sim.mutations.get("care", false)):
-				face_key = "epilogue_caretaker"
-			elif bool(sim.mutations.get("numb", false)) or bool(sim.mutations.get("hard", false)):
-				face_key = "epilogue_angry"
-			gaze_face.texture = _tex(POP_FACES[face_key])
-		var choices: Array = DialogueBook.choices_of(session)
+			gaze_face.visible = not line_talk
+			gaze_face.custom_minimum_size = Vector2.ZERO if line_talk else Vector2(72, 72)
+			if not line_talk:
+				var face_key := "epilogue_caretaker"
+				if POP_FACES.has(sim.mood_face):
+					face_key = sim.mood_face
+				elif bool(sim.mutations.get("care", false)):
+					face_key = "epilogue_caretaker"
+				elif bool(sim.mutations.get("numb", false)) or bool(sim.mutations.get("hard", false)):
+					face_key = "epilogue_angry"
+				gaze_face.texture = _tex(POP_FACES[face_key])
+		var choices: Array = [] if line_talk else DialogueBook.choices_of(session)
+		var ink := Color(0.22, 0.86, 0.28)
+		var flat := StyleBoxEmpty.new()
+		flat.content_margin_left = 32
+		flat.content_margin_right = 22
+		flat.content_margin_top = 10
+		flat.content_margin_bottom = 8
 		for i in choices.size():
 			var edge: Dictionary = choices[i] if choices[i] is Dictionary else {}
+			var slot := Control.new()
+			slot.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			slot.size_flags_vertical = Control.SIZE_EXPAND_FILL
+			slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			slot.clip_contents = true
+			_build_console_frame(slot, 2.0, i + 1)
 			var button := Button.new()
+			button.set_anchors_preset(Control.PRESET_FULL_RECT)
 			button.text = str(edge.get("label", ""))
+			button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 			button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			button.add_theme_color_override("font_color", Color(0.35, 1.0, 0.45))
-			button.add_theme_color_override("font_hover_color", Color(0.85, 1.0, 0.75))
-			button.add_theme_color_override("font_focus_color", Color(0.85, 1.0, 0.75))
-			button.add_theme_color_override("font_pressed_color", Color(0.15, 0.55, 0.25))
-			button.add_theme_color_override("font_hover_pressed_color", Color(0.15, 0.55, 0.25))
-			var hover := _choice_box(Color(0.08, 0.28, 0.12), Color(0.35, 1.0, 0.45))
-			var pressed := _choice_box(Color(0.04, 0.14, 0.08), Color(0.2, 0.7, 0.3))
-			button.add_theme_stylebox_override("normal", _choice_box(Color(0.03, 0.1, 0.05), Color(0.25, 0.85, 0.4)))
-			button.add_theme_stylebox_override("hover", hover)
-			button.add_theme_stylebox_override("focus", hover)
-			button.add_theme_stylebox_override("pressed", pressed)
-			button.add_theme_stylebox_override("hover_pressed", pressed)
+			button.add_theme_font_size_override("font_size", 16)
+			button.add_theme_color_override("font_color", ink)
+			button.add_theme_color_override("font_hover_color", Color(0.7, 1.0, 0.7))
+			button.add_theme_color_override("font_focus_color", Color(0.7, 1.0, 0.7))
+			button.add_theme_color_override("font_pressed_color", Color(0.1, 0.45, 0.16))
+			button.add_theme_color_override("font_hover_pressed_color", Color(0.1, 0.45, 0.16))
+			button.add_theme_stylebox_override("normal", flat)
+			button.add_theme_stylebox_override("hover", flat)
+			button.add_theme_stylebox_override("focus", flat)
+			button.add_theme_stylebox_override("pressed", flat)
+			button.add_theme_stylebox_override("hover_pressed", flat)
 			var index := i
 			button.pressed.connect(func():
 				_play("console_select")
 				ThrongletSimServer.choose(index)
 			)
-			gaze_box.add_child(button)
+			slot.add_child(button)
+			gaze_box.add_child(slot)
+	if console_line != "":
+		console_reveal = mini(console_line.length(), console_reveal + 4)
+		gaze_text.clear()
+		gaze_text.add_theme_font_size_override("normal_font_size", 16)
+		gaze_text.add_theme_color_override("default_color", Color(0.22, 0.86, 0.28))
+		gaze_text.append_text(console_line.substr(0, console_reveal))
+	if not console_glyphs.is_empty():
+		var tick := int(Time.get_ticks_msec() / 160)
+		var alive: Array[TextureRect] = []
+		for i in console_corner_glyphs.size():
+			var glyph: TextureRect = console_corner_glyphs[i]
+			if not is_instance_valid(glyph):
+				continue
+			var phase := int(glyph.get_meta("phase", 0))
+			glyph.texture = console_glyphs[(tick + i + phase) % console_glyphs.size()]
+			alive.append(glyph)
+		console_corner_glyphs = alive
 	gaze_panel.visible = true
+	_layout_console()
+
+
+func _layout_console() -> void:
+	if gaze_log == null or gaze_box == null:
+		return
+	var width := gaze_panel.offset_right - gaze_panel.offset_left
+	var count := 0
+	for child in gaze_box.get_children():
+		if not child.is_queued_for_deletion():
+			count += 1
+	var gap := 4.0
+	gaze_log.offset_left = 0.0
+	gaze_log.offset_top = 0.0
+	gaze_log.offset_bottom = 0.0
+	var panel_h := gaze_panel.offset_bottom - gaze_panel.offset_top
+	if count <= 0 or width < 32.0:
+		gaze_log.offset_right = 0.0
+		gaze_box.visible = false
+		_fit_console_art(gaze_log, panel_h, panel_h)
+		return
+	var choice_w := int(width * 0.4)
+	gaze_log.offset_right = -(choice_w + gap)
+	gaze_box.visible = true
+	gaze_box.offset_left = -choice_w
+	gaze_box.offset_right = 0.0
+	gaze_box.offset_top = 0.0
+	gaze_box.offset_bottom = 0.0
+	_fit_console_art(gaze_log, panel_h, panel_h)
+	var slot_h := (panel_h - gap * float(count - 1)) / float(count)
+	for child in gaze_box.get_children():
+		if child is Control and not child.is_queued_for_deletion():
+			_fit_console_art(child, panel_h, slot_h)
 
 
 func _sync_focus(delta: float) -> void:
@@ -2097,10 +2450,12 @@ func _sync_focus(delta: float) -> void:
 	var inner := frame.grow(-22.0)
 	var hole := inner
 	if talk:
-		var text_h := 240.0
-		hole.size.y = maxf(64.0, inner.size.y - text_h)
-		var text := Rect2(Vector2(inner.position.x, inner.position.y + hole.size.y - 8.0), Vector2(inner.size.x, inner.size.y - hole.size.y + 8.0))
+		var view := get_viewport_rect().size
+		var console_h := maxf(132.0, round(view.y * 0.34))
+		var text := Rect2(Vector2(8.0, view.y - console_h - 4.0), Vector2(view.x - 16.0, console_h))
 		_set_box(gaze_panel, text)
+		_layout_console()
+		hole = Rect2(inner.position, Vector2(inner.size.x, maxf(64.0, text.position.y - inner.position.y)))
 	var view_size := get_viewport_rect().size
 	var uv_pos := hole.position / view_size
 	var uv_end := hole.end / view_size
@@ -2677,20 +3032,17 @@ func _build_marks() -> void:
 
 
 func _build_glitch(root: Control) -> void:
-	for _i in 8:
-		var bar := ColorRect.new()
-		bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		bar.visible = false
-		root.add_child(bar)
-		glitch_bars.append(bar)
-	glitch_label = Label.new()
-	glitch_label.theme = ui_theme
-	glitch_label.text = "SISTEMA INESTABLE"
-	glitch_label.visible = false
-	glitch_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	glitch_label.add_theme_color_override("font_color", Color(0.45, 1.0, 0.4))
-	glitch_label.position = Vector2(200, 168)
-	root.add_child(glitch_label)
+	glitch_overlay = ColorRect.new()
+	glitch_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	glitch_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	glitch_overlay.visible = false
+	glitch_overlay.z_index = 31
+	var shader := load("res://resources/ui/fullscreen_glitch.gdshader") as Shader
+	if shader != null:
+		glitch_mat = ShaderMaterial.new()
+		glitch_mat.shader = shader
+		glitch_overlay.material = glitch_mat
+	root.add_child(glitch_overlay)
 
 
 func _hide_marks() -> void:
@@ -2796,18 +3148,10 @@ func _sync_glitch(delta: float) -> void:
 	if sim.glitch_t > 0.0:
 		sim.glitch_t = maxf(0.0, sim.glitch_t - delta)
 	var on: bool = sim.glitch_t > 0.0
-	if glitch_label != null:
-		glitch_label.visible = on
-	for i in glitch_bars.size():
-		var bar: ColorRect = glitch_bars[i]
-		bar.visible = on
-		if not on:
-			continue
-		var h := 6 + (i % 3) * 8
-		var y := float((int(Time.get_ticks_msec() / 35) + i * 47) % 340)
-		bar.position = Vector2(-30.0 if i % 2 == 0 else 50.0, y)
-		bar.size = Vector2(700, h)
-		bar.color = Color(0.02, 0.08, 0.02, 0.82) if i % 2 == 0 else Color(0.15, 0.95, 0.35, 0.35)
+	if glitch_overlay != null:
+		glitch_overlay.visible = on
+		if on and glitch_mat != null:
+			glitch_mat.set_shader_parameter("intensity", clampf(sim.glitch_t / 1.4, 0.35, 1.0))
 
 
 func _sync_need_bars() -> void:
@@ -3074,6 +3418,22 @@ func _mesh(colored: bool, size: Vector2) -> MultiMesh:
 	return mesh
 
 
+func _ui_font() -> FontFile:
+	var font := FontFile.new()
+	font.antialiasing = TextServer.FONT_ANTIALIASING_NONE
+	font.hinting = TextServer.HINTING_NONE
+	font.subpixel_positioning = TextServer.SUBPIXEL_POSITIONING_DISABLED
+	font.oversampling = 1.0
+	font.allow_system_fallback = false
+	if font.load_dynamic_font("res://resources/ui/VT323-Regular.ttf") == OK:
+		return font
+	font.antialiasing = TextServer.FONT_ANTIALIASING_GRAY
+	font.allow_system_fallback = true
+	if font.load_dynamic_font("res://resources/ui/aline_font.ttf") == OK:
+		return font
+	return null
+
+
 func _build_ui() -> void:
 	ui = CanvasLayer.new()
 	add_child(ui)
@@ -3082,16 +3442,10 @@ func _build_ui() -> void:
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui.add_child(root)
 	var theme := Theme.new()
-	var font := FontFile.new()
-	if font.load_dynamic_font("res://resources/ui/aline_font.ttf") == OK:
+	var font := _ui_font()
+	if font != null:
 		theme.default_font = font
 		theme.default_font_size = 16
-	elif font.load_dynamic_font("res://resources/ui/PerfectDOSVGA437.ttf") == OK:
-		theme.default_font = font
-		theme.default_font_size = 16
-	elif font.load_bitmap_font("res://resources/ui/pixel_font.fnt") == OK:
-		theme.default_font = font
-		theme.default_font_size = 8
 	var panel := _panel_style()
 	var slot := _slot_style()
 	theme.set_stylebox("panel", "PanelContainer", panel)
@@ -3176,7 +3530,7 @@ func _build_ui() -> void:
 	tag_label.text = "TAREA"
 	tag_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	tag_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	tag_label.add_theme_font_size_override("font_size", 8)
+	tag_label.add_theme_font_size_override("font_size", 16)
 	tag_label.add_theme_color_override("font_color", _goal_ink())
 	tag_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tag_panel.add_child(tag_label)
@@ -3192,7 +3546,7 @@ func _build_ui() -> void:
 	goal_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	goal_label.autowrap_mode = TextServer.AUTOWRAP_OFF
 	goal_label.text_overrun_behavior = TextServer.OVERRUN_NO_TRIMMING
-	goal_label.add_theme_font_size_override("font_size", 8)
+	goal_label.add_theme_font_size_override("font_size", 16)
 	goal_label.add_theme_color_override("font_color", _goal_ink())
 	goal_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	body_panel.add_child(goal_label)
@@ -3334,52 +3688,54 @@ func _build_ui() -> void:
 	focus_frame.add_theme_stylebox_override("panel", border)
 	root.add_child(focus_frame)
 
-	gaze_panel = PanelContainer.new()
+	var glyph_atlas := "res://resources/src/ref/atlas/Sprites-ConsoleUI/"
+	var glyph_sheets := [
+		"UI_ConsoleUI_FrameGlyph_Animation_SpriteSheet_0.png",
+		"UI_ConsoleUI_FrameGlyph1_Animation_SpriteSheet_0.png",
+		"UI_ConsoleUI_FrameGlyph2_Animation_SpriteSheet_0.png",
+		"UI_ConsoleUI_FrameGlyph3_Animation_SpriteSheet_0.png",
+		"UI_ConsoleUI_FrameGlyph4_Animation_SpriteSheet_0.png",
+		"UI_ConsoleUI_FrameGlyph5_Animation_SpriteSheet_0.png",
+		"UI_ConsoleUI_FrameGlyph6_Animation_SpriteSheet_0.png",
+	]
+	for sheet in glyph_sheets:
+		var glyph_tex := _tex(glyph_atlas + sheet)
+		if glyph_tex != null:
+			console_glyphs.append(glyph_tex)
+	gaze_panel = Control.new()
 	gaze_panel.visible = false
 	gaze_panel.z_index = 33
-	if ResourceLoader.exists("res://resources/ui/console_panel.png"):
-		var console := _box_style("res://resources/ui/console_panel.png", 18, 14)
-		gaze_panel.add_theme_stylebox_override("panel", console)
-	elif ResourceLoader.exists("res://resources/ui/console_border.png"):
-		var border_only := _box_style("res://resources/ui/console_border.png", 18, 14)
-		border_only.draw_center = false
-		gaze_panel.add_theme_stylebox_override("panel", border_only)
-	else:
-		var terminal := StyleBoxFlat.new()
-		terminal.bg_color = Color(0.02, 0.06, 0.03, 0.94)
-		terminal.border_color = Color(0.25, 0.95, 0.4)
-		terminal.set_border_width_all(2)
-		gaze_panel.add_theme_stylebox_override("panel", terminal)
+	gaze_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	gaze_log = Control.new()
+	gaze_log.set_anchors_preset(Control.PRESET_FULL_RECT)
+	gaze_log.mouse_filter = Control.MOUSE_FILTER_STOP
+	gaze_log.gui_input.connect(_on_console_input)
+	_build_console_frame(gaze_log, 2.0, 0)
 	var gaze_margin := MarginContainer.new()
-	gaze_margin.add_theme_constant_override("margin_left", 8)
-	gaze_margin.add_theme_constant_override("margin_right", 8)
-	gaze_margin.add_theme_constant_override("margin_top", 8)
-	gaze_margin.add_theme_constant_override("margin_bottom", 8)
-	var gaze_row := HBoxContainer.new()
-	gaze_row.add_theme_constant_override("separation", 10)
-	gaze_face = TextureRect.new()
-	gaze_face.custom_minimum_size = Vector2(72, 72)
-	gaze_face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	gaze_face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	gaze_row.add_child(gaze_face)
-	var gaze_col := VBoxContainer.new()
-	gaze_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	gaze_margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+	gaze_margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	gaze_margin.add_theme_constant_override("margin_left", 40)
+	gaze_margin.add_theme_constant_override("margin_right", 40)
+	gaze_margin.add_theme_constant_override("margin_top", 18)
+	gaze_margin.add_theme_constant_override("margin_bottom", 16)
 	gaze_text = RichTextLabel.new()
 	gaze_text.bbcode_enabled = true
 	gaze_text.fit_content = false
-	gaze_text.scroll_active = true
-	gaze_text.custom_minimum_size = Vector2(0, 96)
+	gaze_text.scroll_active = false
+	gaze_text.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	gaze_text.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	gaze_text.add_theme_color_override("default_color", Color(0.35, 1.0, 0.45))
-	gaze_col.add_child(gaze_text)
-	gaze_row.add_child(gaze_col)
+	gaze_text.add_theme_font_size_override("normal_font_size", 16)
+	gaze_text.add_theme_color_override("default_color", Color(0.22, 0.86, 0.28))
+	gaze_margin.add_child(gaze_text)
+	gaze_log.add_child(gaze_margin)
 	gaze_box = VBoxContainer.new()
-	gaze_box.custom_minimum_size = Vector2(210, 0)
-	gaze_box.size_flags_horizontal = Control.SIZE_SHRINK_END
-	gaze_box.add_theme_constant_override("separation", 6)
-	gaze_row.add_child(gaze_box)
-	gaze_margin.add_child(gaze_row)
-	gaze_panel.add_child(gaze_margin)
+	gaze_box.anchor_left = 1.0
+	gaze_box.anchor_right = 1.0
+	gaze_box.anchor_bottom = 1.0
+	gaze_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	gaze_box.add_theme_constant_override("separation", 4)
+	gaze_panel.add_child(gaze_log)
+	gaze_panel.add_child(gaze_box)
 	root.add_child(gaze_panel)
 	_build_marks()
 	_build_glitch(root)
@@ -4015,11 +4371,10 @@ func _build_asset_shot() -> void:
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	labels.add_child(root)
 	var theme := Theme.new()
-	var font := FontFile.new()
-	if font.load_dynamic_font("res://resources/ui/aline_font.ttf") == OK \
-			or font.load_dynamic_font("res://resources/ui/PerfectDOSVGA437.ttf") == OK:
+	var font := _ui_font()
+	if font != null:
 		theme.default_font = font
-		theme.default_font_size = 8
+		theme.default_font_size = 16
 	root.theme = theme
 	var scale := 0.55
 	var cols := 8

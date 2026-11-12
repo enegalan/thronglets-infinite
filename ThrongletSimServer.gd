@@ -191,8 +191,8 @@ func _notification(what: int) -> void:
 
 
 func _begin_smoke() -> void:
+	await get_tree().process_frame
 	if shot_mode:
-		await get_tree().process_frame
 		_prep_shot_world()
 		return
 	_run_checks()
@@ -2950,6 +2950,9 @@ func buy(key: String) -> bool:
 func choose(index: int) -> void:
 	if modal.is_empty():
 		return
+	if modal.has("lines"):
+		_advance_lines()
+		return
 	var event := str(modal.event)
 	if not Catalog.GAZE.has(event):
 		return
@@ -3802,14 +3805,67 @@ func _tick_talk_wait(delta: float) -> void:
 	_open_talk_modal(event, action, tree_id)
 
 
+func _advance_lines() -> void:
+	var lines: Array = modal.get("lines", [])
+	var at := int(modal.get("line", 0)) + 1
+	sfx_queue.append("ui")
+	if at < lines.size():
+		modal["line"] = at
+		modal["seq"] = at + 1
+		var log: Array = modal.get("log", [])
+		log.append("> " + str(lines[at]))
+		modal["log"] = log
+		return
+	var event := str(modal.event)
+	var action: Dictionary = modal.action if modal.action is Dictionary else {}
+	var label := str(lines[0]) if not lines.is_empty() else ""
+	_set_ethics(event, 0, label)
+	modal = {}
+	frozen = false
+	_restore_gaze()
+	var allow: Array = Catalog.GAZE[event].get("allow", [])
+	if allow.has(0) and not action.is_empty():
+		_apply_action(action)
+	_open_next_talk()
+
+
 func _open_talk_modal(event: String, action: Dictionary, tree_override: String = "") -> void:
+	var gaze: Dictionary = Catalog.GAZE.get(event, {})
+	var confirm := str(gaze.get("kind", "")) == "confirm" or tree_override.begins_with("confirm")
 	var opened: Dictionary = {}
 	if tree_override != "":
 		opened = DialogueBook.open_tree(tree_override)
-	else:
+	elif not confirm:
 		opened = DialogueBook.open_session(event)
+	if not opened.is_empty() and not DialogueBook.choices_of(opened).is_empty():
+		_open_tree_modal(event, action, opened)
+		return
+	if not confirm:
+		var lines: Array = LineBook.lines_for(event)
+		if not lines.is_empty():
+			modal = {
+				"event": event,
+				"action": action,
+				"lines": lines,
+				"line": 0,
+				"log": ["> " + str(lines[0])],
+				"seq": 1,
+				"tree": "",
+				"node": "",
+			}
+			_begin_gaze()
+			return
+	if opened.is_empty():
+		if tree_override != "":
+			opened = DialogueBook.open_tree(tree_override)
+		else:
+			opened = DialogueBook.open_session(event)
 	if opened.is_empty():
 		return
+	_open_tree_modal(event, action, opened)
+
+
+func _open_tree_modal(event: String, action: Dictionary, opened: Dictionary) -> void:
 	modal = {
 		"event": event,
 		"action": action,
@@ -3822,15 +3878,27 @@ func _open_talk_modal(event: String, action: Dictionary, tree_override: String =
 
 
 func _queue_ambient_talk() -> void:
-	if game_over or testing:
+	if game_over or testing or living <= 0 or not modal.is_empty() or not talk_pending.is_empty():
 		return
-	var tid: String = DialogueBook.ambient_for(talked_trees)
-	if tid == "":
+	var line := LineBook.bark_line(ambient_n)
+	ambient_n += 1
+	if line == "":
 		return
-	if not modal.is_empty() or not talk_pending.is_empty():
-		gaze_queue.append({"event": "ambient", "action": {}, "tree": tid})
+	var who := -1
+	for i in slot_count:
+		if state[i] == Catalog.ST_LIVING:
+			who = i
+			break
+	if who < 0:
 		return
-	_schedule_talk_tree("ambient", {}, tid)
+	barks.append({
+		"id": who,
+		"icon": -1,
+		"text": line,
+		"t": 2.6,
+		"x": pos_x[who],
+		"y": pos_y[who],
+	})
 
 
 func _schedule_talk_tree(event: String, action: Dictionary, tree_id: String) -> void:
@@ -3843,6 +3911,7 @@ func _schedule_talk_tree(event: String, action: Dictionary, tree_id: String) -> 
 
 func _begin_gaze() -> void:
 	frozen = true
+	glitch_t = 1.4
 	_clear_action_motion()
 	_line_up_gaze()
 	sfx_queue.append("talk")
@@ -6436,11 +6505,13 @@ func _run_checks() -> void:
 			errors.append("first_born talk missing")
 		else:
 			var guard := 0
-			while not modal.is_empty() and guard < 32:
+			while not modal.is_empty() and guard < 80:
 				choose(0)
 				guard += 1
-		if bool(mutations.get("care", false)) != true:
-			errors.append("care mutation missing")
+		if LineBook.lines_for("first_born").is_empty():
+			errors.append("first_born lines missing")
+		if _ethics_choice("first_born") == -1:
+			errors.append("first_born ethics missing")
 		var again := _add_item(Catalog.ITEM_EGG, 260.0, 260.0, 0)
 		again.air = 0.0
 		again.hatch = 0
@@ -6476,11 +6547,11 @@ func _run_checks() -> void:
 			errors.append("mitosis living %s" % living)
 		_queue_talk("learn_self", {})
 		var talk_guard := 0
-		while not modal.is_empty() and talk_guard < 64:
+		while not modal.is_empty() and talk_guard < 80:
 			choose(0)
 			talk_guard += 1
-		if str(DialogueBook.tree_id_for("learn_self")) != "CH02_S03_010INT1":
-			errors.append("learn_self tree mapping")
+		if LineBook.lines_for("learn_self").is_empty():
+			errors.append("learn_self lines missing")
 		if _ethics_choice("learn_self") == -1:
 			errors.append("learn_self ethics missing")
 	if not bool(unlocks.camera):
@@ -6530,7 +6601,7 @@ func _run_checks() -> void:
 		errors.append("axe locked")
 	bridge_open = true
 	_ensure_bridge_site()
-	if not modal.is_empty() and str(modal.get("event", "")) == "need_bridge":
+	while not modal.is_empty() and str(modal.get("event", "")) == "need_bridge":
 		choose(0)
 	if _primary_open_bridge().is_empty():
 		errors.append("bridge missing")
@@ -6779,7 +6850,8 @@ func _run_checks() -> void:
 	if modal.is_empty() or str(modal.get("event", "")) != "neglect":
 		errors.append("neglect gaze")
 	else:
-		choose(0)
+		while not modal.is_empty():
+			choose(0)
 	if frozen:
 		errors.append("frozen after choice")
 	var live_now := living
