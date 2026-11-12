@@ -132,6 +132,9 @@ var dos_hold := 0.0
 var crt_overlay: ColorRect
 var captions_on := false
 var crt_on := false
+var sign_button: Button
+var hud_top: Control
+var menu_button: Button
 var dev_on := false
 var dev_bench = null
 var dev_hud_vis := {}
@@ -337,6 +340,7 @@ func _unhandled_input(event: InputEvent) -> void:
 func _process(delta: float) -> void:
 	_tick_logo(delta)
 	_tick_dos(delta)
+	_sync_tutorial()
 	if dev_on:
 		_move_camera(delta)
 		if dev_bench != null:
@@ -1939,7 +1943,7 @@ func _write_mesh(mesh: MultiMesh, draws: Array) -> void:
 
 func _sync_hud(delta: float) -> void:
 	var sim: ThrongletSim = ThrongletSimServer
-	pop_label.text = str(sim.living)
+	pop_label.text = "?" if sim.count_unknown else str(sim.living)
 	var face_key := "base"
 	if sim.living <= 0:
 		face_key = "cry" if sim.peak > 0 else "base"
@@ -2470,7 +2474,7 @@ func _sync_focus(delta: float) -> void:
 	elif focus_hold > 0.0:
 		focus_hold = maxf(0.0, focus_hold - delta)
 	var show_egg: bool = not talk and not egg.is_empty() and (falling or focus_hold > 0.0)
-	var show: bool = talk or show_egg
+	var show: bool = talk or show_egg or sim.tutorial_i >= 0
 	if show and not focus_on:
 		focus_on = true
 	if not show and focus_on:
@@ -2479,7 +2483,7 @@ func _sync_focus(delta: float) -> void:
 	focus_dim.visible = show
 	focus_frame.visible = show
 	focus_box.visible = show
-	task_panel.visible = not talk
+	task_panel.visible = not talk and sim.tutorial_i < 0
 	if show:
 		focus_port.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	else:
@@ -2488,6 +2492,13 @@ func _sync_focus(delta: float) -> void:
 		return
 	var frame := _focus_frame_rect(talk)
 	_set_box(focus_frame, frame)
+	if sign_button != null:
+		var signing := sim.tutorial_i >= 0 and not talk
+		sign_button.visible = signing
+		if signing:
+			sign_button.text = sim.tutorial_line()
+			sign_button.position = frame.position + Vector2(40, frame.size.y - 98)
+			sign_button.size = Vector2(frame.size.x - 80, 64)
 	var inner := frame.grow(-22.0)
 	var hole := inner
 	if talk:
@@ -3600,7 +3611,8 @@ func _build_ui() -> void:
 	root.theme = theme
 	ui_theme = theme
 
-	var top_row := HBoxContainer.new()
+	hud_top = HBoxContainer.new()
+	var top_row := hud_top
 	top_row.position = Vector2(6, 6)
 	top_row.add_theme_constant_override("separation", 6)
 	top_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -3899,7 +3911,7 @@ func _build_ui() -> void:
 	)
 	root.add_child(dim)
 	menu_dim = dim
-	var menu_button := Button.new()
+	menu_button = Button.new()
 	menu_button.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	menu_button.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	menu_button.offset_left = -30
@@ -4023,6 +4035,41 @@ func _build_opening(root: Control) -> void:
 	dos_face.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	dos_root.add_child(dos_face)
 	root.add_child(dos_root)
+
+	sign_button = Button.new()
+	sign_button.visible = false
+	sign_button.z_index = 34
+	sign_button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	sign_button.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	sign_button.add_theme_font_override("font", _ui_font())
+	sign_button.add_theme_font_size_override("font_size", 14)
+	var ink := Color(0.1, 0.07, 0.04)
+	sign_button.add_theme_color_override("font_color", ink)
+	sign_button.add_theme_color_override("font_hover_color", ink)
+	sign_button.add_theme_color_override("font_pressed_color", ink)
+	sign_button.add_theme_color_override("font_focus_color", ink)
+	var wood := _box_style("res://resources/ui/sign_plank.png", 8, 6)
+	sign_button.add_theme_stylebox_override("normal", wood)
+	sign_button.add_theme_stylebox_override("hover", wood)
+	sign_button.add_theme_stylebox_override("pressed", wood)
+	sign_button.add_theme_stylebox_override("focus", wood)
+	var arrow := TextureRect.new()
+	arrow.texture = _tex("res://resources/ui/sign_arrow.png")
+	arrow.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	arrow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	arrow.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	arrow.stretch_mode = TextureRect.STRETCH_SCALE
+	arrow.anchor_left = 1.0
+	arrow.anchor_top = 1.0
+	arrow.anchor_right = 1.0
+	arrow.anchor_bottom = 1.0
+	arrow.offset_left = -16.0
+	arrow.offset_top = -12.0
+	arrow.offset_right = -11.0
+	arrow.offset_bottom = -9.0
+	sign_button.add_child(arrow)
+	sign_button.pressed.connect(_advance_sign)
+	root.add_child(sign_button)
 
 
 func _dos_font() -> FontFile:
@@ -4173,6 +4220,30 @@ func _toggle_crt() -> void:
 	_apply_crt()
 	_save_prefs()
 	_fill_settings()
+
+
+func _sync_tutorial() -> void:
+	if in_title or ThrongletSimServer.testing:
+		return
+	if ThrongletSimServer.tutorial_i >= 0:
+		_set_hud_shown(false)
+
+
+func _set_hud_shown(shown: bool) -> void:
+	if hud_top != null:
+		hud_top.visible = shown
+	if menu_button != null:
+		menu_button.visible = shown
+	if not shown:
+		_set_kit_shown(false)
+
+
+func _advance_sign() -> void:
+	ThrongletSimServer.advance_tutorial()
+	if ThrongletSimServer.tutorial_i < 0:
+		_set_hud_shown(true)
+		if sign_button != null:
+			sign_button.visible = false
 
 
 func _show_title() -> void:

@@ -108,6 +108,8 @@ var held_y := 0.0
 var scoop_item_ids: Array = []
 var scoop_dead_ids: Array = []
 var session_live := false
+var tutorial_i := -1
+var count_unknown := false
 var sponge_id := -1
 var sponge_hold := 0.0
 
@@ -1927,8 +1929,10 @@ func use_tool(tool: int, x: float, y: float) -> void:
 		sfx_queue.append("locked")
 		return
 	if tool == Catalog.TOOL_APPLE:
+		_know_count()
 		_drop_loose(Catalog.ITEM_APPLE, x, y, 1)
 	elif tool == Catalog.TOOL_BALL:
+		_know_count()
 		_drop_loose(Catalog.ITEM_BALL, x, y, 1)
 	elif tool == Catalog.TOOL_SPONGE:
 		notes.append("MANTEN LA ESPONJA Y FROTA PARA LAVAR.")
@@ -2368,6 +2372,7 @@ func scrub(x: float, y: float, stroke: float) -> void:
 	sponge_id = -1
 	if stroke < 4.0:
 		return
+	_know_count()
 	var gain := minf(stroke, 22.0) * 2.0
 	for raw in ids:
 		var id := int(raw)
@@ -2953,6 +2958,30 @@ func buy(key: String) -> bool:
 	return true
 
 
+func tutorial_line() -> String:
+	var signs: Array[int] = [0, 1, 15]
+	if tutorial_i < 0 or tutorial_i >= signs.size():
+		return ""
+	return LineBook.row("SYS.MESSAGES", signs[tutorial_i])
+
+
+func advance_tutorial() -> void:
+	var signs: Array[int] = [0, 1, 15]
+	if tutorial_i < 0:
+		return
+	tutorial_i += 1
+	if tutorial_i < signs.size():
+		return
+	tutorial_i = -1
+	_know_count()
+	if living > 0 and _ethics_choice("first_born") == -1:
+		_queue_talk("first_born", {})
+
+
+func _know_count() -> void:
+	count_unknown = false
+
+
 func choose(index: int) -> void:
 	if modal.is_empty():
 		return
@@ -3232,6 +3261,8 @@ func new_game() -> void:
 	if world_seed == 0:
 		world_seed = 1
 	_bootstrap_new()
+	tutorial_i = 0
+	count_unknown = true
 	notes.append("PARTIDA NUEVA.")
 
 
@@ -3423,6 +3454,8 @@ func save_game() -> bool:
 		"sister_cx": sister_cx,
 		"sister_cy": sister_cy,
 		"sister_ready": sister_ready,
+		"tutorial_i": tutorial_i,
+		"count_unknown": count_unknown,
 	}
 	var file := FileAccess.open(save_path, FileAccess.WRITE)
 	if file == null:
@@ -3523,6 +3556,8 @@ func load_game() -> bool:
 	sister_cx = int(data.get("sister_cx", 1))
 	sister_cy = int(data.get("sister_cy", 0))
 	sister_ready = bool(data.get("sister_ready", false))
+	tutorial_i = int(data.get("tutorial_i", -1))
+	count_unknown = bool(data.get("count_unknown", false))
 	_recount()
 	_reindex()
 	if not bridge_open and (part_two or land_tier >= 2):
@@ -4655,10 +4690,12 @@ func _hatch_egg(it: Dictionary) -> void:
 	var id := _push_slot(x, y, 50.0, 50.0, 50.0, 4.0, 0)
 	if id >= 0:
 		shake_t[id] = 0.45
+	_know_count()
 	sfx_queue.append("egg_hatch")
 	sfx_queue.append("hatch")
-	_pop(x, y - 6.0, Catalog.ICON_EGG)
-	_queue_talk("first_born", {})
+	_pop(x, y - 6.0, Catalog.ICON_FX_SPARK)
+	if tutorial_i < 0:
+		_queue_talk("first_born", {})
 
 
 func _reset_world() -> void:
@@ -4724,6 +4761,8 @@ func _reset_world() -> void:
 	modal = {}
 	talk_pending = {}
 	gaze_queue.clear()
+	tutorial_i = -1
+	count_unknown = false
 	talked_trees = {}
 	learn_talked = false
 	moral = 0
@@ -6660,15 +6699,29 @@ func _check_factory_fill(errors: Array) -> void:
 
 func _check_opening(errors: Array) -> void:
 	var dos := LineBook.row("SYS.GAME_INTRO", 3)
+	var clean := LineBook.row("SYS.MESSAGES", 15)
+	var crt := LineBook.row("SYS.SETTINGS", 14)
 	print("OPENING DOS " + dos.replace("\\n", " | "))
+	print("OPENING CLEAN " + clean)
+	print("OPENING CRT " + crt)
 	if "TS-DOZ" not in dos or "HIMEM" not in dos or "TUCK96.IMG" not in dos:
 		errors.append("dos text")
 	if "TROPELES" not in dos or "NOHZDYVE" not in dos or "TSOFT_EDITOR" not in dos:
 		errors.append("dos dir")
-	var crt := LineBook.row("SYS.SETTINGS", 14)
-	print("OPENING CRT " + crt)
+	if "limpieza" not in clean:
+		errors.append("tutorial sign")
 	if crt != "Filtro de TRC":
 		errors.append("crt label")
+	tutorial_i = 0
+	count_unknown = true
+	advance_tutorial()
+	advance_tutorial()
+	advance_tutorial()
+	if tutorial_i != -1:
+		errors.append("tutorial end")
+	_know_count()
+	if count_unknown:
+		errors.append("count mark")
 
 
 func _run_checks() -> void:
