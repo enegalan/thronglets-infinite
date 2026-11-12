@@ -748,9 +748,9 @@ func _build_ui() -> void:
 	box.add_child(name_label)
 	var metrics := HBoxContainer.new()
 	metrics.add_theme_constant_override("separation", 4)
-	grid_x = _spin(1, 8, 1)
-	grid_y = _spin(1, 8, 1)
-	scale_box = _spin(0.25, 3.0, 0.05)
+	grid_x = _spin(1, 8, 1, true)
+	grid_y = _spin(1, 8, 1, true)
+	scale_box = _spin(0.01, 3.0, 0.05)
 	off_x = _spin(-160, 160, 1)
 	off_y = _spin(-160, 160, 1)
 	z_box = _spin(-40, 40, 1)
@@ -851,14 +851,16 @@ func _text_button(text: String, call: Callable) -> Button:
 	return button
 
 
-func _spin(lo: float, hi: float, step: float) -> SpinBox:
+func _spin(lo: float, hi: float, step: float, whole: bool = false) -> SpinBox:
 	var box := SpinBox.new()
 	box.min_value = lo
 	box.max_value = hi
-	box.step = step
-	box.rounded = step >= 1.0
+	box.step = step if whole else 0.01
+	if not whole and not is_equal_approx(step, 0.01):
+		box.custom_arrow_step = step
+	box.rounded = whole
 	box.custom_minimum_size = Vector2(52, 22)
-	box.update_on_text_changed = true
+	box.update_on_text_changed = whole
 	box.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	return box
 
@@ -1094,7 +1096,7 @@ func _build_throng_ui(theme: Theme, root: Control) -> void:
 	var metrics := HBoxContainer.new()
 	metrics.add_theme_constant_override("separation", 4)
 	fps_box = _spin(0.5, 24.0, 0.5)
-	throng_scale = _spin(0.25, 3.0, 0.05)
+	throng_scale = _spin(0.01, 3.0, 0.05)
 	throng_x = _spin(-160, 160, 1)
 	throng_y = _spin(-160, 160, 1)
 	throng_rot = _spin(-180, 180, 1)

@@ -251,7 +251,7 @@ static func frame_rot(key: String, index: int) -> float:
 
 
 static func set_fps(key: String, value: float) -> void:
-	_assign(key, "fps", snappedf(clampf(value, 0.5, 24.0), 0.5))
+	_assign(key, "fps", snappedf(clampf(value, 0.5, 24.0), 0.01))
 
 
 static func set_frame_scale(key: String, index: int, value: float) -> void:
@@ -260,7 +260,7 @@ static func set_frame_scale(key: String, index: int, value: float) -> void:
 	var map := default_frame_scale(key)
 	if overrides.has(key) and (overrides[key] as Dictionary).has("frame_scale"):
 		map = (overrides[key]["frame_scale"] as Dictionary).duplicate()
-	var snapped := snappedf(clampf(value, 0.25, 3.0), 0.05)
+	var snapped := snappedf(clampf(value, 0.01, 3.0), 0.01)
 	if is_equal_approx(snapped, default_scale(key)):
 		map.erase(str(index))
 	else:
@@ -274,7 +274,7 @@ static func set_frame_offset(key: String, index: int, x: float, y: float) -> voi
 	var map := default_frame_off(key)
 	if overrides.has(key) and (overrides[key] as Dictionary).has("frame_off"):
 		map = (overrides[key]["frame_off"] as Dictionary).duplicate()
-	var at := Vector2(snappedf(clampf(x, -160.0, 160.0), 1.0), snappedf(clampf(y, -160.0, 160.0), 1.0))
+	var at := Vector2(snappedf(clampf(x, -160.0, 160.0), 0.01), snappedf(clampf(y, -160.0, 160.0), 0.01))
 	if at.is_zero_approx():
 		map.erase(str(index))
 	else:
@@ -288,7 +288,7 @@ static func set_frame_rot(key: String, index: int, value: float) -> void:
 	var map := default_frame_rot(key)
 	if overrides.has(key) and (overrides[key] as Dictionary).has("frame_rot"):
 		map = (overrides[key]["frame_rot"] as Dictionary).duplicate()
-	var snapped := snappedf(clampf(value, -180.0, 180.0), 1.0)
+	var snapped := snappedf(clampf(value, -180.0, 180.0), 0.01)
 	if is_equal_approx(snapped, 0.0):
 		map.erase(str(index))
 	else:
@@ -409,7 +409,7 @@ static func _read_value(key: String, field: String, raw):
 		return null
 	if typeof(raw) != TYPE_FLOAT and typeof(raw) != TYPE_INT:
 		return null
-	return snappedf(clampf(float(raw), 0.5, 24.0), 0.5)
+	return snappedf(clampf(float(raw), 0.5, 24.0), 0.01)
 
 
 static func _off_same(a, b) -> bool:
@@ -438,7 +438,7 @@ static func _read_scale(key: String, raw):
 		var value = raw[slot]
 		if typeof(value) != TYPE_FLOAT and typeof(value) != TYPE_INT:
 			continue
-		var snapped := snappedf(clampf(float(value), 0.25, 3.0), 0.05)
+		var snapped := snappedf(clampf(float(value), 0.01, 3.0), 0.01)
 		if not is_equal_approx(snapped, base):
 			map[str(index)] = snapped
 	return map
@@ -447,7 +447,7 @@ static func _read_scale(key: String, raw):
 static func _apply_legacy_scale(key: String, raw) -> void:
 	if typeof(raw) != TYPE_FLOAT and typeof(raw) != TYPE_INT:
 		return
-	var snapped := snappedf(clampf(float(raw), 0.25, 3.0), 0.05)
+	var snapped := snappedf(clampf(float(raw), 0.01, 3.0), 0.01)
 	for index in int(entry(key).get("count", 1)):
 		set_frame_scale(key, index, snapped)
 
@@ -464,7 +464,7 @@ static func _read_off(key: String, raw):
 		var value = raw[slot]
 		if typeof(value) != TYPE_ARRAY or value.size() < 2:
 			continue
-		var at := Vector2(snappedf(clampf(float(value[0]), -160.0, 160.0), 1.0), snappedf(clampf(float(value[1]), -160.0, 160.0), 1.0))
+		var at := Vector2(snappedf(clampf(float(value[0]), -160.0, 160.0), 0.01), snappedf(clampf(float(value[1]), -160.0, 160.0), 0.01))
 		if not at.is_zero_approx():
 			map[str(index)] = at
 	return map
@@ -482,7 +482,7 @@ static func _read_rot(key: String, raw):
 		var value = raw[slot]
 		if typeof(value) != TYPE_FLOAT and typeof(value) != TYPE_INT:
 			continue
-		var snapped := snappedf(clampf(float(value), -180.0, 180.0), 1.0)
+		var snapped := snappedf(clampf(float(value), -180.0, 180.0), 0.01)
 		if not is_equal_approx(snapped, 0.0):
 			map[str(index)] = snapped
 	return map
@@ -559,7 +559,7 @@ static func _scale_apply(key: String, value: Dictionary) -> String:
 	slots.sort()
 	for raw in slots:
 		var index := int(raw)
-		bits.append("index %d (sheet %d) = %s" % [index, start + index, str(snappedf(float(value[raw]), 0.05))])
+		bits.append("index %d (sheet %d) = %s" % [index, start + index, str(snappedf(float(value[raw]), 0.01))])
 	var listed := "no scaled frames" if bits.is_empty() else ", ".join(bits)
 	return "Only these frames of %s. %s. %s Pass that scale only for a listed sheet frame. Every other frame stays at SCALE, or 1. In anim_tune.gd set FRAME_SCALE[\"%s\"] to the to map, or remove the key when it is empty. Do not scale the whole strip unless every index is listed. Do not load this file at runtime." % [key, listed, str(row.get("where", "")), key]
 
@@ -573,7 +573,7 @@ static func _off_apply(key: String, value: Dictionary) -> String:
 	for raw in slots:
 		var index := int(raw)
 		var at: Vector2 = value[raw]
-		bits.append("index %d (sheet %d) = [%d, %d]" % [index, start + index, int(round(at.x)), int(round(at.y))])
+		bits.append("index %d (sheet %d) = [%s, %s]" % [index, start + index, str(snappedf(at.x, 0.01)), str(snappedf(at.y, 0.01))])
 	var listed := "no moved frames" if bits.is_empty() else ", ".join(bits)
 	return "Only these frames of %s. %s. %s Add that [x, y] as world pixels after the anchor on that sheet frame only. +x east, +y south. Every other frame stays at (0, 0). In anim_tune.gd set FRAME_OFF[\"%s\"] to the to map, or remove the key when it is empty. Do not move the whole strip. Do not load this file at runtime." % [key, listed, str(row.get("where", "")), key]
 
@@ -586,7 +586,7 @@ static func _rot_apply(key: String, value: Dictionary) -> String:
 	slots.sort()
 	for raw in slots:
 		var index := int(raw)
-		bits.append("index %d (sheet %d) = %d degrees" % [index, start + index, int(round(float(value[raw])))])
+		bits.append("index %d (sheet %d) = %s degrees" % [index, start + index, str(snappedf(float(value[raw]), 0.01))])
 	var listed := "no rotated frames" if bits.is_empty() else ", ".join(bits)
 	return "Only these frames of %s. %s. %s Main._write_mesh reads draw rot and spins that one quad clockwise around the anchor. Set rot only for a listed sheet frame. Every other frame stays at 0. In anim_tune.gd set FRAME_ROT[\"%s\"] to the to map, or remove the key when it is empty. Do not rotate the whole strip. Do not load this file at runtime." % [key, listed, str(row.get("where", "")), key]
 
@@ -597,7 +597,7 @@ static func _json_rot(value) -> Dictionary:
 	var slots: Array = raw.keys()
 	slots.sort()
 	for slot in slots:
-		out[str(slot)] = int(round(float(raw[slot])))
+		out[str(slot)] = snappedf(float(raw[slot]), 0.01)
 	return out
 
 
@@ -607,7 +607,7 @@ static func _json_scale(value) -> Dictionary:
 	var slots: Array = raw.keys()
 	slots.sort()
 	for slot in slots:
-		out[str(slot)] = snappedf(float(raw[slot]), 0.05)
+		out[str(slot)] = snappedf(float(raw[slot]), 0.01)
 	return out
 
 
@@ -618,7 +618,7 @@ static func _json_off(value) -> Dictionary:
 	slots.sort()
 	for slot in slots:
 		var at: Vector2 = raw[slot]
-		out[str(slot)] = [int(round(at.x)), int(round(at.y))]
+		out[str(slot)] = [snappedf(at.x, 0.01), snappedf(at.y, 0.01)]
 	return out
 
 
@@ -629,7 +629,7 @@ static func _json_value(field: String, value):
 		return _json_scale(value)
 	if field == "frame_rot":
 		return _json_rot(value)
-	return snappedf(float(value), 0.5)
+	return snappedf(float(value), 0.01)
 
 
 static func _how() -> String:

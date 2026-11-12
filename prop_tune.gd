@@ -49,20 +49,20 @@ static func set_footprint(id: String, x: int, y: int) -> void:
 
 
 static func set_scale(id: String, value: float) -> void:
-	_assign(id, "scale", snappedf(clampf(value, 0.25, 3.0), 0.05))
+	_assign(id, "scale", snappedf(clampf(value, 0.01, 3.0), 0.01))
 
 
 static func set_offset(id: String, x: float, y: float) -> void:
-	var at := Vector2(snappedf(clampf(x, -160.0, 160.0), 1.0), snappedf(clampf(y, -160.0, 160.0), 1.0))
+	var at := Vector2(snappedf(clampf(x, -160.0, 160.0), 0.01), snappedf(clampf(y, -160.0, 160.0), 0.01))
 	_assign(id, "offset", at)
 
 
 static func set_z(id: String, value: float) -> void:
-	_assign(id, "z", snappedf(clampf(value, -40.0, 40.0), 1.0))
+	_assign(id, "z", snappedf(clampf(value, -40.0, 40.0), 0.01))
 
 
 static func set_rot(id: String, value: float) -> void:
-	_assign(id, "rot", snappedf(clampf(value, -180.0, 180.0), 1.0))
+	_assign(id, "rot", snappedf(clampf(value, -180.0, 180.0), 0.01))
 
 
 static func reset(id: String) -> void:
@@ -275,18 +275,18 @@ static func _read_value(key: String, raw):
 		if key == "footprint":
 			return Vector2i(clampi(int(raw[0]), 1, 8), clampi(int(raw[1]), 1, 8))
 		return Vector2(
-			snappedf(clampf(float(raw[0]), -160.0, 160.0), 1.0),
-			snappedf(clampf(float(raw[1]), -160.0, 160.0), 1.0)
+			snappedf(clampf(float(raw[0]), -160.0, 160.0), 0.01),
+			snappedf(clampf(float(raw[1]), -160.0, 160.0), 0.01)
 		)
 	if key != "scale" and key != "z" and key != "rot":
 		return null
 	if typeof(raw) != TYPE_FLOAT and typeof(raw) != TYPE_INT:
 		return null
 	if key == "scale":
-		return snappedf(clampf(float(raw), 0.25, 3.0), 0.05)
+		return snappedf(clampf(float(raw), 0.01, 3.0), 0.01)
 	if key == "rot":
-		return snappedf(clampf(float(raw), -180.0, 180.0), 1.0)
-	return snappedf(clampf(float(raw), -40.0, 40.0), 1.0)
+		return snappedf(clampf(float(raw), -180.0, 180.0), 0.01)
+	return snappedf(clampf(float(raw), -40.0, 40.0), 0.01)
 
 
 static func _document() -> Dictionary:
@@ -339,10 +339,10 @@ static func _json_value(key: String, value):
 		return [size.x, size.y]
 	if key == "offset":
 		var at: Vector2 = value
-		return [snappedf(at.x, 1.0), snappedf(at.y, 1.0)]
+		return [snappedf(at.x, 0.01), snappedf(at.y, 0.01)]
 	if key == "scale":
-		return snappedf(float(value), 0.05)
-	return snappedf(float(value), 1.0)
+		return snappedf(float(value), 0.01)
+	return snappedf(float(value), 0.01)
 
 
 static func _anchor_fn(row: Dictionary) -> String:
