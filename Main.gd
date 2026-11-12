@@ -124,6 +124,8 @@ var res_label: Label
 var kit_open := false
 var kit_tab := 0
 var in_title := true
+var hud_top: Control
+var menu_button: Button
 var dos_root: Control
 var dos_label: Label
 var dos_full := ""
@@ -133,8 +135,6 @@ var crt_overlay: ColorRect
 var captions_on := false
 var crt_on := false
 var sign_button: Button
-var hud_top: Control
-var menu_button: Button
 var dev_on := false
 var dev_bench = null
 var dev_hud_vis := {}
@@ -153,6 +153,7 @@ var market_list: VBoxContainer
 var gaze_panel: Control
 var gaze_log: Control
 var gaze_text: RichTextLabel
+var name_edit: LineEdit
 var gaze_box: VBoxContainer
 var gaze_face: TextureRect
 var console_glyph: TextureRect
@@ -255,7 +256,7 @@ func _input(event: InputEvent) -> void:
 			tool = Catalog.TOOL_EYE
 		elif tool == Catalog.TOOL_SPONGE:
 			tool = Catalog.TOOL_EYE
-	if in_title:
+	if in_title or not ThrongletSimServer.modal.is_empty():
 		return
 	if event is InputEventMouseButton and event.pressed:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
@@ -284,7 +285,7 @@ func _zoom_by(direction: float) -> void:
 
 
 func _zoom_factor(factor: float) -> void:
-	if factor <= 0.0:
+	if factor <= 0.0 or not ThrongletSimServer.modal.is_empty():
 		return
 	zoom_level = clampf(zoom_level * factor, ZOOM_MIN, ZOOM_MAX)
 
@@ -583,14 +584,17 @@ func _hand_release() -> void:
 
 func _move_camera(delta: float) -> void:
 	var keys := Vector2.ZERO
-	if Input.is_key_pressed(KEY_A) or (not dev_on and Input.is_key_pressed(KEY_LEFT)):
-		keys.x -= 1.0
-	if Input.is_key_pressed(KEY_D) or (not dev_on and Input.is_key_pressed(KEY_RIGHT)):
-		keys.x += 1.0
-	if Input.is_key_pressed(KEY_W) or (not dev_on and Input.is_key_pressed(KEY_UP)):
-		keys.y -= 1.0
-	if Input.is_key_pressed(KEY_S) or (not dev_on and Input.is_key_pressed(KEY_DOWN)):
-		keys.y += 1.0
+	var focus := get_viewport().gui_get_focus_owner()
+	var typing := focus is LineEdit or focus is TextEdit
+	if not typing:
+		if Input.is_key_pressed(KEY_A) or (not dev_on and Input.is_key_pressed(KEY_LEFT)):
+			keys.x -= 1.0
+		if Input.is_key_pressed(KEY_D) or (not dev_on and Input.is_key_pressed(KEY_RIGHT)):
+			keys.x += 1.0
+		if Input.is_key_pressed(KEY_W) or (not dev_on and Input.is_key_pressed(KEY_UP)):
+			keys.y -= 1.0
+		if Input.is_key_pressed(KEY_S) or (not dev_on and Input.is_key_pressed(KEY_DOWN)):
+			keys.y += 1.0
 	camera.position += keys * 220.0 * delta / zoom_level
 	if dragging:
 		var drag := get_viewport().get_mouse_position() - drag_from
@@ -2314,7 +2318,10 @@ func _on_console_input(event: InputEvent) -> void:
 	if not (event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT):
 		return
 	var sim: ThrongletSim = ThrongletSimServer
-	if sim.modal.is_empty() or not sim.modal.has("lines"):
+	if sim.modal.is_empty():
+		return
+	var naming := str(sim.modal.get("event", "")) == "player_name" and str(sim.modal.get("step", "")) == "echo"
+	if not naming and not sim.modal.has("lines"):
 		return
 	_play("console_select")
 	sim.choose(0)
@@ -2350,7 +2357,7 @@ func _sync_gaze() -> void:
 			"log": sim.modal.get("log", []),
 			"seq": seq,
 		}
-		console_line = DialogueBook.log_text(session).replace("[", "(").replace("]", ")")
+		console_line = sim.address(DialogueBook.log_text(session)).replace("[", "(").replace("]", ")")
 		console_reveal = 1
 		var line_talk: bool = sim.modal.has("lines")
 		if gaze_face != null:
@@ -2366,6 +2373,28 @@ func _sync_gaze() -> void:
 					face_key = "epilogue_angry"
 				gaze_face.texture = _tex(POP_FACES[face_key])
 		var choices: Array = [] if line_talk else DialogueBook.choices_of(session)
+		var naming := event == "player_name"
+		var name_step := str(sim.modal.get("step", ""))
+		if naming:
+			if gaze_face != null:
+				gaze_face.visible = false
+				gaze_face.custom_minimum_size = Vector2.ZERO
+			if name_step == "ask":
+				choices = [{"label": LineBook.row("SYS.PLAYERINPUT", 1)}]
+			elif name_step == "confirm":
+				choices = [
+					{"label": LineBook.row("SYS.PLAYERINPUT", 3)},
+					{"label": LineBook.row("SYS.PLAYERINPUT", 4)},
+				]
+			else:
+				choices = []
+			if name_edit != null:
+				name_edit.visible = name_step == "ask"
+				if name_step == "ask":
+					name_edit.text = str(sim.modal.get("draft", ""))
+					name_edit.grab_focus()
+		elif name_edit != null:
+			name_edit.visible = false
 		var ink := Color(0.22, 0.86, 0.28)
 		var flat := StyleBoxEmpty.new()
 		flat.content_margin_left = 32
@@ -2399,6 +2428,8 @@ func _sync_gaze() -> void:
 			var index := i
 			button.pressed.connect(func():
 				_play("console_select")
+				if name_edit != null and name_edit.visible:
+					ThrongletSimServer.modal["draft"] = name_edit.text
 				ThrongletSimServer.choose(index)
 			)
 			slot.add_child(button)
@@ -3137,7 +3168,7 @@ func _sync_marks() -> void:
 			tail.visible = false
 			continue
 		var said: Label = bubble_labels[i]
-		var text := str(bark.get("text", ""))
+		var text := sim.address(str(bark.get("text", "")))
 		var icon := int(bark.get("icon", -1))
 		if text == "" and icon < 0:
 			panel.visible = false
@@ -3885,7 +3916,31 @@ func _build_ui() -> void:
 	gaze_text.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	gaze_text.add_theme_font_size_override("normal_font_size", 16)
 	gaze_text.add_theme_color_override("default_color", Color(0.22, 0.86, 0.28))
-	gaze_margin.add_child(gaze_text)
+	var gaze_col := VBoxContainer.new()
+	gaze_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	gaze_col.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	gaze_col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	gaze_col.add_theme_constant_override("separation", 4)
+	gaze_text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	gaze_col.add_child(gaze_text)
+	name_edit = LineEdit.new()
+	name_edit.visible = false
+	name_edit.max_length = 24
+	name_edit.placeholder_text = ">>"
+	name_edit.caret_blink = true
+	name_edit.custom_minimum_size = Vector2(0, 22)
+	name_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_edit.add_theme_font_override("font", _ui_font())
+	name_edit.add_theme_font_size_override("font_size", 16)
+	name_edit.add_theme_color_override("font_color", Color(0.22, 0.86, 0.28))
+	name_edit.add_theme_color_override("font_placeholder_color", Color(0.22, 0.86, 0.28, 0.45))
+	name_edit.add_theme_color_override("caret_color", Color(0.22, 0.86, 0.28))
+	var field := StyleBoxEmpty.new()
+	name_edit.add_theme_stylebox_override("normal", field)
+	name_edit.add_theme_stylebox_override("focus", field)
+	name_edit.add_theme_stylebox_override("read_only", field)
+	gaze_col.add_child(name_edit)
+	gaze_margin.add_child(gaze_col)
 	gaze_log.add_child(gaze_margin)
 	gaze_box = VBoxContainer.new()
 	gaze_box.anchor_left = 1.0

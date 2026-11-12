@@ -108,8 +108,12 @@ var held_y := 0.0
 var scoop_item_ids: Array = []
 var scoop_dead_ids: Array = []
 var session_live := false
+var player_name := ""
 var tutorial_i := -1
 var count_unknown := false
+var _name_rules := false
+var _name_chars := ""
+var _name_bans: PackedStringArray = PackedStringArray()
 var sponge_id := -1
 var sponge_hold := 0.0
 
@@ -2982,8 +2986,128 @@ func _know_count() -> void:
 	count_unknown = false
 
 
+func address(text: String) -> String:
+	if player_name == "":
+		return text
+	return text.replace("[NAME]", player_name).replace("{name}", player_name)
+
+
+func _open_name_ask() -> void:
+	var ask := LineBook.row("SYS.PLAYERINPUT", 0)
+	modal = {
+		"event": "player_name",
+		"step": "ask",
+		"draft": "",
+		"log": ["> " + ask],
+		"seq": 1,
+		"tree": "",
+		"node": "",
+	}
+	_begin_gaze()
+
+
+func submit_name(raw: String) -> void:
+	if modal.is_empty() or str(modal.get("event", "")) != "player_name":
+		return
+	if str(modal.get("step", "")) != "ask":
+		return
+	var called := raw.strip_edges()
+	modal["draft"] = called
+	var notice := ""
+	if called == "":
+		notice = LineBook.row("SYS.NOTIFICATIONS", 54)
+	elif not _name_chars_ok(called):
+		notice = LineBook.row("SYS.MENUS", 27)
+	elif _name_banned(called):
+		notice = LineBook.row("SYS.MENUS", 23)
+	if notice != "":
+		modal["log"] = ["> " + LineBook.row("SYS.PLAYERINPUT", 0), "> " + notice]
+		modal["seq"] = int(modal.get("seq", 1)) + 1
+		return
+	var confirm := LineBook.row("SYS.PLAYERINPUT", 2).replace("[NAME]", called)
+	modal["step"] = "confirm"
+	modal["log"] = ["> " + confirm]
+	modal["seq"] = int(modal.get("seq", 1)) + 1
+
+
+func _choose_name(index: int) -> void:
+	var step := str(modal.get("step", ""))
+	if step == "ask":
+		submit_name(str(modal.get("draft", "")))
+		return
+	if step == "echo":
+		modal = {}
+		frozen = false
+		_restore_gaze()
+		_open_next_talk()
+		return
+	if step != "confirm":
+		return
+	if index != 0:
+		modal["step"] = "ask"
+		modal["draft"] = ""
+		modal["log"] = ["> " + LineBook.row("SYS.PLAYERINPUT", 0)]
+		modal["seq"] = int(modal.get("seq", 1)) + 1
+		return
+	player_name = str(modal.get("draft", ""))
+	var echo := LineBook.row("SYS.PLAYERINPUT", 5).replace("{0}", player_name)
+	if echo.begins_with("'") and echo.ends_with("'") and echo.length() >= 2:
+		echo = echo.substr(1, echo.length() - 2)
+	modal["step"] = "echo"
+	modal["log"] = [echo]
+	modal["seq"] = int(modal.get("seq", 1)) + 1
+
+
+func _name_chars_ok(called: String) -> bool:
+	_ensure_name_rules()
+	if _name_chars == "" or called.length() > 24:
+		return false
+	for i in called.length():
+		if not _name_chars.contains(called[i]):
+			return false
+	return true
+
+
+func _name_banned(called: String) -> bool:
+	_ensure_name_rules()
+	var flat := _flat_name(called)
+	for ban in _name_bans:
+		if ban.length() >= 3 and flat.contains(ban):
+			return true
+	return false
+
+
+func _flat_name(raw: String) -> String:
+	var out := ""
+	var lower := raw.to_lower()
+	for i in lower.length():
+		var ch := lower[i]
+		if ch == " " or ch == "\t" or ch == "-" or ch == "_" or ch == ".":
+			continue
+		out += ch
+	return out
+
+
+func _ensure_name_rules() -> void:
+	if _name_rules:
+		return
+	_name_rules = true
+	var bans := FileAccess.open("res://resources/dialogue/profanity.txt", FileAccess.READ)
+	if bans != null:
+		while not bans.eof_reached():
+			var line := _flat_name(bans.get_line())
+			if line.length() >= 3:
+				_name_bans.append(line)
+	var chars := FileAccess.open("res://resources/dialogue/name_chars.txt", FileAccess.READ)
+	if chars != null:
+		_name_chars = chars.get_as_text()
+
+
 func choose(index: int) -> void:
 	if modal.is_empty():
+		return
+	if str(modal.get("event", "")) == "player_name":
+		_choose_name(index)
 		return
 	if modal.has("lines"):
 		_advance_lines()
@@ -3032,6 +3156,9 @@ func choose(index: int) -> void:
 	var allow: Array = gaze.get("allow", [])
 	if allow.has(index) and not action.is_empty():
 		_apply_action(action)
+	if event == "first_born" and player_name == "":
+		_open_name_ask()
+		return
 	_open_next_talk()
 
 
@@ -3454,6 +3581,7 @@ func save_game() -> bool:
 		"sister_cx": sister_cx,
 		"sister_cy": sister_cy,
 		"sister_ready": sister_ready,
+		"player_name": player_name,
 		"tutorial_i": tutorial_i,
 		"count_unknown": count_unknown,
 	}
@@ -3556,6 +3684,7 @@ func load_game() -> bool:
 	sister_cx = int(data.get("sister_cx", 1))
 	sister_cy = int(data.get("sister_cy", 0))
 	sister_ready = bool(data.get("sister_ready", false))
+	player_name = str(data.get("player_name", ""))
 	tutorial_i = int(data.get("tutorial_i", -1))
 	count_unknown = bool(data.get("count_unknown", false))
 	_recount()
@@ -4761,6 +4890,7 @@ func _reset_world() -> void:
 	modal = {}
 	talk_pending = {}
 	gaze_queue.clear()
+	player_name = ""
 	tutorial_i = -1
 	count_unknown = false
 	talked_trees = {}
@@ -6724,6 +6854,41 @@ func _check_opening(errors: Array) -> void:
 		errors.append("count mark")
 
 
+func _check_player_name(errors: Array) -> void:
+	if str(modal.get("event", "")) != "player_name":
+		errors.append("name prompt missing")
+		print("NAME MISSING")
+		return
+	submit_name("")
+	var empty_log := " ".join(modal.get("log", []))
+	submit_name("shit")
+	var banned_log := " ".join(modal.get("log", []))
+	submit_name("€")
+	var alien_log := " ".join(modal.get("log", []))
+	submit_name("Ana")
+	var asked := str(modal.get("step", "")) == "confirm" and "Ana" in " ".join(modal.get("log", []))
+	choose(1)
+	var declined := str(modal.get("step", "")) == "ask"
+	submit_name("Ana")
+	choose(0)
+	var echo := " ".join(modal.get("log", []))
+	var echoed := str(modal.get("step", "")) == "echo" and ">> entrada \"Ana\"" in echo
+	choose(0)
+	var stored := player_name == "Ana" and modal.is_empty()
+	print("NAME EMPTY " + empty_log)
+	print("NAME BANNED " + banned_log)
+	print("NAME ALIEN " + alien_log)
+	print("NAME ECHO " + echo)
+	if "entrada" not in empty_log:
+		errors.append("name empty")
+	if "inapropiado" not in banned_log:
+		errors.append("name banned")
+	if "reconoce" not in alien_log:
+		errors.append("name alien")
+	if not asked or not declined or not echoed or not stored:
+		errors.append("name confirm")
+
+
 func _run_checks() -> void:
 	var errors: Array = []
 	DialogueBook.ensure()
@@ -6763,8 +6928,11 @@ func _run_checks() -> void:
 		else:
 			var guard := 0
 			while not modal.is_empty() and guard < 80:
+				if str(modal.get("event", "")) == "player_name":
+					break
 				choose(0)
 				guard += 1
+			_check_player_name(errors)
 		if LineBook.lines_for("first_born").is_empty():
 			errors.append("first_born lines missing")
 		if _ethics_choice("first_born") == -1:
