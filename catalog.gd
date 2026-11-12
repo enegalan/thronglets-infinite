@@ -39,6 +39,9 @@ const WOOD_SPRITE_SCALE := 0.5
 const BONE_SPRITE_SCALE := 0.25
 const TNT_SPRITE_SCALE := 0.25
 const CURER_SPRITE_SCALE := 0.3
+const COSMETIC_SPRITE_SCALE := 0.6
+const COSMETIC_BAD_SPRITE_SCALE := 0.7
+const APPLE_SPRITE_SCALE := 0.15
 const TUB_SOAK_LIFT := 4.0
 const TUB_ENTER_LIFT := 11.0
 const TOOL_CHARGE := 0.55
@@ -334,6 +337,10 @@ static func feature_sprite_scale(kind: int, ore: int = 0) -> float:
 			return ORE_CLUSTER_SPRITE_SCALE
 		FEAT_CURER:
 			return CURER_SPRITE_SCALE
+		FEAT_COSMETIC:
+			return COSMETIC_SPRITE_SCALE
+		FEAT_COSMETIC_BAD:
+			return COSMETIC_BAD_SPRITE_SCALE
 		_:
 			return 1.0
 
@@ -352,6 +359,8 @@ static func item_sprite_scale(kind: int) -> float:
 			return BONE_SPRITE_SCALE
 		ITEM_TNT:
 			return TNT_SPRITE_SCALE
+		ITEM_APPLE:
+			return APPLE_SPRITE_SCALE
 		_:
 			return 1.0
 
@@ -380,6 +389,10 @@ static func feature_draw_off(kind: int, ore: int = 0) -> Vector2:
 			return Vector2(1.0, 1.0) if ore == 1 else Vector2(2.0, 2.0)
 		FEAT_MONOLITH:
 			return Vector2(4.0, 4.0)
+		FEAT_COSMETIC:
+			return Vector2(1.0, -1.0)
+		FEAT_COSMETIC_BAD:
+			return Vector2(-2.0, 0.0)
 		FEAT_GLITCH_TREE:
 			match ore:
 				0:
@@ -402,6 +415,8 @@ static func feature_draw_off(kind: int, ore: int = 0) -> Vector2:
 
 static func item_draw_off(kind: int) -> Vector2:
 	match kind:
+		ITEM_APPLE:
+			return Vector2(1.0, 1.0)
 		ITEM_BONE:
 			return Vector2(1.0, 1.0)
 		ITEM_TNT:
