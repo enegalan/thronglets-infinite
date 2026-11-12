@@ -71,6 +71,10 @@ var wear_from := {}
 var shot_mode := false
 var shot_focus := Vector2(256, 256)
 var shot_span := 210.0
+var shot_throng := -1
+var shot_factory := -1
+var shot_path := Vector2(256, 256)
+var ambient_n := 0
 const WEAR_NEED := 40
 const WEAR_STEPS := 4
 var living := 0
@@ -6329,8 +6333,8 @@ func _prep_shot_world() -> void:
 	var taken := {}
 	var missed: Array = []
 	var buildings_to_place := [
-		Catalog.BLD_MARKET, Catalog.BLD_MINE, Catalog.BLD_MINE2, Catalog.BLD_FACTORY2, Catalog.BLD_THEATRE,
-		Catalog.BLD_FACTORY, Catalog.BLD_DWELL, Catalog.BLD_FANCY, Catalog.BLD_APPLE, Catalog.BLD_TUB,
+		Catalog.BLD_FACTORY, Catalog.BLD_MARKET, Catalog.BLD_MINE, Catalog.BLD_MINE2, Catalog.BLD_DWELL,
+		Catalog.BLD_FANCY, Catalog.BLD_APPLE, Catalog.BLD_TUB,
 		Catalog.BLD_ROUND, Catalog.BLD_FLOWER, Catalog.BLD_STATUE, Catalog.BLD_WOOD,
 	]
 	for kind in buildings_to_place:
@@ -6371,9 +6375,34 @@ func _prep_shot_world() -> void:
 		var at := _shot_spot(taken, size, halo, 40.0, 1)
 		if at.x < 0.0 or _shot_add_feature(kind, at.x, at.y, int(spec.ore)).is_empty():
 			missed.append("feature %s" % kind)
+	shot_throng = _push_slot(200.0, 300.0, 55.0, 70.0, 8.0, 0.0, 0)
+	if shot_throng >= 0:
+		peak = maxi(peak, 1)
+	for b in buildings:
+		if int(b.kind) == Catalog.BLD_FACTORY:
+			_shot_fill_factory(b)
+			shot_factory = int(b.id)
+			break
+	if shot_factory < 0:
+		var at := _shot_spot(taken, Catalog.footprint_for_building(Catalog.BLD_FACTORY), 0, 16.0, 0)
+		if at.x >= 0.0:
+			var placed := _add_building(Catalog.BLD_FACTORY, at.x, at.y)
+			if not placed.is_empty():
+				_shot_fill_factory(placed)
+				shot_factory = int(placed.id)
+	var path_cells := _stamp_shot_path()
 	shot_focus = Vector2(256, 256)
 	shot_span = _island_reach() + 48.0
 	view_rect = Rect2(shot_focus.x - shot_span, shot_focus.y - shot_span, shot_span * 2.0, shot_span * 2.0)
+	unlocks.bathtub = true
+	unlocks.apple_tree = true
+	unlocks.roundabout = true
+	unlocks.axe = true
+	unlocks.hammer = true
+	unlocks.dwelling = true
+	unlocks.bug = true
+	gems = 20
+	unlock_serial += 1
 	notes.clear()
 	sfx_queue.clear()
 	pops.clear()
@@ -6382,7 +6411,65 @@ func _prep_shot_world() -> void:
 	frozen = false
 	_rebuild_hash()
 	smoke_hold = true
-	print("SHOT READY buildings=%s features=%s items=%s missed=%s" % [buildings.size(), features.size(), items.size(), missed])
+	print("SHOT READY buildings=%s features=%s items=%s factory=%s path=%s missed=%s" % [buildings.size(), features.size(), items.size(), shot_factory, path_cells, missed])
+
+
+func _shot_open_grass(cell: Vector2i) -> bool:
+	if building_cell.has(cell) or feature_cell.has(cell):
+		return false
+	var at := Catalog.cell_world(cell)
+	if _tile_at(at.x, at.y) != Catalog.TILE_GRASS:
+		return false
+	for spot in [cell + Vector2i(1, 0), cell + Vector2i(-1, 0), cell + Vector2i(0, 1), cell + Vector2i(0, -1)]:
+		var around := Catalog.cell_world(spot)
+		if _tile_at(around.x, around.y) == Catalog.TILE_VOID:
+			return false
+	return true
+
+
+func _stamp_shot_path() -> int:
+	var origin := Vector2i(-1, -1)
+	var best := -1
+	for y in range(8, 24):
+		for x in range(6, 22):
+			var open := true
+			for i in 6:
+				if not _shot_open_grass(Vector2i(x + i, y)):
+					open = false
+					break
+			if not open:
+				continue
+			for i in range(1, 4):
+				if not _shot_open_grass(Vector2i(x + 2, y + i)):
+					open = false
+					break
+			if not open:
+				continue
+			var at := Catalog.cell_world(Vector2i(x + 3, y + 1))
+			var score := 999999
+			for b in buildings:
+				if b.dead:
+					continue
+				score = mini(score, int(_dist_point(at.x, at.y, float(b.x), float(b.y))))
+			for feat in features:
+				if feat.dead:
+					continue
+				score = mini(score, int(_dist_point(at.x, at.y, float(feat.x), float(feat.y))))
+			if score > best:
+				best = score
+				origin = Vector2i(x, y)
+	if origin.x < 0:
+		return 0
+	var cells: Array[Vector2i] = []
+	for i in 6:
+		cells.append(origin + Vector2i(i, 0))
+	for i in range(1, 4):
+		cells.append(origin + Vector2i(2, i))
+	for cell in cells:
+		wear["%d,%d" % [cell.x, cell.y]] = WEAR_NEED
+		_mark_path(cell)
+	shot_path = Catalog.cell_world(origin + Vector2i(3, 1))
+	return cells.size()
 
 
 func _clear_shot_props() -> void:

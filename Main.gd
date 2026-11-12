@@ -4440,14 +4440,49 @@ func _tick_shot() -> void:
 			if not _save_shot(get_viewport(), "res://shots/hud_task.png"):
 				get_tree().quit(1)
 				return
-			if ui != null:
-				ui.visible = false
 			shot_hud_saved = true
+			sim.barks.clear()
 			shot_frames = 0
 			return
-		if shot_frames < 12:
+		if not shot_console_saved:
+			if ui != null:
+				ui.visible = true
+			kit_open = false
+			_set_kit_shown(false)
+			if sim.modal.is_empty():
+				sim._queue_talk("first_born", {})
+				shot_frames = 0
+				return
+			_sync_gaze()
+			_sync_focus(0.0)
+			if shot_frames < 24:
+				return
+			if not _save_shot(get_viewport(), "res://shots/console.png"):
+				get_tree().quit(1)
+				return
+			sim.modal = {}
+			sim.frozen = false
+			sim._restore_gaze()
+			if ui != null:
+				ui.visible = false
+			shot_console_saved = true
+			shot_frames = 0
 			return
-		if not _save_shot(get_viewport(), "res://shots/island_all.png"):
+		if not shot_path_saved:
+			if shot_frames < 12:
+				return
+			if not _save_shot(get_viewport(), "res://shots/island_all.png"):
+				get_tree().quit(1)
+				return
+			camera.position = _to_iso(sim.shot_path)
+			camera.zoom = Vector2(4.0, 4.0)
+			zoom_level = 4.0
+			shot_path_saved = true
+			shot_frames = 0
+			return
+		if shot_frames < 6:
+			return
+		if not _save_shot(get_viewport(), "res://shots/path_zoom.png"):
 			get_tree().quit(1)
 			return
 		_build_asset_shot()
