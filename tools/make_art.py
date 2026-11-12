@@ -55,7 +55,7 @@ BODY = (228, 181, 66, 255)
 
 
 def _ref_crop():
-    src = Image.open(OUT("ThrongA_Default_001.png")).convert("RGBA")
+    src = Image.open(os.path.join(SRC_SPRITE, "ThrongA_Default_001.png")).convert("RGBA")
     return src.crop(src.getbbox())
 
 
