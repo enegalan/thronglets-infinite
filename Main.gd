@@ -3000,6 +3000,15 @@ func _build_marks() -> void:
 		glyph.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		glyph.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		hold.add_child(glyph)
+		var said := Label.new()
+		said.visible = false
+		said.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		said.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		said.custom_minimum_size = Vector2(72, 0)
+		said.add_theme_font_size_override("font_size", 16)
+		said.add_theme_color_override("font_color", Color(0.1, 0.12, 0.16))
+		panel.add_child(said)
+		bubble_labels.append(said)
 		add_child(panel)
 		bubble_panels.append(panel)
 		bubble_icons.append(glyph)
@@ -3066,6 +3075,8 @@ func _sync_marks() -> void:
 		if i >= sim.barks.size():
 			panel.visible = false
 			tail.visible = false
+			if i < bubble_labels.size():
+				bubble_labels[i].visible = false
 			continue
 		var bark: Dictionary = sim.barks[i]
 		var at := Vector2(float(bark.x), float(bark.y))
@@ -3073,24 +3084,33 @@ func _sync_marks() -> void:
 			panel.visible = false
 			tail.visible = false
 			continue
+		var said: Label = bubble_labels[i]
+		var text := str(bark.get("text", ""))
 		var icon := int(bark.get("icon", -1))
-		if icon < 0:
+		if text == "" and icon < 0:
 			panel.visible = false
 			tail.visible = false
 			continue
-		glyph.texture = _atlas_icon(icon)
-		glyph.visible = true
+		if text != "":
+			said.text = text
+			said.visible = true
+			glyph.visible = false
+		else:
+			said.visible = false
+			glyph.texture = _atlas_icon(icon)
+			glyph.visible = true
+		tail.visible = false
+		var frame := int(Time.get_ticks_msec() / 120 + int(bark.get("id", 0))) % 5
+		_apply_bubble_frame(panel, frame)
 		panel.reset_size()
 		var size := panel.get_combined_minimum_size()
-		size.x = maxf(size.x, 22.0)
-		size.y = maxf(size.y, 18.0)
+		size.x = maxf(size.x, 36.0)
+		size.y = maxf(size.y, 32.0)
 		panel.size = size
 		var tip := _to_iso(at) + Vector2(0, -22)
-		panel.position = tip - Vector2(size.x * 0.5, size.y + 5.0)
+		panel.position = Vector2(tip.x - (size.x - 18.0), tip.y - size.y)
 		panel.visible = true
-		var tail_size := tail.texture.get_size() if tail.texture != null else Vector2(11, 8)
-		tail.position = Vector2(tip.x - tail_size.x * 0.5, panel.position.y + size.y - 1.0)
-		tail.visible = true
+		tail.visible = false
 	var full_n := 0
 	for b in sim.buildings:
 		if full_n >= full_labels.size():
@@ -4245,30 +4265,75 @@ func _box_style(path: String, edge: int, pad: int) -> StyleBoxTexture:
 
 
 func _speech_bubble_style() -> StyleBoxTexture:
-	# Margins stay near the 1px outline so the border does not look thick when sliced.
-	var style := _box_style("res://resources/ui/speech_bubble_9patch.png", 3, 3)
-	style.content_margin_left = 3
-	style.content_margin_right = 3
-	style.content_margin_top = 2
-	style.content_margin_bottom = 2
+	var style := _box_style("res://resources/ui/speech_bubble_0.png", 7, 4)
+	_bubble_margins(style, 0)
 	return style
+
+
+func _bubble_margins(style: StyleBoxTexture, frame: int) -> void:
+	# Unity border of UI_SpeechBubble_Spritesheet: left, right, top, bottom.
+	# The tail sits in the right and bottom patches, so those do not stretch.
+	var edges := [
+		[7, 23, 7, 14],
+		[6, 22, 6, 13],
+		[8, 24, 8, 15],
+		[7, 23, 7, 15],
+		[8, 24, 8, 15],
+	]
+	var edge: Array = edges[frame]
+	style.texture_margin_left = int(edge[0])
+	style.texture_margin_right = int(edge[1])
+	style.texture_margin_top = int(edge[2])
+	style.texture_margin_bottom = int(edge[3])
+	style.content_margin_left = 6
+	style.content_margin_right = 8
+	style.content_margin_top = 5
+	style.content_margin_bottom = int(edge[3])
+
+
+func _apply_bubble_frame(panel: PanelContainer, frame: int) -> void:
+	var style := panel.get_theme_stylebox("panel") as StyleBoxTexture
+	if style == null:
+		return
+	style.texture = _tex("res://resources/ui/speech_bubble_%d.png" % frame)
+	_bubble_margins(style, frame)
 
 
 func _tick_shot() -> void:
 	var sim: ThrongletSim = ThrongletSimServer
 	if shot_board == null:
+		if sim.shot_throng >= 0:
+			selected = sim.shot_throng
+		if sim.shot_factory >= 0:
+			selected_bld = sim.shot_factory
 		var reach := sim.shot_span
 		var half_w := reach * sqrt(2.0)
 		var half_h := reach * 0.70710678
 		var view := get_viewport_rect().size
 		var zoom := minf(view.x / (half_w * 2.0 + 64.0), view.y / (half_h * 2.0 + 96.0))
-		zoom_level = zoom
-		camera.zoom = Vector2(zoom, zoom)
-		camera.position = _to_iso(sim.shot_focus)
+		if shot_path_saved:
+			zoom_level = 4.0
+			camera.zoom = Vector2(4.0, 4.0)
+			camera.position = _to_iso(sim.shot_path)
+		else:
+			zoom_level = zoom
+			camera.zoom = Vector2(zoom, zoom)
+			camera.position = _to_iso(sim.shot_focus)
 		shot_frames += 1
 		if not shot_hud_saved:
+			if sim.barks.is_empty() and sim.shot_throng >= 0:
+				sim.barks.append({
+					"id": sim.shot_throng,
+					"icon": Catalog.ICON_APPLE,
+					"t": 30.0,
+					"x": sim.pos_x[sim.shot_throng],
+					"y": sim.pos_y[sim.shot_throng],
+				})
 			if ui != null:
 				ui.visible = true
+			kit_open = true
+			kit_tab = 0
+			_set_kit_shown(true)
 			_sync_hud(0.0)
 			if task_panel != null:
 				task_panel.visible = true
