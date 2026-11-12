@@ -8,6 +8,12 @@
 - Thronglets draw smaller, and so do the tub, roundabout, egg, rocks, ore, and carried goods. Each kind has its own scale.
 - Talk follows trees drafted from the Spanish book. The console uses the original panel and border. Choices walk the tree, and ambient lines can open when nothing else is waiting.
 - On the development bench, you can pick several props at once and nudge them together.
+- Grass stays grass. A path sprite is laid on top where they have walked.
+- The kit is the original wood tray. Each group has its own icon, and the selected group uses the same slot as the items. The hammer fills the round button.
+- The counter, the need gauges, and the pollution marks use the original art. A market shows the new-item sign when something there can be bought.
+- The console sits across the bottom, over the wood frame. The log and each choice have their own glyphs and swirls, and the border is a solid line. Opening a talk glitches the screen.
+- Speech uses the original animated bubble, with the tail aimed at the thronglet.
+- A factory fills one wedge per ore, up to eight, and then it takes no more. Ore stacks beside it in the order it arrived, and the factory spends the oldest first.
 
 ### 2026-11-11
 
