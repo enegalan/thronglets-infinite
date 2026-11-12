@@ -140,7 +140,7 @@ var dos_shown := 0
 var dos_hold := 0.0
 var crt_overlay: ColorRect
 var captions_on := false
-var crt_on := false
+var crt_on := true
 var sign_button: Button
 var dev_on := false
 var dev_bench = null
@@ -4082,15 +4082,17 @@ func _build_ui() -> void:
 
 
 func _build_opening(root: Control) -> void:
+	var crt_layer := CanvasLayer.new()
+	crt_layer.layer = 128
+	add_child(crt_layer)
 	crt_overlay = ColorRect.new()
 	crt_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	crt_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	crt_overlay.z_index = 60
 	crt_overlay.visible = false
 	var crt_mat := ShaderMaterial.new()
 	crt_mat.shader = load("res://resources/ui/crt_overlay.gdshader")
 	crt_overlay.material = crt_mat
-	root.add_child(crt_overlay)
+	crt_layer.add_child(crt_overlay)
 
 	dos_root = Control.new()
 	dos_root.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -4262,7 +4264,7 @@ func _load_prefs() -> void:
 	if cfg.load("user://opening.cfg") != OK:
 		return
 	captions_on = bool(cfg.get_value("opening", "captions", false))
-	crt_on = bool(cfg.get_value("opening", "crt", false))
+	crt_on = bool(cfg.get_value("opening", "crt", true))
 
 
 func _save_prefs() -> void:

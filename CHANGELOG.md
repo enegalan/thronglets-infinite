@@ -22,6 +22,7 @@
 - After that talk, the game asks what the thronglets should call you, asks you to confirm, and refuses an empty, unknown, or banned name.
 - The title is a painted scene: sky, sun flare, drifting clouds, grass, thronglets, an egg, and the logo. The menu sits on the grass.
 - The pause button uses the original bars icon. When a save lands, a disk flashes beside it.
+- The CRT filter starts on, covers the whole screen including menus, and the scanlines read harder.
 
 ### 2026-11-11
 
