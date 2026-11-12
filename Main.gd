@@ -3584,34 +3584,40 @@ func _build_ui() -> void:
 	top_row.add_theme_constant_override("separation", 6)
 	top_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var badge := Control.new()
-	badge.custom_minimum_size = Vector2(56, 56)
+	# Native ThrongletCounter cell is 60x60; keep 1:1 so the cream ring is not cropped.
+	badge.custom_minimum_size = Vector2(60, 60)
 	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var ring := TextureRect.new()
 	ring.texture = _tex("res://resources/ui/thronglet_counter.png")
-	ring.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	ring.custom_minimum_size = Vector2(56, 56)
+	# Atlas Sprites-ThrongletCounter ships FilterMode bilinear; nearest makes the
+	# cream ring look thin and the face eyes read as white plates.
+	ring.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	ring.custom_minimum_size = Vector2(60, 60)
 	ring.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	ring.stretch_mode = TextureRect.STRETCH_KEEP
-	ring.size = Vector2(56, 56)
+	ring.size = Vector2(60, 60)
 	ring.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	badge.add_child(ring)
 	pop_face = TextureRect.new()
 	pop_face.texture = _tex(POP_FACES["base"])
 	pop_face_key = "base"
-	pop_face.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	pop_face.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	pop_face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	pop_face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	# Face sits in the upper half of the dark well (~30px diameter).
-	pop_face.position = Vector2(15, 6)
-	pop_face.size = Vector2(26, 22)
+	# Face + count sit as one tight cluster in the dark well.
+	pop_face.position = Vector2(22, 17)
+	pop_face.size = Vector2(16, 13)
 	pop_face.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	badge.add_child(pop_face)
 	pop_label = Label.new()
-	pop_label.position = Vector2(0, 34)
-	pop_label.size = Vector2(56, 18)
+	pop_label.position = Vector2(0, 29)
+	pop_label.size = Vector2(60, 16)
 	pop_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	pop_label.add_theme_font_size_override("font_size", 16)
+	pop_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	pop_label.add_theme_font_size_override("font_size", 14)
 	pop_label.add_theme_color_override("font_color", Color.WHITE)
+	pop_label.add_theme_color_override("font_outline_color", Color.BLACK)
+	pop_label.add_theme_constant_override("outline_size", 2)
 	pop_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 1))
 	pop_label.add_theme_constant_override("shadow_offset_x", 1)
 	pop_label.add_theme_constant_override("shadow_offset_y", 1)

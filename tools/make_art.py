@@ -1187,22 +1187,27 @@ def make_hud():
         meta = json.load(open(meta_path))
         settings = int((meta.get("m_RD") or {}).get("m_SettingsRaw") or 0)
         ring = _crop_unity(atlas, meta["m_Rect"], settings)
+        # Keep the native ~60px cell. Main.gd draws the badge at 1:1.
+        ring.save(OUT("resources", "ui", "thronglet_counter.png"))
         out = new(56, 56)
-        # Native cell is ~60px; center-crop into the 56 HUD badge.
         ox = (ring.size[0] - 56) // 2
         oy = (ring.size[1] - 56) // 2
         out.alpha_composite(ring, (-ox, -oy))
         ring = out
     else:
-        ring = new(56, 56)
-        for y in range(56):
-            for x in range(56):
-                d = ((x - 27.5) ** 2 + (y - 27.5) ** 2) ** 0.5
-                if d <= 26.0:
-                    color = (92, 58, 28, 255) if d >= 22.0 else (232, 189, 152, 255)
-                    if d < 15.0:
+        ring = new(60, 60)
+        for y in range(60):
+            for x in range(60):
+                d = ((x - 29.5) ** 2 + (y - 29.5) ** 2) ** 0.5
+                if d <= 28.0:
+                    color = (92, 58, 28, 255) if d >= 24.0 else (232, 189, 152, 255)
+                    if d < 16.0:
                         color = (75, 49, 35, 255)
                     px(ring, x, y, color)
+        ring.save(OUT("resources", "ui", "thronglet_counter.png"))
+        out = new(56, 56)
+        out.alpha_composite(ring, (-2, -2))
+        ring = out
     ring.save(OUT("resources", "ui", "ui_circle.png"))
     kit = new(32, 32)
     for y in range(32):
