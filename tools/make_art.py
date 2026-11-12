@@ -1500,6 +1500,12 @@ def _write_asset_frames(slots):
         lines.append("const %s := %d" % (name, start))
         lines.append("const %s_N := %d" % (name, count))
     lines.append("")
+    lines.append("# Generated with asset_frames.gd by tools/make_art.py. Bench and AnimTune read this.")
+    lines.append("const SLOTS := [")
+    for name, _start, _count in slots:
+        lines.append('\t["%s", %s, %s_N],' % (name, name, name))
+    lines.append("]")
+    lines.append("")
     lines.append("static func frame(start: int, count: int, tick: int) -> int:")
     lines.append("\tif count <= 0:")
     lines.append("\t\treturn -1")

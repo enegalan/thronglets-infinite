@@ -21,24 +21,10 @@ const FRAME_OFF := {
 }
 const FRAME_ROT := {}
 
-const ORDER := [
-	"egg",
-	"round",
-	"fire",
-	"fire_blob",
-	"fumes",
-	"clean",
-	"splash",
-	"hand",
-	"bubble",
-	"foam",
-	"smoke",
-	"glitch",
-	"tile",
-]
-
-const CLIPS := {
-	"egg": {
+# Not in AssetFrames.SLOTS. Packed earlier into the world sheet.
+const SPECIALS := [
+	{
+		"id": "egg",
 		"label": "HUEVO",
 		"group": "OBJETOS",
 		"start": 87,
@@ -46,7 +32,8 @@ const CLIPS := {
 		"fps": 4.0,
 		"where": "Main.EGG_ANIM is 87 and covers 5 frames. _egg_frame picks one of those frames from the egg state. The bench loops them at 4 fps.",
 	},
-	"round": {
+	{
+		"id": "round",
 		"label": "TIOVIVO",
 		"group": "ESTRUCTURAS",
 		"start": 132,
@@ -54,116 +41,97 @@ const CLIPS := {
 		"fps": 8.0,
 		"where": "An active roundabout uses Main.ROUND_ANIM + int(time * 8) % 8. ROUND_ANIM is 132.",
 	},
-	"fire": {
-		"label": "FUEGO",
-		"group": "EFECTOS",
-		"start": 691,
-		"count": 15,
-		"fps": 8.0,
-		"where": "Main._feature_frame for FEAT_FIRE uses AssetFrames.frame(AssetFrames.FIRE, AssetFrames.FIRE_N, int(time * 8)). FIRE is 691 and FIRE_N is 15.",
-	},
-	"fire_blob": {
-		"label": "FUEGO BOLAS",
-		"group": "EFECTOS",
-		"start": 734,
-		"count": 8,
-		"fps": 8.0,
-		"where": "On odd seconds, FEAT_FIRE also draws AssetFrames.frame(AssetFrames.FIRE_BLOB, AssetFrames.FIRE_BLOB_N, int(time * 8)). FIRE_BLOB is 734 and the count is 8.",
-	},
-	"fumes": {
-		"label": "HUMOS",
-		"group": "EFECTOS",
-		"start": 726,
-		"count": 8,
-		"fps": 8.0,
-		"where": "Main._push_glitch_fumes uses AssetFrames.frame(AssetFrames.FUMES, AssetFrames.FUMES_N, int(time * 8)). FUMES is 726 and the count is 8.",
-	},
-	"clean": {
-		"label": "CHISPA",
-		"group": "EFECTOS",
-		"start": 660,
-		"count": 2,
-		"fps": 10.0,
-		"where": "ACT_WASH draws AssetFrames.frame(AssetFrames.CLEAN, AssetFrames.CLEAN_N, int(time * 10)). CLEAN is 660 and the count is 2.",
-	},
-	"splash": {
-		"label": "SALPICADURA",
-		"group": "EFECTOS",
-		"start": 662,
-		"count": 3,
-		"fps": 8.0,
-		"where": "ACT_BATH, when the thronglet is not seated and the suds frame is missing, draws AssetFrames.frame(AssetFrames.SPLASH, AssetFrames.SPLASH_N, int(time * 8)). SPLASH is 662 and the count is 3.",
-	},
-	"hand": {
-		"label": "MANO",
-		"group": "EFECTOS",
-		"start": 687,
-		"count": 4,
-		"fps": 8.0,
-		"where": "A held thronglet draws AssetFrames.frame(AssetFrames.HAND, AssetFrames.HAND_N, int(time * 8)). HAND is 687 and the count is 4.",
-	},
-	"bubble": {
-		"label": "BURBUJA",
-		"group": "EFECTOS",
-		"start": 654,
-		"count": 3,
-		"fps": 8.0,
-		"where": "AssetFrames.BUBBLE is 654 and the count is 3. Play does not loop this strip. The asset shot samples frame 0.",
-	},
-	"foam": {
-		"label": "ESPUMA",
-		"group": "EFECTOS",
-		"start": 657,
-		"count": 3,
-		"fps": 8.0,
-		"where": "AssetFrames.BUBBLE_LIGHT is 657 and the count is 3. Play does not loop this strip. The asset shot samples frame 1.",
-	},
-	"smoke": {
-		"label": "HUMO",
-		"group": "EFECTOS",
-		"start": 665,
-		"count": 13,
-		"fps": 8.0,
-		"where": "AssetFrames.SMOKE is 665 and the count is 13. Play does not loop this strip. The asset shot samples frame 1.",
-	},
-	"glitch": {
-		"label": "GLITCH",
-		"group": "EFECTOS",
-		"start": 680,
-		"count": 3,
-		"fps": 8.0,
-		"where": "AssetFrames.GLITCH is 680 and the count is 3. Play does not loop this strip. The asset shot samples frame 0.",
-	},
-	"tile": {
-		"label": "BALDOSA",
-		"group": "EFECTOS",
-		"start": 683,
-		"count": 4,
-		"fps": 8.0,
-		"where": "AssetFrames.TILE_GLITCH is 683 and the count is 4. Play does not loop this strip. The asset shot samples frame 1.",
-	},
+]
+
+# Optional display for AssetFrames slots. Missing slots still appear; id defaults to lower(slot).
+const META := {
+	"FIRE": {"id": "fire", "label": "FUEGO", "group": "EFECTOS", "fps": 8.0, "where": "Main._feature_frame for FEAT_FIRE uses AssetFrames.frame(AssetFrames.FIRE, AssetFrames.FIRE_N, int(time * 8))."},
+	"FIRE_BLOB": {"id": "fire_blob", "label": "FUEGO BOLAS", "group": "EFECTOS", "fps": 8.0, "where": "On odd seconds, FEAT_FIRE also draws AssetFrames.frame(AssetFrames.FIRE_BLOB, AssetFrames.FIRE_BLOB_N, int(time * 8))."},
+	"FUMES": {"id": "fumes", "label": "HUMOS", "group": "EFECTOS", "fps": 8.0, "where": "Main._push_glitch_fumes uses AssetFrames.frame(AssetFrames.FUMES, AssetFrames.FUMES_N, int(time * 8))."},
+	"CLEAN": {"id": "clean", "label": "CHISPA", "group": "EFECTOS", "fps": 10.0, "where": "ACT_WASH draws AssetFrames.frame(AssetFrames.CLEAN, AssetFrames.CLEAN_N, int(time * 10))."},
+	"SPLASH": {"id": "splash", "label": "SALPICADURA", "group": "EFECTOS", "fps": 8.0, "where": "ACT_BATH, when the thronglet is not seated and the suds frame is missing, draws AssetFrames.frame(AssetFrames.SPLASH, AssetFrames.SPLASH_N, int(time * 8))."},
+	"HAND": {"id": "hand", "label": "MANO", "group": "EFECTOS", "fps": 8.0, "where": "A held thronglet draws AssetFrames.frame(AssetFrames.HAND, AssetFrames.HAND_N, int(time * 8))."},
+	"BUBBLE": {"id": "bubble", "label": "BURBUJA", "group": "EFECTOS", "fps": 8.0, "where": "AssetFrames.BUBBLE. Play does not loop this strip."},
+	"BUBBLE_LIGHT": {"id": "foam", "label": "ESPUMA", "group": "EFECTOS", "fps": 8.0, "where": "AssetFrames.BUBBLE_LIGHT. Play does not loop this strip."},
+	"SMOKE": {"id": "smoke", "label": "HUMO", "group": "EFECTOS", "fps": 8.0, "where": "AssetFrames.SMOKE. Play does not loop this strip."},
+	"GLITCH": {"id": "glitch", "label": "GLITCH", "group": "EFECTOS", "fps": 8.0, "where": "AssetFrames.GLITCH. Play does not loop this strip."},
+	"TILE_GLITCH": {"id": "tile", "label": "BALDOSA", "group": "EFECTOS", "fps": 8.0, "where": "AssetFrames.TILE_GLITCH. Play does not loop this strip."},
+	"AURA": {"id": "aura", "label": "AURA", "group": "EFECTOS"},
+	"SPARK": {"id": "spark", "label": "CHISPA FX", "group": "EFECTOS"},
+	"SUDS": {"id": "suds", "label": "JABON", "group": "EFECTOS"},
+	"ANOMALY": {"id": "anomaly", "label": "ANOMALIA", "group": "BIOMAS"},
+	"ANOMALY_RAY": {"id": "anomaly_ray", "label": "RAYO", "group": "BIOMAS"},
+	"GLITCH_HOUSE": {"id": "glitch_house", "label": "CASA GLITCH", "group": "BIOMAS"},
+	"GLITCH_TREE": {"id": "glitch_tree", "label": "ARBOL GLITCH", "group": "BIOMAS"},
+	"GLITCH_TREE_C": {"id": "glitch_tree_c", "label": "ARBOL GLITCH C", "group": "BIOMAS"},
+	"GLITCH_TREE_D": {"id": "glitch_tree_d", "label": "ARBOL GLITCH D", "group": "BIOMAS"},
+	"WASTE_TREE": {"id": "waste_tree", "label": "ARBOL YERMO", "group": "BIOMAS"},
+	"WASTE_TREE_B": {"id": "waste_tree_b", "label": "ARBOL YERMO B", "group": "BIOMAS"},
+	"EPILOGUE": {"id": "epilogue", "label": "EPILOGO", "group": "BIOMAS"},
+	"ROTTEN_APPLE": {"id": "rotten_apple", "label": "MANZANA PODRE", "group": "BIOMAS"},
+	"EPI_APPLE": {"id": "epi_apple", "label": "MANZANA EPI", "group": "BIOMAS"},
+	"MOUNT_BIG": {"id": "mount_big", "label": "MONTE GRANDE", "group": "BIOMAS"},
+	"MOUNT_SMALL": {"id": "mount_small", "label": "MONTE PEQUE", "group": "BIOMAS"},
+	"MOUNT_GLITCH": {"id": "mount_glitch", "label": "MONTE GLITCH", "group": "BIOMAS"},
+	"GRASS_PATCH": {"id": "grass_patch", "label": "HIERBA", "group": "BIOMAS"},
 }
 
 static var overrides := {}
+static var _rows := {}
+static var _order: PackedStringArray = PackedStringArray()
 
 
 static func ids() -> PackedStringArray:
-	var names := PackedStringArray()
-	for raw in ORDER:
-		var key := str(raw)
-		if CLIPS.has(key):
-			names.append(key)
-	return names
+	_ensure()
+	return _order
 
 
 static func entry(key: String) -> Dictionary:
-	if not CLIPS.has(key):
-		return {}
-	return CLIPS[key] as Dictionary
+	_ensure()
+	return _rows.get(key, {})
 
 
 static func has_clip(key: String) -> bool:
-	return CLIPS.has(key)
+	_ensure()
+	return _rows.has(key)
+
+
+static func _ensure() -> void:
+	if not _order.is_empty():
+		return
+	_rows.clear()
+	_order = PackedStringArray()
+	for raw in SPECIALS:
+		var row: Dictionary = raw
+		_push(str(row.id), row)
+	for slot in AssetFrames.SLOTS:
+		var name := str(slot[0])
+		var start := int(slot[1])
+		var count := int(slot[2])
+		if count <= 0:
+			continue
+		var meta: Dictionary = META.get(name, {})
+		var key := str(meta.get("id", name.to_lower()))
+		var label := str(meta.get("label", name.replace("_", " ")))
+		var group := str(meta.get("group", "HOJA"))
+		var fps := float(meta.get("fps", 8.0))
+		var where := str(meta.get("where", "AssetFrames.%s is %d and the count is %d." % [name, start, count]))
+		_push(key, {
+			"label": label,
+			"group": group,
+			"start": start,
+			"count": count,
+			"fps": fps,
+			"where": where,
+			"slot": name,
+		})
+
+
+static func _push(key: String, row: Dictionary) -> void:
+	if _rows.has(key):
+		return
+	_rows[key] = row
+	_order.append(key)
 
 
 static func fps_editable(key: String) -> bool:
