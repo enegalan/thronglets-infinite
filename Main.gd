@@ -104,18 +104,22 @@ var need_fills: Array = []
 var bubble_panels: Array = []
 var bubble_tails: Array = []
 var bubble_icons: Array = []
+var bubble_labels: Array = []
 var full_labels: Array = []
 var ring_lines: Array = []
 var shot_frames := 0
 var shot_done := false
 var shot_hud_saved := false
+var shot_console_saved := false
+var shot_path_saved := false
 var shot_board: SubViewport
 var glitch_bars: Array = []
 var glitch_label: Label
 var ui_theme: Theme
 var kit_panel: PanelContainer
+var kit_tab_row: PanelContainer
 var kit_tabs: HBoxContainer
-var kit_icons: HFlowContainer
+var kit_icons: HBoxContainer
 var res_label: Label
 var kit_open := false
 var kit_tab := 0
@@ -138,6 +142,9 @@ var market_list: VBoxContainer
 var gaze_text: RichTextLabel
 var gaze_box: VBoxContainer
 var gaze_face: TextureRect
+var pollution_mark: Sprite2D
+var pollution_bld: Sprite2D
+var market_signs: Node2D
 var shown_seq := 0
 var focus_dim: ColorRect
 var focus_frame: Panel
@@ -1946,6 +1953,7 @@ func _sync_hud(delta: float) -> void:
 	if bar_serial != sim.unlock_serial:
 		bar_serial = sim.unlock_serial
 		_rebuild_bars()
+	_sync_market_sign(sim)
 	_mark_selected()
 
 
@@ -2290,6 +2298,105 @@ func _tab_ready(tab: Dictionary) -> bool:
 	return false
 
 
+func _ready_tabs() -> Array:
+	var ready: Array = []
+	var tabs := _kit_tabs()
+	for i in tabs.size():
+		if _tab_ready(tabs[i]):
+			ready.append(i)
+	return ready
+
+
+func _tab_icon(label: String) -> String:
+	match label:
+		"CUIDA":
+			return "res://resources/ui/tab_care.png"
+		"UTIL":
+			return "res://resources/ui/tab_tools.png"
+		"OBRA":
+			return "res://resources/ui/tab_build.png"
+		"HOGAR":
+			return "res://resources/ui/tab_home.png"
+		_:
+			return "res://resources/ui/tab_dev.png"
+
+
+func _tray_face(icon: int, pad: float = 8.0) -> TextureRect:
+	var glyph := TextureRect.new()
+	glyph.texture = _atlas_icon(icon)
+	glyph.set_anchors_preset(Control.PRESET_FULL_RECT)
+	glyph.offset_left = pad
+	glyph.offset_top = pad
+	glyph.offset_right = -pad
+	glyph.offset_bottom = -pad
+	glyph.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	glyph.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	glyph.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	glyph.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return glyph
+
+
+func _tray_button() -> Button:
+	var button := Button.new()
+	button.set_anchors_preset(Control.PRESET_FULL_RECT)
+	button.flat = true
+	var empty := StyleBoxEmpty.new()
+	button.add_theme_stylebox_override("normal", empty)
+	button.add_theme_stylebox_override("hover", empty)
+	button.add_theme_stylebox_override("pressed", empty)
+	button.add_theme_stylebox_override("focus", empty)
+	return button
+
+
+const TRAY_FRAME := 5
+
+
+func _tray_tex(path: String, src_frame: int) -> Texture2D:
+	var key := "%s#%d" % [path, src_frame]
+	if textures.has(key):
+		return textures[key]
+	var img := Image.load_from_file(ProjectSettings.globalize_path(path))
+	if img == null or img.is_empty():
+		return _tex(path)
+	var width := maxi(img.get_width() * TRAY_FRAME / src_frame, TRAY_FRAME * 2 + 1)
+	var height := maxi(img.get_height() * TRAY_FRAME / src_frame, TRAY_FRAME * 2 + 1)
+	img.resize(width, height, Image.INTERPOLATE_NEAREST)
+	var tex := ImageTexture.create_from_image(img)
+	textures[key] = tex
+	return tex
+
+
+func _tray_style(path: String, src_frame: int) -> StyleBoxTexture:
+	var style := StyleBoxTexture.new()
+	style.texture = _tray_tex(path, src_frame)
+	style.texture_margin_left = TRAY_FRAME
+	style.texture_margin_top = TRAY_FRAME
+	style.texture_margin_right = TRAY_FRAME
+	style.texture_margin_bottom = TRAY_FRAME
+	return style
+
+
+func _tray_cell(icon: int, wide: float, tall: float, kind: String, glyph: Texture2D = null) -> Button:
+	var cell := Panel.new()
+	cell.custom_minimum_size = Vector2(wide, tall)
+	cell.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	var path := "res://resources/ui/toolbar_border.png"
+	var src_frame := 20
+	if kind == "all" or kind == "on":
+		path = "res://resources/ui/toolbar_slot.png"
+		src_frame = 24
+	cell.add_theme_stylebox_override("panel", _tray_style(path, src_frame))
+	if glyph != null:
+		var face := _tray_face(0, 6.0)
+		face.texture = glyph
+		cell.add_child(face)
+	elif icon >= 0:
+		cell.add_child(_tray_face(icon))
+	var button := _tray_button()
+	cell.add_child(button)
+	return button
+
+
 func _rebuild_bars() -> void:
 	var sim: ThrongletSim = ThrongletSimServer
 	for child in kit_tabs.get_children():
@@ -2298,43 +2405,72 @@ func _rebuild_bars() -> void:
 		child.queue_free()
 	tool_buttons.clear()
 	build_buttons.clear()
-	var tabs := _kit_tabs()
-	var shown: Array = []
-	for tab in tabs:
-		if _tab_ready(tab):
-			shown.append(tab)
-	if shown.is_empty():
+	var ready := _ready_tabs()
+	if ready.is_empty():
+		_set_kit_shown(false)
 		return
-	if kit_tab >= shown.size():
-		kit_tab = 0
-	for i in shown.size():
-		var tab: Dictionary = shown[i]
-		var tab_button := Button.new()
-		tab_button.text = str(tab.label)
-		tab_button.modulate = Color(1, 0.95, 0.6) if i == kit_tab else Color(0.75, 0.75, 0.8)
-		tab_button.pressed.connect(_set_kit_tab.bind(i))
-		kit_tabs.add_child(tab_button)
-	var current: Dictionary = shown[kit_tab]
-	for id in current.tools:
+	if not ready.has(kit_tab):
+		kit_tab = int(ready[0])
+	var tabs := _kit_tabs()
+	kit_tabs.visible = ready.size() > 1
+	var page: Dictionary = tabs[kit_tab]
+	var count := 0
+	var pending: Array = []
+	for id in page.tools:
 		var entry := _tool_entry(int(id))
 		if entry.is_empty() or not bool(sim.unlocks.get(str(entry.unlock), false)):
 			continue
-		var tool_id := int(entry.tool)
-		var button := _icon_button(str(entry.label), int(entry.icon))
-		button.button_down.connect(_begin_kit_drag.bind("tool", tool_id))
-		kit_icons.add_child(button)
-		tool_buttons[tool_id] = button
-	for id in current.builds:
+		pending.append({"kind": "tool", "id": int(entry.tool), "icon": int(entry.icon)})
+		count += 1
+	for id in page.builds:
 		var info: Dictionary = Catalog.BUILD_INFO.get(int(id), {})
 		if info.is_empty() or not bool(sim.unlocks.get(str(info.unlock), false)):
 			continue
 		var build_id := int(id)
 		if build_id == Catalog.BLD_MARKET and sim.has_building_kind(Catalog.BLD_MARKET):
 			continue
-		var button2 := _icon_button(str(info.label), int(info.icon))
-		button2.button_down.connect(_begin_kit_drag.bind("build", build_id))
-		kit_icons.add_child(button2)
-		build_buttons[build_id] = button2
+		pending.append({"kind": "build", "id": build_id, "icon": int(info.icon)})
+		count += 1
+	var tab_n := ready.size() if kit_tabs.visible else 0
+	var tab_w := _row_span(tab_n, 44.0)
+	var item_w := _row_span(maxi(count, 1), 54.0)
+	var item_h := 44.0
+	if kit_tabs.visible:
+		for i in ready:
+			var tab: Dictionary = tabs[i]
+			var tab_i := int(i)
+			var tab_kind := "on" if tab_i == kit_tab else "border"
+			var tab_button := _tray_cell(0, 44.0, 44.0, tab_kind, _tex(_tab_icon(str(tab.label))))
+			tab_button.pressed.connect(_set_kit_tab.bind(tab_i))
+			kit_tabs.add_child(tab_button.get_parent())
+	if kit_tabs.visible and tab_w > item_w:
+		var gap := tab_w - item_w + float(TRAY_FRAME)
+		kit_icons.add_child(_tray_cell(-1, gap, item_h, "border").get_parent())
+		item_w = tab_w
+	for item in pending:
+		var face := _tray_cell(int(item.icon), 54.0, 44.0, "all")
+		var item_id := int(item.id)
+		if str(item.kind) == "tool":
+			face.button_down.connect(_begin_kit_drag.bind("tool", item_id))
+			tool_buttons[item_id] = face
+		else:
+			face.button_down.connect(_begin_kit_drag.bind("build", item_id))
+			build_buttons[item_id] = face
+		kit_icons.add_child(face.get_parent())
+	var edge := -60.0
+	var tab_h := 44.0
+	var bar_w := maxf(tab_w, item_w)
+	kit_panel.offset_right = edge
+	kit_panel.offset_bottom = -8.0
+	kit_panel.offset_left = edge - bar_w
+	kit_panel.offset_top = -8.0 - item_h
+	kit_tab_row.offset_right = edge
+	kit_tab_row.offset_bottom = -8.0 - item_h + float(TRAY_FRAME)
+	kit_tab_row.offset_left = edge - tab_w
+	kit_tab_row.offset_top = kit_tab_row.offset_bottom - tab_h
+	_set_kit_shown(kit_open)
+
+
 func _set_kit_tab(index: int) -> void:
 	kit_tab = index
 	_rebuild_bars()
@@ -2430,7 +2566,7 @@ func _kit_drag_label() -> String:
 
 func _drop_on_island() -> bool:
 	var mouse := get_viewport().get_mouse_position()
-	for panel in [kit_panel, market_panel, gaze_panel, slots_panel, menu_dim]:
+	for panel in [kit_panel, kit_tab_row, market_panel, gaze_panel, slots_panel, menu_dim]:
 		if panel != null and panel.visible and panel.get_global_rect().has_point(mouse):
 			return false
 	return true
@@ -2439,9 +2575,23 @@ func _drop_on_island() -> bool:
 func _toggle_kit() -> void:
 	_play("ui")
 	kit_open = not kit_open
-	kit_panel.visible = kit_open
 	if kit_open:
 		_rebuild_bars()
+	else:
+		_set_kit_shown(false)
+
+
+func _set_kit_shown(shown: bool) -> void:
+	if kit_panel != null:
+		kit_panel.visible = shown
+	if kit_tab_row != null:
+		kit_tab_row.visible = shown and kit_tabs != null and kit_tabs.visible
+
+
+func _row_span(count: int, cell: float) -> float:
+	if count <= 0:
+		return 0.0
+	return float(count) * cell - float(maxi(count - 1, 0)) * float(TRAY_FRAME)
 
 
 func _mark_selected() -> void:
@@ -2621,6 +2771,24 @@ func _sync_marks() -> void:
 	else:
 		for line in ring_lines:
 			line.visible = false
+	_sync_building_alert(sim)
+
+
+func _sync_building_alert(sim: ThrongletSim) -> void:
+	if pollution_bld == null:
+		return
+	var found := false
+	for b in sim.buildings:
+		if b.dead:
+			continue
+		if sim._tile_at(float(b.x), float(b.y)) != Catalog.TILE_GOO:
+			continue
+		pollution_bld.position = _to_iso(Vector2(float(b.x), float(b.y))) + Vector2(0, -36)
+		pollution_bld.visible = true
+		found = true
+		break
+	if not found:
+		pollution_bld.visible = false
 
 
 func _sync_glitch(delta: float) -> void:
@@ -2651,26 +2819,34 @@ func _sync_need_bars() -> void:
 			node.visible = false
 		for node in need_fills:
 			node.visible = false
+		if pollution_mark != null:
+			pollution_mark.visible = false
 		return
 	var origin := get_global_mouse_position()
 	if not (sim.held_kind == "thronglet" and sim.held_ref == selected):
 		origin = _to_iso(Vector2(sim.pos_x[selected], sim.pos_y[selected]))
-	var at := origin + Vector2(-8, -34)
+	var at := origin + Vector2(-14, -42)
 	var amounts := [sim.fed[selected], sim.amused[selected], sim.clean[selected]]
+	var colors := [Color(0.86, 0.22, 0.24), Color(0.95, 0.72, 0.22), Color(0.32, 0.62, 0.9)]
 	for i in 3:
-		var y := float(i) * 5.0
-		var back: Polygon2D = need_backs[i]
+		var y := float(i) * 8.0
+		var back: Sprite2D = need_backs[i]
 		back.position = at + Vector2(0, y)
 		back.visible = true
-		var width := clampf(amounts[i] / 100.0, 0.0, 1.0) * 16.0
+		var width := clampf(amounts[i] / 100.0, 0.0, 1.0) * 26.0
 		var fill: Polygon2D = need_fills[i]
+		fill.color = colors[i]
 		fill.visible = width >= 1.0
 		if width < 1.0:
 			continue
-		fill.position = at + Vector2(0, y)
+		fill.position = at + Vector2(2, y + 1)
 		fill.polygon = PackedVector2Array([
-			Vector2(0, 0), Vector2(width, 0), Vector2(width, 3), Vector2(0, 3),
+			Vector2(0, 0), Vector2(width, 0), Vector2(width, 4), Vector2(0, 4),
 		])
+	if pollution_mark != null:
+		var dirty := sim.state[selected] == Catalog.ST_LIVING and sim.clean[selected] < 40.0
+		pollution_mark.visible = dirty
+		pollution_mark.position = at + Vector2(-10, 10)
 
 
 func _atlas_icon(icon: int) -> AtlasTexture:
@@ -2682,13 +2858,40 @@ func _atlas_icon(icon: int) -> AtlasTexture:
 	return atlas
 
 
-func _icon_button(text: String, icon: int) -> Button:
-	var button := Button.new()
-	button.text = ""
-	button.tooltip_text = text
-	button.icon = _atlas_icon(icon)
-	button.custom_minimum_size = Vector2(28, 28)
-	return button
+func _market_has_stock(sim: ThrongletSim) -> bool:
+	if not sim.has_building_kind(Catalog.BLD_MARKET):
+		return false
+	for key in Catalog.MARKET.keys():
+		var row: Dictionary = Catalog.MARKET[key]
+		if not bool(sim.unlocks.get(str(key), false)) and sim.gems >= int(row.cost):
+			return true
+	return false
+
+
+func _sync_market_sign(sim: ThrongletSim) -> void:
+	if market_signs == null:
+		return
+	var show := _market_has_stock(sim)
+	var n := 0
+	if show:
+		for b in sim.buildings:
+			if b.dead or int(b.kind) != Catalog.BLD_MARKET:
+				continue
+			var sprite: Sprite2D
+			if n < market_signs.get_child_count():
+				sprite = market_signs.get_child(n)
+			else:
+				sprite = Sprite2D.new()
+				sprite.centered = true
+				sprite.texture = _tex("res://resources/ui/new_item.png")
+				sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+				sprite.scale = Vector2(0.45, 0.45)
+				market_signs.add_child(sprite)
+			sprite.position = _to_iso(Vector2(float(b.x), float(b.y))) + Vector2(8, -46)
+			sprite.visible = true
+			n += 1
+	for i in range(n, market_signs.get_child_count()):
+		market_signs.get_child(i).visible = false
 
 
 func _build_sky() -> void:
@@ -2717,6 +2920,21 @@ func _build_world() -> void:
 	path_root = Node2D.new()
 	path_root.z_index = 1
 	add_child(path_root)
+	market_signs = Node2D.new()
+	market_signs.z_index = 8
+	add_child(market_signs)
+	pollution_mark = Sprite2D.new()
+	pollution_mark.texture = _tex("res://resources/ui/pollution_throng.png")
+	pollution_mark.visible = false
+	pollution_mark.z_index = 7
+	pollution_mark.scale = Vector2(0.28, 0.28)
+	add_child(pollution_mark)
+	pollution_bld = Sprite2D.new()
+	pollution_bld.texture = _tex("res://resources/ui/pollution_building.png")
+	pollution_bld.visible = false
+	pollution_bld.z_index = 7
+	pollution_bld.scale = Vector2(0.35, 0.35)
+	add_child(pollution_bld)
 	place_marks = Node2D.new()
 	place_marks.z_index = 1
 	add_child(place_marks)
@@ -2752,10 +2970,11 @@ func _build_world() -> void:
 		Color(0.32, 0.62, 0.9),
 	]
 	for i in 3:
-		var back := Polygon2D.new()
+		var back := Sprite2D.new()
+		back.texture = _tex("res://resources/ui/need_gauge.png")
+		back.centered = false
+		back.scale = Vector2(0.5, 0.5)
 		back.z_index = 6
-		back.color = Color(0.16, 0.1, 0.07, 0.92)
-		back.polygon = PackedVector2Array([Vector2(0, 0), Vector2(16, 0), Vector2(16, 3), Vector2(0, 3)])
 		back.visible = false
 		add_child(back)
 		need_backs.append(back)
@@ -2894,7 +3113,7 @@ func _build_ui() -> void:
 	badge.custom_minimum_size = Vector2(56, 56)
 	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var ring := TextureRect.new()
-	ring.texture = _tex("res://resources/ui/ui_circle.png")
+	ring.texture = _tex("res://resources/ui/thronglet_counter.png")
 	ring.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	ring.custom_minimum_size = Vector2(56, 56)
 	ring.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -2914,10 +3133,10 @@ func _build_ui() -> void:
 	pop_face.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	badge.add_child(pop_face)
 	pop_label = Label.new()
-	pop_label.position = Vector2(0, 30)
-	pop_label.size = Vector2(56, 12)
+	pop_label.position = Vector2(0, 34)
+	pop_label.size = Vector2(56, 18)
 	pop_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	pop_label.add_theme_font_size_override("font_size", 8)
+	pop_label.add_theme_font_size_override("font_size", 16)
 	pop_label.add_theme_color_override("font_color", Color.WHITE)
 	pop_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 1))
 	pop_label.add_theme_constant_override("shadow_offset_x", 1)
@@ -2992,46 +3211,48 @@ func _build_ui() -> void:
 	toast.visible = false
 	root.add_child(toast)
 
+	kit_tab_row = PanelContainer.new()
+	kit_tab_row.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	kit_tab_row.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	kit_tab_row.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	kit_tab_row.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
+	kit_tab_row.visible = false
+	kit_tabs = HBoxContainer.new()
+	kit_tabs.add_theme_constant_override("separation", -TRAY_FRAME)
+	kit_tab_row.add_child(kit_tabs)
+	root.add_child(kit_tab_row)
 	kit_panel = PanelContainer.new()
 	kit_panel.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	kit_panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	kit_panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	kit_panel.offset_left = -220
-	kit_panel.offset_top = -136
-	kit_panel.offset_right = -6
-	kit_panel.offset_bottom = -48
-	kit_panel.add_theme_stylebox_override("panel", _box_style("res://resources/ui/ui_frame_9patch.png", 8, 4))
+	kit_panel.offset_left = -180
+	kit_panel.offset_top = -56
+	kit_panel.offset_right = -68
+	kit_panel.offset_bottom = -8
+	kit_panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
 	kit_panel.visible = false
-	var kit_box := VBoxContainer.new()
-	kit_box.add_theme_constant_override("separation", 2)
-	kit_tabs = HBoxContainer.new()
-	kit_tabs.add_theme_constant_override("separation", 2)
-	kit_box.add_child(kit_tabs)
-	kit_icons = HFlowContainer.new()
-	kit_icons.alignment = FlowContainer.ALIGNMENT_BEGIN
-	kit_icons.custom_minimum_size = Vector2(180, 28)
-	kit_box.add_child(kit_icons)
-	hint = Label.new()
-	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	hint.custom_minimum_size = Vector2(180, 0)
-	kit_box.add_child(hint)
-	res_label = Label.new()
-	res_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	kit_box.add_child(res_label)
-	kit_panel.add_child(kit_box)
+	kit_icons = HBoxContainer.new()
+	kit_icons.add_theme_constant_override("separation", -TRAY_FRAME)
+	kit_panel.add_child(kit_icons)
 	root.add_child(kit_panel)
+	hint = Label.new()
+	hint.visible = false
+	root.add_child(hint)
+	res_label = Label.new()
+	res_label.visible = false
+	root.add_child(res_label)
 	var kit_button := TextureButton.new()
 	kit_button.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	kit_button.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	kit_button.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	kit_button.offset_left = -42
-	kit_button.offset_top = -42
-	kit_button.offset_right = -6
-	kit_button.offset_bottom = -6
+	kit_button.offset_left = -76
+	kit_button.offset_top = -62
+	kit_button.offset_right = -4
+	kit_button.offset_bottom = 0
 	kit_button.ignore_texture_size = true
 	kit_button.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-	kit_button.texture_normal = _tex("res://resources/ui/ui_kit.png")
+	kit_button.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	kit_button.texture_normal = _tex("res://resources/ui/toolbar_button.png")
 	kit_button.pressed.connect(_toggle_kit)
 	root.add_child(kit_button)
 
@@ -3257,7 +3478,7 @@ func _show_title() -> void:
 	_cancel_kit_drag()
 	kit_open = false
 	if kit_panel:
-		kit_panel.visible = false
+		_set_kit_shown(false)
 	if slots_panel:
 		slots_panel.visible = false
 	if menu_dim:
@@ -3450,7 +3671,7 @@ func _open_menu() -> void:
 	tool = Catalog.TOOL_EYE
 	_cancel_kit_drag()
 	kit_open = false
-	kit_panel.visible = false
+	_set_kit_shown(false)
 	_show_menu()
 
 
@@ -3533,7 +3754,7 @@ func _sync_game_over() -> void:
 	_play("gameover")
 	gaze_panel.visible = false
 	kit_open = false
-	kit_panel.visible = false
+	_set_kit_shown(false)
 	market_open = false
 	if market_panel:
 		market_panel.visible = false
