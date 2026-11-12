@@ -85,3 +85,11 @@ static func line_for(event: String) -> String:
 	if rows.is_empty():
 		return ""
 	return str(rows[0])
+
+
+static func row(table: String, index: int) -> String:
+	ensure()
+	var rows = tables.get(table, [])
+	if typeof(rows) != TYPE_ARRAY or index < 0 or index >= rows.size():
+		return ""
+	return str(rows[index])

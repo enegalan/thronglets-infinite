@@ -6658,6 +6658,15 @@ func _check_factory_fill(errors: Array) -> void:
 		errors.append("factory pile spend")
 
 
+func _check_opening(errors: Array) -> void:
+	var dos := LineBook.row("SYS.GAME_INTRO", 3)
+	print("OPENING DOS " + dos.replace("\\n", " | "))
+	if "TS-DOZ" not in dos or "HIMEM" not in dos or "TUCK96.IMG" not in dos:
+		errors.append("dos text")
+	if "TROPELES" not in dos or "NOHZDYVE" not in dos or "TSOFT_EDITOR" not in dos:
+		errors.append("dos dir")
+
+
 func _run_checks() -> void:
 	var errors: Array = []
 	DialogueBook.ensure()
@@ -7114,6 +7123,7 @@ func _run_checks() -> void:
 	if not game_over:
 		errors.append("no game over")
 	_check_factory_fill(errors)
+	_check_opening(errors)
 	print("SMOKE " + ("OK" if errors.is_empty() else "FAIL"))
 	for err in errors:
 		print(" - " + str(err))

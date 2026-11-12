@@ -124,6 +124,11 @@ var res_label: Label
 var kit_open := false
 var kit_tab := 0
 var in_title := true
+var dos_root: Control
+var dos_label: Label
+var dos_full := ""
+var dos_shown := 0
+var dos_hold := 0.0
 var dev_on := false
 var dev_bench = null
 var dev_hud_vis := {}
@@ -186,6 +191,9 @@ var spot_mode := ""
 var video_played := {}
 var video_player: VideoStreamPlayer
 var video_from_title := false
+var boot := ""
+var logo_started := false
+var logo_wait := 0.0
 var bird_wait := 8.0
 var textures := {}
 var biome_plates: Array[Sprite2D] = []
@@ -208,11 +216,19 @@ func _ready() -> void:
 	else:
 		if PropTune.consume_boot():
 			_enter_dev()
-		elif not _play_video("tuckersoft_logo_30fps_1MB", true):
-			_show_title()
+		else:
+			_begin_logo()
 
 
 func _input(event: InputEvent) -> void:
+	if dos_root != null and dos_root.visible and event is InputEventMouseButton and event.pressed:
+		_finish_dos()
+		get_viewport().set_input_as_handled()
+		return
+	if boot == "logo" and event is InputEventMouseButton and event.pressed:
+		_begin_dos()
+		get_viewport().set_input_as_handled()
+		return
 	if video_player != null and video_player.visible and event is InputEventMouseButton and event.pressed:
 		video_player.stop()
 		_on_video_finished()
@@ -316,6 +332,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _process(delta: float) -> void:
+	_tick_logo(delta)
+	_tick_dos(delta)
 	if dev_on:
 		_move_camera(delta)
 		if dev_bench != null:
@@ -3917,7 +3935,7 @@ func _build_ui() -> void:
 	title_root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	title_root.mouse_filter = Control.MOUSE_FILTER_STOP
 	title_root.visible = false
-	title_root.z_index = 43
+	title_root.z_index = 70
 	var title_bg := ColorRect.new()
 	title_bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	title_bg.color = Color(0.02, 0.025, 0.05, 1)
@@ -3947,8 +3965,140 @@ func _build_ui() -> void:
 	title_center.add_child(title_col)
 	title_root.add_child(title_center)
 	root.add_child(title_root)
+	_build_opening(root)
 
 	_rebuild_bars()
+
+
+func _build_opening(root: Control) -> void:
+	dos_root = Control.new()
+	dos_root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dos_root.mouse_filter = Control.MOUSE_FILTER_STOP
+	dos_root.visible = false
+	dos_root.z_index = 72
+	var dos_bg := ColorRect.new()
+	dos_bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dos_bg.color = Color(0, 0, 0, 1)
+	dos_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	dos_root.add_child(dos_bg)
+	dos_label = Label.new()
+	dos_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dos_label.offset_left = 16
+	dos_label.offset_top = 12
+	dos_label.offset_right = -72
+	dos_label.offset_bottom = -28
+	dos_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	dos_label.add_theme_font_override("font", _dos_font())
+	dos_label.add_theme_font_size_override("font_size", 16)
+	dos_label.add_theme_color_override("font_color", Color(0.35, 1.0, 0.4))
+	dos_root.add_child(dos_label)
+	var dos_face := TextureRect.new()
+	dos_face.texture = _tex("res://resources/ui/face_base.png")
+	dos_face.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	dos_face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	dos_face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	dos_face.self_modulate = Color(0.35, 1.0, 0.4)
+	dos_face.anchor_left = 1.0
+	dos_face.anchor_right = 1.0
+	dos_face.offset_left = -56
+	dos_face.offset_top = 8
+	dos_face.offset_right = -8
+	dos_face.offset_bottom = 48
+	dos_face.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	dos_root.add_child(dos_face)
+	root.add_child(dos_root)
+
+
+func _dos_font() -> FontFile:
+	var font := FontFile.new()
+	font.antialiasing = TextServer.FONT_ANTIALIASING_NONE
+	font.hinting = TextServer.HINTING_NONE
+	font.subpixel_positioning = TextServer.SUBPIXEL_POSITIONING_DISABLED
+	if font.load_dynamic_font("res://resources/ui/PerfectDOSVGA437.ttf") == OK:
+		return font
+	return _ui_font()
+
+
+func _begin_logo() -> void:
+	boot = "logo"
+	logo_started = false
+	logo_wait = 0.0
+	in_title = true
+	ThrongletSimServer.paused = true
+	if title_root != null:
+		title_root.visible = false
+	if dos_root != null:
+		dos_root.visible = false
+	if not _play_video("tuckersoft_logo_30fps_1MB", true):
+		_begin_dos()
+
+
+func _tick_logo(delta: float) -> void:
+	if boot != "logo" or video_player == null:
+		return
+	logo_wait += delta
+	if video_player.is_playing():
+		logo_started = true
+		return
+	if logo_started:
+		_begin_dos()
+		return
+	if logo_wait > 1.0 and video_player.stream != null:
+		video_player.play()
+	if logo_wait > 2.0:
+		_begin_dos()
+
+
+func _begin_dos() -> void:
+	if boot != "logo":
+		return
+	boot = "dos"
+	video_from_title = false
+	if video_player != null:
+		video_player.stop()
+		video_player.visible = false
+		var plate := video_player.get_meta("plate") as ColorRect
+		if plate != null:
+			plate.visible = false
+	_show_dos()
+
+
+func _show_dos() -> void:
+	in_title = true
+	ThrongletSimServer.paused = true
+	_open_dos()
+
+
+func _open_dos() -> void:
+	dos_full = LineBook.row("SYS.GAME_INTRO", 3).replace("\\n", "\n")
+	dos_full = dos_full.replace("\\\\", "\\").replace("\\\\", "\\")
+	dos_shown = 0
+	dos_hold = 0.0
+	dos_label.text = ""
+	dos_root.visible = true
+
+
+func _tick_dos(delta: float) -> void:
+	if dos_root == null or not dos_root.visible:
+		return
+	if dos_shown < dos_full.length():
+		dos_shown = mini(dos_full.length(), dos_shown + 3)
+		dos_label.text = dos_full.substr(0, dos_shown)
+		return
+	if ThrongletSimServer.testing:
+		return
+	dos_hold += delta
+	if dos_hold > 1.2:
+		_finish_dos()
+
+
+func _finish_dos() -> void:
+	if dos_root == null or not dos_root.visible:
+		return
+	dos_root.visible = false
+	boot = ""
+	if not ThrongletSimServer.testing:
+		_show_title()
 
 
 func _show_title() -> void:
@@ -4807,8 +4957,15 @@ func _build_video() -> void:
 	video_player.expand = true
 	video_player.finished.connect(_on_video_finished)
 	var layer := CanvasLayer.new()
-	layer.layer = 40
+	layer.layer = 100
 	add_child(layer)
+	var plate := ColorRect.new()
+	plate.set_anchors_preset(Control.PRESET_FULL_RECT)
+	plate.color = Color(0, 0, 0, 1)
+	plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	plate.visible = false
+	video_player.set_meta("plate", plate)
+	layer.add_child(plate)
 	layer.add_child(video_player)
 
 
@@ -4821,6 +4978,9 @@ func _play_video(base: String, from_title: bool) -> bool:
 		return false
 	video_player.stream = stream
 	video_player.visible = true
+	var plate := video_player.get_meta("plate") as ColorRect
+	if plate != null:
+		plate.visible = from_title
 	video_player.play()
 	video_played[base] = true
 	video_from_title = from_title
@@ -4828,11 +4988,15 @@ func _play_video(base: String, from_title: bool) -> bool:
 
 
 func _on_video_finished() -> void:
+	if boot == "logo" and not logo_started:
+		return
 	if video_player != null:
 		video_player.visible = false
-	if video_from_title:
-		video_from_title = false
-		_show_title()
+		var plate := video_player.get_meta("plate") as ColorRect
+		if plate != null:
+			plate.visible = false
+	if boot == "logo":
+		_begin_dos()
 
 
 func _maybe_play_sequence(mode: String) -> void:
