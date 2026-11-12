@@ -111,6 +111,10 @@ var shot_frames := 0
 var shot_done := false
 var shot_hud_saved := false
 var shot_console_saved := false
+var shot_name_saved := false
+var shot_dos_saved := false
+var shot_settings_saved := false
+var shot_sign_saved := false
 var shot_path_saved := false
 var shot_board: SubViewport
 var glitch_bars: Array = []
@@ -4777,6 +4781,55 @@ func _tick_shot() -> void:
 			camera.zoom = Vector2(zoom, zoom)
 			camera.position = _to_iso(sim.shot_focus)
 		shot_frames += 1
+		if not shot_dos_saved:
+			if ui != null:
+				ui.visible = true
+			_open_dos()
+			dos_shown = dos_full.length()
+			dos_label.text = dos_full
+			if shot_frames < 4:
+				return
+			if not _save_shot(get_viewport(), "res://shots/dos.png"):
+				get_tree().quit(1)
+				return
+			_finish_dos()
+			shot_dos_saved = true
+			shot_frames = 0
+			return
+		if not shot_settings_saved:
+			in_title = false
+			title_root.visible = true
+			crt_on = true
+			_apply_crt()
+			_fill_settings()
+			if shot_frames < 4:
+				return
+			if not _save_shot(get_viewport(), "res://shots/settings.png"):
+				get_tree().quit(1)
+				return
+			crt_on = false
+			_apply_crt()
+			title_root.visible = false
+			shot_settings_saved = true
+			shot_frames = 0
+			return
+		if not shot_sign_saved:
+			sim.tutorial_i = 2
+			_set_hud_shown(false)
+			_sync_focus(0.0)
+			if shot_frames < 4:
+				return
+			if not _save_shot(get_viewport(), "res://shots/sign.png"):
+				get_tree().quit(1)
+				return
+			sim.tutorial_i = -1
+			if sign_button != null:
+				sign_button.visible = false
+			_set_hud_shown(true)
+			_sync_focus(0.0)
+			shot_sign_saved = true
+			shot_frames = 0
+			return
 		if not shot_hud_saved:
 			if sim.barks.is_empty() and sim.shot_throng >= 0:
 				sim.barks.append({
@@ -4825,6 +4878,32 @@ func _tick_shot() -> void:
 			if ui != null:
 				ui.visible = false
 			shot_console_saved = true
+			shot_frames = 0
+			return
+		if not shot_name_saved:
+			if ui != null:
+				ui.visible = true
+			if sim.modal.is_empty():
+				sim._open_name_ask()
+				sim.glitch_t = 0.0
+				sim.modal["draft"] = "Ana"
+				shot_frames = 0
+				return
+			_sync_gaze()
+			_sync_focus(0.0)
+			if shot_frames < 24:
+				return
+			if not _save_shot(get_viewport(), "res://shots/name.png"):
+				get_tree().quit(1)
+				return
+			sim.modal = {}
+			sim.frozen = false
+			sim._restore_gaze()
+			if name_edit != null:
+				name_edit.visible = false
+			if ui != null:
+				ui.visible = false
+			shot_name_saved = true
 			shot_frames = 0
 			return
 		if not shot_path_saved:
