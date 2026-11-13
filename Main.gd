@@ -112,6 +112,7 @@ var ring_lines: Array = []
 var shot_frames := 0
 var shot_done := false
 var shot_hud_saved := false
+var shot_egg_done := false
 var shot_console_saved := false
 var shot_name_saved := false
 var shot_dos_saved := false
@@ -5244,6 +5245,48 @@ func _tick_shot() -> void:
 			shot_frames = 0
 			return
 		if not shot_hud_saved:
+			# After egg fall finishes, capture task HUD with dialogue glitch cleared.
+			sim.glitch_t = 0.0
+			if glitch_overlay != null:
+				glitch_overlay.visible = false
+			sim.modal = {}
+			sim.talk_pending = {}
+			sim.frozen = false
+			sim.tutorial_i = -1
+			if sign_button != null:
+				sign_button.visible = false
+			if not shot_egg_done:
+				var egg := _starter_egg()
+				if egg.is_empty():
+					sim._spawn_starter_egg()
+					egg = _starter_egg()
+				if float(egg.get("air", 0.0)) <= 0.0 and focus_hold <= 0.0 and shot_frames == 1:
+					egg.air = 140.0
+					egg.x = 256.0
+					egg.y = 256.0
+				var egg_air := float(egg.get("air", 0.0))
+				if egg_air > 0.0:
+					egg.air = maxf(0.0, egg_air - 6.0)
+					focus_hold = 0.45
+					if ui != null:
+						ui.visible = true
+					_set_hud_shown(true)
+					_sync_focus(0.016)
+					return
+				if focus_hold > 0.0:
+					focus_hold = maxf(0.0, focus_hold - 0.016)
+					_sync_focus(0.016)
+					return
+				shot_egg_done = true
+				shot_frames = 0
+				return
+			focus_on = false
+			if focus_dim != null:
+				focus_dim.visible = false
+			if focus_frame != null:
+				focus_frame.visible = false
+			if focus_box != null:
+				focus_box.visible = false
 			if sim.barks.is_empty() and sim.shot_throng >= 0:
 				sim.barks.append({
 					"id": sim.shot_throng,
@@ -5254,10 +5297,12 @@ func _tick_shot() -> void:
 				})
 			if ui != null:
 				ui.visible = true
+			_set_hud_shown(true)
 			kit_open = true
 			kit_tab = 0
 			_set_kit_shown(true)
 			_sync_hud(0.0)
+			_sync_focus(0.0)
 			if task_panel != null:
 				task_panel.visible = true
 			if shot_frames < 12:
@@ -5280,7 +5325,8 @@ func _tick_shot() -> void:
 				return
 			_sync_gaze()
 			_sync_focus(0.0)
-			if shot_frames < 24:
+			# Wait out dialogue-open glitch before capture.
+			if sim.glitch_t > 0.0 or shot_frames < 24:
 				return
 			if not _save_shot(get_viewport(), "res://shots/console.png"):
 				get_tree().quit(1)
