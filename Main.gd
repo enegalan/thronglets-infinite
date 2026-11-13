@@ -142,17 +142,42 @@ var dos_hold := 0.0
 var crt_overlay: ColorRect
 var captions_on := false
 var crt_on := true
+var sfx_vol := 1.0
+var music_vol := 1.0
+var settings_lang := "Español"
+const SETTINGS_LANGS := ["Español"]
 var sign_button: Button
 var dev_on := false
 var dev_bench = null
 var dev_hud_vis := {}
 var title_root: Control
-var title_list: VBoxContainer
 var title_menu: Control
 var title_hud: Control
 var title_bars: Button
 var title_start: Button
 var title_video: Button
+var settings_tab := 3
+var settings_shell: Control
+var settings_body: VBoxContainer
+var settings_tabs: Array = []
+const SETTINGS_BLUE := Color(0.0, 0.0, 170.0 / 255.0)
+var video_library: Control
+var video_library_shell: Control
+var video_library_grid: GridContainer
+var video_from_library := false
+var shot_video_saved := false
+const VIDEO_SHELL_INK := Color(29.0 / 255.0, 22.0 / 255.0, 73.0 / 255.0)
+const VIDEO_SHELL_CYAN := Color(88.0 / 255.0, 200.0 / 255.0, 218.0 / 255.0)
+const VIDEO_LIBRARY := [
+	{"id": "SEQ_1.5", "label": "MOV_01_AB4F12.MOV", "thumb": "1.5"},
+	{"id": "SEQ_2.1", "label": "MOV_02_208FA3.MOV", "thumb": "2.1"},
+	{"id": "SEQ_3.4", "label": "MOV_03_09FF90.MOV", "thumb": "3.4"},
+	{"id": "SEQ_4.2", "label": "MOV_04_0024AB.MOV", "thumb": "4.2"},
+	{"id": "SEQ_5.3", "label": "MOV_05_AB4F12.MOV", "thumb": "5.3"},
+	{"id": "SEQ_6.2", "label": "MOV_06_FFFDA7.MOV", "thumb": "6.2"},
+	{"id": "SEQ_7.3", "label": "MOV_07_73757A.MOV", "thumb": "7.3"},
+	{"id": "SEQ_8.3", "label": "MOV_08_12412B.MOV", "thumb": "8.3"},
+]
 var title_clouds: Array = []
 var title_time := 0.0
 var title_flare: TextureRect
@@ -208,7 +233,6 @@ var over_panel: PanelContainer
 var over_list: VBoxContainer
 var slots_list: VBoxContainer
 var menu_dim: ColorRect
-var pause_page := "root"
 var tool_buttons := {}
 var build_buttons := {}
 var sfx_bank := {}
@@ -338,10 +362,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif event.keycode == KEY_ESCAPE:
 			if slots_panel.visible:
 				_play("ui")
-				if pause_page == "root":
-					_close_slots()
-				else:
-					_show_menu()
+				_close_slots()
 			elif not sim.frozen:
 				_play("ui")
 				_open_menu()
@@ -4074,36 +4095,14 @@ func _build_ui() -> void:
 	title_root.z_index = 70
 	_build_title_backdrop(title_root)
 	_build_title_hud(title_root)
-	title_menu = Control.new()
-	title_menu.set_anchors_preset(Control.PRESET_FULL_RECT)
-	title_menu.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	title_menu.visible = false
-	var title_center := VBoxContainer.new()
-	title_center.anchor_left = 0.0
-	title_center.anchor_right = 1.0
-	title_center.anchor_top = 1.0
-	title_center.anchor_bottom = 1.0
-	title_center.offset_left = 16
-	title_center.offset_right = -16
-	title_center.offset_top = -132
-	title_center.offset_bottom = -10
-	title_center.alignment = BoxContainer.ALIGNMENT_END
-	title_center.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	title_center.clip_contents = true
-	var title_panel := PanelContainer.new()
-	title_panel.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	title_panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
-	title_list = VBoxContainer.new()
-	title_list.add_theme_constant_override("separation", 3)
-	title_panel.add_child(title_list)
-	title_center.add_child(title_panel)
-	title_menu.add_child(title_center)
-	title_root.add_child(title_menu)
+	_build_settings_menu(title_root)
+	_build_video_library(title_root)
 	root.add_child(title_root)
 	_build_opening(root)
 	if not ThrongletSimServer.testing:
 		_load_prefs()
 	_apply_crt()
+	_apply_volumes()
 
 	_rebuild_bars()
 
@@ -4282,8 +4281,12 @@ func _finish_dos() -> void:
 		return
 	dos_root.visible = false
 	boot = ""
-	if not ThrongletSimServer.testing:
-		_show_title()
+	if ThrongletSimServer.testing:
+		return
+	# MOV_01 plays once after the DOS boot, then the title.
+	if _play_video("SEQ_1.5", true):
+		return
+	_show_title()
 
 
 func _load_prefs() -> void:
@@ -4292,12 +4295,20 @@ func _load_prefs() -> void:
 		return
 	captions_on = bool(cfg.get_value("opening", "captions", false))
 	crt_on = bool(cfg.get_value("opening", "crt", true))
+	sfx_vol = clampf(float(cfg.get_value("opening", "sfx", 1.0)), 0.0, 1.0)
+	music_vol = clampf(float(cfg.get_value("opening", "music", 1.0)), 0.0, 1.0)
+	var lang := str(cfg.get_value("opening", "lang", settings_lang))
+	if lang in SETTINGS_LANGS:
+		settings_lang = lang
 
 
 func _save_prefs() -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value("opening", "captions", captions_on)
 	cfg.set_value("opening", "crt", crt_on)
+	cfg.set_value("opening", "sfx", sfx_vol)
+	cfg.set_value("opening", "music", music_vol)
+	cfg.set_value("opening", "lang", settings_lang)
 	cfg.save("user://opening.cfg")
 
 
@@ -4306,38 +4317,737 @@ func _apply_crt() -> void:
 		crt_overlay.visible = crt_on
 
 
+func _apply_volumes() -> void:
+	if music != null:
+		music.volume_db = -80.0 if music_vol <= 0.001 else linear_to_db(music_vol) - 6.0
+	if amb != null:
+		amb.volume_db = -80.0 if music_vol <= 0.001 else linear_to_db(music_vol) - 16.0
+	if sting != null:
+		sting.volume_db = -80.0 if sfx_vol <= 0.001 else linear_to_db(sfx_vol) - 4.0
+	for raw in sfx_pool:
+		var player := raw as AudioStreamPlayer
+		if player != null:
+			player.volume_db = -80.0 if sfx_vol <= 0.001 else linear_to_db(sfx_vol)
+
+
+func _build_settings_menu(root: Control) -> void:
+	title_menu = Control.new()
+	title_menu.set_anchors_preset(Control.PRESET_FULL_RECT)
+	title_menu.mouse_filter = Control.MOUSE_FILTER_STOP
+	title_menu.visible = false
+	var dim := ColorRect.new()
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(0, 0, 0, 0.35)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	title_menu.add_child(dim)
+
+	settings_shell = Control.new()
+	settings_shell.set_anchors_preset(Control.PRESET_FULL_RECT)
+	settings_shell.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	title_menu.add_child(settings_shell)
+
+	var col := VBoxContainer.new()
+	col.anchor_left = 0.5
+	col.anchor_right = 0.5
+	col.anchor_top = 0.5
+	col.anchor_bottom = 0.5
+	col.offset_left = -210
+	col.offset_right = 210
+	col.offset_top = -128
+	col.offset_bottom = 148
+	col.add_theme_constant_override("separation", 6)
+	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	settings_shell.add_child(col)
+
+	var panel_wrap := Control.new()
+	panel_wrap.custom_minimum_size = Vector2(420, 210)
+	panel_wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel_wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(panel_wrap)
+
+	var panel := PanelContainer.new()
+	panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	var panel_style := StyleBoxFlat.new()
+	panel_style.bg_color = Color(0, 0, 0, 1)
+	panel_style.border_color = Color(1, 1, 1, 1)
+	panel_style.set_border_width_all(2)
+	panel_style.content_margin_left = 16
+	panel_style.content_margin_right = 16
+	panel_style.content_margin_top = 22
+	panel_style.content_margin_bottom = 14
+	panel.add_theme_stylebox_override("panel", panel_style)
+	panel_wrap.add_child(panel)
+
+	settings_body = VBoxContainer.new()
+	settings_body.add_theme_constant_override("separation", 12)
+	settings_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	settings_body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	settings_body.alignment = BoxContainer.ALIGNMENT_BEGIN
+	panel.add_child(settings_body)
+
+	var logo := TextureRect.new()
+	logo.texture = _tex_rgba("res://resources/ui/settings/tuckersoft.png")
+	logo.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	logo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	logo.position = Vector2(8, -10)
+	logo.size = Vector2(150, 20)
+	panel_wrap.add_child(logo)
+
+	var close := TextureButton.new()
+	close.texture_normal = _tex_rgba("res://resources/ui/settings/close.png")
+	close.ignore_texture_size = true
+	close.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+	close.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	close.anchor_left = 1.0
+	close.anchor_right = 1.0
+	close.offset_left = -30
+	close.offset_right = -4
+	close.offset_top = -12
+	close.offset_bottom = 16
+	close.pressed.connect(func() -> void:
+		_play("ui")
+		_fill_title()
+	)
+	panel_wrap.add_child(close)
+
+	var foot := HBoxContainer.new()
+	foot.add_theme_constant_override("separation", 6)
+	foot.alignment = BoxContainer.ALIGNMENT_BEGIN
+	col.add_child(foot)
+
+	var icons := [
+		"res://resources/ui/settings/icon_mail.png",
+		"res://resources/ui/settings/icon_cog.png",
+		"res://resources/ui/settings/icon_sound.png",
+		"res://resources/ui/settings/icon_edit.png",
+	]
+	settings_tabs.clear()
+	for i in icons.size():
+		var tab := TextureButton.new()
+		tab.ignore_texture_size = true
+		tab.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+		tab.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		tab.custom_minimum_size = Vector2(36, 38)
+		tab.pressed.connect(_settings_set_tab.bind(i))
+		var icon := TextureRect.new()
+		icon.texture = _tex_rgba(icons[i])
+		icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		icon.set_anchors_preset(Control.PRESET_FULL_RECT)
+		icon.offset_left = 6
+		icon.offset_top = 6
+		icon.offset_right = -6
+		icon.offset_bottom = -6
+		tab.add_child(icon)
+		foot.add_child(tab)
+		settings_tabs.append(tab)
+
+	var ver := Label.new()
+	ver.text = _game_version()
+	ver.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ver.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	ver.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	ver.add_theme_font_override("font", _dos_font())
+	ver.add_theme_font_size_override("font_size", 12)
+	ver.add_theme_color_override("font_color", Color(1, 1, 1, 1))
+	foot.add_child(ver)
+
+	root.add_child(title_menu)
+
+
+func _build_video_library(root: Control) -> void:
+	video_library = Control.new()
+	video_library.set_anchors_preset(Control.PRESET_FULL_RECT)
+	video_library.mouse_filter = Control.MOUSE_FILTER_STOP
+	video_library.visible = false
+	video_library.z_index = 5
+	var dim := ColorRect.new()
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(0, 0, 0, 0.15)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	dim.gui_input.connect(func(event: InputEvent) -> void:
+		if event is InputEventMouseButton and event.pressed:
+			_close_video_library()
+	)
+	video_library.add_child(dim)
+
+	video_library_shell = Control.new()
+	video_library_shell.mouse_filter = Control.MOUSE_FILTER_STOP
+	video_library.add_child(video_library_shell)
+
+	# Match original Window2 look at reference proportions (flat: cyan + white ring + shadow).
+	var shadow := ColorRect.new()
+	shadow.name = "Shadow"
+	shadow.color = Color(73.0 / 255.0, 73.0 / 255.0, 73.0 / 255.0, 0.8)
+	shadow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	video_library_shell.add_child(shadow)
+
+	var chrome := ColorRect.new()
+	chrome.name = "Chrome"
+	chrome.color = VIDEO_SHELL_CYAN
+	chrome.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	video_library_shell.add_child(chrome)
+
+	var ring := ColorRect.new()
+	ring.name = "Ring"
+	ring.color = Color(1, 1, 1, 1)
+	ring.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	video_library_shell.add_child(ring)
+
+	var fill := ColorRect.new()
+	fill.name = "Fill"
+	fill.color = VIDEO_SHELL_CYAN
+	fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	video_library_shell.add_child(fill)
+
+	# White path strip — original has path on white, not on cyan.
+	var title_bg := ColorRect.new()
+	title_bg.name = "TitleBg"
+	title_bg.color = Color(1, 1, 1, 1)
+	title_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	video_library_shell.add_child(title_bg)
+
+	var title := Label.new()
+	title.name = "Title"
+	title.text = "C:\\BIN\\.SHELL\\"
+	title.add_theme_font_override("font", _dos_font())
+	title.add_theme_font_size_override("font_size", 13)
+	title.add_theme_color_override("font_color", VIDEO_SHELL_INK)
+	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	video_library_shell.add_child(title)
+
+	# White plate on cyan fill so the double cyan stroke reads clearly.
+	var plate := ColorRect.new()
+	plate.name = "Plate"
+	plate.color = Color(1, 1, 1, 1)
+	plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	video_library_shell.add_child(plate)
+
+	var frame := PanelContainer.new()
+	frame.name = "Frame"
+	var frame_style := StyleBoxFlat.new()
+	frame_style.bg_color = Color(1, 1, 1, 1)
+	frame_style.border_color = VIDEO_SHELL_CYAN
+	frame_style.set_border_width_all(1)
+	frame_style.set_content_margin_all(2)
+	frame.add_theme_stylebox_override("panel", frame_style)
+	video_library_shell.add_child(frame)
+
+	var content := PanelContainer.new()
+	content.name = "Content"
+	var content_style := StyleBoxFlat.new()
+	content_style.bg_color = Color(1, 1, 1, 1)
+	content_style.border_color = VIDEO_SHELL_CYAN
+	content_style.set_border_width_all(1)
+	content_style.content_margin_left = 14
+	content_style.content_margin_right = 14
+	content_style.content_margin_top = 10
+	content_style.content_margin_bottom = 8
+	content.add_theme_stylebox_override("panel", content_style)
+	frame.add_child(content)
+
+	video_library_grid = GridContainer.new()
+	video_library_grid.columns = 3
+	video_library_grid.add_theme_constant_override("h_separation", 24)
+	video_library_grid.add_theme_constant_override("v_separation", 6)
+	video_library_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	video_library_grid.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	content.add_child(video_library_grid)
+	root.add_child(video_library)
+
+
+func _layout_video_library_shell() -> void:
+	if video_library_shell == null:
+		return
+	# Logical title UI size — not the stretched pixel buffer.
+	var area := title_root.size if title_root != null else get_viewport_rect().size
+	if area.x < 8.0 or area.y < 8.0:
+		area = Vector2(640, 360)
+	# Visible chrome (excludes drop shadow) — reference fills most of the screen.
+	var chrome_size := Vector2(area.x * 0.88, area.y * 0.96)
+	var shadow_o := Vector2(8, 8)
+	var shell_size := chrome_size + shadow_o
+	video_library_shell.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
+	video_library_shell.size = shell_size
+	video_library_shell.position = (area - chrome_size) * 0.5
+	video_library_shell.clip_contents = false
+	var border := 12.0
+	var ring_w := 2.0
+	var shadow := video_library_shell.get_node_or_null("Shadow") as Control
+	if shadow != null:
+		shadow.position = shadow_o
+		shadow.size = chrome_size
+	var chrome := video_library_shell.get_node_or_null("Chrome") as Control
+	if chrome != null:
+		chrome.position = Vector2.ZERO
+		chrome.size = chrome_size
+	var ring := video_library_shell.get_node_or_null("Ring") as Control
+	if ring != null:
+		ring.position = Vector2(border - ring_w, border - ring_w)
+		ring.size = chrome_size - Vector2(border - ring_w, border - ring_w) * 2.0
+	var fill := video_library_shell.get_node_or_null("Fill") as Control
+	if fill != null:
+		fill.position = Vector2(border, border)
+		fill.size = chrome_size - Vector2(border, border) * 2.0
+	var inner_pos := Vector2(border, border)
+	var inner_size := chrome_size - Vector2(border, border) * 2.0
+	var title_h := 18.0
+	var cyan_gap := 10.0
+	var side_pad := 6.0
+	var title_bg := video_library_shell.get_node_or_null("TitleBg") as Control
+	if title_bg != null:
+		title_bg.position = inner_pos + Vector2(side_pad, 2)
+		title_bg.size = Vector2(inner_size.x - side_pad * 2.0, title_h)
+	var title := video_library_shell.get_node_or_null("Title") as Control
+	if title != null:
+		title.position = title_bg.position + Vector2(8, 0) if title_bg != null else inner_pos
+		title.size = Vector2(inner_size.x - side_pad * 2.0 - 16, title_h)
+	var top := inner_pos.y + 2 + title_h + cyan_gap
+	var plate_pos := Vector2(inner_pos.x + side_pad, top)
+	var plate_size := Vector2(inner_size.x - side_pad * 2.0, maxf(8.0, inner_pos.y + inner_size.y - top - 4))
+	var plate := video_library_shell.get_node_or_null("Plate") as Control
+	if plate != null:
+		plate.position = plate_pos
+		plate.size = plate_size
+	var frame := video_library_shell.get_node_or_null("Frame") as Control
+	if frame != null:
+		frame.position = plate_pos
+		frame.size = plate_size
+
+
+func _open_video_library() -> void:
+	_play("ui")
+	if title_menu != null:
+		title_menu.visible = false
+	_fill_video_library()
+	if video_library != null:
+		video_library.visible = true
+		_layout_video_library_shell()
+
+
+func _close_video_library() -> void:
+	_play("ui")
+	if video_library != null:
+		video_library.visible = false
+
+
+func _video_unlocked(clip_id: String) -> bool:
+	return bool(video_played.get(clip_id, false))
+
+
+func _fill_video_library() -> void:
+	if video_library_grid == null:
+		return
+	# free() immediately — queue_free leaves stale cells in the grid during layout.
+	while video_library_grid.get_child_count() > 0:
+		var child: Node = video_library_grid.get_child(0)
+		video_library_grid.remove_child(child)
+		child.free()
+	for entry in VIDEO_LIBRARY:
+		video_library_grid.add_child(_video_library_cell(entry))
+	var exit_wrap := VBoxContainer.new()
+	exit_wrap.add_theme_constant_override("separation", 2)
+	exit_wrap.alignment = BoxContainer.ALIGNMENT_CENTER
+	exit_wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	exit_wrap.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var exit_btn := Button.new()
+	exit_btn.text = "EXIT"
+	exit_btn.custom_minimum_size = Vector2(96, 64)
+	exit_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	exit_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	exit_btn.add_theme_font_override("font", _dos_font())
+	exit_btn.add_theme_font_size_override("font_size", 18)
+	exit_btn.add_theme_color_override("font_color", VIDEO_SHELL_INK)
+	exit_btn.add_theme_color_override("font_hover_color", VIDEO_SHELL_INK)
+	exit_btn.add_theme_color_override("font_pressed_color", VIDEO_SHELL_INK)
+	exit_btn.add_theme_color_override("font_focus_color", VIDEO_SHELL_INK)
+	var exit_style := StyleBoxTexture.new()
+	exit_style.texture = _tex_rgba("res://resources/ui/video/exit.png")
+	exit_style.texture_margin_left = 20
+	exit_style.texture_margin_top = 20
+	exit_style.texture_margin_right = 17
+	exit_style.texture_margin_bottom = 18
+	exit_style.set_content_margin_all(4)
+	var exit_pressed := exit_style.duplicate()
+	exit_pressed.texture = _tex_rgba("res://resources/ui/video/exit_pressed.png")
+	exit_btn.add_theme_stylebox_override("normal", exit_style)
+	exit_btn.add_theme_stylebox_override("hover", exit_style)
+	exit_btn.add_theme_stylebox_override("pressed", exit_pressed)
+	exit_btn.add_theme_stylebox_override("focus", exit_style)
+	exit_btn.pressed.connect(_close_video_library)
+	exit_wrap.add_child(exit_btn)
+	var exit_pad := Label.new()
+	exit_pad.text = " "
+	exit_pad.add_theme_font_override("font", _dos_font())
+	exit_pad.add_theme_font_size_override("font_size", 10)
+	exit_pad.modulate = Color(1, 1, 1, 0)
+	exit_wrap.add_child(exit_pad)
+	video_library_grid.add_child(exit_wrap)
+
+
+func _video_library_cell(entry: Dictionary) -> VBoxContainer:
+	var clip_id := str(entry.id)
+	var unlocked := _video_unlocked(clip_id)
+	var thumb_key := str(entry.thumb)
+	var thumb_path := "res://resources/ui/video/%s_thumbnail%s.png" % [
+		thumb_key,
+		"" if unlocked else "_locked",
+	]
+	var cell := VBoxContainer.new()
+	cell.add_theme_constant_override("separation", 2)
+	cell.alignment = BoxContainer.ALIGNMENT_CENTER
+	cell.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cell.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var btn := TextureButton.new()
+	btn.texture_normal = _tex_rgba(thumb_path)
+	btn.ignore_texture_size = true
+	btn.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+	btn.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	btn.custom_minimum_size = Vector2(96, 64)
+	btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	btn.pressed.connect(_video_library_pick.bind(clip_id, unlocked))
+	cell.add_child(btn)
+	var label := Label.new()
+	label.text = str(entry.label)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.add_theme_font_override("font", _dos_font())
+	label.add_theme_font_size_override("font_size", 10)
+	label.add_theme_color_override("font_color", VIDEO_SHELL_INK)
+	cell.add_child(label)
+	return cell
+
+
+func _video_library_pick(clip_id: String, unlocked: bool) -> void:
+	_play("ui")
+	if not unlocked:
+		return
+	if video_library != null:
+		video_library.visible = false
+	video_from_library = true
+	if not _play_video(clip_id, true):
+		video_from_library = false
+		_open_video_library()
+
+
+func _settings_set_tab(index: int) -> void:
+	_play("ui")
+	settings_tab = index
+	_fill_settings()
+
+
+func _settings_sync_tabs() -> void:
+	for i in settings_tabs.size():
+		var tab: TextureButton = settings_tabs[i]
+		var path := "res://resources/ui/settings/tab_selected.png" if i == settings_tab else "res://resources/ui/settings/tab_unselected.png"
+		tab.texture_normal = _tex_rgba(path)
+
+
+func _game_version() -> String:
+	# Prefer the latest git tag when running from a checkout; else project.godot.
+	var git_v := _git_tag_version()
+	if git_v != "":
+		return git_v
+	var v := str(ProjectSettings.get_setting("application/config/version", "")).strip_edges()
+	if v.begins_with("v") or v.begins_with("V"):
+		v = v.substr(1)
+	return v if v != "" else "0.0.0"
+
+
+func _git_tag_version() -> String:
+	var out: Array = []
+	var code := OS.execute("git", PackedStringArray(["-C", ProjectSettings.globalize_path("res://"), "describe", "--tags", "--abbrev=0"]), out, true, false)
+	if code != 0 or out.is_empty():
+		return ""
+	var v := str(out[0]).strip_edges()
+	if v.begins_with("v") or v.begins_with("V"):
+		v = v.substr(1)
+	return v
+
+
+func _settings_blue_style() -> StyleBoxTexture:
+	var style := StyleBoxTexture.new()
+	style.texture = _tex_rgba("res://resources/ui/settings/button.png")
+	# 2px blue rim + 1px white frame; keep the fill stretchable
+	style.texture_margin_left = 5
+	style.texture_margin_top = 5
+	style.texture_margin_right = 5
+	style.texture_margin_bottom = 5
+	style.content_margin_left = 10
+	style.content_margin_right = 10
+	style.content_margin_top = 6
+	style.content_margin_bottom = 6
+	return style
+
+
+func _settings_blue_button(text: String, call: Callable, min_w: float = 150.0) -> Button:
+	var button := Button.new()
+	button.text = text
+	button.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	button.custom_minimum_size = Vector2(min_w, 28)
+	var style := _settings_blue_style()
+	button.add_theme_stylebox_override("normal", style)
+	button.add_theme_stylebox_override("hover", style)
+	button.add_theme_stylebox_override("pressed", style)
+	button.add_theme_stylebox_override("focus", style)
+	button.add_theme_font_override("font", _dos_font())
+	button.add_theme_font_size_override("font_size", 14)
+	button.add_theme_color_override("font_color", Color.WHITE)
+	button.add_theme_color_override("font_hover_color", Color.WHITE)
+	button.add_theme_color_override("font_pressed_color", Color(0.9, 0.9, 1.0))
+	button.add_theme_color_override("font_focus_color", Color.WHITE)
+	button.pressed.connect(func() -> void:
+		_play("ui")
+		call.call()
+	)
+	return button
+
+
+func _settings_label(text: String) -> Label:
+	var label := Label.new()
+	label.text = text
+	label.add_theme_font_override("font", _dos_font())
+	label.add_theme_font_size_override("font_size", 14)
+	label.add_theme_color_override("font_color", Color.WHITE)
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	return label
+
+
+func _settings_check_row(text: String, on: bool, call: Callable) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var label := _settings_label(text)
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(label)
+	var box := TextureButton.new()
+	box.custom_minimum_size = Vector2(24, 24)
+	box.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	box.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	box.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	box.ignore_texture_size = true
+	box.stretch_mode = TextureButton.STRETCH_SCALE
+	box.texture_normal = _tex_rgba(
+		"res://resources/ui/settings/checkbox_on.png" if on else "res://resources/ui/settings/checkbox.png"
+	)
+	box.pressed.connect(func() -> void:
+		_play("ui")
+		call.call()
+	)
+	row.add_child(box)
+	return row
+
+
+func _settings_slider_row(text: String, value: float, call: Callable) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var label := _settings_label(text)
+	label.custom_minimum_size = Vector2(150, 0)
+	row.add_child(label)
+	var minus := TextureButton.new()
+	minus.texture_normal = _tex_rgba("res://resources/ui/settings/slider_minus.png")
+	minus.ignore_texture_size = true
+	minus.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+	minus.custom_minimum_size = Vector2(14, 14)
+	minus.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	minus.pressed.connect(func() -> void:
+		_play("ui")
+		call.call(clampf(value - 0.1, 0.0, 1.0))
+		_fill_settings()
+	)
+	row.add_child(minus)
+	var slider := HSlider.new()
+	slider.min_value = 0.0
+	slider.max_value = 1.0
+	slider.step = 0.01
+	slider.value = value
+	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	slider.custom_minimum_size = Vector2(120, 20)
+	slider.add_theme_stylebox_override("slider", _settings_slider_track())
+	slider.add_theme_stylebox_override("grabber_area", StyleBoxEmpty.new())
+	slider.add_theme_stylebox_override("grabber_area_highlight", StyleBoxEmpty.new())
+	slider.add_theme_icon_override("grabber", _tex_rgba("res://resources/ui/settings/slider_thumb.png"))
+	slider.add_theme_icon_override("grabber_highlight", _tex_rgba("res://resources/ui/settings/slider_thumb.png"))
+	slider.value_changed.connect(func(v: float) -> void:
+		call.call(v)
+	)
+	row.add_child(slider)
+	var plus := TextureButton.new()
+	plus.texture_normal = _tex_rgba("res://resources/ui/settings/slider_plus.png")
+	plus.ignore_texture_size = true
+	plus.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+	plus.custom_minimum_size = Vector2(14, 14)
+	plus.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	plus.pressed.connect(func() -> void:
+		_play("ui")
+		call.call(clampf(value + 0.1, 0.0, 1.0))
+		_fill_settings()
+	)
+	row.add_child(plus)
+	return row
+
+
+func _settings_slider_track() -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(1, 1, 1, 1)
+	style.set_content_margin_all(0)
+	style.content_margin_top = 3
+	style.content_margin_bottom = 3
+	return style
+
+
 func _fill_settings() -> void:
 	if title_hud != null:
 		title_hud.visible = false
 	if title_menu != null:
 		title_menu.visible = true
-	_clear_menu(title_list)
-	_menu_label(title_list, LineBook.row("SYS.MESSAGES", 28))
-	var yes := LineBook.row("SYS.SETTINGS", 6)
-	var no := LineBook.row("SYS.SETTINGS", 7)
-	_menu_button(title_list, "%s   %s" % [LineBook.row("SYS.SETTINGS", 13), yes if captions_on else no], _toggle_captions)
-	_menu_button(title_list, "%s   %s" % [LineBook.row("SYS.SETTINGS", 14), yes if crt_on else no], _toggle_crt)
-	_menu_label(title_list, "%s   Español" % LineBook.row("SYS.SETTINGS", 0))
+	if settings_shell != null:
+		settings_shell.visible = true
+	_settings_sync_tabs()
+	_clear_menu(settings_body)
+	match settings_tab:
+		0:
+			_fill_settings_mail()
+		1:
+			_fill_settings_cog()
+		2:
+			_fill_settings_sound()
+		_:
+			_fill_settings_edit()
+
+
+func _fill_settings_mail() -> void:
+	var stack := VBoxContainer.new()
+	stack.add_theme_constant_override("separation", 14)
+	stack.alignment = BoxContainer.ALIGNMENT_CENTER
+	stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	stack.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var support := _settings_blue_button(LineBook.row("SYS.SETTINGS", 10), _settings_support, 240)
+	support.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	stack.add_child(support)
+	var faq := _settings_blue_button(LineBook.row("SYS.SETTINGS", 11), _settings_faq, 240)
+	faq.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	stack.add_child(faq)
+	settings_body.add_child(stack)
+
+
+func _fill_settings_cog() -> void:
+	var grid := HBoxContainer.new()
+	grid.add_theme_constant_override("separation", 10)
+	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	grid.add_child(_settings_blue_button(LineBook.row("SYS.SETTINGS", 8), _settings_achievements, 160))
+	grid.add_child(_settings_blue_button(LineBook.row("SYS.SETTINGS", 12), _settings_credits, 120))
+	settings_body.add_child(grid)
+	settings_body.add_child(_settings_blue_button(LineBook.row("SYS.SETTINGS", 4), _settings_ask_reset, 160))
+	var extras := HBoxContainer.new()
+	extras.add_theme_constant_override("separation", 6)
+	extras.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	extras.add_child(_settings_blue_button("DEV", _enter_dev, 70))
+	extras.add_child(_settings_blue_button("SALIR", _quit_game, 80))
+	settings_body.add_child(extras)
+
+
+func _fill_settings_sound() -> void:
+	settings_body.add_child(_settings_slider_row(LineBook.row("SYS.SETTINGS", 2), sfx_vol, _set_sfx_vol))
+	settings_body.add_child(_settings_slider_row(LineBook.row("SYS.SETTINGS", 1), music_vol, _set_music_vol))
+
+
+func _fill_settings_edit() -> void:
+	settings_body.add_child(_settings_check_row(LineBook.row("SYS.SETTINGS", 13), captions_on, _toggle_captions))
+	settings_body.add_child(_settings_check_row(LineBook.row("SYS.SETTINGS", 14), crt_on, _toggle_crt))
+	var lang := HBoxContainer.new()
+	lang.add_theme_constant_override("separation", 12)
+	lang.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var label := _settings_label(LineBook.row("SYS.SETTINGS", 0))
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lang.add_child(label)
+	lang.add_child(_settings_blue_button(settings_lang, _settings_languages, 120))
+	settings_body.add_child(lang)
+
+
+func _settings_languages() -> void:
+	_clear_menu(settings_body)
+	settings_body.add_child(_settings_label(LineBook.row("SYS.SETTINGS", 0)))
+	for name in SETTINGS_LANGS:
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 10)
+		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(_settings_blue_button(name, _settings_pick_lang.bind(name), 160))
+		if name == settings_lang:
+			var mark := TextureRect.new()
+			mark.texture = _tex_rgba("res://resources/ui/settings/checkbox_on.png")
+			mark.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			mark.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			mark.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			mark.custom_minimum_size = Vector2(24, 24)
+			mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			row.add_child(mark)
+		settings_body.add_child(row)
+	settings_body.add_child(_settings_blue_button(LineBook.row("SYS.SETTINGS", 3), _fill_settings, 160))
+
+
+func _settings_pick_lang(name: String) -> void:
+	if name in SETTINGS_LANGS:
+		settings_lang = name
+		_save_prefs()
+	_fill_settings()
+
+
+func _set_sfx_vol(value: float) -> void:
+	sfx_vol = clampf(value, 0.0, 1.0)
+	_apply_volumes()
+	_save_prefs()
+
+
+func _set_music_vol(value: float) -> void:
+	music_vol = clampf(value, 0.0, 1.0)
+	_apply_volumes()
+	_save_prefs()
+
+
+func _settings_support() -> void:
+	OS.shell_open("https://support.nightschoolstudio.com/")
+
+
+func _settings_faq() -> void:
+	OS.shell_open("https://www.nightschoolstudio.com/thronglets")
+
+
+func _settings_achievements() -> void:
+	_clear_menu(settings_body)
+	settings_body.add_child(_settings_label("LOGROS"))
+	settings_body.add_child(_settings_label("—"))
+	settings_body.add_child(_settings_blue_button(LineBook.row("SYS.SETTINGS", 3), _fill_settings, 160))
+
+
+func _settings_credits() -> void:
+	_clear_menu(settings_body)
+	settings_body.add_child(_settings_label("CREDITOS"))
+	settings_body.add_child(_settings_label("Night School Studio"))
+	settings_body.add_child(_settings_label("Thronglets: Infinite"))
+	settings_body.add_child(_settings_blue_button(LineBook.row("SYS.SETTINGS", 3), _fill_settings, 160))
+
+
+func _settings_ask_reset() -> void:
+	_clear_menu(settings_body)
+	settings_body.add_child(_settings_label(LineBook.row("SYS.SETTINGS", 5)))
 	var row := HBoxContainer.new()
-	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	row.add_theme_constant_override("separation", 6)
-	var icons := ["settings_mail.png", "settings_cog.png", "settings_sound.png", "settings_edit.png"]
-	for i in icons.size():
-		var icon := TextureRect.new()
-		icon.texture = _tex("res://resources/ui/" + icons[i])
-		icon.custom_minimum_size = Vector2(28, 28)
-		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		icon.modulate = Color.WHITE if i == 1 else Color(0.72, 0.72, 0.72)
-		row.add_child(icon)
-	title_list.add_child(row)
-	if _has_continue():
-		_menu_button(title_list, "CONTINUAR", _continue_game)
-	_menu_button(title_list, "CARGAR", _fill_title_slots)
-	_menu_button(title_list, "DESARROLLO", _enter_dev)
-	_menu_button(title_list, "SALIR", _quit_game)
-	_menu_button(title_list, LineBook.row("SYS.SETTINGS", 3), _fill_title)
+	row.add_theme_constant_override("separation", 10)
+	row.add_child(_settings_blue_button(LineBook.row("SYS.SETTINGS", 6), _settings_reset, 80))
+	row.add_child(_settings_blue_button(LineBook.row("SYS.SETTINGS", 7), _fill_settings, 80))
+	settings_body.add_child(row)
+
+
+func _settings_reset() -> void:
+	ThrongletSimServer.clear_saves()
+	_fill_settings()
 
 
 func _toggle_captions() -> void:
@@ -4555,13 +5265,13 @@ func _title_icon_button(path: String, call: Callable, fill: bool = false) -> But
 
 
 func _title_press_start() -> void:
+	if _continue_game():
+		return
 	_start_new_game()
 
 
 func _title_press_video() -> void:
-	if _play_video("SEQ_2.1", true):
-		return
-	_play_video("SEQ_7.3", true)
+	_open_video_library()
 
 
 func _title_sprite(path: String, keep_alpha: bool = false) -> TextureRect:
@@ -4771,9 +5481,10 @@ func _sync_title_hud(area: Vector2) -> void:
 
 
 func _fill_title() -> void:
-	_clear_menu(title_list)
 	if title_menu != null:
 		title_menu.visible = false
+	if settings_shell != null:
+		settings_shell.visible = false
 	if title_hud != null:
 		title_hud.visible = true
 	title_layout_size = Vector2.ZERO
@@ -4781,63 +5492,21 @@ func _fill_title() -> void:
 
 func _has_continue() -> bool:
 	var sim: ThrongletSim = ThrongletSimServer
-	if sim.session_live:
+	if sim.session_live and not sim.game_over:
 		return true
-	for row in sim.list_slots():
-		if bool(row.used):
-			return true
+	return sim.has_checkpoint()
+
+
+func _continue_game() -> bool:
+	if not _has_continue():
+		return false
+	if ThrongletSimServer.resume_last():
+		_enter_game()
+		return true
+	if ThrongletSimServer.load_checkpoint():
+		_enter_game()
+		return true
 	return false
-
-
-func _continue_game() -> void:
-	if not ThrongletSimServer.resume_last():
-		return
-	_enter_game()
-
-
-func _fill_title_slots() -> void:
-	_clear_menu(title_list)
-	_menu_label(title_list, "CARGAR")
-	for row in ThrongletSimServer.list_slots():
-		var index := int(row.i)
-		var used := bool(row.used)
-		var text := _slot_text(index, row)
-		_menu_button(title_list, text, _title_load.bind(index), not used)
-	_menu_button(title_list, "BORRAR", _fill_title_delete)
-	_menu_button(title_list, "VOLVER", _fill_settings)
-
-
-func _fill_title_delete() -> void:
-	_clear_menu(title_list)
-	_menu_label(title_list, "BORRAR")
-	var any := false
-	for row in ThrongletSimServer.list_slots():
-		if not bool(row.used):
-			continue
-		any = true
-		var index := int(row.i)
-		_menu_button(title_list, _slot_text(index, row), _ask_title_delete.bind(index))
-	if not any:
-		_menu_label(title_list, "NO HAY PARTIDAS")
-	_menu_button(title_list, "VOLVER", _fill_title_slots)
-
-
-func _ask_title_delete(index: int) -> void:
-	_clear_menu(title_list)
-	_menu_label(title_list, "BORRAR RANURA %d" % [index + 1])
-	_menu_button(title_list, "BORRAR", _confirm_title_delete.bind(index))
-	_menu_button(title_list, "VOLVER", _fill_title_delete)
-
-
-func _confirm_title_delete(index: int) -> void:
-	ThrongletSimServer.delete_slot(index)
-	_fill_title_delete()
-
-
-func _title_load(index: int) -> void:
-	if not ThrongletSimServer.load_slot(index):
-		return
-	_enter_game()
 
 
 func _toggle_slots() -> void:
@@ -4870,13 +5539,10 @@ func _close_slots() -> void:
 
 
 func _show_menu() -> void:
-	pause_page = "root"
 	_clear_menu(slots_list)
 	_menu_label(slots_list, "PAUSA")
 	_menu_button(slots_list, "CONTINUAR", _close_slots)
-	_menu_button(slots_list, "GUARDAR", func(): _fill_slots(true))
-	_menu_button(slots_list, "CARGAR", func(): _fill_slots(false))
-	_menu_button(slots_list, "SALIR DE LA PARTIDA", _show_title)
+	_menu_button(slots_list, "SALIR DE LA PARTIDA", _leave_to_title)
 	_menu_button(slots_list, "SALIR DEL JUEGO", _quit_game)
 
 
@@ -4923,12 +5589,6 @@ func _menu_button(list: VBoxContainer, text: String, call: Callable, disabled: b
 	list.add_child(button)
 
 
-func _slot_text(index: int, row: Dictionary) -> String:
-	if bool(row.used):
-		return "RANURA %d  POB %d" % [index + 1, int(row.living)]
-	return "RANURA %d  VACIA" % [index + 1]
-
-
 func _sync_game_over() -> void:
 	if over_panel == null:
 		return
@@ -4957,7 +5617,21 @@ func _fill_game_over() -> void:
 	_menu_label(over_list, "GAME OVER")
 	_menu_label(over_list, "EL ULTIMO MULTI HA MUERTO")
 	_menu_button(over_list, "EMPEZAR DE NUEVO", _game_over_restart)
-	_menu_button(over_list, "CARGAR", _game_over_load, not ThrongletSimServer.has_checkpoint())
+	var rows: Array = ThrongletSimServer.list_checkpoints()
+	if rows.is_empty():
+		_menu_label(over_list, "NO HAY GUARDADOS")
+		return
+	_menu_label(over_list, "ULTIMOS GUARDADOS")
+	for i in rows.size():
+		var row: Dictionary = rows[i]
+		_menu_button(over_list, _checkpoint_text(i, row), _game_over_load_slot.bind(int(row.i)))
+
+
+func _checkpoint_text(order: int, row: Dictionary) -> String:
+	var living := int(row.get("living", 0))
+	if order == 0:
+		return "ULTIMO  POB %d" % living
+	return "ANTERIOR %d  POB %d" % [order, living]
 
 
 func _game_over_restart() -> void:
@@ -4965,52 +5639,29 @@ func _game_over_restart() -> void:
 	_start_new_game()
 
 
-func _game_over_load() -> void:
-	if not ThrongletSimServer.load_checkpoint():
+func _game_over_load_slot(index: int) -> void:
+	if not ThrongletSimServer.load_slot(index):
 		return
 	over_panel.visible = false
 	_enter_game()
 
 
+func _leave_to_title() -> void:
+	var sim: ThrongletSim = ThrongletSimServer
+	if sim.session_live and not sim.game_over:
+		sim.save_progress()
+	_show_title()
+
+
 func _quit_game() -> void:
 	var sim: ThrongletSim = ThrongletSimServer
-	if sim.current_slot >= 0:
-		sim.save_slot(sim.current_slot)
+	if sim.session_live and not sim.game_over:
+		sim.save_progress()
 	get_tree().quit()
 
 
 func _save_current() -> void:
-	var sim: ThrongletSim = ThrongletSimServer
-	var index: int = sim.current_slot
-	if index < 0:
-		index = 0
-	sim.save_slot(index)
-	if slots_panel.visible:
-		_fill_slots(true)
-
-
-func _fill_slots(saving: bool) -> void:
-	pause_page = "save" if saving else "load"
-	_clear_menu(slots_list)
-	_menu_label(slots_list, "GUARDAR" if saving else "CARGAR")
-	for row in ThrongletSimServer.list_slots():
-		var index := int(row.i)
-		var used := bool(row.used)
-		if saving:
-			_menu_button(slots_list, _slot_text(index, row), _save_row.bind(index))
-		else:
-			_menu_button(slots_list, _slot_text(index, row), _load_row.bind(index), not used)
-	_menu_button(slots_list, "VOLVER", _show_menu)
-
-
-func _save_row(index: int) -> void:
-	ThrongletSimServer.save_slot(index)
-	_fill_slots(true)
-
-
-func _load_row(index: int) -> void:
-	ThrongletSimServer.load_slot(index)
-	_close_slots()
+	ThrongletSimServer.save_progress()
 
 
 func _tex(path: String) -> Texture2D:
@@ -5214,17 +5865,58 @@ func _tick_shot() -> void:
 			title_root.visible = true
 			crt_on = true
 			_apply_crt()
+			var settings_shots := [
+				{"tab": 0, "path": "res://shots/settings_mail.png"},
+				{"tab": 1, "path": "res://shots/settings_cog.png"},
+				{"tab": 2, "path": "res://shots/settings_sound.png"},
+				{"tab": 3, "path": "res://shots/settings.png"},
+			]
+			var shot_i := mini(shot_frames / 4, settings_shots.size() - 1)
+			var spec: Dictionary = settings_shots[shot_i]
+			settings_tab = int(spec.tab)
+			crt_on = true
+			_apply_crt()
 			_fill_settings()
-			if shot_frames < 4:
+			if shot_frames % 4 != 3:
 				return
-			if not _save_shot(get_viewport(), "res://shots/settings.png"):
+			if not _save_shot(get_viewport(), str(spec.path)):
 				get_tree().quit(1)
+				return
+			if shot_i < settings_shots.size() - 1:
 				return
 			crt_on = false
 			_apply_crt()
 			title_root.visible = false
 			in_title = false
 			shot_settings_saved = true
+			shot_frames = 0
+			return
+		if not shot_video_saved:
+			in_title = true
+			title_root.visible = true
+			crt_on = true
+			_apply_crt()
+			_fill_title()
+			if title_menu != null:
+				title_menu.visible = false
+			if title_hud != null:
+				title_hud.visible = true
+			if video_library_grid == null or video_library_grid.get_child_count() == 0:
+				video_played["SEQ_1.5"] = true
+				_fill_video_library()
+			if video_library != null:
+				video_library.visible = true
+				_layout_video_library_shell()
+			if shot_frames < 8:
+				return
+			if not _save_shot(get_viewport(), "res://shots/video_library.png"):
+				get_tree().quit(1)
+				return
+			if video_library != null:
+				video_library.visible = false
+			title_root.visible = false
+			in_title = false
+			shot_video_saved = true
 			shot_frames = 0
 			return
 		if not shot_sign_saved:
@@ -5719,7 +6411,7 @@ func _play_video(base: String, from_title: bool) -> bool:
 	video_player.visible = true
 	var plate := video_player.get_meta("plate") as ColorRect
 	if plate != null:
-		plate.visible = from_title
+		plate.visible = from_title or video_from_library
 	video_player.play()
 	video_played[base] = true
 	video_from_title = from_title
@@ -5736,6 +6428,11 @@ func _on_video_finished() -> void:
 			plate.visible = false
 	if boot == "logo":
 		_begin_dos()
+		return
+	if video_from_library:
+		video_from_library = false
+		_show_title()
+		_open_video_library()
 		return
 	if video_from_title:
 		video_from_title = false
