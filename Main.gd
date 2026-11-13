@@ -147,6 +147,11 @@ var dev_bench = null
 var dev_hud_vis := {}
 var title_root: Control
 var title_list: VBoxContainer
+var title_menu: Control
+var title_hud: Control
+var title_bars: Button
+var title_start: Button
+var title_video: Button
 var title_clouds: Array = []
 var title_time := 0.0
 var title_flare: TextureRect
@@ -156,6 +161,7 @@ var title_front: TextureRect
 var title_side: TextureRect
 var title_egg: TextureRect
 var title_layout_size := Vector2.ZERO
+var shot_title_saved := false
 var hand_from := Vector2.ZERO
 const HAND_HOLD := 0.22
 var hand_pending := false
@@ -376,6 +382,8 @@ func _process(delta: float) -> void:
 			selected = -1
 			_sync_need_bars()
 		_hide_marks()
+		if ThrongletSimServer.shot_mode and not shot_done:
+			_tick_shot()
 		return
 	var sim: ThrongletSim = ThrongletSimServer
 	_sync_game_over()
@@ -4052,6 +4060,11 @@ func _build_ui() -> void:
 	title_root.visible = false
 	title_root.z_index = 70
 	_build_title_backdrop(title_root)
+	_build_title_hud(title_root)
+	title_menu = Control.new()
+	title_menu.set_anchors_preset(Control.PRESET_FULL_RECT)
+	title_menu.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	title_menu.visible = false
 	var title_center := VBoxContainer.new()
 	title_center.anchor_left = 0.0
 	title_center.anchor_right = 1.0
@@ -4071,7 +4084,8 @@ func _build_ui() -> void:
 	title_list.add_theme_constant_override("separation", 3)
 	title_panel.add_child(title_list)
 	title_center.add_child(title_panel)
-	title_root.add_child(title_center)
+	title_menu.add_child(title_center)
+	title_root.add_child(title_menu)
 	root.add_child(title_root)
 	_build_opening(root)
 	if not ThrongletSimServer.testing:
@@ -4280,6 +4294,10 @@ func _apply_crt() -> void:
 
 
 func _fill_settings() -> void:
+	if title_hud != null:
+		title_hud.visible = false
+	if title_menu != null:
+		title_menu.visible = true
 	_clear_menu(title_list)
 	_menu_label(title_list, LineBook.row("SYS.MESSAGES", 28))
 	var yes := LineBook.row("SYS.SETTINGS", 6)
@@ -4301,6 +4319,11 @@ func _fill_settings() -> void:
 		icon.modulate = Color.WHITE if i == 1 else Color(0.72, 0.72, 0.72)
 		row.add_child(icon)
 	title_list.add_child(row)
+	if _has_continue():
+		_menu_button(title_list, "CONTINUAR", _continue_game)
+	_menu_button(title_list, "CARGAR", _fill_title_slots)
+	_menu_button(title_list, "DESARROLLO", _enter_dev)
+	_menu_button(title_list, "SALIR", _quit_game)
 	_menu_button(title_list, LineBook.row("SYS.SETTINGS", 3), _fill_title)
 
 
@@ -4437,6 +4460,97 @@ func _build_title_backdrop(root: Control) -> void:
 	stage.add_child(title_logo)
 
 
+func _build_title_hud(root: Control) -> void:
+	title_hud = Control.new()
+	title_hud.name = "TitleHud"
+	title_hud.set_anchors_preset(Control.PRESET_FULL_RECT)
+	title_hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(title_hud)
+	title_bars = _title_icon_button("res://resources/ui/menu_bars.png", _fill_settings)
+	# Keep tan bars readable under the green CRT wash.
+	title_bars.modulate = Color(1.25, 1.05, 0.85)
+	title_hud.add_child(title_bars)
+	title_start = _title_wood_button(_title_press_start)
+	title_hud.add_child(title_start)
+	title_video = _title_icon_button("res://resources/ui/menu/video.png", _title_press_video, false)
+	title_video.flat = false
+	# Same OldOS cyan 9-slice used by the task banner (UI_OldOS_Button).
+	var video_plate := _oldos_plate_style(4)
+	title_video.add_theme_stylebox_override("normal", video_plate)
+	title_video.add_theme_stylebox_override("hover", video_plate)
+	title_video.add_theme_stylebox_override("pressed", video_plate)
+	title_video.add_theme_stylebox_override("focus", video_plate)
+	title_video.add_theme_stylebox_override("hover_pressed", video_plate)
+	title_hud.add_child(title_video)
+
+
+func _title_wood_button(call: Callable) -> Button:
+	# High-res wood panel (same source as sign_plank); 9-slice keeps edges crisp.
+	var button := Button.new()
+	button.flat = false
+	button.text = "Comenzar"
+	button.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	button.mouse_filter = Control.MOUSE_FILTER_STOP
+	button.add_theme_font_override("font", _ui_font())
+	button.add_theme_font_size_override("font_size", 22)
+	var ink := Color(1.0, 1.0, 0.96)
+	button.add_theme_color_override("font_color", ink)
+	button.add_theme_color_override("font_hover_color", ink)
+	button.add_theme_color_override("font_pressed_color", Color(0.92, 0.88, 0.78))
+	button.add_theme_color_override("font_focus_color", ink)
+	button.add_theme_constant_override("outline_size", 2)
+	button.add_theme_color_override("font_outline_color", Color(0.14, 0.08, 0.04))
+	var wood := _box_style("res://resources/ui/menu/start.png", 8, 0)
+	button.add_theme_stylebox_override("normal", wood)
+	button.add_theme_stylebox_override("hover", wood)
+	button.add_theme_stylebox_override("pressed", wood)
+	button.add_theme_stylebox_override("focus", wood)
+	button.add_theme_stylebox_override("hover_pressed", wood)
+	if call.is_valid():
+		button.pressed.connect(func() -> void:
+			_play("ui")
+			call.call()
+		)
+	return button
+
+
+func _title_icon_button(path: String, call: Callable, fill: bool = false) -> Button:
+	var button := Button.new()
+	button.flat = true
+	var empty := StyleBoxEmpty.new()
+	button.add_theme_stylebox_override("normal", empty)
+	button.add_theme_stylebox_override("hover", empty)
+	button.add_theme_stylebox_override("focus", empty)
+	button.add_theme_stylebox_override("pressed", empty)
+	button.add_theme_stylebox_override("hover_pressed", empty)
+	button.mouse_filter = Control.MOUSE_FILTER_STOP
+	var icon := TextureRect.new()
+	icon.set_anchors_preset(Control.PRESET_FULL_RECT)
+	icon.texture = _tex_rgba(path)
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_SCALE if fill else TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	button.add_child(icon)
+	button.set_meta("icon", icon)
+	if call.is_valid():
+		button.pressed.connect(func() -> void:
+			_play("ui")
+			call.call()
+		)
+	return button
+
+
+func _title_press_start() -> void:
+	_start_new_game()
+
+
+func _title_press_video() -> void:
+	if _play_video("SEQ_2.1", true):
+		return
+	_play_video("SEQ_7.3", true)
+
+
 func _title_sprite(path: String, keep_alpha: bool = false) -> TextureRect:
 	var node := TextureRect.new()
 	node.texture = _tex_rgba(path) if keep_alpha else _tex(path)
@@ -4492,6 +4606,8 @@ func _sync_title_layout(area: Vector2) -> void:
 		logo_size.y = logo_size.x * float(title_logo.texture.get_height()) / float(title_logo.texture.get_width())
 	title_logo.size = logo_size
 	title_logo.position = Vector2((area.x - logo_size.x) * 0.5, area.y * 0.035)
+
+	_sync_title_hud(area)
 
 
 func _tick_title(delta: float) -> void:
@@ -4617,15 +4733,37 @@ func _restore_play_ui() -> void:
 	dev_hud_vis.clear()
 
 
+func _sync_title_hud(area: Vector2) -> void:
+	if title_hud == null:
+		return
+	# Fractions from original start-screen capture (menu bars / Start / shorts / profile).
+	var bars_s := Vector2(area.x * 0.048, area.x * 0.040)
+	title_bars.size = bars_s
+	title_bars.position = Vector2(area.x * 0.022, area.y * 0.038)
+	var start_s := Vector2(area.x * 0.265, area.y * 0.155)
+	title_start.size = start_s
+	title_start.position = Vector2(area.x * 0.383, area.y * 0.755)
+	var video_s := Vector2(area.x * 0.128, area.y * 0.150)
+	title_video.size = video_s
+	title_video.position = Vector2(area.x * 0.795, area.y * 0.725)
+	# Cam sits at ~55% of the plate height, with clear margin inside the dashed ring.
+	var video_icon: TextureRect = title_video.get_meta("icon") as TextureRect
+	if video_icon != null:
+		var inset := video_s.y * 0.22
+		video_icon.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		video_icon.offset_left = inset
+		video_icon.offset_top = inset
+		video_icon.offset_right = -inset
+		video_icon.offset_bottom = -inset
+
+
 func _fill_title() -> void:
 	_clear_menu(title_list)
-	if _has_continue():
-		_menu_button(title_list, "CONTINUAR", _continue_game)
-	_menu_button(title_list, "NUEVA PARTIDA", _start_new_game)
-	_menu_button(title_list, LineBook.row("SYS.MESSAGES", 28), _fill_settings)
-	_menu_button(title_list, "CARGAR", _fill_title_slots)
-	_menu_button(title_list, "DESARROLLO", _enter_dev)
-	_menu_button(title_list, "SALIR", _quit_game)
+	if title_menu != null:
+		title_menu.visible = false
+	if title_hud != null:
+		title_hud.visible = true
+	title_layout_size = Vector2.ZERO
 
 
 func _has_continue() -> bool:
@@ -4653,7 +4791,7 @@ func _fill_title_slots() -> void:
 		var text := _slot_text(index, row)
 		_menu_button(title_list, text, _title_load.bind(index), not used)
 	_menu_button(title_list, "BORRAR", _fill_title_delete)
-	_menu_button(title_list, "VOLVER", _fill_title)
+	_menu_button(title_list, "VOLVER", _fill_settings)
 
 
 func _fill_title_delete() -> void:
@@ -4915,9 +5053,20 @@ func _goal_ink() -> Color:
 	return Color(0.188, 0.322, 0.416)
 
 
+func _oldos_plate_style(pad: int = 3) -> StyleBoxTexture:
+	# Unity UI_OldOS_Button borders: L=20 B=18 R=17 T=20
+	var style := StyleBoxTexture.new()
+	style.texture = _tex_rgba("res://resources/ui/ui_oldos_button.png")
+	style.texture_margin_left = 20
+	style.texture_margin_right = 17
+	style.texture_margin_top = 20
+	style.texture_margin_bottom = 18
+	style.set_content_margin_all(pad)
+	return style
+
+
 func _goal_outer_style() -> StyleBoxTexture:
-	# Pad 3 keeps panes flush to the 1px cyan ring inside the 3px white border.
-	return _box_style("res://resources/ui/ui_goal_frame.png", 4, 3)
+	return _oldos_plate_style(3)
 
 
 func _goal_tag_style() -> StyleBoxTexture:
@@ -5010,8 +5159,26 @@ func _tick_shot() -> void:
 			shot_dos_saved = true
 			shot_frames = 0
 			return
+		if not shot_title_saved:
+			in_title = true
+			if ui != null:
+				ui.visible = true
+			title_root.visible = true
+			crt_on = true
+			_apply_crt()
+			_fill_title()
+			title_layout_size = Vector2.ZERO
+			_tick_title(0.0)
+			if shot_frames < 8:
+				return
+			if not _save_shot(get_viewport(), "res://shots/title.png"):
+				get_tree().quit(1)
+				return
+			shot_title_saved = true
+			shot_frames = 0
+			return
 		if not shot_settings_saved:
-			in_title = false
+			in_title = true
 			title_root.visible = true
 			crt_on = true
 			_apply_crt()
@@ -5024,6 +5191,7 @@ func _tick_shot() -> void:
 			crt_on = false
 			_apply_crt()
 			title_root.visible = false
+			in_title = false
 			shot_settings_saved = true
 			shot_frames = 0
 			return
@@ -5491,6 +5659,10 @@ func _on_video_finished() -> void:
 			plate.visible = false
 	if boot == "logo":
 		_begin_dos()
+		return
+	if video_from_title:
+		video_from_title = false
+		_show_title()
 
 
 func _maybe_play_sequence(mode: String) -> void:

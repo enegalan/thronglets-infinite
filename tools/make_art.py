@@ -1209,34 +1209,15 @@ def make_hud():
         out.alpha_composite(ring, (-2, -2))
         ring = out
     ring.save(OUT("resources", "ui", "ui_circle.png"))
-    kit = new(32, 32)
-    for y in range(32):
-        for x in range(32):
-            d = ((x - 15.5) ** 2 + (y - 15.5) ** 2) ** 0.5
-            if d <= 15.0:
-                color = (70, 48, 28, 255) if d >= 12.5 else (232, 210, 170, 255)
-                px(kit, x, y, color)
-    wood = (118, 74, 40, 255)
-    metal = (90, 102, 114, 255)
-    hole = (232, 210, 170, 255)
-    rect(kit, 6, 12, 3, 12, wood)
-    rect(kit, 3, 8, 9, 5, wood)
-    rect(kit, 21, 12, 3, 12, metal)
-    rect(kit, 18, 6, 9, 3, metal)
-    rect(kit, 18, 6, 3, 7, metal)
-    rect(kit, 24, 6, 3, 7, metal)
-    rect(kit, 20, 8, 4, 3, hole)
-    kit.save(OUT("resources", "ui", "ui_kit.png"))
-    # OldOS goal banner: white outer, cyan ring, stretchable panes.
-    white = (255, 255, 255, 255)
-    cyan_ring = (3, 209, 255, 255)
+    # OldOS cyan dashed plate (task banner + video button). Keep tag/body fills.
+    oldos = os.path.join(
+        ROOT, "references", "Assets", "Texture2D", "UI_OldOS_Button.png",
+    )
+    if os.path.isfile(oldos):
+        Image.open(oldos).convert("RGBA").save(OUT("resources", "ui", "ui_oldos_button.png"))
+        Image.open(oldos).convert("RGBA").save(OUT("resources", "ui", "ui_goal_frame.png"))
     cyan_fill = (88, 200, 218, 255)
     grey_fill = (213, 210, 209, 255)
-    goal = new(16, 16)
-    rect(goal, 0, 0, 16, 16, white)
-    rect(goal, 3, 3, 10, 10, cyan_ring)
-    rect(goal, 4, 4, 8, 8, (0, 0, 0, 0))
-    goal.save(OUT("resources", "ui", "ui_goal_frame.png"))
     tag = new(8, 8)
     rect(tag, 0, 0, 8, 8, cyan_fill)
     tag.save(OUT("resources", "ui", "ui_goal_tag.png"))
