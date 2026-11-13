@@ -4,7 +4,9 @@
 
 ### 2026-11-13
 
-- The title opens ready to play: a wooden `Comenzar` plate starts a run, the bars open settings, and the video plate plays a short and comes back to the title. Settings also carry continue, load, development, and quit.
+- The bars open the original Tuckersoft settings: black panel, logo, close chip, and four tabs for mail, cog, sound, and edit. Captions, CRT, language, volumes, support, credits, and reset live there; development and quit stay on the cog tab. Blue buttons use the blue rim and white inner frame; the close chip is the original `cancel` asset; the version line follows the project tag.
+- One run only: it autosaves, `Comenzar` resumes that save, and game over can restore the latest autosave history. Pause no longer offers save or load slots.
+- The title opens ready to play: a wooden `Comenzar` plate resumes the last save when there is one, otherwise starts a run. The bars open settings, and the video plate opens the OldOS shell `C:\BIN\.SHELL\` with eight MOV slots (unlocked thumbs after watching) and EXIT.
 - The task banner uses the original goal plate: a white frame, a cyan inner ring, and a drop shadow, sitting beside the population badge.
 
 ### 2026-11-12
