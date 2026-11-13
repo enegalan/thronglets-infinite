@@ -2,6 +2,11 @@
 
 ## [Unreleased](https://github.com/enegalan/thronglets-infinite/compare/7851ab6...HEAD)
 
+### 2026-11-13
+
+- The title opens ready to play: a wooden `Comenzar` plate starts a run, the bars open settings, and the video plate plays a short and comes back to the title. Settings also carry continue, load, development, and quit.
+- The task banner uses the original goal plate: a white frame, a cyan inner ring, and a drop shadow, sitting beside the population badge.
+
 ### 2026-11-12
 
 - The task banner uses the OldOS goal frame: a cyan tag and a stretchable body. Letters use the Aline font, with the DOS face as a fallback. The wood panel is filled solid.
