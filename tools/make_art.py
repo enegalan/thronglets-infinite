@@ -213,16 +213,9 @@ def make_thronglets():
         order.append(("mitosis", frame))
     order.extend((("stare", 0), ("corpse", 0), ("sick", 0), ("eat", 0)))
     sheet = new(4 * CELL_W, 6 * CELL_H)
-    view_w, view_h = 60, 35
-    view = new(4 * view_w, 6 * view_h)
     for index, (kind, frame) in enumerate(order):
         cell = _frame_cell(kind, frame)
         sheet.alpha_composite(cell, ((index % 4) * CELL_W, (index // 4) * CELL_H))
-        view.alpha_composite(
-            cell.crop((2, CELL_H - view_h, 2 + view_w, CELL_H)),
-            ((index % 4) * view_w, (index // 4) * view_h),
-        )
-    view.save(OUT("resources", "sprites", "thronglet_spritesheet.png"))
     sheet.save(OUT("resources", "sprites", "thronglet_32.png"))
 
 
@@ -501,11 +494,6 @@ def make_atlas():
     for i in range(63):
         blit_icon(sheet, i, cols)
     sheet.save(OUT("resources", "structures", "structures_tileset.png"))
-    icons = new(64, 16)
-    for i, src in enumerate((0, 12, 13)):
-        icons.alpha_composite(_ui_icon(src), (i * 16, 0))
-    icons.alpha_composite(_fit(_ref("hand.png"), 16, 16), (48, 0))
-    icons.save(OUT("resources", "ui", "ui_icons.png"))
 
 
 def draw_eye(img, ox, oy):
@@ -1234,6 +1222,128 @@ def make_hud():
     body = new(8, 8)
     rect(body, 0, 0, 8, 8, grey_fill)
     body.save(OUT("resources", "ui", "ui_goal_body.png"))
+    make_settings()
+    make_video_library()
+
+
+def make_video_library():
+    # OldOS video shell: window chrome, EXIT plate, and VideoLibrary thumbnails.
+    dest = OUT("resources", "ui", "video")
+    os.makedirs(dest, exist_ok=True)
+    tex = lambda name: os.path.join(ROOT, "references", "Assets", "Texture2D", name)
+    for src_name, out_name in (
+        ("UI_OldOS_Button.png", "exit.png"),
+        ("UI_OldOS_Button_0.png", "exit_pressed.png"),
+    ):
+        src = tex(src_name)
+        if os.path.isfile(src):
+            Image.open(src).convert("RGBA").save(os.path.join(dest, out_name))
+    atlas_path = tex("sactx-0-1024x1024-ASTC 6x6-Sprites-VideoLibrary-07b9bbdb.png")
+    sprite_dir = os.path.join(ROOT, "references", "Assets", "Sprite")
+    if not os.path.isfile(atlas_path):
+        return
+    atlas = Image.open(atlas_path).convert("RGBA")
+    for name in (
+        "1.5_thumbnail",
+        "2.1_thumbnail",
+        "3.4_thumbnail",
+        "4.2_thumbnail",
+        "5.3_thumbnail",
+        "6.2_thumbnail",
+        "7.3_thumbnail",
+        "8.3_thumbnail",
+        "1.5_thumbnail_locked",
+        "2.1_thumbnail_locked",
+        "3.4_thumbnail_locked",
+        "4.2_thumbnail_locked",
+        "5.3_thumbnail_locked",
+        "6.2_thumbnail_locked",
+        "7.3_thumbnail_locked",
+        "8.3_thumbnail_locked",
+    ):
+        meta_path = os.path.join(sprite_dir, name + ".json")
+        if not os.path.isfile(meta_path):
+            continue
+        meta = json.load(open(meta_path))
+        settings = 0
+        if isinstance(meta.get("m_AtlasRD"), dict):
+            settings = int(meta["m_AtlasRD"].get("m_SettingsRaw") or 0)
+        _crop_unity(atlas, meta["m_Rect"], settings).save(os.path.join(dest, name + ".png"))
+
+
+def make_settings():
+    # Tuckersoft settings chrome from the original Texture2D dump.
+    dest = OUT("resources", "ui", "settings")
+    os.makedirs(dest, exist_ok=True)
+    tex = lambda name: os.path.join(ROOT, "references", "Assets", "Texture2D", name)
+    copies = [
+        ("OLD_settings_icon_mail.png", "icon_mail.png"),
+        ("OLD_settings_icon_cog.png", "icon_cog.png"),
+        ("OLD_settings_icon_sound.png", "icon_sound.png"),
+        ("OLD_settings_icon_edit.png", "icon_edit.png"),
+        ("settings_tab_bg_selected.png", "tab_selected.png"),
+        ("settings_tab_bg_unselected.png", "tab_unselected.png"),
+        ("UI_SettingsMenu_Slider_Toggle.png", "slider_thumb.png"),
+        ("UI_SettingsMenu_Slider_Minus.png", "slider_minus.png"),
+        ("UI_SettingsMenu_Slider_Plus.png", "slider_plus.png"),
+        ("cancel.png", "close.png"),
+    ]
+    for src_name, out_name in copies:
+        src = tex(src_name)
+        if os.path.isfile(src):
+            Image.open(src).convert("RGBA").save(os.path.join(dest, out_name))
+    # Shareable atlas cell for the Tuckersoft wordmark (decoded ASTC sits lower than meta Y).
+    atlas_path = tex("sactx-0-4096x4096-ASTC 8x8-Sprites-Shareable-14619b4b.png")
+    if os.path.isfile(atlas_path):
+        atlas = Image.open(atlas_path).convert("RGBA")
+        raw = atlas.crop((2798, 3148, 2798 + 326, 3148 + 43))
+        logo = new(326, 43)
+        src = raw.load()
+        dst = logo.load()
+        for y in range(43):
+            for x in range(326):
+                r, g, b, a = src[x, y]
+                bright = max(r, g, b)
+                if a < 8 or bright < 50:
+                    dst[x, y] = TRANS
+                else:
+                    dst[x, y] = (255, 255, 255, min(255, int(a * bright / 180)))
+        logo.save(os.path.join(dest, "tuckersoft.png"))
+    # Original chrome: blue outer rim, white inner frame, blue fill.
+    blue = (0, 0, 170, 255)
+    white = (255, 255, 255, 255)
+
+    def _framed(size, outer=2, ring=1, mark=False):
+        img = new(size, size)
+        rect(img, 0, 0, size, size, blue)
+        inset = outer
+        rect(img, inset, inset, size - 2 * inset, ring, white)
+        rect(img, inset, size - inset - ring, size - 2 * inset, ring, white)
+        rect(img, inset, inset, ring, size - 2 * inset, white)
+        rect(img, size - inset - ring, inset, ring, size - 2 * inset, white)
+        if mark:
+            # Centered 2px X inside the white ring (avoids font baseline drift).
+            # Inner fill is [inner0..inner1]; 2x2 stamp adds +1, so shrink hi by 1
+            # to keep bbox center on the fill midpoint.
+            inner0 = inset + ring
+            inner1 = size - inset - ring - 1
+            pad = 3
+            lo = inner0 + pad
+            hi = inner1 - pad - 1
+            px = img.load()
+            for i in range(hi - lo + 1):
+                for ox, oy in ((0, 0), (1, 0), (0, 1), (1, 1)):
+                    x1, y1 = lo + i + ox, lo + i + oy
+                    x2, y2 = hi - i + ox, lo + i + oy
+                    if inner0 <= x1 <= inner1 and inner0 <= y1 <= inner1:
+                        px[x1, y1] = white
+                    if inner0 <= x2 <= inner1 and inner0 <= y2 <= inner1:
+                        px[x2, y2] = white
+        return img
+
+    _framed(32).save(os.path.join(dest, "button.png"))
+    _framed(24).save(os.path.join(dest, "checkbox.png"))
+    _framed(24, mark=True).save(os.path.join(dest, "checkbox_on.png"))
 
 
 THRONG_SKIP = (
