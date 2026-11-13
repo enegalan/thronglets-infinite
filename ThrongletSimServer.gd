@@ -199,8 +199,8 @@ func _process(delta: float) -> void:
 
 
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_WM_CLOSE_REQUEST and not testing and current_slot >= 0 and not game_over:
-		save_slot(current_slot)
+	if what == NOTIFICATION_WM_CLOSE_REQUEST and not testing and session_live and not game_over:
+		save_progress()
 
 
 func _begin_smoke() -> void:
@@ -3350,7 +3350,9 @@ const ACT_PLAY := 2
 const ACT_WASH := 3
 const ACT_BATH := 4
 const ACT_WORK := 5
+# Slot 0 is the live run. Slots 1..n keep older autosaves for game-over recovery.
 const SLOT_COUNT := 4
+const LIVE_SLOT := 0
 
 
 func _pop(x: float, y: float, icon: int) -> void:
@@ -3375,13 +3377,15 @@ func _boot_game() -> void:
 	if FileAccess.file_exists(legacy):
 		save_path = legacy
 		if load_game():
-			save_slot(0)
+			save_progress()
 			return
 	_bootstrap_new()
 
 
 func new_game() -> void:
-	current_slot = -1
+	# One run only: wipe the live save and its autosave history.
+	clear_saves()
+	current_slot = LIVE_SLOT
 	ethics = []
 	_init_unlocks()
 	unlock_serial += 1
@@ -3394,18 +3398,14 @@ func new_game() -> void:
 	notes.append("PARTIDA NUEVA.")
 
 
-func list_slots() -> Array:
-	var meta := _read_meta()
-	var out: Array = []
+func clear_saves() -> void:
+	var dir := DirAccess.open("user://")
 	for i in SLOT_COUNT:
-		var row: Dictionary = meta.get(str(i), {})
-		out.append({
-			"i": i,
-			"used": FileAccess.file_exists(_slot_path(i)),
-			"living": int(row.get("living", 0)),
-			"peak": int(row.get("peak", 0)),
-		})
-	return out
+		var path := _slot_path(i)
+		if dir != null and FileAccess.file_exists(path):
+			dir.remove(path.get_file())
+	_write_meta({})
+	current_slot = -1
 
 
 func save_slot(index: int) -> bool:
@@ -3417,10 +3417,15 @@ func save_slot(index: int) -> bool:
 		return false
 	var meta := _read_meta()
 	meta["last"] = index
-	meta[str(index)] = {"living": living, "peak": peak}
+	meta[str(index)] = {"living": living, "peak": peak, "t": Time.get_unix_time_from_system()}
 	_write_meta(meta)
 	autosave_t = 0.0
 	return true
+
+
+func save_progress() -> bool:
+	# One live run: always write slot 0.
+	return save_slot(LIVE_SLOT)
 
 
 func _tick_autosave(delta: float) -> void:
@@ -3430,18 +3435,59 @@ func _tick_autosave(delta: float) -> void:
 	if autosave_t < autosave_interval:
 		return
 	autosave_t = 0.0
-	var index := current_slot if current_slot >= 0 else 0
-	save_slot(index)
+	_rotate_autosave_history()
+	save_progress()
+
+
+func _rotate_autosave_history() -> void:
+	# Keep older copies of the live save for game-over recovery.
+	if not FileAccess.file_exists(_slot_path(LIVE_SLOT)):
+		return
+	var dir := DirAccess.open("user://")
+	if dir == null:
+		return
+	var meta := _read_meta()
+	for i in range(SLOT_COUNT - 1, LIVE_SLOT, -1):
+		var src := _slot_path(i - 1)
+		var dst := _slot_path(i)
+		if FileAccess.file_exists(dst):
+			dir.remove(dst.get_file())
+		if FileAccess.file_exists(src):
+			dir.rename(src.get_file(), dst.get_file())
+		if meta.has(str(i - 1)):
+			meta[str(i)] = meta[str(i - 1)]
+		else:
+			meta.erase(str(i))
+	meta.erase(str(LIVE_SLOT))
+	_write_meta(meta)
+
+
+func list_checkpoints() -> Array:
+	# Newest first: live autosave, then older rotations.
+	var meta := _read_meta()
+	var out: Array = []
+	for i in SLOT_COUNT:
+		if not FileAccess.file_exists(_slot_path(i)):
+			continue
+		var row: Dictionary = meta.get(str(i), {})
+		out.append({
+			"i": i,
+			"living": int(row.get("living", 0)),
+			"peak": int(row.get("peak", 0)),
+			"t": float(row.get("t", 0.0)),
+		})
+	return out
 
 
 func has_checkpoint() -> bool:
-	return current_slot >= 0 and FileAccess.file_exists(_slot_path(current_slot))
+	return list_checkpoints().size() > 0
 
 
 func load_checkpoint() -> bool:
-	if not has_checkpoint():
+	var rows := list_checkpoints()
+	if rows.is_empty():
 		return false
-	return load_slot(current_slot)
+	return load_slot(int(rows[0].i))
 
 
 func load_slot(index: int) -> bool:
@@ -3455,29 +3501,6 @@ func load_slot(index: int) -> bool:
 	meta["last"] = index
 	_write_meta(meta)
 	unlock_serial += 1
-	return true
-
-
-func delete_slot(index: int) -> bool:
-	if index < 0 or index >= SLOT_COUNT:
-		return false
-	var path := _slot_path(index)
-	if FileAccess.file_exists(path):
-		var dir := DirAccess.open("user://")
-		if dir != null:
-			dir.remove(path.get_file())
-	var meta := _read_meta()
-	meta.erase(str(index))
-	if int(meta.get("last", -1)) == index:
-		meta["last"] = -1
-		for i in SLOT_COUNT:
-			if i != index and FileAccess.file_exists(_slot_path(i)):
-				meta["last"] = i
-				break
-	_write_meta(meta)
-	if current_slot == index:
-		current_slot = -1
-	notes.append("PARTIDA BORRADA.")
 	return true
 
 
