@@ -1209,15 +1209,25 @@ def make_hud():
         out.alpha_composite(ring, (-2, -2))
         ring = out
     ring.save(OUT("resources", "ui", "ui_circle.png"))
-    # OldOS cyan dashed plate (task banner + video button). Keep tag/body fills.
-    oldos = os.path.join(
-        ROOT, "references", "Assets", "Texture2D", "UI_OldOS_Button.png",
-    )
-    if os.path.isfile(oldos):
-        Image.open(oldos).convert("RGBA").save(OUT("resources", "ui", "ui_oldos_button.png"))
-        Image.open(oldos).convert("RGBA").save(OUT("resources", "ui", "ui_goal_frame.png"))
-    cyan_fill = (88, 200, 218, 255)
-    grey_fill = (213, 210, 209, 255)
+    # Video plate: OldOS dashed cyan button.
+    # Task frame: original GOAL banner (3px white + 2px cyan ring + shadow).
+    oldos_btn = os.path.join(ROOT, "references", "Assets", "Texture2D", "UI_OldOS_Button.png")
+    if os.path.isfile(oldos_btn):
+        Image.open(oldos_btn).convert("RGBA").save(OUT("resources", "ui", "ui_oldos_button.png"))
+    # Frame texture kept for tooling; runtime uses StyleBoxFlat white+cyan+shadow.
+    white = (255, 255, 255, 255)
+    cyan_ring = (88, 192, 216, 255)
+    cyan_fill = (88, 192, 216, 255)
+    grey_fill = (208, 205, 200, 255)
+    shadow = (56, 56, 50, 180)
+    plate, sw, cw, soff = 24, 4, 2, 4
+    goal = new(32, 32)
+    rect(goal, soff, soff, plate, plate, shadow)
+    rect(goal, 0, 0, plate, plate, white)
+    rect(goal, sw, sw, plate - 2 * sw, plate - 2 * sw, cyan_ring)
+    inner = sw + cw
+    rect(goal, inner, inner, plate - 2 * inner, plate - 2 * inner, (0, 0, 0, 0))
+    goal.save(OUT("resources", "ui", "ui_goal_frame.png"))
     tag = new(8, 8)
     rect(tag, 0, 0, 8, 8, cyan_fill)
     tag.save(OUT("resources", "ui", "ui_goal_tag.png"))

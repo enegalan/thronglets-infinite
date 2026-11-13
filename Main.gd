@@ -199,7 +199,7 @@ var focus_port: SubViewport
 var focus_tilemap: TileMapLayer
 var focus_mesh: MultiMesh
 var focus_cam_node: Camera2D
-var task_panel: PanelContainer
+var task_panel: Control
 var focus_on := false
 var focus_hold := 0.0
 var slots_panel: PanelContainer
@@ -3674,11 +3674,13 @@ func _build_ui() -> void:
 	root.theme = theme
 	ui_theme = theme
 
-	hud_top = HBoxContainer.new()
-	var top_row := hud_top
+	hud_top = Control.new()
+	hud_top.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var top_row := HBoxContainer.new()
 	top_row.position = Vector2(6, 6)
 	top_row.add_theme_constant_override("separation", 6)
 	top_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hud_top.add_child(top_row)
 	var badge := Control.new()
 	# Native ThrongletCounter cell is 60x60; keep 1:1 so the cream ring is not cropped.
 	badge.custom_minimum_size = Vector2(60, 60)
@@ -3736,30 +3738,38 @@ func _build_ui() -> void:
 	gem_row.add_child(gem_label)
 	gem_panel.add_child(gem_row)
 	top_row.add_child(gem_panel)
+	# Banner is positioned beside the badge (not inside the HBox) so it keeps original height.
+	var goal_wrap := Control.new()
+	goal_wrap.position = Vector2(72, 18)
+	goal_wrap.size = Vector2(380, 34)
+	goal_wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var goal_panel := PanelContainer.new()
-	task_panel = goal_panel
+	task_panel = goal_wrap
+	goal_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	goal_panel.add_theme_stylebox_override("panel", _goal_outer_style())
 	goal_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var cyan_panel := PanelContainer.new()
+	cyan_panel.add_theme_stylebox_override("panel", _goal_cyan_style())
+	cyan_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var goal_row := HBoxContainer.new()
 	goal_row.add_theme_constant_override("separation", 0)
 	goal_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var tag_panel := PanelContainer.new()
-	tag_panel.custom_minimum_size = Vector2(48, 0)
-	tag_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	tag_panel.custom_minimum_size = Vector2(56, 0)
 	tag_panel.add_theme_stylebox_override("panel", _goal_tag_style())
 	tag_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var tag_label := Label.new()
 	tag_label.text = "TAREA"
 	tag_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	tag_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	tag_label.add_theme_font_size_override("font_size", 16)
+	tag_label.add_theme_font_size_override("font_size", 13)
 	tag_label.add_theme_color_override("font_color", _goal_ink())
 	tag_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tag_panel.add_child(tag_label)
 	goal_row.add_child(tag_panel)
 	var body_panel := PanelContainer.new()
-	body_panel.custom_minimum_size = Vector2(260, 0)
-	body_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	body_panel.custom_minimum_size = Vector2(280, 0)
+	body_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	body_panel.add_theme_stylebox_override("panel", _goal_body_style())
 	body_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	goal_label = Label.new()
@@ -3768,14 +3778,16 @@ func _build_ui() -> void:
 	goal_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	goal_label.autowrap_mode = TextServer.AUTOWRAP_OFF
 	goal_label.text_overrun_behavior = TextServer.OVERRUN_NO_TRIMMING
-	goal_label.add_theme_font_size_override("font_size", 16)
+	goal_label.add_theme_font_size_override("font_size", 13)
 	goal_label.add_theme_color_override("font_color", _goal_ink())
 	goal_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	body_panel.add_child(goal_label)
 	goal_row.add_child(body_panel)
-	goal_panel.add_child(goal_row)
-	top_row.add_child(goal_panel)
-	root.add_child(top_row)
+	cyan_panel.add_child(goal_row)
+	goal_panel.add_child(cyan_panel)
+	goal_wrap.add_child(goal_panel)
+	hud_top.add_child(goal_wrap)
+	root.add_child(hud_top)
 
 	toast = Label.new()
 	toast.set_anchors_preset(Control.PRESET_CENTER_TOP)
@@ -5065,16 +5077,35 @@ func _oldos_plate_style(pad: int = 3) -> StyleBoxTexture:
 	return style
 
 
-func _goal_outer_style() -> StyleBoxTexture:
-	return _oldos_plate_style(3)
+func _goal_outer_style() -> StyleBoxFlat:
+	# Original GOAL banner: thick white plate + drop shadow.
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0, 0, 0, 0)
+	style.border_color = Color(1, 1, 1, 1)
+	style.set_border_width_all(3)
+	style.shadow_color = Color(0.22, 0.22, 0.2, 0.7)
+	style.shadow_size = 2
+	style.shadow_offset = Vector2(3, 3)
+	style.set_content_margin_all(3)
+	return style
+
+
+func _goal_cyan_style() -> StyleBoxFlat:
+	# Thin cyan ring inside the white plate (original inner stroke).
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0, 0, 0, 0)
+	style.border_color = Color(88.0 / 255.0, 192.0 / 255.0, 216.0 / 255.0, 1)
+	style.set_border_width_all(2)
+	style.set_content_margin_all(2)
+	return style
 
 
 func _goal_tag_style() -> StyleBoxTexture:
-	return _box_style("res://resources/ui/ui_goal_tag.png", 0, 5)
+	return _box_style("res://resources/ui/ui_goal_tag.png", 0, 3)
 
 
 func _goal_body_style() -> StyleBoxTexture:
-	return _box_style("res://resources/ui/ui_goal_body.png", 0, 5)
+	return _box_style("res://resources/ui/ui_goal_body.png", 0, 3)
 
 
 func _box_style(path: String, edge: int, pad: int) -> StyleBoxTexture:
