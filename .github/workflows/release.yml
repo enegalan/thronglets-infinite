@@ -48,6 +48,33 @@ jobs:
           fi
           echo "version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
 
+      - name: Sync project.godot version
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          NUM="${VERSION#v}"
+          if grep -q '^config/version=' project.godot; then
+            sed -i.bak -E "s|^config/version=.*|config/version=\"$NUM\"|" project.godot
+            rm -f project.godot.bak
+          else
+            awk -v v="$NUM" '
+              BEGIN{done=0}
+              /^config\/icon=/ && !done { print; print "config/version=\"" v "\""; done=1; next }
+              { print }
+              END { if (!done) print "config/version=\"" v "\"" }
+            ' project.godot > project.godot.tmp && mv project.godot.tmp project.godot
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if ! git diff --quiet -- project.godot; then
+            git add project.godot
+            git commit -m "chore: set application version to $NUM"
+            if [ "${{ github.ref_type }}" = "branch" ]; then
+              git push origin HEAD:"${{ github.ref_name }}"
+            fi
+          fi
+
       - name: Tag the merge and push it
         if: github.ref_type == 'branch'
         shell: bash
