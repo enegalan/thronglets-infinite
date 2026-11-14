@@ -65,6 +65,11 @@ static func set_rot(id: String, value: float) -> void:
 	_assign(id, "rot", snappedf(clampf(value, -180.0, 180.0), 0.01))
 
 
+static func set_reach(id: String, x: float, y: float) -> void:
+	var at := Vector2(snappedf(clampf(x, 4.0, 160.0), 0.01), snappedf(clampf(y, 4.0, 160.0), 0.01))
+	_assign(id, "reach", at)
+
+
 static func reset(id: String) -> void:
 	overrides.erase(id)
 
@@ -223,6 +228,7 @@ static func _defaults(row: Dictionary) -> Dictionary:
 	var size := Vector2i(1, 1)
 	var scale := 1.0
 	var offset := Vector2.ZERO
+	var reach := Vector2.ZERO
 	if not row.is_empty():
 		var group := str(row.group)
 		var kind := int(row.kind)
@@ -231,6 +237,7 @@ static func _defaults(row: Dictionary) -> Dictionary:
 			size = Catalog.footprint_for_building(kind)
 			scale = Catalog.building_sprite_scale(kind)
 			offset = Catalog.building_draw_off(kind)
+			reach = Catalog.building_reach(kind)
 		elif group == "feature":
 			size = Catalog.footprint_for_feature(kind)
 			scale = Catalog.feature_sprite_scale(kind, ore)
@@ -238,7 +245,7 @@ static func _defaults(row: Dictionary) -> Dictionary:
 		elif group == "item":
 			scale = Catalog.item_sprite_scale(kind)
 			offset = Catalog.item_draw_off(kind)
-	return {"footprint": size, "scale": scale, "offset": offset, "z": 0.0, "rot": 0.0}
+	return {"footprint": size, "scale": scale, "offset": offset, "z": 0.0, "rot": 0.0, "reach": reach}
 
 
 static func _assign(id: String, key: String, value) -> void:
@@ -261,7 +268,7 @@ static func _assign(id: String, key: String, value) -> void:
 static func _same(key: String, a, b) -> bool:
 	if key == "footprint":
 		return a == b
-	if key == "offset":
+	if key == "offset" or key == "reach":
 		return (a as Vector2).is_equal_approx(b)
 	return is_equal_approx(float(a), float(b))
 
@@ -269,11 +276,16 @@ static func _same(key: String, a, b) -> bool:
 static func _read_value(key: String, raw):
 	if raw == null:
 		return null
-	if key == "footprint" or key == "offset":
+	if key == "footprint" or key == "offset" or key == "reach":
 		if typeof(raw) != TYPE_ARRAY or raw.size() < 2:
 			return null
 		if key == "footprint":
 			return Vector2i(clampi(int(raw[0]), 1, 8), clampi(int(raw[1]), 1, 8))
+		if key == "reach":
+			return Vector2(
+				snappedf(clampf(float(raw[0]), 4.0, 160.0), 0.01),
+				snappedf(clampf(float(raw[1]), 4.0, 160.0), 0.01)
+			)
 		return Vector2(
 			snappedf(clampf(float(raw[0]), -160.0, 160.0), 0.01),
 			snappedf(clampf(float(raw[1]), -160.0, 160.0), 0.01)
@@ -298,7 +310,7 @@ static func _document() -> Dictionary:
 		var tune := get_tune(id)
 		var base := _defaults(row)
 		var fields := {}
-		for key in ["footprint", "scale", "offset", "z", "rot"]:
+		for key in ["footprint", "scale", "offset", "z", "rot", "reach"]:
 			if _same(key, base[key], tune[key]):
 				continue
 			fields[key] = {
@@ -328,6 +340,7 @@ static func _document() -> Dictionary:
 			"offset": "extra world pixels [x, y] after the current anchor. +x east, +y south",
 			"z": "sprite: added to sort y, higher draws in front. node: Node2D z_index",
 			"rot": "degrees, clockwise, around the anchor. 0 leaves the sprite unrotated",
+			"reach": "world ellipse axes [rx, ry] centered on the footprint mid. Thronglets approach and enter on this ring",
 		},
 		"changes": changes,
 	}
@@ -337,7 +350,7 @@ static func _json_value(key: String, value):
 	if key == "footprint":
 		var size: Vector2i = value
 		return [size.x, size.y]
-	if key == "offset":
+	if key == "offset" or key == "reach":
 		var at: Vector2 = value
 		return [snappedf(at.x, 0.01), snappedf(at.y, 0.01)]
 	if key == "scale":
@@ -399,6 +412,8 @@ static func _apply_in(row: Dictionary, key: String) -> String:
 		if bool(row.node):
 			return only + " Set rotation_degrees on the monolith Node2D in Main._sync_monolith. Positive degrees turn clockwise around the snap-cell anchor. 0 means leave it at 0."
 		return only + " Degrees, clockwise, around the anchor after footprint_center, _pad_nudge, and the extra offset. Main._write_mesh reads the draw key rot and spins the quad around p. Set rot on this prop's draws in _sync_actors, the carried ghost, the kit ghost, and the focus draw. 0 means leave the key unset. Do not rotate other props."
+	if key == "reach":
+		return only + " Change that match arm in Catalog.building_reach. If it falls through to the footprint+pad formula, give it its own arm with Vector2(rx, ry) in world pixels. ThrongletSimServer._approach_building and enter checks already call Catalog.building_reach."
 	if bool(row.node):
 		return only + " Set z_index on the monolith Node2D in Main._sync_monolith. 0 means leave it unset."
 	return only + " Add this number to that prop's draw sy after _push_iso. Higher draws in front. Multimesh props have no z_index. Do not set one."
@@ -416,5 +431,6 @@ static func _how() -> String:
 		"scale goes to both the mesh scale and _pad_nudge, or to Node2D.scale for draw node.",
 		"z on a sprite is a sort-y bias. z on a node is z_index.",
 		"rot is degrees clockwise around the anchor. 0 means no rotation.",
+		"reach is the thronglet interaction ellipse [rx, ry] on the footprint mid. Change Catalog.building_reach.",
 		"Do not change costs, unlocks, or unlisted props.",
 	]))
