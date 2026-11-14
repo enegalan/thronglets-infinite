@@ -1130,6 +1130,34 @@ def make_world():
         frame = flame.crop((src * 32, 0, src * 32 + 32, 32))
         _stamp_frame(sheet, cols, 140 + i, _px(frame))
     sheet = _stamp_throng_anims(sheet, cols)
+    # Flower build/idle loop. Main.FLOWER_ANIM is 742 (7 frames).
+    flower_anim = os.path.join(SRC_TEX, "TEMP_flowerAnim.png")
+    if not os.path.isfile(flower_anim):
+        flower_anim = OUT("references", "Assets", "Texture2D", "TEMP_flowerAnim.png")
+    if os.path.isfile(flower_anim):
+        fim = Image.open(flower_anim).convert("RGBA")
+        flower_rects = (
+            (0, 148.07613, 66, 69.84776),
+            (66, 148.07613, 66, 68.84776),
+            (132, 148.07613, 66, 70.84776),
+            (0, 75.07612, 66, 70.92388),
+            (66, 75.07612, 66, 70.84776),
+            (132, 75.07612, 66, 70.92388),
+            (0, 2.0761204, 66, 70.92388),
+        )
+        fh = fim.size[1]
+        need_rows = (742 + 7 + cols - 1) // cols
+        sheet = _grow_sheet(sheet, cols, need_rows)
+        for i, (x, y, w, hh) in enumerate(flower_rects):
+            top = fh - (y + hh)
+            box = (
+                int(round(x)),
+                int(round(top)),
+                int(round(x + w)),
+                int(round(top + hh)),
+            )
+            frame = fim.crop(box)
+            _stamp_frame(sheet, cols, 742 + i, _px(_fit(frame, 56, 72)))
     sheet.save(OUT("resources", "sprites", "world_iso.png"))
     # Drop Godot's cached .ctex so the next run picks up the new sheet.
     imported = OUT(".godot", "imported")
