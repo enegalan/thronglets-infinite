@@ -42,6 +42,7 @@ const CURER_SPRITE_SCALE := 0.3
 const COSMETIC_SPRITE_SCALE := 0.6
 const COSMETIC_BAD_SPRITE_SCALE := 0.7
 const APPLE_SPRITE_SCALE := 0.15
+const SPONGE_SPRITE_SCALE := 0.25
 const TUB_SOAK_LIFT := 4.0
 const TUB_ENTER_LIFT := 11.0
 const TOOL_CHARGE := 0.55
@@ -205,6 +206,57 @@ const ICON_MNODE := 62
 
 const ATLAS_COLUMNS := 32
 
+# Speech-bubble thought glyphs from text_sprites_new.png (Unity rects, Godot Y).
+# ICON_MOP / ICON_EGG have no match in that atlas; Main falls back to _atlas_icon.
+const BARK_ICON_RECT := {
+	ICON_APPLE: Rect2(3, 1, 26, 31),
+	ICON_SPONGE: Rect2(0, 64, 32, 32),
+	ICON_BALL: Rect2(2, 100, 26, 26),
+	ICON_TUB: Rect2(0, 192, 28, 30),
+	ICON_ROCK: Rect2(0, 416, 32, 32),
+	ICON_FIRE: Rect2(0, 544, 32, 32),
+	ICON_ROUND: Rect2(0, 608, 32, 32),
+	ICON_ORE: Rect2(113, 673, 31, 29),
+	ICON_FLOWER: Rect2(196, 673, 28, 32),
+}
+
+const BARK_ICON_ATLAS := "res://resources/ui/text_sprites_new.png"
+
+# HQ toolbar glyphs sliced from Sprites-Icons. Missing keys fall back to the 16px atlas.
+const MENU_ICON := {
+	ICON_APPLE: "res://resources/ui/icons/apple.png",
+	ICON_BALL: "res://resources/ui/icons/ball.png",
+	ICON_AXE: "res://resources/ui/icons/axe.png",
+	ICON_HAMMER: "res://resources/ui/icons/hammer.png",
+	ICON_SPONGE: "res://resources/ui/icons/sponge.png",
+	ICON_PICK: "res://resources/ui/icons/pick.png",
+	ICON_BUG: "res://resources/ui/icons/bug.png",
+	ICON_SAW: "res://resources/ui/icons/saw.png",
+	ICON_EYE: "res://resources/ui/icons/eye.png",
+	ICON_GRAB: "res://resources/ui/icons/grab.png",
+	ICON_MOP: "res://resources/ui/icons/mop.png",
+	ICON_SWARM: "res://resources/ui/icons/swarm.png",
+	ICON_NUKE: "res://resources/ui/icons/nuke.png",
+	ICON_APPLE_TREE: "res://resources/ui/icons/apple_tree.png",
+	ICON_TUB: "res://resources/ui/icons/tub.png",
+	ICON_ROUND: "res://resources/ui/icons/round.png",
+	ICON_DWELL: "res://resources/ui/icons/dwell.png",
+	ICON_FANCY: "res://resources/ui/icons/fancy.png",
+	ICON_MINE: "res://resources/ui/icons/mine.png",
+	ICON_MINE2: "res://resources/ui/icons/mine2.png",
+	ICON_FACTORY: "res://resources/ui/icons/factory.png",
+	ICON_FACTORY2: "res://resources/ui/icons/factory2.png",
+	ICON_THEATRE: "res://resources/ui/icons/theatre.png",
+	ICON_MARKET: "res://resources/ui/icons/market.png",
+	ICON_FLOWER: "res://resources/ui/icons/flower.png",
+	ICON_STATUE: "res://resources/ui/icons/statue.png",
+	ICON_WOOD_STATUE: "res://resources/ui/icons/wood_statue.png",
+	ICON_FIRE: "res://resources/ui/icons/fire.png",
+}
+
+static func menu_icon_path(icon: int) -> String:
+	return str(MENU_ICON.get(icon, ""))
+
 const TINTS := [
 	Color(1.0, 0.86, 0.28),
 	Color(0.98, 0.78, 0.2),
@@ -245,7 +297,7 @@ const UNLOCK_TALK := {
 }
 
 const TOOL_INFO := [
-	{"tool": TOOL_EYE, "unlock": "eye", "label": "MANO", "icon": ICON_EYE, "hint": "CLICK EN MULTI: ESTADO. MANTEN: COGERLO. TAMBIEN COGE PIEDRAS Y ESTRUCTURAS."},
+	{"tool": TOOL_EYE, "unlock": "eye", "label": "MANO", "icon": ICON_EYE, "hint": "CLICK EN MULTI: ESTADO. MANTEN: COGERLO. TAMBIEN COGE PIEDRAS. MARTILLO PARA TIRAR ESTRUCTURAS."},
 	{"tool": TOOL_APPLE, "unlock": "apple", "label": "MANZANA", "icon": ICON_APPLE, "hint": "SUELTA UNA MANZANA. SE LA COMEN Y DESAPARECE."},
 	{"tool": TOOL_BALL, "unlock": "ball", "label": "BALON", "icon": ICON_BALL, "hint": "EL BALON ENTRETIENE A POCOS A LA VEZ."},
 	{"tool": TOOL_SPONGE, "unlock": "sponge", "label": "ESPONJA", "icon": ICON_SPONGE, "hint": "FROTA PARA LAVAR A VARIOS A LA VEZ. PARA AL 100%."},
@@ -300,6 +352,26 @@ static func footprint_for_building(kind: int) -> Vector2i:
 			return Vector2i(3, 3)
 		_:
 			return Vector2i(1, 1)
+
+# World ellipse axes for thronglet approach / enter. Centered on the footprint mid.
+static func building_reach(kind: int) -> Vector2:
+	var size := footprint_for_building(kind)
+	var pad := 10.0
+	match kind:
+		BLD_ROUND:
+			pad = 8.0
+		BLD_THEATRE:
+			pad = 14.0
+		BLD_MINE, BLD_MINE2:
+			pad = 12.0
+		BLD_TUB, BLD_APPLE, BLD_FLOWER, BLD_STATUE, BLD_WOOD:
+			pad = 10.0
+		_:
+			pad = 10.0
+	return Vector2(
+		float(size.x) * float(TILE) * 0.5 + pad,
+		float(size.y) * float(TILE) * 0.5 + pad
+	)
 
 static func footprint_for_feature(kind: int) -> Vector2i:
 	match kind:
@@ -558,7 +630,7 @@ static func icon_for_building(kind: int) -> int:
 	return ICON_MARKET
 
 static func feature_blocks(kind: int) -> bool:
-	return kind == FEAT_TREE or kind == FEAT_ROCK or kind == FEAT_BIGROCK or kind == FEAT_COSMETIC or kind == FEAT_COSMETIC_BAD or kind == FEAT_NODE or kind == FEAT_SUPER or kind == FEAT_ORE_MEGA or kind == FEAT_ORE_SUPER or kind == FEAT_ORE_ULTRA or kind == FEAT_MONOLITH or kind == FEAT_TOTEM
+	return kind == FEAT_TREE or kind == FEAT_ROCK or kind == FEAT_BIGROCK or kind == FEAT_COSMETIC or kind == FEAT_COSMETIC_BAD or kind == FEAT_ORE_MEGA or kind == FEAT_ORE_SUPER or kind == FEAT_ORE_ULTRA or kind == FEAT_MONOLITH or kind == FEAT_TOTEM
 
 static func building_blocks(kind: int) -> bool:
 	return kind == BLD_TUB or kind == BLD_APPLE or kind == BLD_ROUND or kind == BLD_DWELL or kind == BLD_FANCY or kind == BLD_MINE or kind == BLD_MINE2 or kind == BLD_FACTORY or kind == BLD_FACTORY2 or kind == BLD_THEATRE or kind == BLD_MARKET or kind == BLD_FLOWER or kind == BLD_STATUE or kind == BLD_WOOD
@@ -575,4 +647,5 @@ static func snap_vec(pos: Vector2) -> Vector2:
 	return snap_world(pos.x, pos.y)
 
 static func item_snaps_grid(kind: int) -> bool:
-	return kind != ITEM_APPLE and kind != ITEM_BALL and kind != ITEM_EGG
+	# Care drops (apple/ball/egg) keep free cursor coords like the ball.
+	return kind != ITEM_BALL and kind != ITEM_EGG and kind != ITEM_APPLE
