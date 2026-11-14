@@ -28,5 +28,6 @@
         "titleBar.inactiveBackground": "#d73bdb99",
         "titleBar.inactiveForeground": "#e7e7e799"
     },
-    "peacock.color": "#d73bdb"
+    "peacock.color": "#d73bdb",
+    "godotTools.editorPath.godot4": "/Applications/Godot.app"
 }
