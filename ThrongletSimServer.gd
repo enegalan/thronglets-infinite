@@ -3411,6 +3411,8 @@ func clear_saves() -> void:
 		dir.remove(legacy.get_file())
 	_write_meta({})
 	current_slot = -1
+	session_live = false
+	game_over = false
 
 
 func save_slot(index: int) -> bool:
