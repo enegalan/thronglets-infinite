@@ -40,6 +40,8 @@ const EGG_ANIM := 87
 const ROUND_ANIM := 132
 const THRONG_SPRITE_SCALE := 0.4
 const FIRE_ANIM := 140
+const FLOWER_ANIM := 742
+const FLOWER_ANIM_N := 7
 const RIVER_ATLAS := 12
 const WASTE_ATLAS := 48
 const WASTE_VARIANTS := 6
@@ -112,6 +114,7 @@ var ring_lines: Array = []
 var shot_frames := 0
 var shot_done := false
 var shot_hud_saved := false
+var shot_bubbles_saved := false
 var shot_egg_done := false
 var shot_console_saved := false
 var shot_name_saved := false
@@ -119,6 +122,8 @@ var shot_dos_saved := false
 var shot_settings_saved := false
 var shot_sign_saved := false
 var shot_path_saved := false
+var shot_fx_saved := false
+var shot_fx_i := 0
 var shot_board: SubViewport
 var glitch_bars: Array = []
 var glitch_label: Label
@@ -397,6 +402,8 @@ func _process(delta: float) -> void:
 		_move_camera(delta)
 		if dev_bench != null:
 			dev_bench.tick()
+		if ThrongletSimServer.shot_mode and not shot_done:
+			_tick_shot()
 		return
 	_sync_music()
 	_tick_birds(delta)
@@ -427,7 +434,7 @@ func _process(delta: float) -> void:
 		var stroke := 0.0
 		if sponge_tracking:
 			var move := at - sponge_last
-			if move.length() >= 4.0:
+			if move.length() >= 1.0:
 				var dir := move.normalized()
 				if sponge_dir != Vector2.ZERO and dir.dot(sponge_dir) < 0.0:
 					stroke = move.length()
@@ -462,16 +469,20 @@ func _process(delta: float) -> void:
 
 func _world_click() -> void:
 	var sim: ThrongletSim = ThrongletSimServer
-	var at := _aim_thronglet(false)
-	selected = sim.find_thronglet(at.x, at.y, 14.0, false)
+	var aim := _aim_thronglet(false)
+	selected = sim.find_thronglet(aim.x, aim.y, 14.0, false)
 	selected_bld = -1
 	var used := tool
 	if used == Catalog.TOOL_SPONGE:
 		return
 	if _is_charge_tool(used):
 		return
+	# Placeables use the cursor cell, not a thronglet under the pointer.
+	var at := _pointer()
 	if used == Catalog.TOOL_TNT:
 		at = _grid_pointer()
+	elif used == Catalog.TOOL_EYE:
+		at = aim
 	sim.use_tool(used, at.x, at.y)
 	if used != Catalog.TOOL_EYE:
 		tool = Catalog.TOOL_EYE
@@ -680,16 +691,20 @@ func _world_view() -> Rect2:
 
 
 func _to_iso(world_pos: Vector2) -> Vector2:
+	# Match TileMapLayer.map_to_local for DIAMOND_DOWN (half-tile origin offset).
 	var tile := Vector2(tilemap.tile_set.tile_size)
 	var cell := world_pos / float(Catalog.TILE) - Vector2(0.5, 0.5)
-	return Vector2(tile.x * 0.5 * (cell.x - cell.y), tile.y * 0.5 * (cell.x + cell.y))
+	return Vector2(
+		tile.x * 0.5 * (cell.x - cell.y + 1.0),
+		tile.y * 0.5 * (cell.x + cell.y + 1.0),
+	)
 
 
 func _from_iso(iso: Vector2) -> Vector2:
 	var tile := Vector2(tilemap.tile_set.tile_size)
 	var a := iso.x / (tile.x * 0.5)
 	var b := iso.y / (tile.y * 0.5)
-	var cell := Vector2((a + b) * 0.5, (b - a) * 0.5)
+	var cell := Vector2((a + b) * 0.5 - 1.0, (b - a) * 0.5)
 	return (cell + Vector2(0.5, 0.5)) * float(Catalog.TILE)
 
 
@@ -754,7 +769,9 @@ func _egg_under_cursor() -> Dictionary:
 
 
 func _grid_pointer() -> Vector2:
-	return Catalog.snap_vec(_pointer())
+	# Use Godot's diamond hit-test so the cell under the cursor matches the painted tile.
+	var cell: Vector2i = tilemap.local_to_map(get_global_mouse_position())
+	return Catalog.cell_world(cell)
 
 
 func _is_care_tool(tool_id: int) -> bool:
@@ -768,7 +785,7 @@ func _want_place_grid() -> bool:
 	if not kit_drag.is_empty():
 		if str(kit_drag.get("type", "")) == "build":
 			return true
-		return not _is_care_tool(int(kit_drag.get("id", -1))) and int(kit_drag.get("id", -1)) == Catalog.TOOL_TNT
+		return int(kit_drag.get("id", -1)) == Catalog.TOOL_TNT
 	if sim.hand_id != -1:
 		var hand: Dictionary = sim.hand_item()
 		return not hand.is_empty() and Catalog.item_snaps_grid(int(hand.kind))
@@ -854,9 +871,11 @@ func _paint_path_cell(paths: TileMapLayer, cell: Vector2i, tile: int) -> void:
 		_drop_path_at(cell, main)
 		return
 	var sprite := _path_sprite_at(cell, main)
-	sprite.texture = _path_iso_tex(PATH_PIECE[_path_mask(cell)])
+	var mask := _path_mask(cell)
+	sprite.texture = _path_iso_tex(PATH_PIECE[mask])
 	sprite.position = _to_iso(Catalog.cell_world(cell))
-	sprite.scale = Vector2.ONE
+	# Slight overlap so neighboring diamonds cover the shared corner.
+	sprite.scale = Vector2(1.12, 1.12)
 
 
 func _path_mask(cell: Vector2i) -> int:
@@ -872,6 +891,32 @@ func _path_mask(cell: Vector2i) -> int:
 	return mask
 
 
+func _path_in_diamond(px: int, py: int) -> bool:
+	var dx := absf(float(px) - 18.0) / 18.0
+	var dy := absf(float(py) - 10.0) / 10.0
+	return dx + dy <= 1.02
+
+
+func _path_fill_color(tile: Image) -> Color:
+	var r := 0.0
+	var g := 0.0
+	var b := 0.0
+	var n := 0
+	for y in 16:
+		for x in 16:
+			var color := tile.get_pixel(x, y)
+			if color.a <= 40.0 / 255.0:
+				continue
+			r += color.r
+			g += color.g
+			b += color.b
+			n += 1
+	if n <= 0:
+		return Color(0.47, 0.33, 0.2, 1.0)
+	var inv := 1.0 / float(n)
+	return Color(r * inv, g * inv, b * inv, 1.0)
+
+
 func _path_iso_tex(piece: String) -> Texture2D:
 	if path_iso.has(piece):
 		return path_iso[piece]
@@ -881,8 +926,16 @@ func _path_iso_tex(piece: String) -> Texture2D:
 		ops = ops.substr(1)
 	for i in ops.length():
 		tile = _path_turn(tile, ops.substr(i, 1))
+	var fill := _path_fill_color(tile)
 	var baked := Image.create(36, 20, false, Image.FORMAT_RGBA8)
 	baked.fill(Color(0, 0, 0, 0))
+	# Solid diamond underlay, then path detail on top. Contiguous cells then
+	# join instead of leaving grass diamonds at every 4-way intersection.
+	for py in 20:
+		for px in 36:
+			if not _path_in_diamond(px, py):
+				continue
+			baked.set_pixel(px, py, fill)
 	for py in 20:
 		for px in 36:
 			var dx := px - 18
@@ -951,6 +1004,17 @@ func _drop_path_at(cell: Vector2i, main: bool) -> void:
 	var sprite: Sprite2D = nodes[cell]
 	sprite.queue_free()
 	nodes.erase(cell)
+
+
+# Clear pathmap sprites so a live save does not paint over the dev bench map.
+func _clear_paths() -> void:
+	if pathmap != null:
+		pathmap.clear()
+	for cell in path_nodes.keys():
+		var sprite: Sprite2D = path_nodes[cell]
+		if is_instance_valid(sprite):
+			sprite.queue_free()
+	path_nodes.clear()
 
 
 func _biome_plate_paths(biome: String) -> PackedStringArray:
@@ -1069,6 +1133,8 @@ func _sync_actors() -> void:
 			var b_lift := 0.0
 			var b_tint := Color.WHITE
 			var b_frame := _prop_frame(Catalog.icon_for_building(b_kind))
+			if b_kind == Catalog.BLD_FLOWER:
+				b_frame = FLOWER_ANIM + int(time_pre * 6.0) % FLOWER_ANIM_N
 			if b_kind == Catalog.BLD_ROUND and bool(b.get("active", false)):
 				b_frame = ROUND_ANIM + int(time_pre * 8.0) % 8
 			if bool(b.get("active", false)) and b_kind != Catalog.BLD_APPLE:
@@ -1085,7 +1151,7 @@ func _sync_actors() -> void:
 			if b_kind == Catalog.BLD_FACTORY or b_kind == Catalog.BLD_FACTORY2:
 				_push_factory_pile(draws, b, draw_at)
 			if b_kind == Catalog.BLD_APPLE:
-				var fruit_sort := _prop_front_sort_y(p3)
+				var fruit_sort := _to_iso(Vector2(float(b.x), float(b.y))).y + 10.0
 				for fruit in b.get("fruits", []):
 					var slot := clampi(int(fruit.slot), 0, 2)
 					var grown := clampf(float(fruit.s), 0.15, 1.0)
@@ -1095,13 +1161,11 @@ func _sync_actors() -> void:
 						_prop_frame(Catalog.ICON_APPLE),
 						Color.WHITE,
 						Catalog.APPLE_LIFTS[slot],
-						0.55 + 0.45 * grown,
+						Catalog.APPLE_SPRITE_SCALE,
 						fruit_sort
 					)
 			if bool(b.get("active", false)) and b_kind == Catalog.BLD_TUB:
 				var seat := p3 + Catalog.TUB_SEAT_OFF
-				var spark := Vector2(cos(time_pre * 10.0 + float(b.id)) * 6.0, sin(time_pre * 10.0) * 4.0)
-				_push_iso(draws, seat + spark, _prop_frame(Catalog.ICON_SPONGE), Color(1, 1, 1, 0.7), 8.0)
 	var bridge: Dictionary = sim.bridge_marker()
 	if not sim.shot_mode and not bridge.is_empty() and sim.chunk_shown(str(bridge.ck)):
 		var site := Vector2(float(bridge.x), float(bridge.y))
@@ -1135,6 +1199,7 @@ func _sync_actors() -> void:
 				"p": get_global_mouse_position(),
 				"icon": _prop_frame(Catalog.icon_for_item(int(hand.kind))),
 				"tint": Color.WHITE,
+				"scale": Catalog.item_sprite_scale(int(hand.kind)),
 			})
 	if sim.has_scoop():
 		for raw in sim.scoop_item_ids:
@@ -1152,19 +1217,21 @@ func _sync_actors() -> void:
 					"p": get_global_mouse_position(),
 					"icon": _prop_frame(Catalog.icon_for_feature(int(rock.kind), int(rock.ore))),
 					"tint": Color.WHITE,
+					"scale": Catalog.feature_sprite_scale(int(rock.kind), int(rock.ore)),
 				})
 	elif sim.held_kind == "building":
 		var carried = sim.building_by_id.get(sim.held_ref, {})
 		if not carried.is_empty():
 			var carried_kind := int(carried.kind)
+			var carried_scale := Catalog.building_sprite_scale(carried_kind)
 			if _drop_on_island():
-				var carried_scale := Catalog.building_sprite_scale(carried_kind)
 				_push_iso(draws, _building_draw_at(carried_kind, grid_at), _prop_frame(Catalog.icon_for_building(carried_kind)), Color(1, 1, 1, 0.9), 10.0, carried_scale)
 			else:
 				draws.append({
 					"p": get_global_mouse_position(),
 					"icon": _prop_frame(Catalog.icon_for_building(carried_kind)),
 					"tint": Color.WHITE,
+					"scale": carried_scale,
 				})
 	var drag_front: Array = []
 	if not kit_drag.is_empty():
@@ -1176,10 +1243,25 @@ func _sync_actors() -> void:
 				var ghost_scale := Catalog.building_sprite_scale(ghost_kind)
 				_push_iso(drag_front, _building_draw_at(ghost_kind, grid_at), _prop_frame(drag_icon), ghost, 10.0, ghost_scale)
 			else:
+				var drag_scale := 1.0
+				if str(kit_drag.get("type", "")) == "tool":
+					var tid := int(kit_drag.id)
+					match tid:
+						Catalog.TOOL_APPLE:
+							drag_scale = Catalog.APPLE_SPRITE_SCALE
+						Catalog.TOOL_BALL:
+							drag_scale = Catalog.BALL_SPRITE_SCALE
+						Catalog.TOOL_SPONGE:
+							drag_scale = Catalog.SPONGE_SPRITE_SCALE
+						_:
+							drag_scale = Catalog.item_sprite_scale(tid)
+				elif str(kit_drag.get("type", "")) == "build":
+					drag_scale = Catalog.building_sprite_scale(int(kit_drag.id))
 				drag_front.append({
 					"p": get_global_mouse_position(),
 					"icon": _prop_frame(drag_icon),
 					"tint": ghost,
+					"scale": drag_scale,
 				})
 	var time := Time.get_ticks_msec() / 1000.0
 	for id in sim.query_rect(view):
@@ -1250,17 +1332,6 @@ func _sync_actors() -> void:
 			var spark := AssetFrames.frame(AssetFrames.CLEAN, AssetFrames.CLEAN_N, int(time * 10.0))
 			if spark >= 0:
 				_push_iso(draws, pos + bub * 0.4, spark, Color(1, 1, 1, 0.7), 10.0, 1.0, sort_y)
-		elif not sim.frozen and doing == ThrongletSimServer.ACT_BATH and not seated:
-			var suds := Vector2(cos(time * 11.0 + float(i)) * 6.0, sin(time * 11.0) * 3.5)
-			var foam := AssetFrames.frame(AssetFrames.SUDS, AssetFrames.SUDS_N, 0)
-			if foam < 0:
-				foam = AssetFrames.frame(AssetFrames.SPLASH, AssetFrames.SPLASH_N, int(time * 8.0))
-			if foam < 0:
-				foam = _prop_frame(Catalog.ICON_SPONGE)
-			_push_iso(draws, pos + suds, foam, Color(0.85, 0.95, 1.0, 0.8), 7.0, 1.0, sort_y)
-		elif not sim.frozen and doing == ThrongletSimServer.ACT_PLAY and not riding and not ball_play:
-			var toy := Vector2(cos(time * 12.0 + float(i)) * 8.0, sin(time * 12.0) * 4.0)
-			_push_iso(draws, pos + toy, _prop_frame(Catalog.ICON_BALL), Color(1, 1, 1, 0.9), 9.0 + lift, 1.0, sort_y)
 		elif not sim.frozen and doing == ThrongletSimServer.ACT_WORK:
 			var chip := Vector2(sin(time * 15.0 + float(i)) * 6.0, -4.0)
 			_push_iso(draws, pos + chip, _prop_frame(Catalog.ICON_ORE), Color(1, 1, 1, 0.75), 8.0, 1.0, sort_y)
@@ -1286,7 +1357,7 @@ func _sync_actors() -> void:
 			})
 	for pop in sim.pops:
 		var fade := clampf(float(pop.t) / 0.55, 0.0, 1.0)
-		_push_iso(draws, Vector2(float(pop.x), float(pop.y)), _pop_frame(int(pop.icon)), Color(1, 1, 1, fade), float(pop.lift))
+		_push_iso(draws, Vector2(float(pop.x), float(pop.y)), _pop_frame(int(pop.icon)), Color(1, 1, 1, fade), float(pop.lift), float(pop.get("scale", 1.0)))
 	draws.sort_custom(func(a, b): return float(a.get("sy", a.p.y)) < float(b.get("sy", b.p.y)))
 	draws.append_array(egg_front)
 	draws.append_array(drag_front)
@@ -1296,7 +1367,7 @@ func _sync_actors() -> void:
 func _frame(i: int, time: float) -> int:
 	var sim: ThrongletSim = ThrongletSimServer
 	if sim.state[i] == Catalog.ST_DEAD:
-		var clip := "ThrongA_Dead_001" if int(time * 2.0) % 2 == 0 else "ThrongA_Dead_002"
+		var clip := "ThrongA_Dead_001" if sim.dir_x[i] >= 0.0 else "ThrongA_Dead_002"
 		return ThrongClips.frame_at(clip, 0)
 	if sim.frozen:
 		return _clip_pool(ThrongClips.TALK, i, time, 2.4, "ThrongA_Talk")
@@ -1624,10 +1695,14 @@ func _sync_charge_mark() -> void:
 
 
 func _iso_circle_points(world_center: Vector2, radius: float, steps: int) -> PackedVector2Array:
+	return _iso_ellipse_points(world_center, radius, radius, steps)
+
+
+func _iso_ellipse_points(world_center: Vector2, rx: float, ry: float, steps: int) -> PackedVector2Array:
 	var pts := PackedVector2Array()
 	for i in steps + 1:
 		var ang := TAU * float(i) / float(steps)
-		var world := world_center + Vector2(cos(ang), sin(ang)) * radius
+		var world := world_center + Vector2(cos(ang) * rx, sin(ang) * ry)
 		pts.append(_to_iso(world))
 	return pts
 
@@ -2734,7 +2809,10 @@ func _focus_draws() -> Array:
 		var b_kind := int(b.kind)
 		var draw_at := _building_draw_at(b_kind, p3)
 		if _focus_sees(p3, 0.0) or _focus_sees(draw_at, 0.0):
-			_push_iso(draws, draw_at, _prop_frame(Catalog.icon_for_building(b_kind)), Color.WHITE, 0.0, Catalog.building_sprite_scale(b_kind))
+			var focus_frame := _prop_frame(Catalog.icon_for_building(b_kind))
+			if b_kind == Catalog.BLD_FLOWER:
+				focus_frame = FLOWER_ANIM + int(time * 6.0) % FLOWER_ANIM_N
+			_push_iso(draws, draw_at, focus_frame, Color.WHITE, 0.0, Catalog.building_sprite_scale(b_kind))
 	for i in sim.slot_count:
 		if sim.state[i] == Catalog.ST_VACANT:
 			continue
@@ -2822,7 +2900,12 @@ func _tab_icon(label: String) -> String:
 
 func _tray_face(icon: int, pad: float = 8.0) -> TextureRect:
 	var glyph := TextureRect.new()
-	glyph.texture = _atlas_icon(icon)
+	var hq := Catalog.menu_icon_path(icon)
+	if hq != "":
+		glyph.texture = _tex(hq)
+	else:
+		glyph.texture = _atlas_icon(icon)
+	glyph.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	glyph.set_anchors_preset(Control.PRESET_FULL_RECT)
 	glyph.offset_left = pad
 	glyph.offset_top = pad
@@ -2830,7 +2913,6 @@ func _tray_face(icon: int, pad: float = 8.0) -> TextureRect:
 	glyph.offset_bottom = -pad
 	glyph.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	glyph.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	glyph.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	glyph.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return glyph
 
@@ -3132,37 +3214,32 @@ func _build_marks() -> void:
 		panel.visible = false
 		panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		panel.z_index = 8
+		panel.clip_contents = true
 		panel.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		panel.add_theme_stylebox_override("panel", _speech_bubble_style())
 		var hold := CenterContainer.new()
 		hold.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		hold.clip_contents = true
 		panel.add_child(hold)
 		var glyph := TextureRect.new()
-		glyph.custom_minimum_size = Vector2(14, 14)
+		# text_sprites_new glyphs are ~26-32px; scale into content pad.
+		glyph.custom_minimum_size = Vector2(16, 16)
 		glyph.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		glyph.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		glyph.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		glyph.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		hold.add_child(glyph)
+		# Icon-only barks: keep Label off the PanelContainer so it cannot inflate size.
 		var said := Label.new()
 		said.visible = false
 		said.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		said.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		said.custom_minimum_size = Vector2(72, 0)
-		said.add_theme_font_size_override("font_size", 16)
-		said.add_theme_color_override("font_color", Color(0.1, 0.12, 0.16))
-		panel.add_child(said)
 		bubble_labels.append(said)
 		add_child(panel)
 		bubble_panels.append(panel)
 		bubble_icons.append(glyph)
+		# Pico is baked into speech_bubble_*.png (hooked Unity tip). No separate triangle.
 		var tail := TextureRect.new()
-		tail.texture = _tex("res://resources/ui/speech_bubble_tail.png")
-		tail.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		tail.z_index = 8
 		tail.visible = false
-		tail.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		add_child(tail)
 		bubble_tails.append(tail)
 	for _i in 24:
 		var label := Label.new()
@@ -3223,38 +3300,40 @@ func _sync_marks() -> void:
 				bubble_labels[i].visible = false
 			continue
 		var bark: Dictionary = sim.barks[i]
+		var throng_id := int(bark.get("id", -1))
+		# Prefer live feet: gaze teleport moves pos_* while bark.x/y can lag while frozen.
 		var at := Vector2(float(bark.x), float(bark.y))
+		if throng_id >= 0 and throng_id < sim.slot_count and sim.state[throng_id] == Catalog.ST_LIVING:
+			at = Vector2(sim.pos_x[throng_id], sim.pos_y[throng_id])
 		if not view.has_point(at):
 			panel.visible = false
 			tail.visible = false
 			continue
 		var said: Label = bubble_labels[i]
-		var text := sim.address(str(bark.get("text", "")))
 		var icon := int(bark.get("icon", -1))
-		if text == "" and icon < 0:
+		if icon < 0:
 			panel.visible = false
 			tail.visible = false
-			continue
-		if text != "":
-			said.text = text
-			said.visible = true
-			glyph.visible = false
-		else:
 			said.visible = false
-			glyph.texture = _atlas_icon(icon)
-			glyph.visible = true
+			continue
+		said.visible = false
 		tail.visible = false
-		var frame := int(Time.get_ticks_msec() / 120 + int(bark.get("id", 0))) % 5
+		glyph.custom_minimum_size = Vector2(16, 16)
+		glyph.size = Vector2(16, 16)
+		glyph.texture = _bark_icon(icon)
+		glyph.visible = true
+		var frame := int(Time.get_ticks_msec() / 160 + int(bark.get("id", 0))) % 5
 		_apply_bubble_frame(panel, frame)
 		panel.reset_size()
 		var size := panel.get_combined_minimum_size()
-		size.x = maxf(size.x, 36.0)
-		size.y = maxf(size.y, 32.0)
+		# Keep near native Unity frame size so the hooked pico is not 9-slice-stretched.
+		size.x = maxf(size.x, 38.0)
+		size.y = maxf(size.y, 40.0)
 		panel.size = size
-		var tip := _to_iso(at) + Vector2(0, -22)
-		panel.position = Vector2(tip.x - (size.x - 18.0), tip.y - size.y)
+		# tip = bottom of pico (points at thronglet head).
+		var tip := _to_iso(at) + Vector2(0, -14)
+		panel.position = Vector2(tip.x - size.x * 0.5, tip.y - size.y)
 		panel.visible = true
-		tail.visible = false
 	var full_n := 0
 	for b in sim.buildings:
 		if full_n >= full_labels.size():
@@ -3279,7 +3358,10 @@ func _sync_marks() -> void:
 	var bld: Dictionary = sim.building_by_id.get(selected_bld, {})
 	var show_ring := not bld.is_empty() and not bool(bld.get("dead", true))
 	if show_ring:
-		var pts := _iso_circle_points(Vector2(float(bld.x), float(bld.y)), 16.0, 24)
+		var size := Catalog.footprint_for_building(int(bld.kind))
+		var center := Vector2(float(bld.x), float(bld.y)) + Catalog.footprint_center(size)
+		var reach := Catalog.building_reach(int(bld.kind))
+		var pts := _iso_ellipse_points(center, reach.x, reach.y, 24)
 		for i in ring_lines.size():
 			var dash: Line2D = ring_lines[i]
 			dash.points = PackedVector2Array([pts[i * 2], pts[i * 2 + 1]])
@@ -3436,6 +3518,24 @@ func _atlas_icon(icon: int) -> AtlasTexture:
 	var row := int(icon / Catalog.ATLAS_COLUMNS)
 	atlas.region = Rect2(col * 16, row * 16, 16, 16)
 	return atlas
+
+
+func _bark_icon(icon: int) -> Texture2D:
+	if not Catalog.BARK_ICON_RECT.has(icon):
+		return _atlas_icon(icon)
+	# Load source pixels from disk so CompressedTexture2D.get_image() is not required.
+	var path := ProjectSettings.globalize_path(Catalog.BARK_ICON_ATLAS)
+	var src := Image.load_from_file(path)
+	if src == null or src.is_empty():
+		var atlas := AtlasTexture.new()
+		atlas.atlas = _tex(Catalog.BARK_ICON_ATLAS)
+		atlas.region = Catalog.BARK_ICON_RECT[icon]
+		return atlas
+	var region: Rect2 = Catalog.BARK_ICON_RECT[icon]
+	var crop := src.get_region(Rect2i(region))
+	const BARK_GLYPH := 16
+	crop.resize(BARK_GLYPH, BARK_GLYPH, Image.INTERPOLATE_NEAREST)
+	return ImageTexture.create_from_image(crop)
 
 
 func _market_has_stock(sim: ThrongletSim) -> bool:
@@ -5413,6 +5513,10 @@ func _enter_dev() -> void:
 	sim.paused = true
 	dev_on = true
 	in_title = false
+	crt_on = false
+	_apply_crt()
+	if ui != null:
+		ui.visible = true
 	if title_root:
 		title_root.visible = false
 	market_open = false
@@ -5796,30 +5900,24 @@ func _box_style(path: String, edge: int, pad: int) -> StyleBoxTexture:
 
 
 func _speech_bubble_style() -> StyleBoxTexture:
-	var style := _box_style("res://resources/ui/speech_bubble_0.png", 7, 4)
+	var style := _box_style("res://resources/ui/speech_bubble_0.png", 6, 6)
 	_bubble_margins(style, 0)
 	return style
 
 
 func _bubble_margins(style: StyleBoxTexture, frame: int) -> void:
-	# Unity border of UI_SpeechBubble_Spritesheet: left, right, top, bottom.
-	# The tail sits in the right and bottom patches, so those do not stretch.
-	var edges := [
-		[7, 23, 7, 14],
-		[6, 22, 6, 13],
-		[8, 24, 8, 15],
-		[7, 23, 7, 15],
-		[8, 24, 8, 15],
-	]
-	var edge: Array = edges[frame]
-	style.texture_margin_left = int(edge[0])
-	style.texture_margin_right = int(edge[1])
-	style.texture_margin_top = int(edge[2])
-	style.texture_margin_bottom = int(edge[3])
+	# Unity speech bubble: hooked pico lives in the bottom strip (~10px).
+	# Keep panel near native size so that strip is not stretched flat.
+	var _frame := frame
+	style.texture_margin_left = 8
+	style.texture_margin_right = 8
+	style.texture_margin_top = 8
+	style.texture_margin_bottom = 12
 	style.content_margin_left = 6
-	style.content_margin_right = 8
-	style.content_margin_top = 5
-	style.content_margin_bottom = int(edge[3])
+	style.content_margin_right = 6
+	style.content_margin_top = 6
+	style.content_margin_bottom = 10
+
 
 
 func _apply_bubble_frame(panel: PanelContainer, frame: int) -> void:
@@ -5832,6 +5930,9 @@ func _apply_bubble_frame(panel: PanelContainer, frame: int) -> void:
 
 func _tick_shot() -> void:
 	var sim: ThrongletSim = ThrongletSimServer
+	if sim.shot_fx:
+		_tick_shot_fx()
+		return
 	if shot_board == null:
 		if sim.shot_throng >= 0:
 			selected = sim.shot_throng
@@ -6027,6 +6128,35 @@ func _tick_shot() -> void:
 				get_tree().quit(1)
 				return
 			shot_hud_saved = true
+			shot_frames = 0
+			return
+		if not shot_bubbles_saved:
+			# Close zoom on the forced bark for size/position compare.
+			if ui != null:
+				ui.visible = false
+			kit_open = false
+			_set_kit_shown(false)
+			if task_panel != null:
+				task_panel.visible = false
+			if sim.barks.is_empty() and sim.shot_throng >= 0:
+				sim.barks.append({
+					"id": sim.shot_throng,
+					"icon": Catalog.ICON_APPLE,
+					"t": 30.0,
+					"x": sim.pos_x[sim.shot_throng],
+					"y": sim.pos_y[sim.shot_throng],
+				})
+			if sim.shot_throng >= 0:
+				camera.position = _to_iso(Vector2(sim.pos_x[sim.shot_throng], sim.pos_y[sim.shot_throng]))
+			zoom_level = 3.0
+			camera.zoom = Vector2(3.0, 3.0)
+			_sync_marks()
+			if shot_frames < 8:
+				return
+			if not _save_shot(get_viewport(), "res://shots/bubbles_now.png"):
+				get_tree().quit(1)
+				return
+			shot_bubbles_saved = true
 			sim.barks.clear()
 			shot_frames = 0
 			return
@@ -6107,6 +6237,66 @@ func _tick_shot() -> void:
 	shot_done = true
 	var ok := _save_shot(shot_board, "res://shots/wired_assets.png")
 	get_tree().quit(0 if ok else 1)
+
+
+func _tick_shot_fx() -> void:
+	var cases := [
+		{"id": "aura:flower", "wait": 24, "path": "res://shots/fx_aura_flower.png"},
+		{"id": "act:bath", "wait": 24, "path": "res://shots/fx_act_bath.png"},
+		{"id": "act:sponge", "wait": 24, "path": "res://shots/fx_act_sponge.png"},
+		{"id": "visit:dwell", "wait": 24, "path": "res://shots/fx_visit_dwell.png"},
+		{"id": "feat:fire", "wait": 24, "path": "res://shots/fx_feat_fire.png"},
+	]
+	if not shot_fx_saved:
+		if not dev_on:
+			_enter_dev()
+			shot_frames = 0
+			return
+		if dev_bench == null:
+			print("SHOT FAIL no dev_bench")
+			get_tree().quit(1)
+			return
+		if not bool(dev_bench.effect_mode):
+			dev_bench._show_effects()
+			shot_frames = 0
+			return
+		var spec: Dictionary = cases[mini(shot_fx_i, cases.size() - 1)]
+		if str(dev_bench.effect_id) != str(spec.id):
+			dev_bench._select_effect(str(spec.id))
+			dev_bench.effect_playing = true
+			dev_bench._sync_effect_play_button()
+			# Jump the preview so bars/VFX are mid-effect.
+			for _i in 40:
+				dev_bench._tick_effect(0.05)
+			dev_bench.effect_t = 2.5
+			shot_frames = 0
+			return
+		shot_frames += 1
+		if shot_frames < int(spec.wait):
+			return
+		print("SHOT FX id=%s fed=%.1f fun=%.1f clean=%.1f clip=%s gauge=%s ring=%s ui=%s" % [
+			spec.id,
+			dev_bench.effect_fed,
+			dev_bench.effect_fun,
+			dev_bench.effect_clean,
+			dev_bench.effect_clip,
+			dev_bench.effect_gauge.visible if dev_bench.effect_gauge != null else false,
+			dev_bench.effect_ring.visible if dev_bench.effect_ring != null else false,
+			ui.visible if ui != null else false,
+		])
+		if not _save_shot(get_viewport(), str(spec.path)):
+			get_tree().quit(1)
+			return
+		shot_fx_i += 1
+		shot_frames = 0
+		if shot_fx_i < cases.size():
+			return
+		shot_fx_saved = true
+		shot_done = true
+		get_tree().quit(0)
+		return
+	shot_done = true
+	get_tree().quit(0)
 
 
 func _save_shot(source: Viewport, path: String) -> bool:
