@@ -140,8 +140,13 @@ var dos_full := ""
 var dos_shown := 0
 var dos_hold := 0.0
 var crt_overlay: ColorRect
-var captions_on := false
+var captions_label: Label
+var captions_layer: CanvasLayer
+var captions_on := true
 var crt_on := true
+var captions_lines: Array = []
+var captions_ends: Array = []
+var captions_index := -1
 var sfx_vol := 1.0
 var music_vol := 1.0
 var settings_lang := "Español"
@@ -248,6 +253,7 @@ var video_from_title := false
 var boot := ""
 var logo_started := false
 var logo_wait := 0.0
+var logo_video_playing := false
 var bird_wait := 8.0
 var textures := {}
 var biome_plates: Array[Sprite2D] = []
@@ -385,6 +391,7 @@ func _unhandled_input(event: InputEvent) -> void:
 func _process(delta: float) -> void:
 	_tick_logo(delta)
 	_tick_dos(delta)
+	_tick_captions()
 	_sync_tutorial()
 	if dev_on:
 		_move_camera(delta)
@@ -4207,14 +4214,20 @@ func _begin_logo() -> void:
 	boot = "logo"
 	logo_started = false
 	logo_wait = 0.0
+	logo_video_playing = true
 	in_title = true
 	ThrongletSimServer.paused = true
 	if title_root != null:
 		title_root.visible = false
 	if dos_root != null:
 		dos_root.visible = false
+	# No iniciar música de título durante el video del logo;
+	# _sync_music() está bloqueado por logo_video_playing.
 	if not _play_video("tuckersoft_logo_30fps_1MB", true):
 		_begin_dos()
+	else:
+		# Subir el volumen del audio del video de Tuckersoft para que se escuche más claro.
+		video_player.volume_db = 6.0
 
 
 func _tick_logo(delta: float) -> void:
@@ -4241,7 +4254,7 @@ func _begin_dos() -> void:
 	if video_player != null:
 		video_player.stop()
 		video_player.visible = false
-		var plate := video_player.get_meta("plate") as ColorRect
+		var plate: ColorRect = video_player.get_meta("plate") as ColorRect
 		if plate != null:
 			plate.visible = false
 	_show_dos()
@@ -4291,9 +4304,8 @@ func _finish_dos() -> void:
 
 func _load_prefs() -> void:
 	var cfg := ConfigFile.new()
-	if cfg.load("user://opening.cfg") != OK:
-		return
-	captions_on = bool(cfg.get_value("opening", "captions", false))
+	cfg.load("user://opening.cfg")
+	captions_on = bool(cfg.get_value("opening", "captions", true))
 	crt_on = bool(cfg.get_value("opening", "crt", true))
 	sfx_vol = clampf(float(cfg.get_value("opening", "sfx", 1.0)), 0.0, 1.0)
 	music_vol = clampf(float(cfg.get_value("opening", "music", 1.0)), 0.0, 1.0)
@@ -5046,8 +5058,11 @@ func _settings_ask_reset() -> void:
 
 
 func _settings_reset() -> void:
+	# Restablecer progreso: borrar todas las partidas guardadas (incluido el
+	# guardado legado) y volver al título. No se inicia una partida nueva
+	# automáticamente; el usuario elige comenzar una desde el menú principal.
 	ThrongletSimServer.clear_saves()
-	_fill_settings()
+	_show_title()
 
 
 func _toggle_captions() -> void:
@@ -5105,7 +5120,13 @@ func _show_title() -> void:
 		menu_dim.visible = false
 	title_root.visible = true
 	title_layout_size = Vector2.ZERO
+	# El video del logo terminó; permitir música de título en el menú principal
+	logo_video_playing = false
 	_fill_title()
+	# Fade-in de la música al mostrar el título principal tras el DOS
+	if music != null:
+		var tween: Tween = create_tween()
+		tween.tween_property(music, "volume_db", -6.0, 1.0)
 
 
 func _build_title_backdrop(root: Control) -> void:
@@ -5231,8 +5252,8 @@ func _title_wood_button(call: Callable) -> Button:
 	button.add_theme_stylebox_override("hover_pressed", wood)
 	if call.is_valid():
 		button.pressed.connect(func() -> void:
-			_play("ui")
-			call.call()
+			# Sonido del botón de empezar/continuar (siempre ui_game_continue)
+			_play_sfx_then("ui_game_continue", call)
 		)
 	return button
 
@@ -5488,6 +5509,9 @@ func _fill_title() -> void:
 	if title_hud != null:
 		title_hud.visible = true
 	title_layout_size = Vector2.ZERO
+	# Cambiar texto del botón según si hay partida para continuar
+	if title_start != null:
+		title_start.text = "Continuar" if _has_continue() else "Comenzar"
 
 
 func _has_continue() -> bool:
@@ -6347,6 +6371,197 @@ func _fill_bank() -> void:
 		"code_layer_loop_120bpm_23bar.ogg",
 		"code_layer_out_a.ogg",
 	]))
+	# --- Ambientes ---
+	sfx_bank["amb_spot_market_lp"] = _clips(PackedStringArray(["amb_spot_market_lp.ogg"]))
+	sfx_bank["amb_spot_mine_lp"] = _clips(PackedStringArray(["amb_spot_mine_lp.wav"]))
+	sfx_bank["amb_spot_mountainVoidOpening_lp"] = _clips(PackedStringArray(["amb_spot_mountainVoidOpening_lp.wav"]))
+	sfx_bank["amb_spot_pollution"] = _clips(PackedStringArray(["amb_spot_pollution.ogg"]))
+	sfx_bank["ambBed_act1n2_barrenWind"] = _clips(PackedStringArray(["ambBed_act1n2_barrenWind.ogg"]))
+	sfx_bank["ambBed_act1n2_softWindBirds_lp"] = _clips(PackedStringArray(["ambBed_act1n2_softWindBirds_lp.ogg"]))
+	sfx_bank["ambBed_act3_lp"] = _clips(PackedStringArray(["ambBed_act3_lp.ogg"]))
+	sfx_bank["throngletville_amb_st"] = _clips(PackedStringArray(["throngletville_amb_st.ogg"]))
+	sfx_bank["venice_three_84dot5bpm_58bar"] = _clips(PackedStringArray(["venice_three_84dot5bpm_58bar.ogg"]))
+
+	# --- Música y stingers ---
+	sfx_bank["music_title"] = _clips(PackedStringArray(["thronglets_title_theme_180bpm_24bar.ogg"]))
+	sfx_bank["music_megafm_a"] = _clips(PackedStringArray(["thronglets_megafm_a_140bpm_72bar.ogg"]))
+	sfx_bank["music_megafm_b"] = _clips(PackedStringArray(["thronglets_megafm_b_140bpm_88bar.ogg"]))
+	sfx_bank["music_fieldwork"] = _clips(PackedStringArray(["fieldwork_140bpm_108bar.ogg"]))
+	sfx_bank["music_wasteland_one"] = _clips(PackedStringArray(["wasteland_one_160bpm_134bar.ogg"]))
+	sfx_bank["music_wasteland_two"] = _clips(PackedStringArray(["wasteland_part_two_160bpm_156bar.ogg"]))
+	sfx_bank["music_toward_artifact"] = _clips(PackedStringArray(["toward_the_artifact_140bpm_208bar.ogg"]))
+	sfx_bank["music_finale"] = _clips(PackedStringArray(["thronglets_finale_76bpm_74bar.ogg"]))
+	sfx_bank["music_artifact_finale"] = _clips(PackedStringArray(["artifact_finale_140bpm_44bar.ogg"]))
+	sfx_bank["music_actIII_millions_A"] = _clips(PackedStringArray(["actIII_millions_oneshot_A.ogg"]))
+	sfx_bank["music_actIII_millions_B"] = _clips(PackedStringArray(["actIII_millions_oneshot_B.ogg"]))
+	sfx_bank["music_actIII_millions_C"] = _clips(PackedStringArray(["actIII_millions_oneshot_C.ogg"]))
+	sfx_bank["music_artifact_reveal"] = _clips(PackedStringArray(["artifact_reveal_140bpm_10bar.ogg"]))
+	sfx_bank["music_artifact_hum"] = _clips(PackedStringArray(["artifact_hum_loop.ogg"]))
+	sfx_bank["music_nuked"] = _clips(PackedStringArray(["thronglets_nuked_nobpm_nobar.ogg"]))
+	sfx_bank["music_actii_intro"] = _clips(PackedStringArray(["act_ii_intro_welcome_progress_nobpm_nobar.ogg"]))
+	sfx_bank["music_wasteland_intro"] = _clips(PackedStringArray(["wasteland_intro_oneshot.ogg"]))
+	sfx_bank["music_code_layer_in"] = _clips(PackedStringArray(["code_layer_in_a.ogg"]))
+	sfx_bank["music_code_layer_loop"] = _clips(PackedStringArray(["code_layer_loop_120bpm_23bar.ogg"]))
+	sfx_bank["music_code_layer_out"] = _clips(PackedStringArray(["code_layer_out_a.ogg"]))
+	sfx_bank["music_tnt_multmel"] = _clips(PackedStringArray(["tnt_multmel_108bbpm_88bar.ogg"]))
+	sfx_bank["music_finale_outro"] = _clips(PackedStringArray(["finale_outro.ogg"]))
+
+	# --- UI ---
+	sfx_bank["ui_button_click"] = _clips(PackedStringArray(["code_layer_in_a.ogg"]))
+	sfx_bank["ui_game_continue"] = _clips(PackedStringArray(["ui_game_continue.wav"]))
+	sfx_bank["ui_game_continue_broken"] = _clips(PackedStringArray(["ui_game_continue_broken.wav"]))
+	sfx_bank["ui_click_messy_0"] = _clips(PackedStringArray(["ui_click_messy_0.wav"]))
+	sfx_bank["ui_click_messy"] = _clips(PackedStringArray(["ui_click_messy.wav"]))
+	sfx_bank["ui_console_prompt"] = _clips(PackedStringArray(["ui_console_prompt.wav"]))
+	sfx_bank["ui_dialogue_frame_in"] = _clips(_seq("ui_dialogue_frame_in_", 1, 7))
+	sfx_bank["ui_dialogue_frame_out"] = _clips(_seq("ui_dialogue_frame_out_", 1, 8))
+	sfx_bank["ui_droplet_up"] = _clips(PackedStringArray(["ui_droplet_up.wav"]))
+	sfx_bank["ui_error"] = _clips(PackedStringArray(["ui_error.wav"]))
+	sfx_bank["ui_fm_bump"] = _clips(PackedStringArray(["ui_fm_bump.wav"]))
+	sfx_bank["ui_slide_a"] = _clips(PackedStringArray(["ui_slide_a.wav"]))
+	sfx_bank["ui_tool_unavailable"] = _clips(PackedStringArray(["ui_tool_unavailable.wav"]))
+	sfx_bank["ui_act2_tutorial_window_open"] = _clips(PackedStringArray(["ui_act2_tutorial_window_open.wav"]))
+	sfx_bank["ui_act2_tutorial_window_close"] = _clips(PackedStringArray(["ui_act2_tutorial_window_close.wav"]))
+	sfx_bank["ui_act2_tutorial_window_lp"] = _clips(PackedStringArray(["ui_act2_tutorial_window_lp.wav"]))
+
+	# --- Herramientas y construcciones ---
+	sfx_bank["sfx_axe_unlock"] = _clips(PackedStringArray(["sfx_axe_unlock.wav"]))
+	sfx_bank["sfx_bathtub_enter"] = _clips(_seq("sfx_bathtub_enter_", 1, 6))
+	sfx_bank["sfx_bathtub_exit"] = _clips(_seq("sfx_bathtub_exit_", 1, 6))
+	sfx_bank["sfx_bathtub_place"] = _clips(_seq("sfx_bathtub_place_", 1, 5))
+	sfx_bank["sfx_bathtub_unlock"] = _clips(PackedStringArray(["sfx_bathtub_unlock.wav"]))
+	sfx_bank["sfx_bridge_bones_segment_complete"] = _clips(_seq("sfx_bridge_bones_segment_complete_", 1, 4))
+	sfx_bank["sfx_bridge_wood_segment_complete"] = _clips(_seq("sfx_bridge_wood_segment_complete_", 1, 4))
+	sfx_bank["sfx_camera_move_lp"] = _clips(PackedStringArray(["sfx_camera_move_lp.wav"]))
+	sfx_bank["sfx_cannon_place"] = _clips(PackedStringArray(["sfx_cannon_place.wav"]))
+	sfx_bank["sfx_cannon_shot"] = _clips(_seq("sfx_cannon_shot_", 1, 6))
+	sfx_bank["sfx_cannon_unlock"] = _clips(PackedStringArray(["sfx_cannon_unlock.wav"]))
+	sfx_bank["sfx_chainsaw_cut"] = _clips(_seq("sfx_chainsaw_cut_", 1, 4))
+	sfx_bank["sfx_chainsaw_unlock"] = _clips(PackedStringArray(["sfx_chainsaw_unlock.wav"]))
+	sfx_bank["sfx_computer_loading_windows_appear_lp"] = _clips(PackedStringArray(["sfx_computer_loading_windows_appear_lp.wav"]))
+	sfx_bank["sfx_computer_skipButton_click"] = _clips(PackedStringArray(["sfx_computer_skipButton_click.wav"]))
+	sfx_bank["sfx_cutscene_nuke_result_lp_st"] = _clips(PackedStringArray(["sfx_cutscene_nuke_result_lp_st.wav"]))
+	sfx_bank["sfx_dynamite_activate"] = _clips(PackedStringArray(["sfx_dynamite_activate.wav"]))
+	sfx_bank["sfx_dynamite_explode_st"] = _clips(PackedStringArray(["sfx_dynamite_explode_st.wav"]))
+	sfx_bank["sfx_dynamite_place"] = _clips(PackedStringArray(["sfx_dynamite_place.wav"]))
+	sfx_bank["sfx_dynamite_select"] = _clips(PackedStringArray(["sfx_dynamite_select.wav"]))
+	sfx_bank["sfx_dynamite_unlock"] = _clips(PackedStringArray(["sfx_dynamite_unlock.wav"]))
+	sfx_bank["sfx_eden_artifact_presence_lp"] = _clips(PackedStringArray(["sfx_eden_artifact_presence_lp.wav"]))
+	sfx_bank["sfx_eden_artifact_reach_st"] = _clips(PackedStringArray(["sfx_eden_artifact_reach_st.wav"]))
+	sfx_bank["sfx_eden_artifact_thronglets_eyesGlow_st"] = _clips(PackedStringArray(["sfx_eden_artifact_thronglets_eyesGlow_st.wav"]))
+	sfx_bank["sfx_eden_artifact_thronglets_glow_st"] = _clips(PackedStringArray(["sfx_eden_artifact_thronglets_glow_st.wav"]))
+	sfx_bank["sfx_egg_fall_01"] = _clips(PackedStringArray(["sfx_egg_fall_01.wav"]))
+	sfx_bank["sfx_egg_impact_grass_01"] = _clips(PackedStringArray(["sfx_egg_impact_grass_01.wav"]))
+	sfx_bank["sfx_factory_place"] = _clips(_seq("sfx_factory_place_", 1, 3))
+	sfx_bank["sfx_fire_extinguish"] = _clips(_seq("sfx_fire_extinguish_", 1, 5))
+	sfx_bank["sfx_fire_lp_01"] = _clips(PackedStringArray(["sfx_fire_lp_01.wav"]))
+	sfx_bank["sfx_fire_start"] = _clips(_seq("sfx_fire_start_", 1, 5))
+	sfx_bank["sfx_fire_unlock"] = _clips(PackedStringArray(["sfx_fire_unlock.wav"]))
+	sfx_bank["sfx_general_tool_grab"] = _clips(PackedStringArray(["sfx_general_tool_grab.wav"]))
+	sfx_bank["sfx_general_tool_use"] = _clips(PackedStringArray(["sfx_general_tool_use.wav"]))
+	sfx_bank["sfx_general_unlock"] = _clips(PackedStringArray(["sfx_general_unlock.wav"]))
+	sfx_bank["sfx_glitch_special_dialUp"] = _clips(PackedStringArray(["sfx_glitch_special_dialUp.wav"]))
+	sfx_bank["sfx_grabber_pickUp"] = _clips(PackedStringArray(["sfx_grabber_pickUp.wav"]))
+	sfx_bank["sfx_grabber_release"] = _clips(PackedStringArray(["sfx_grabber_release.wav"]))
+	sfx_bank["sfx_grabber_unlock"] = _clips(PackedStringArray(["sfx_grabber_unlock.wav"]))
+	sfx_bank["sfx_hammer_hit"] = _clips(_seq("sfx_hammer_hit_", 1, 4))
+	sfx_bank["sfx_hammer_unlock"] = _clips(PackedStringArray(["sfx_hammer_unlock.wav"]))
+	sfx_bank["sfx_healerHeart_activate"] = _clips(_seq("sfx_healerHeart_activate_", 1, 6))
+	sfx_bank["sfx_healerHeart_grab"] = _clips(PackedStringArray(["sfx_healerHeart_grab.wav"]))
+	sfx_bank["sfx_healerHeart_place"] = _clips(PackedStringArray(["sfx_healerHeart_place.wav"]))
+	sfx_bank["sfx_healerHeart_unlock"] = _clips(PackedStringArray(["sfx_healerHeart_unlock.wav"]))
+	sfx_bank["sfx_house_place"] = _clips(_seq("sfx_house_place_", 1, 3))
+	sfx_bank["sfx_intro_linear01_console_st"] = _clips(PackedStringArray(["sfx_intro_linear01_console_st.wav"]))
+	sfx_bank["sfx_item_buy"] = _clips(PackedStringArray(["sfx_item_buy.wav"]))
+	sfx_bank["sfx_item_unlock_glitch_layer"] = _clips(PackedStringArray(["sfx_item_unlock_glitch_layer.wav"]))
+	sfx_bank["sfx_ladybug_grab"] = _clips(PackedStringArray(["sfx_ladybug_grab.wav"]))
+	sfx_bank["sfx_ladybug_unlock"] = _clips(PackedStringArray(["sfx_ladybug_unlock.wav"]))
+	sfx_bank["sfx_levelStart_eden_st"] = _clips(PackedStringArray(["sfx_levelStart_eden_st.wav"]))
+	sfx_bank["sfx_mine_place"] = _clips(_seq("sfx_mine_place_", 1, 3))
+	sfx_bank["sfx_monolith_appear"] = _clips(PackedStringArray(["sfx_monolith_appear.wav"]))
+	sfx_bank["sfx_monolith_interact"] = _clips(PackedStringArray(["sfx_monolith_interact.wav"]))
+	sfx_bank["sfx_mop_grab_01"] = _clips(PackedStringArray(["sfx_mop_grab_01.wav"]))
+	sfx_bank["sfx_mop_unlock"] = _clips(PackedStringArray(["sfx_mop_unlock.wav"]))
+	sfx_bank["sfx_mop_use"] = _clips(_seq("sfx_mop_use_", 1, 6))
+	sfx_bank["sfx_mountain_explode_st"] = _clips(PackedStringArray(["sfx_mountain_explode_st.wav"]))
+	sfx_bank["sfx_nuke_countdown_lp"] = _clips(PackedStringArray(["sfx_nuke_countdown_lp.wav"]))
+	sfx_bank["sfx_nuke_explode"] = _clips(PackedStringArray(["sfx_nuke_explode.wav"]))
+	sfx_bank["sfx_nuke_place"] = _clips(PackedStringArray(["sfx_nuke_place.wav"]))
+	sfx_bank["sfx_nuke_select"] = _clips(PackedStringArray(["sfx_nuke_select.wav"]))
+	sfx_bank["sfx_nuke_unlock"] = _clips(PackedStringArray(["sfx_nuke_unlock.wav"]))
+	sfx_bank["sfx_pickaxe_hit"] = _clips(_seq("sfx_pickaxe_hit_", 1, 6))
+	sfx_bank["sfx_pickaxe_unlock"] = _clips(PackedStringArray(["sfx_pickaxe_unlock.wav"]))
+	sfx_bank["sfx_quietPopUp_musicGlitch"] = _clips(PackedStringArray(["sfx_quietPopUp_musicGlitch.wav"]))
+	sfx_bank["sfx_rock_break"] = _clips(PackedStringArray([
+		"sfx_rock_break_01.wav", "sfx_rock_break_02.wav", "sfx_rock_break_04.wav",
+		"sfx_rock_break_05.wav", "sfx_rock_break_06.wav",
+	]))
+	sfx_bank["sfx_rock_crack"] = _clips(_seq("sfx_rock_crack_", 1, 6))
+	sfx_bank["sfx_roundabout_place"] = _clips(_seq("sfx_roundabout_place_", 1, 3))
+	sfx_bank["sfx_roundabout_start"] = _clips(_seq("sfx_roundabout_start_", 1, 4))
+	sfx_bank["sfx_roundabout_unlock"] = _clips(PackedStringArray(["sfx_roundabout_unlock.wav"]))
+	sfx_bank["sfx_sculpture_place"] = _clips(PackedStringArray(["sfx_sculpture_place.wav"]))
+	sfx_bank["sfx_sculpture_select"] = _clips(PackedStringArray(["sfx_sculpture_select.wav"]))
+	sfx_bank["sfx_superOre_drop"] = _clips(_seq("sfx_superOre_drop_", 1, 4))
+	sfx_bank["sfx_superOre_lift"] = _clips(_seq("sfx_superOre_lift_", 1, 6))
+	sfx_bank["sfx_teleport_appear"] = _clips(PackedStringArray(["sfx_teleport_appear.wav"]))
+	sfx_bank["sfx_teleport_doorAppear"] = _clips(PackedStringArray(["sfx_teleport_doorAppear.wav"]))
+	sfx_bank["sfx_teleport_doorClose"] = _clips(PackedStringArray(["sfx_teleport_doorClose.wav"]))
+	sfx_bank["sfx_teleport_galaxy_presence_lp"] = _clips(PackedStringArray(["sfx_teleport_galaxy_presence_lp.wav"]))
+	sfx_bank["sfx_teleport_lp"] = _clips(PackedStringArray(["sfx_teleport_lp.wav"]))
+	sfx_bank["sfx_teleport_thronglet_disappear"] = _clips(PackedStringArray(["sfx_teleport_thronglet_disappear.wav"]))
+	sfx_bank["sfx_text_bubble_close"] = _clips(PackedStringArray(["sfx_text_bubble_close.wav"]))
+	sfx_bank["sfx_text_bubble_next"] = _clips(PackedStringArray(["sfx_text_bubble_next.wav"]))
+	sfx_bank["sfx_text_bubble_open"] = _clips(PackedStringArray(["sfx_text_bubble_open.wav"]))
+	sfx_bank["sfx_theatre_place"] = _clips(_seq("sfx_theatre_place_", 1, 3))
+	sfx_bank["sfx_thonglePackage_close"] = _clips(PackedStringArray(["sfx_thonglePackage_close.wav"]))
+	sfx_bank["sfx_thonglePackage_loading_lp"] = _clips(PackedStringArray(["sfx_thonglePackage_loading_lp.wav"]))
+	sfx_bank["sfx_thonglePackage_open"] = _clips(PackedStringArray(["sfx_thonglePackage_open.wav"]))
+	sfx_bank["sfx_thronglet_bones_drop"] = _clips(_seq("sfx_thronglet_bones_drop_", 1, 6))
+	sfx_bank["sfx_thronglet_bones_grab"] = _clips(_seq("sfx_thronglet_bones_grab_", 1, 6))
+	sfx_bank["sfx_thronglet_emoji_01"] = _clips(PackedStringArray(["sfx_thronglet_emoji_01.wav"]))
+	sfx_bank["sfx_thronglet_eyeGlow"] = _clips(PackedStringArray(["sfx_thronglet_eyeGlow.wav"]))
+	sfx_bank["sfx_thronglet_lumber_drop"] = _clips(_seq("sfx_thronglet_lumber_drop_", 1, 6))
+	sfx_bank["sfx_thronglet_lumber_grab"] = _clips(_seq("sfx_thronglet_lumber_grab_", 1, 6))
+	sfx_bank["sfx_thronglet_speed_run"] = _clips(_seq("sfx_thronglet_speed_run_", 1, 6))
+	sfx_bank["sfx_tree_apple_plant"] = _clips(_seq("sfx_tree_apple_plant_", 1, 4))
+	sfx_bank["sfx_tree_apple_unlock"] = _clips(PackedStringArray(["sfx_tree_apple_unlock.wav"]))
+	sfx_bank["sfx_tree_stump_destroy"] = _clips(_seq("sfx_tree_stump_destroy_", 1, 4))
+	sfx_bank["sfx_uplink_add_bomb"] = _clips(PackedStringArray(["sfx_uplink_add_bomb.wav"]))
+	sfx_bank["sfx_uplink_add_negative"] = _clips(_seq("sfx_uplink_add_negative_", 1, 3))
+	sfx_bank["sfx_uplink_add_positive"] = _clips(_seq("sfx_uplink_add_positive_", 1, 3))
+	sfx_bank["sfx_uplink_add_thronglet_multiple_lp_noHearts"] = _clips(PackedStringArray(["sfx_uplink_add_thronglet_multiple_lp_noHearts.wav"]))
+	sfx_bank["sfx_uplink_add_thronglet_single"] = _clips(_seq("sfx_uplink_add_thronglet_single_", 1, 3))
+	sfx_bank["sfx_uplink_googlyEyes_appear"] = _clips(PackedStringArray(["sfx_uplink_googlyEyes_appear.wav"]))
+	sfx_bank["sfx_uplink_grab"] = _clips(PackedStringArray(["sfx_uplink_grab.wav"]))
+	sfx_bank["sfx_uplink_place"] = _clips(PackedStringArray(["sfx_uplink_place.wav"]))
+	sfx_bank["sfx_uplink_unlock"] = _clips(PackedStringArray(["sfx_uplink_unlock.wav"]))
+	sfx_bank["sfx_water_splash"] = _clips(_seq("sfx_water_splash_", 1, 4))
+
+	# --- Thronglets (voces y sonidos) ---
+	sfx_bank["thronglet_crush"] = _clips(PackedStringArray(["thronglet_crush.wav"]))
+	sfx_bank["thronglet_glitch_a"] = _clips(PackedStringArray(["thronglet_glitch_a.wav"]))
+	sfx_bank["thronglet_glitch_b"] = _clips(PackedStringArray(["thronglet_glitch_b.wav"]))
+	sfx_bank["thronglet_glitch_c"] = _clips(PackedStringArray(["thronglet_glitch_c.wav"]))
+	sfx_bank["thronglet_glitch_d"] = _clips(PackedStringArray(["thronglet_glitch_d.wav"]))
+	sfx_bank["thronglet_glitch_e"] = _clips(PackedStringArray(["thronglet_glitch_e.wav"]))
+	sfx_bank["thronglet_jump_megafm"] = _clips(PackedStringArray(["thronglet_jump_megafm.wav"]))
+	sfx_bank["thronglet_scrub_a"] = _clips(PackedStringArray(["thronglet_scrub_a.wav"]))
+	sfx_bank["WaterSplashBeep"] = _clips(PackedStringArray(["WaterSplashBeep.wav"]))
+	sfx_bank["artifact_hum_loop"] = _clips(PackedStringArray(["artifact_hum_loop.ogg"]))
+	sfx_bank["hatch_success_stinger"] = _clips(PackedStringArray(["hatch_success_stinger.wav"]))
+	sfx_bank["monolith_reveal_nobeat_nobar"] = _clips(PackedStringArray(["monolith_reveal_nobeat_nobar.ogg"]))
+
+	# --- Voces de thronglets ---
+	sfx_bank["vo_throng_sing_group_small"] = _clips(_seq("vo_throng_sing_group_small_", 1, 13))
+	sfx_bank["vo_thronglet_prrr"] = _clips(_seq("vo_thronglet_prrr_", 1, 13))
+	sfx_bank["vo_thronglet_sing"] = _clips(_seq("vo_thronglet_sing_", 1, 6))
+	sfx_bank["vo_thronglet_upset_04"] = _clips(PackedStringArray(["vo_thronglet_upset_04.wav"]))
+	sfx_bank["vo_thronglet_upset_06"] = _clips(PackedStringArray(["vo_thronglet_upset_06.wav"]))
+	sfx_bank["vo_thronglet_upset_09"] = _clips(PackedStringArray(["vo_thronglet_upset_09.wav"]))
+	sfx_bank["vo_thronglet_upset_11"] = _clips(PackedStringArray(["vo_thronglet_upset_11.wav"]))
+	sfx_bank["vo_thronglet_upset_12"] = _clips(PackedStringArray(["vo_thronglet_upset_12.wav"]))
+
 	_fill_loose_clips()
 	sfx_bank["voice_upset"] = _clips(PackedStringArray([
 		"vo_thronglet_upset_04.wav", "vo_thronglet_upset_06.wav", "vo_thronglet_upset_09.wav",
@@ -6373,7 +6588,7 @@ func _fill_loose_clips() -> void:
 	var file_name := dir.get_next()
 	while file_name != "":
 		if not dir.current_is_dir() and (file_name.ends_with(".wav") or file_name.ends_with(".ogg")):
-			var stream: AudioStream = load("res://resources/audio/" + file_name)
+			var stream := _load_stream(file_name)
 			if stream != null and not packed.has(stream):
 				sfx_bank[file_name.get_basename()] = [stream]
 				packed[stream] = true
@@ -6388,8 +6603,9 @@ func _build_video() -> void:
 	video_player.expand = true
 	video_player.finished.connect(_on_video_finished)
 	var layer := CanvasLayer.new()
-	layer.layer = 100
+	layer.layer = 1000
 	add_child(layer)
+	captions_layer = layer
 	var plate := ColorRect.new()
 	plate.set_anchors_preset(Control.PRESET_FULL_RECT)
 	plate.color = Color(0, 0, 0, 1)
@@ -6398,6 +6614,127 @@ func _build_video() -> void:
 	video_player.set_meta("plate", plate)
 	layer.add_child(plate)
 	layer.add_child(video_player)
+	captions_label = _make_captions_label()
+	layer.add_child(captions_label)
+
+
+func _make_captions_label() -> Label:
+	var label := Label.new()
+	# Bottom-wide with negative offsets keeps text above the screen edge.
+	# z_index must beat video_player (80) or the full-rect video covers the text.
+	label.z_index = 90
+	label.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	label.offset_left = 80
+	label.offset_right = -80
+	label.offset_top = -160
+	label.offset_bottom = -48
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label.add_theme_font_override("font", _ui_font())
+	label.add_theme_font_size_override("font_size", 28)
+	label.add_theme_color_override("font_color", Color(1, 1, 1))
+	label.add_theme_color_override("font_outline_color", Color(0, 0, 0))
+	label.add_theme_constant_override("outline_size", 6)
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.visible = false
+	return label
+
+
+func _ensure_captions_label() -> void:
+	if captions_label != null and is_instance_valid(captions_label):
+		return
+	if captions_layer == null:
+		var new_layer := CanvasLayer.new()
+		new_layer.layer = 1000
+		add_child(new_layer)
+		captions_layer = new_layer
+	captions_label = _make_captions_label()
+	captions_layer.add_child(captions_label)
+
+
+func _caption_table_for(base: String) -> String:
+	# MOV_01..MOV_08 map to SEQ_1.5..SEQ_8.3 and localization tables SUB_SEQ_1..8.
+	if not base.begins_with("SEQ_"):
+		return ""
+	var seq_n := int(base.substr(4).get_slice(".", 0))
+	if seq_n < 1:
+		return ""
+	return "SUB_SEQ_%d" % seq_n
+
+
+func _caption_display_text(raw: String) -> String:
+	return str(raw).strip_edges().replace("\\n", "\n")
+
+
+func _clear_captions() -> void:
+	captions_lines.clear()
+	captions_ends.clear()
+	captions_index = -1
+	if captions_label != null:
+		captions_label.visible = false
+		captions_label.text = ""
+
+
+func _show_captions_for(base: String) -> void:
+	_ensure_captions_label()
+	_clear_captions()
+	if captions_label == null or not captions_on:
+		return
+	var table := _caption_table_for(base)
+	if table == "":
+		return
+	var weights: Array = []
+	var total_weight := 0.0
+	var i := 0
+	while true:
+		var raw := LineBook.row(table, i)
+		if raw == "":
+			break
+		var text := _caption_display_text(raw)
+		i += 1
+		if text == "":
+			continue
+		captions_lines.append(text)
+		var weight := maxf(24.0, float(text.length()))
+		weights.append(weight)
+		total_weight += weight
+	if captions_lines.is_empty() or total_weight <= 0.0:
+		return
+	var duration := 0.0
+	if video_player != null:
+		duration = video_player.get_stream_length()
+	if duration <= 0.05:
+		duration = total_weight * 0.08
+	var cursor := 0.0
+	for weight in weights:
+		cursor += duration * (float(weight) / total_weight)
+		captions_ends.append(cursor)
+	_apply_caption_at(0.0)
+
+
+func _apply_caption_at(pos: float) -> void:
+	if captions_label == null or captions_lines.is_empty():
+		return
+	var idx := 0
+	while idx < captions_ends.size() and pos >= float(captions_ends[idx]):
+		idx += 1
+	if idx >= captions_lines.size():
+		idx = captions_lines.size() - 1
+	if idx == captions_index:
+		return
+	captions_index = idx
+	captions_label.text = str(captions_lines[idx])
+	captions_label.visible = true
+	captions_label.move_to_front()
+
+
+func _tick_captions() -> void:
+	if not captions_on or captions_lines.is_empty():
+		return
+	if video_player == null or not video_player.visible or not video_player.is_playing():
+		return
+	_apply_caption_at(video_player.stream_position)
 
 
 func _play_video(base: String, from_title: bool) -> bool:
@@ -6409,24 +6746,43 @@ func _play_video(base: String, from_title: bool) -> bool:
 		return false
 	video_player.stream = stream
 	video_player.visible = true
-	var plate := video_player.get_meta("plate") as ColorRect
+	var plate: ColorRect = video_player.get_meta("plate") as ColorRect
 	if plate != null:
-		plate.visible = from_title or video_from_library
+		plate.visible = false
+	if music != null:
+		var tween: Tween = create_tween()
+		tween.tween_property(music, "volume_db", -80.0, 0.5)
+	if sting != null:
+		var tween2: Tween = create_tween()
+		tween2.tween_property(sting, "volume_db", -80.0, 0.5)
 	video_player.play()
 	video_played[base] = true
 	video_from_title = from_title
+	_show_captions_for(base)
 	return true
 
 
 func _on_video_finished() -> void:
-	if boot == "logo" and not logo_started:
-		return
+	# Siempre limpiar video y plate al terminar
 	if video_player != null:
 		video_player.visible = false
-		var plate := video_player.get_meta("plate") as ColorRect
+		var plate: ColorRect = video_player.get_meta("plate") as ColorRect
 		if plate != null:
 			plate.visible = false
+	_clear_captions()
+	# Si el video del logo aún no empezó, salir sin avanzar
+	if boot == "logo" and not logo_started:
+		return
+	# Restaurar música después del video (solo si no es el logo intro)
+	if boot != "logo":
+		if music != null:
+			var tween: Tween = create_tween()
+			tween.tween_property(music, "volume_db", -6.0, 1.0)
+		if sting != null:
+			var tween2: Tween = create_tween()
+			tween2.tween_property(sting, "volume_db", -4.0, 1.0)
 	if boot == "logo":
+		video_player.volume_db = 0.0
 		_begin_dos()
 		return
 	if video_from_library:
@@ -6460,10 +6816,54 @@ func _maybe_play_sequence(mode: String) -> void:
 func _clips(names: PackedStringArray) -> Array:
 	var out: Array = []
 	for clip_name in names:
-		var stream: AudioStream = load("res://resources/audio/" + clip_name)
+		var stream := _load_stream(clip_name)
 		if stream != null:
 			out.append(stream)
 	return out
+
+
+func _load_stream(clip_name: String) -> AudioStream:
+	var path := "res://resources/audio/" + clip_name
+	if ResourceLoader.exists(path):
+		var stream: AudioStream = load(path)
+		if stream != null:
+			return stream
+	if clip_name.ends_with(".wav"):
+		return _load_wav(path)
+	return null
+
+
+# Carga WAVs sin .import (dumps Unity con headers rotos o aún no reimportados).
+func _load_wav(path: String) -> AudioStream:
+	var file := FileAccess.open(path, FileAccess.READ)
+	if file == null:
+		return null
+	var raw := file.get_buffer(file.get_length())
+	file.close()
+	if raw.size() < 44:
+		return null
+	var data_offset := -1
+	var data_size := 0
+	var cursor := 12
+	while cursor + 8 <= raw.size():
+		var chunk_id := String(raw.slice(cursor, cursor + 4).get_string_from_ascii())
+		var chunk_size := int(raw.decode_u32(cursor + 4))
+		if chunk_id == "data":
+			data_offset = cursor + 8
+			data_size = chunk_size if chunk_size > 0 else raw.size() - data_offset
+			break
+		cursor += 8 + chunk_size + (chunk_size & 1)
+	if data_offset < 0:
+		return null
+	var channels := int(raw.decode_u16(22))
+	var mix_rate := int(raw.decode_u32(24))
+	var bits := int(raw.decode_u16(34))
+	var wav := AudioStreamWAV.new()
+	wav.format = AudioStreamWAV.FORMAT_16_BITS if bits == 16 else AudioStreamWAV.FORMAT_8_BITS
+	wav.mix_rate = mix_rate if mix_rate > 0 else 44100
+	wav.stereo = channels > 1
+	wav.data = raw.slice(data_offset, mini(data_offset + data_size, raw.size()))
+	return wav
 
 
 func _play(name: String) -> void:
@@ -6476,6 +6876,33 @@ func _play(name: String) -> void:
 	var player := _free_sfx()
 	player.stream = stream
 	player.play()
+
+
+# Reproduce un SFX y ejecuta `callback` al terminar. Hace fade-out de la música del menú.
+func _play_sfx_then(name: String, callback: Callable) -> void:
+	if music != null:
+		var music_tween := create_tween()
+		music_tween.tween_property(music, "volume_db", -80.0, 0.5)
+
+	var wait_time := 0.35
+	if _has_clip(name):
+		_play(name)
+		var stream: AudioStream = sfx_bank[name][0]
+		if stream != null:
+			wait_time = maxf(stream.get_length(), 0.1)
+	else:
+		_play("ui")
+
+	var timer := Timer.new()
+	timer.one_shot = true
+	timer.wait_time = wait_time
+	add_child(timer)
+	timer.timeout.connect(func() -> void:
+		timer.queue_free()
+		if callback.is_valid():
+			callback.call()
+	)
+	timer.start()
 
 
 func _has_clip(name: String) -> bool:
@@ -6494,6 +6921,8 @@ func _free_sfx() -> AudioStreamPlayer:
 
 
 func _sync_music() -> void:
+	if logo_video_playing:
+		return
 	var mode := "title"
 	if not in_title:
 		mode = _camera_biome()
