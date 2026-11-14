@@ -1,12 +1,13 @@
 extends Node2D
 
-# Layout bench. Places every prop and edits footprint, scale, offset, z, and rotation live.
+# Layout bench. Places every prop and edits footprint, reach, scale, offset, z, and rotation live.
 
 const PAD_MIN := -8
 const PAD_MAX := 40
 const THRONG_ID := "throng:0"
 const BATH_CLIP := "Throng_FallInBath_Spritesheet"
 const RIDE_CLIP := "ThrongA_Roundabout_SpriteSheet"
+const EFFECT_PREVIEW_SCALE := 8.0
 const ThrongTune := preload("res://throng_tune.gd")
 const AnimTune := preload("res://anim_tune.gd")
 
@@ -18,6 +19,8 @@ var name_label: Label
 var status: Label
 var grid_x: SpinBox
 var grid_y: SpinBox
+var reach_x: SpinBox
+var reach_y: SpinBox
 var scale_box: SpinBox
 var off_x: SpinBox
 var off_y: SpinBox
@@ -35,8 +38,31 @@ var next_uid := 1
 var nodes := {}
 var _fill := false
 var throng_mode := false
+var effect_mode := false
 var throng_rail: PanelContainer
 var throng_bar: PanelContainer
+var effect_rail: PanelContainer
+var effect_bar: PanelContainer
+var effect_list: VBoxContainer
+var effect_buttons := {}
+var effect_id := ""
+var effect_name: Label
+var effect_status: Label
+var effect_live: Label
+var effect_metrics: HBoxContainer
+var effect_spins := {}
+var effect_play_button: Button
+var effect_playing := true
+var effect_fed := 50.0
+var effect_fun := 50.0
+var effect_clean := 50.0
+var effect_t := 0.0
+var effect_pulse := 0.0
+var effect_clip := "ThrongA_Default"
+var effect_ring: Line2D
+var effect_gauge: Control
+var effect_gauge_fills: Array = []
+var effect_gauge_labels: Array = []
 var clip_list: VBoxContainer
 var clip_filter: LineEdit
 var clip_buttons := {}
@@ -71,7 +97,15 @@ var mirror := false
 func setup(host) -> void:
 	main = host
 	z_index = 6
+	effect_ring = Line2D.new()
+	effect_ring.width = 2.4
+	effect_ring.default_color = Color(1.0, 0.75, 0.15, 1.0)
+	effect_ring.z_index = 12
+	effect_ring.z_as_relative = false
+	effect_ring.visible = false
+	add_child(effect_ring)
 	_build_ui()
+	_build_effect_gauge()
 
 
 func open() -> void:
@@ -83,9 +117,15 @@ func open() -> void:
 	PropTune.load_saved()
 	ThrongTune.load_saved()
 	AnimTune.load_saved()
+	EffectTune.load_saved()
 	throng_mode = false
+	effect_mode = false
 	rail.visible = true
 	bar.visible = true
+	if effect_rail:
+		effect_rail.visible = false
+	if effect_bar:
+		effect_bar.visible = false
 	drag_id = ""
 	move_uid = -1
 	selected_clips.clear()
@@ -94,12 +134,23 @@ func open() -> void:
 	clip_anchor = ""
 	frame_anchor = 0
 	uid_anchor = -1
+	effect_id = ""
 	_arm("", -1)
 	tick()
 
 
 func close() -> void:
 	_clear_placed()
+	_hide_effect_need_bars()
+	if effect_gauge:
+		effect_gauge.queue_free()
+		effect_gauge = null
+		effect_gauge_fills.clear()
+		effect_gauge_labels.clear()
+	if effect_ring:
+		effect_ring.visible = false
+		effect_ring.queue_free()
+		effect_ring = null
 	if rail:
 		rail.visible = false
 		rail.queue_free()
@@ -116,6 +167,14 @@ func close() -> void:
 		throng_bar.visible = false
 		throng_bar.queue_free()
 		throng_bar = null
+	if effect_rail:
+		effect_rail.visible = false
+		effect_rail.queue_free()
+		effect_rail = null
+	if effect_bar:
+		effect_bar.visible = false
+		effect_bar.queue_free()
+		effect_bar = null
 
 
 func tick() -> void:
@@ -124,11 +183,17 @@ func tick() -> void:
 	_advance()
 	var draws: Array = []
 	var used := {}
+	var throng_inst := {}
 	for inst in placed:
+		if effect_mode and str(inst.id) == THRONG_ID:
+			throng_inst = inst
+			continue
 		var row := _row_for(str(inst.id))
 		if row.is_empty():
 			continue
 		_paint_inst(draws, row, _live_at(inst), 1.0, int(inst.uid), used)
+	if effect_mode and not throng_inst.is_empty():
+		_paint_effect_throng(draws, _live_at(throng_inst), 1.0)
 	if _show_ghost():
 		var ghost := _row_for(drag_id)
 		if not ghost.is_empty():
@@ -140,6 +205,12 @@ func tick() -> void:
 	_drop_nodes(used)
 	if throng_mode:
 		_sync_playhead()
+	if effect_mode:
+		_sync_effect_live()
+		_sync_effect_need_bars()
+		_sync_effect_ring()
+	elif effect_ring != null:
+		effect_ring.visible = false
 	queue_redraw()
 
 
@@ -155,18 +226,25 @@ func input(event: InputEvent) -> void:
 		main.get_viewport().set_input_as_handled()
 		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		if effect_mode:
+			main.get_viewport().set_input_as_handled()
+			return
 		_click(event.shift_pressed, event.meta_pressed)
 		main.get_viewport().set_input_as_handled()
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_DELETE or event.keycode == KEY_BACKSPACE:
-			_remove_selected()
+			if not effect_mode:
+				_remove_selected()
 			main.get_viewport().set_input_as_handled()
-		elif event.keycode == KEY_SPACE and throng_mode:
+		elif event.keycode == KEY_SPACE and (throng_mode or effect_mode):
 			var focus: Control = main.get_viewport().gui_get_focus_owner()
 			if focus is LineEdit:
 				return
-			_toggle_play()
+			if effect_mode:
+				_toggle_effect_play()
+			else:
+				_toggle_play()
 			main.get_viewport().set_input_as_handled()
 		elif event.keycode == KEY_ESCAPE:
 			if drag_id != "":
@@ -181,6 +259,8 @@ func input(event: InputEvent) -> void:
 
 func _draw() -> void:
 	if main == null:
+		return
+	if effect_mode:
 		return
 	var poly: PackedVector2Array = main._place_cell_poly()
 	if poly.is_empty():
@@ -198,6 +278,7 @@ func _draw() -> void:
 		var edge := Color(1.0, 0.35, 0.3, 0.95) if bad else Color(1.0, 0.9, 0.4, 0.95) if on else Color(0.55, 1.0, 0.7, 0.75)
 		for cell in _cells(origin, tune.footprint):
 			_stroke(cell, poly, edge, fill)
+		_stroke_reach(origin, tune, edge if on else Color(0.55, 0.9, 1.0, 0.28))
 		if on:
 			var mark := origin
 			if throng_mode and str(inst.id) == THRONG_ID and clip_name == BATH_CLIP:
@@ -213,6 +294,7 @@ func _draw() -> void:
 	var ghost_fill := Color(0.4, 0.7, 1.0, 0.14) if ghost_ok else Color(0.9, 0.25, 0.2, 0.2)
 	for cell in _cells(ghost_at, ghost_tune.footprint):
 		_stroke(cell, poly, ghost_edge, ghost_fill)
+	_stroke_reach(ghost_at, ghost_tune, Color(0.55, 0.86, 1.0, 0.7))
 
 
 func _click(shift: bool = false, meta: bool = false) -> void:
@@ -411,21 +493,26 @@ func _save_restart() -> void:
 	var prop_path: String = PropTune.save_file()
 	var throng_path: String = ThrongTune.save_file()
 	var anim_path: String = AnimTune.save_file()
-	if prop_path == "" or throng_path == "" or anim_path == "":
+	var effect_path: String = EffectTune.save_file()
+	if prop_path == "" or throng_path == "" or anim_path == "" or effect_path == "":
 		if status:
 			status.text = "NO SE PUDO GUARDAR"
 		if throng_status:
 			throng_status.text = "NO SE PUDO GUARDAR"
+		if effect_status:
+			effect_status.text = "NO SE PUDO GUARDAR"
 		return
 	print("prop tune: ", prop_path)
 	print("throng tune: ", throng_path)
 	print("anim tune: ", anim_path)
+	print("effect tune: ", effect_path)
 	PropTune.arm_boot()
 	main.get_tree().reload_current_scene()
 
 
 func _paint_ground() -> void:
 	main.tilemap.clear()
+	main._clear_paths()
 	for y in range(PAD_MIN, PAD_MAX + 1):
 		for x in range(PAD_MIN, PAD_MAX + 1):
 			main.tilemap.set_cell(Vector2i(x, y), 0, Vector2i(0, 0))
@@ -455,6 +542,8 @@ func _paint_inst(draws: Array, row: Dictionary, origin: Vector2, alpha: float, u
 	if str(row.get("id", "")) == THRONG_ID:
 		if throng_mode:
 			_paint_tuned(draws, origin, alpha)
+		elif effect_mode:
+			_paint_effect_throng(draws, origin, alpha)
 		else:
 			var clip := _throng_idle_clip(Time.get_ticks_msec() / 1000.0)
 			var frame := ThrongClips.frame_at(clip, 0)
@@ -731,7 +820,7 @@ func _build_ui() -> void:
 	bar = PanelContainer.new()
 	bar.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	bar.offset_left = 60
-	bar.offset_top = -136
+	bar.offset_top = -158
 	bar.offset_right = -4
 	bar.offset_bottom = -4
 	bar.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -740,7 +829,7 @@ func _build_ui() -> void:
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 2)
 	var hint := Label.new()
-	hint.text = "SHIFT+CLICK MULTI. SHIFT+CMD+CLICK RANGO. LOS CAMBIOS VAN A TODOS. SAVE ESCRIBE prop_tune, throng_tune Y anim_tune."
+	hint.text = "SHIFT+CLICK MULTI. SHIFT+CMD+CLICK RANGO. LOS CAMBIOS VAN A TODOS. SAVE ESCRIBE prop_tune, throng_tune, anim_tune Y effect_tune. RX/RY ES LA ELIPSE DE INTERACCION DE LOS THRONGLETS."
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(hint)
 	name_label = Label.new()
@@ -750,6 +839,8 @@ func _build_ui() -> void:
 	metrics.add_theme_constant_override("separation", 4)
 	grid_x = _spin(1, 8, 1, true)
 	grid_y = _spin(1, 8, 1, true)
+	reach_x = _spin(4, 160, 1)
+	reach_y = _spin(4, 160, 1)
 	scale_box = _spin(0.01, 3.0, 0.05)
 	off_x = _spin(-160, 160, 1)
 	off_y = _spin(-160, 160, 1)
@@ -757,6 +848,8 @@ func _build_ui() -> void:
 	rot_box = _spin(-180, 180, 1)
 	grid_x.tooltip_text = "Celdas que ocupa en X"
 	grid_y.tooltip_text = "Celdas que ocupa en Y"
+	reach_x.tooltip_text = "Eje X de la elipse de interaccion (pixeles de mundo). Los thronglets se acercan por este anillo."
+	reach_y.tooltip_text = "Eje Y de la elipse de interaccion (pixeles de mundo). Los thronglets se acercan por este anillo."
 	scale_box.tooltip_text = "Escala del sprite"
 	off_x.tooltip_text = "Mueve el sprite en X, pixeles de mundo"
 	off_y.tooltip_text = "Mueve el sprite en Y, pixeles de mundo"
@@ -764,6 +857,8 @@ func _build_ui() -> void:
 	rot_box.tooltip_text = "Rotacion en grados. Positivo gira a la derecha, alrededor del ancla."
 	_pair(metrics, "GX", grid_x)
 	_pair(metrics, "GY", grid_y)
+	_pair(metrics, "RX", reach_x)
+	_pair(metrics, "RY", reach_y)
 	_pair(metrics, "SC", scale_box)
 	_pair(metrics, "X", off_x)
 	_pair(metrics, "Y", off_y)
@@ -777,6 +872,7 @@ func _build_ui() -> void:
 	actions.add_child(quit_button)
 	actions.add_child(_text_button("SAVE & RESTART", _save_restart))
 	actions.add_child(_text_button("ANIM", _show_throng))
+	actions.add_child(_text_button("EFFECTS", _show_effects))
 	actions.add_child(_text_button("MENU", main._leave_dev))
 	status = Label.new()
 	status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -788,12 +884,15 @@ func _build_ui() -> void:
 	root.add_child(bar)
 	grid_x.value_changed.connect(_on_foot)
 	grid_y.value_changed.connect(_on_foot)
+	reach_x.value_changed.connect(_on_reach)
+	reach_y.value_changed.connect(_on_reach)
 	scale_box.value_changed.connect(_on_scale)
 	off_x.value_changed.connect(_on_offset)
 	off_y.value_changed.connect(_on_offset)
 	z_box.value_changed.connect(_on_z)
 	rot_box.value_changed.connect(_on_rot)
 	_build_throng_ui(theme, root)
+	_build_effect_ui(theme, root)
 
 
 func _build_list() -> void:
@@ -915,6 +1014,9 @@ func _clear_edit() -> void:
 func _set_edit_enabled(on: bool) -> void:
 	for box in [grid_x, grid_y, scale_box, off_x, off_y, z_box, rot_box]:
 		box.editable = on
+	var building := on and str(PropTune.entry(armed).get("group", "")) == "building"
+	reach_x.editable = building
+	reach_y.editable = building
 
 
 func _fill_inspector() -> void:
@@ -924,6 +1026,7 @@ func _fill_inspector() -> void:
 	var tune: Dictionary = PropTune.get_tune(armed)
 	var size: Vector2i = tune.footprint
 	var off: Vector2 = tune.offset
+	var reach: Vector2 = tune.reach
 	var title := "%s   %s" % [str(row.label), str(row.constant)]
 	var kinds := _edit_ids()
 	if kinds.size() > 1:
@@ -932,12 +1035,15 @@ func _fill_inspector() -> void:
 	_fill = true
 	grid_x.set_value_no_signal(size.x)
 	grid_y.set_value_no_signal(size.y)
+	reach_x.set_value_no_signal(reach.x)
+	reach_y.set_value_no_signal(reach.y)
 	scale_box.set_value_no_signal(float(tune.scale))
 	off_x.set_value_no_signal(off.x)
 	off_y.set_value_no_signal(off.y)
 	z_box.set_value_no_signal(float(tune.z))
 	rot_box.set_value_no_signal(float(tune.rot))
 	_fill = false
+	_set_edit_enabled(true)
 
 
 func _mark_buttons() -> void:
@@ -965,13 +1071,16 @@ func _sync_quit() -> void:
 func _refresh_status() -> void:
 	var props: int = PropTune.change_count()
 	var clips: int = ThrongTune.change_count() + AnimTune.change_count()
+	var effects: int = EffectTune.change_count()
 	var text := "SIN CAMBIOS"
-	if props > 0 or clips > 0:
-		text = "%d PROPS  %d CLIPS" % [props, clips]
+	if props > 0 or clips > 0 or effects > 0:
+		text = "%d PROPS  %d CLIPS  %d FX" % [props, clips, effects]
 	if status:
 		status.text = text
 	if throng_status:
 		throng_status.text = text
+	if effect_status:
+		effect_status.text = text
 
 
 func _on_foot(_v: float) -> void:
@@ -1043,6 +1152,37 @@ func _on_rot(v: float) -> void:
 		PropTune.set_rot(str(id), v)
 	_mark_buttons()
 	_refresh_status()
+
+
+func _on_reach(_v: float) -> void:
+	if _fill:
+		return
+	var ids := _edit_ids()
+	if ids.is_empty():
+		return
+	for id in ids:
+		if str(PropTune.entry(str(id)).get("group", "")) != "building":
+			continue
+		PropTune.set_reach(str(id), reach_x.value, reach_y.value)
+	_mark_buttons()
+	_refresh_status()
+	queue_redraw()
+
+
+func _stroke_reach(origin: Vector2, tune: Dictionary, color: Color) -> void:
+	var reach: Vector2 = tune.get("reach", Vector2.ZERO)
+	if reach.x < 1.0 or reach.y < 1.0:
+		return
+	var size: Vector2i = tune.footprint
+	var center: Vector2 = origin + Catalog.footprint_center(size)
+	var pts := PackedVector2Array()
+	var steps := 28
+	for i in steps + 1:
+		var ang := TAU * float(i) / float(steps)
+		var world := center + Vector2(cos(ang) * reach.x, sin(ang) * reach.y)
+		pts.append(main._to_iso(world))
+	for i in pts.size() - 1:
+		draw_line(pts[i], pts[i + 1], color, 1.2, false)
 
 
 func _build_throng_ui(theme: Theme, root: Control) -> void:
@@ -1136,6 +1276,7 @@ func _build_throng_ui(theme: Theme, root: Control) -> void:
 	save_row.add_theme_constant_override("separation", 4)
 	save_row.add_child(_text_button("SAVE & RESTART", _save_restart))
 	save_row.add_child(_text_button("PROPS", _show_props))
+	save_row.add_child(_text_button("EFFECTS", _show_effects))
 	save_row.add_child(_text_button("MENU", main._leave_dev))
 	throng_status = Label.new()
 	throng_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1150,6 +1291,591 @@ func _build_throng_ui(theme: Theme, root: Control) -> void:
 	throng_x.value_changed.connect(_on_throng_offset)
 	throng_y.value_changed.connect(_on_throng_offset)
 	throng_rot.value_changed.connect(_on_throng_rot)
+
+
+func _build_effect_ui(theme: Theme, root: Control) -> void:
+	effect_rail = PanelContainer.new()
+	effect_rail.set_anchors_preset(Control.PRESET_LEFT_WIDE)
+	effect_rail.offset_left = 4
+	effect_rail.offset_top = 4
+	effect_rail.offset_right = 188
+	effect_rail.offset_bottom = -4
+	effect_rail.mouse_filter = Control.MOUSE_FILTER_STOP
+	effect_rail.theme = theme
+	effect_rail.visible = false
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.mouse_filter = Control.MOUSE_FILTER_STOP
+	effect_list = VBoxContainer.new()
+	effect_list.add_theme_constant_override("separation", 1)
+	effect_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(effect_list)
+	effect_rail.add_child(scroll)
+	root.add_child(effect_rail)
+	_build_effect_list()
+
+	effect_bar = PanelContainer.new()
+	effect_bar.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	effect_bar.offset_left = 196
+	effect_bar.offset_top = -148
+	effect_bar.offset_right = -4
+	effect_bar.offset_bottom = -4
+	effect_bar.mouse_filter = Control.MOUSE_FILTER_STOP
+	effect_bar.theme = theme
+	effect_bar.visible = false
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 2)
+	var hint := Label.new()
+	hint.text = "PREVIEW EN VIVO DEL EFECTO. SPACE PAUSA. REPLAY REINICIA LAS BARRAS. SAVE ESCRIBE effect_tune.json."
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(hint)
+	effect_name = Label.new()
+	effect_name.clip_text = true
+	box.add_child(effect_name)
+	effect_live = Label.new()
+	effect_live.clip_text = true
+	box.add_child(effect_live)
+	effect_metrics = HBoxContainer.new()
+	effect_metrics.add_theme_constant_override("separation", 4)
+	box.add_child(effect_metrics)
+	var actions := HBoxContainer.new()
+	actions.add_theme_constant_override("separation", 4)
+	effect_play_button = _text_button("PAUSA", _toggle_effect_play)
+	actions.add_child(effect_play_button)
+	actions.add_child(_text_button("REPLAY", _replay_effect))
+	actions.add_child(_text_button("RESET", _reset_effect))
+	actions.add_child(_text_button("SAVE & RESTART", _save_restart))
+	actions.add_child(_text_button("PROPS", _show_props))
+	actions.add_child(_text_button("ANIM", _show_throng))
+	actions.add_child(_text_button("MENU", main._leave_dev))
+	effect_status = Label.new()
+	effect_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	effect_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	effect_status.clip_text = true
+	actions.add_child(effect_status)
+	box.add_child(actions)
+	effect_bar.add_child(box)
+	root.add_child(effect_bar)
+
+
+func _build_effect_list() -> void:
+	var last_group := ""
+	for row in EffectTune.entries():
+		var group := str(row.group)
+		if group != last_group:
+			var label := Label.new()
+			label.text = group
+			label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			effect_list.add_child(label)
+			last_group = group
+		var button := Button.new()
+		button.text = str(row.label)
+		button.tooltip_text = str(row.id)
+		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		button.clip_text = true
+		button.focus_mode = Control.FOCUS_NONE
+		button.custom_minimum_size = Vector2(0, 20)
+		button.pressed.connect(_select_effect.bind(str(row.id)))
+		effect_list.add_child(button)
+		effect_buttons[str(row.id)] = button
+
+
+func _select_effect(id: String) -> void:
+	effect_id = id
+	_fill_effect()
+	_stage_effect()
+	_mark_effects()
+	_refresh_status()
+
+
+func _fill_effect() -> void:
+	_fill = true
+	for child in effect_metrics.get_children():
+		child.queue_free()
+	effect_spins.clear()
+	if effect_id == "" or EffectTune.entry(effect_id).is_empty():
+		effect_name.text = "SIN EFECTO"
+		_fill = false
+		return
+	var row: Dictionary = EffectTune.entry(effect_id)
+	var tune: Dictionary = EffectTune.get_tune(effect_id)
+	effect_name.text = "%s  (%s)" % [str(row.label), effect_id]
+	for key in row.fields:
+		var field := str(key)
+		var meta: Dictionary = EffectTune.field_meta(effect_id, field)
+		var box := _spin(float(meta.min), float(meta.max), float(meta.step), bool(meta.whole))
+		box.set_value_no_signal(float(tune.get(field, 0.0)))
+		var field_key := field
+		box.value_changed.connect(func(_v: float): _on_effect_num(field_key))
+		_pair(effect_metrics, field.to_upper(), box)
+		effect_spins[field] = box
+	_fill = false
+	_sync_effect_live()
+
+
+func _on_effect_num(key: String) -> void:
+	if _fill or effect_id == "":
+		return
+	var box: SpinBox = effect_spins.get(key, null)
+	if box == null:
+		return
+	EffectTune.set_num(effect_id, key, float(box.value))
+	_mark_effects()
+	_refresh_status()
+	queue_redraw()
+
+
+func _reset_effect() -> void:
+	if effect_id == "":
+		return
+	EffectTune.reset(effect_id)
+	_fill_effect()
+	_stage_effect()
+	_mark_effects()
+	_refresh_status()
+
+
+func _mark_effects() -> void:
+	for id in effect_buttons.keys():
+		var button: Button = effect_buttons[id]
+		var dirty := EffectTune.is_dirty(str(id))
+		if str(id) == effect_id:
+			button.modulate = Color(1, 0.86, 0.4)
+		elif dirty:
+			button.modulate = Color(0.65, 1.0, 0.7)
+		else:
+			button.modulate = Color.WHITE
+
+
+func _toggle_effect_play() -> void:
+	effect_playing = not effect_playing
+	_sync_effect_play_button()
+
+
+func _replay_effect() -> void:
+	_effect_reset_needs()
+	effect_playing = true
+	_sync_effect_play_button()
+	_sync_effect_live()
+
+
+func _sync_effect_play_button() -> void:
+	if effect_play_button:
+		effect_play_button.text = "PAUSA" if effect_playing else "PLAY"
+
+
+func _sync_effect_live() -> void:
+	if effect_live == null:
+		return
+	effect_live.text = "FED %d   FUN %d   CLEAN %d   (preview x%d)" % [
+		int(round(effect_fed)),
+		int(round(effect_fun)),
+		int(round(effect_clean)),
+		int(EFFECT_PREVIEW_SCALE),
+	]
+
+
+func _effect_clip_for(id: String) -> String:
+	match id:
+		"act:eat":
+			return "ThrongA_Eat"
+		"act:bath":
+			return BATH_CLIP
+		"act:round":
+			return RIDE_CLIP
+		"act:play", "act:ball", "aura:flower", "aura:statue", "aura:wood", "aura:ball", "feat:totem":
+			return "ThrongA_Jump_VariantA_Spritesheet"
+		"act:sponge", "feat:curer":
+			return "ThrongA_Happy"
+		"feat:fire", "goo":
+			return "ThrongA_Sad"
+		_:
+			return "ThrongA_Default"
+
+
+func _effect_reset_needs() -> void:
+	effect_t = 0.0
+	effect_pulse = 0.0
+	match effect_id:
+		"decay", "goo", "feat:fire":
+			effect_fed = 100.0
+			effect_fun = 100.0
+			effect_clean = 100.0
+		"need":
+			effect_fed = 50.0
+			effect_fun = 50.0
+			effect_clean = 50.0
+		"act:eat":
+			effect_fed = 20.0
+			effect_fun = 70.0
+			effect_clean = 70.0
+		"act:bath", "act:sponge", "act:mop", "feat:curer":
+			effect_fed = 70.0
+			effect_fun = 70.0
+			effect_clean = 20.0
+		"act:play", "act:ball", "act:round", "visit:theatre", "aura:flower", "aura:statue", "aura:wood", "aura:ball", "feat:totem":
+			effect_fed = 70.0
+			effect_fun = 20.0
+			effect_clean = 70.0
+		"visit:dwell", "visit:fancy":
+			effect_fed = 20.0
+			effect_fun = 70.0
+			effect_clean = 20.0
+		_:
+			effect_fed = 40.0
+			effect_fun = 40.0
+			effect_clean = 40.0
+
+
+func _effect_partner_kind() -> int:
+	match effect_id:
+		"visit:dwell":
+			return Catalog.BLD_DWELL
+		"visit:fancy":
+			return Catalog.BLD_FANCY
+		"visit:theatre":
+			return Catalog.BLD_THEATRE
+		"aura:flower", "act:play":
+			return Catalog.BLD_FLOWER
+		"aura:statue":
+			return Catalog.BLD_STATUE
+		"aura:wood":
+			return Catalog.BLD_WOOD
+		"act:bath":
+			return Catalog.BLD_TUB
+		"act:round":
+			return Catalog.BLD_ROUND
+		_:
+			return -1
+
+
+func _effect_partner_feature() -> int:
+	match effect_id:
+		"feat:totem":
+			return Catalog.FEAT_TOTEM
+		"feat:curer":
+			return Catalog.FEAT_CURER
+		"feat:fire":
+			return Catalog.FEAT_FIRE
+		_:
+			return -1
+
+
+func _stage_effect() -> void:
+	_clear_placed()
+	_paint_ground()
+	effect_clip = _effect_clip_for(effect_id)
+	effect_playing = true
+	_sync_effect_play_button()
+	_effect_reset_needs()
+	var throng_cell := Vector2i(8, 16)
+	if effect_id == "goo":
+		for oy in range(-2, 3):
+			for ox in range(-2, 3):
+				var cell := throng_cell + Vector2i(ox, oy)
+				main.tilemap.set_cell(cell, 0, Vector2i(main.WASTE_ATLAS + absi((cell.x * 3 + cell.y * 5) % main.WASTE_VARIANTS), 0))
+	# Items sit beside the thronglet. Buildings/features are painted with the throng so sort stays correct.
+	var item_id := ""
+	if effect_id == "act:eat":
+		item_id = "item:%d" % Catalog.ITEM_APPLE
+	elif effect_id == "act:ball" or effect_id == "aura:ball":
+		item_id = "item:%d" % Catalog.ITEM_BALL
+	if item_id != "":
+		var uid := next_uid
+		next_uid += 1
+		placed.append({"uid": uid, "id": item_id, "at": Catalog.cell_world(throng_cell + Vector2i(1, 0))})
+	var throng_uid := next_uid
+	next_uid += 1
+	placed.append({"uid": throng_uid, "id": THRONG_ID, "at": Catalog.cell_world(throng_cell)})
+	main.camera.position = main._to_iso(Catalog.cell_world(throng_cell))
+	_sync_effect_live()
+
+
+func _tick_effect(dt: float) -> void:
+	var tune: Dictionary = EffectTune.get_tune(effect_id)
+	var step := dt * EFFECT_PREVIEW_SCALE
+	match effect_id:
+		"decay":
+			effect_fed = maxf(0.0, effect_fed - float(tune.fed) * step)
+			effect_fun = maxf(0.0, effect_fun - float(tune.fun) * step)
+			effect_clean = maxf(0.0, effect_clean - float(tune.clean) * step)
+		"goo":
+			effect_fed = maxf(0.0, effect_fed - float(tune.fed) * step)
+			effect_clean = maxf(0.0, effect_clean - float(tune.clean) * step)
+		"need":
+			pass
+		"visit:dwell", "visit:fancy", "visit:theatre":
+			effect_fed = minf(100.0, effect_fed + float(tune.fed) * step)
+			effect_clean = minf(100.0, effect_clean + float(tune.clean) * step)
+			effect_fun = minf(100.0, effect_fun + float(tune.fun) * step)
+		"aura:flower", "aura:statue", "aura:wood", "feat:totem", "aura:ball":
+			effect_fun = minf(100.0, effect_fun + float(tune.fun) * step)
+		"feat:curer":
+			effect_fed = minf(100.0, effect_fed + float(tune.fed) * step)
+			effect_clean = minf(100.0, effect_clean + float(tune.clean) * step)
+			effect_fun = minf(100.0, effect_fun + float(tune.fun) * step)
+		"feat:fire":
+			effect_clean = maxf(0.0, effect_clean - float(tune.clean) * step)
+		"act:bath":
+			effect_clean = minf(100.0, effect_clean + float(tune.clean) * step)
+		"act:play", "act:round":
+			effect_fun = minf(100.0, effect_fun + float(tune.fun) * step)
+		"act:eat":
+			effect_pulse += step
+			if effect_pulse >= float(tune.bite):
+				effect_pulse = 0.0
+				effect_fed = float(tune.fed)
+				effect_t = 0.0
+			elif effect_fed >= float(tune.fed) - 0.01 and effect_t > 1.2:
+				effect_fed = 20.0
+		"act:ball":
+			effect_pulse += step
+			if effect_pulse >= 1.2:
+				effect_pulse = 0.0
+				effect_fun = minf(100.0, effect_fun + float(tune.fun))
+		"act:sponge":
+			effect_pulse += step
+			if effect_pulse >= 0.35:
+				effect_pulse = 0.0
+				var stroke := float(tune.stroke_cap)
+				effect_clean = minf(100.0, effect_clean + stroke * float(tune.gain) * 0.25)
+		"act:mop":
+			effect_pulse += step
+			if effect_pulse >= 1.0:
+				effect_pulse = 0.0
+				effect_clean = float(tune.clean)
+				effect_t = 0.0
+			elif effect_clean >= float(tune.clean) - 0.01 and effect_t > 1.5:
+				effect_clean = 20.0
+
+
+func _effect_throng_origin() -> Vector2:
+	for inst in placed:
+		if str(inst.id) == THRONG_ID:
+			return _live_at(inst)
+	return Catalog.cell_world(Vector2i(8, 16))
+
+
+func _effect_partner_origin(throng_origin: Vector2) -> Vector2:
+	var kind := _effect_partner_kind()
+	if kind == Catalog.BLD_TUB or kind == Catalog.BLD_ROUND:
+		return throng_origin
+	if kind >= 0:
+		var tune: Dictionary = PropTune.get_tune("building:%d" % kind)
+		var size: Vector2i = tune.get("footprint", Vector2i(1, 1))
+		# Keep the thronglet south of the prop so it sorts and reads in front.
+		return throng_origin - Vector2(0, float(Catalog.TILE * (maxi(size.y, 1) + 1)))
+	var feat := _effect_partner_feature()
+	if feat >= 0:
+		return throng_origin - Vector2(0, float(Catalog.TILE * 2))
+	return throng_origin
+
+
+func _paint_effect_partner(draws: Array, origin: Vector2, alpha: float) -> float:
+	var partner_at := _effect_partner_origin(origin)
+	var kind := _effect_partner_kind()
+	if kind >= 0:
+		var before := draws.size()
+		var prop_frame := -1
+		if kind == Catalog.BLD_ROUND:
+			prop_frame = main.ROUND_ANIM + posmod(int(effect_t * 8.0), 8)
+		elif kind == Catalog.BLD_FLOWER:
+			prop_frame = main.FLOWER_ANIM + posmod(int(effect_t * 6.0), main.FLOWER_ANIM_N)
+		_paint_building(draws, kind, partner_at, alpha, prop_frame)
+		if draws.size() > before:
+			return float(draws[draws.size() - 1].get("sy", 0.0)) + 1.0
+		return main._prop_front_sort_y(main._building_draw_at(kind, partner_at))
+	var feat := _effect_partner_feature()
+	if feat >= 0:
+		var row: Dictionary = PropTune.entry("feature:%d" % feat)
+		if row.is_empty():
+			return NAN
+		var before := draws.size()
+		_paint_inst(draws, row, partner_at, alpha, -1, {})
+		if draws.size() > before:
+			return float(draws[draws.size() - 1].get("sy", 0.0)) + 1.0
+	return NAN
+
+
+func _paint_effect_throng(draws: Array, origin: Vector2, alpha: float) -> void:
+	var sort_y := _paint_effect_partner(draws, origin, alpha)
+	var clip := effect_clip
+	var box: Vector2i = ThrongClips.CLIPS.get(clip, Vector2i(ThrongClips.BASE, 1))
+	var fps := float(ThrongTune.get_tune(clip).get("fps", 8.0))
+	var index := 0
+	if box.y > 1:
+		if clip == BATH_CLIP:
+			index = clampi(int(effect_t * 4.0) % box.y, 0, box.y - 1)
+		else:
+			index = posmod(int(effect_t * fps), box.y)
+	var frame := ThrongClips.frame_at(clip, index)
+	var off: Vector2 = ThrongTune.frame_offset(clip, index)
+	var pos := origin + off
+	var lift := 0.0
+	if effect_id == "act:bath":
+		pos = origin + Catalog.TUB_SEAT_OFF + off
+		lift = _bath_lift(index)
+	elif effect_id == "act:round":
+		lift = absf(sin(effect_t * 10.0)) * 1.5
+	if is_nan(sort_y):
+		sort_y = main._to_iso(origin).y + 8.0
+	else:
+		# Keep the thronglet clearly in front of the partner prop.
+		sort_y = maxf(sort_y, main._to_iso(origin).y + 8.0)
+	main._push_iso(draws, pos, frame, Color(1, 1, 1, alpha), lift, ThrongTune.frame_scale(clip, index), sort_y)
+	draws[draws.size() - 1]["rot"] = ThrongTune.frame_rot(clip, index)
+	draws[draws.size() - 1]["dirty"] = 1.0 - clampf(effect_clean / 100.0, 0.0, 1.0)
+	_paint_effect_fx(draws, pos, sort_y + 1.0)
+
+
+func _paint_effect_fx(draws: Array, pos: Vector2, sort_y: float) -> void:
+	var time := effect_t
+	var spark: int = main._prop_frame(Catalog.ICON_FX_SPARK)
+	var poof: int = main._prop_frame(Catalog.ICON_FX_POOF)
+	match effect_id:
+		"aura:flower", "aura:statue", "aura:wood", "aura:ball", "feat:totem", "act:play":
+			for i in 3:
+				var ang := time * 4.0 + float(i) * TAU / 3.0
+				var wob := Vector2(cos(ang) * 14.0, sin(ang) * 8.0 - 10.0)
+				main._push_iso(draws, pos + wob, spark, Color(1, 1, 1, 0.95), 12.0 + float(i), 1.0, sort_y + 0.4 + float(i) * 0.1)
+		"feat:curer", "act:sponge", "act:mop":
+			var bub := Vector2(cos(time * 14.0) * 7.0, sin(time * 14.0) * 4.0)
+			var bubble := AssetFrames.frame(AssetFrames.SUDS, AssetFrames.SUDS_N, 0)
+			if bubble < 0:
+				bubble = main._prop_frame(Catalog.ICON_SPONGE)
+			main._push_iso(draws, pos + bub, bubble, Color(1, 1, 1, 0.95), 10.0, 1.0, sort_y + 0.4)
+			var clean := AssetFrames.frame(AssetFrames.CLEAN, AssetFrames.CLEAN_N, int(time * 10.0))
+			if clean >= 0:
+				main._push_iso(draws, pos + bub * 0.4, clean, Color(1, 1, 1, 0.9), 12.0, 1.0, sort_y + 0.5)
+			main._push_iso(draws, pos + Vector2(0, -12), spark, Color(1, 1, 1, 0.85), 14.0, 1.0, sort_y + 0.6)
+		"act:bath":
+			var splash := AssetFrames.frame(AssetFrames.SPLASH, AssetFrames.SPLASH_N, int(time * 8.0))
+			if splash >= 0:
+				main._push_iso(draws, pos + Vector2(0, 2), splash, Color(1, 1, 1, 0.95), 4.0, 1.0, sort_y + 0.4)
+			var suds := AssetFrames.frame(AssetFrames.SUDS, AssetFrames.SUDS_N, 0)
+			if suds >= 0:
+				main._push_iso(draws, pos + Vector2(cos(time * 6.0) * 5.0, -2.0), suds, Color(1, 1, 1, 0.9), 8.0, 1.0, sort_y + 0.5)
+			main._push_iso(draws, pos + Vector2(0, -10), spark, Color(1, 1, 1, 0.8), 12.0, 1.0, sort_y + 0.6)
+		"act:eat":
+			var bob := Vector2(0, -12.0 - absf(sin(time * 8.0)) * 5.0)
+			main._push_iso(draws, pos + bob, main._prop_frame(Catalog.ICON_APPLE), Color(1, 1, 1, 1.0), 10.0, Catalog.APPLE_SPRITE_SCALE, sort_y + 0.4)
+			main._push_iso(draws, pos + bob + Vector2(6, -4), spark, Color(1, 1, 1, 0.9), 14.0, 1.0, sort_y + 0.5)
+		"act:ball":
+			var kick := Vector2(sin(time * 6.0) * 14.0, cos(time * 6.0) * 5.0 - 8.0)
+			main._push_iso(draws, pos + kick, main._prop_frame(Catalog.ICON_BALL), Color(1, 1, 1, 1.0), 8.0, 1.0, sort_y + 0.4)
+			main._push_iso(draws, pos + kick + Vector2(0, -8), spark, Color(1, 1, 1, 0.9), 12.0, 1.0, sort_y + 0.5)
+		"feat:fire":
+			var fire := AssetFrames.frame(AssetFrames.FIRE, AssetFrames.FIRE_N, int(time * 8.0))
+			if fire >= 0:
+				main._push_iso(draws, pos + Vector2(10, -4), fire, Color(1, 1, 1, 1.0), 6.0, 1.0, sort_y + 0.4)
+			var blob := AssetFrames.frame(AssetFrames.FIRE_BLOB, AssetFrames.FIRE_BLOB_N, int(time * 8.0))
+			if blob >= 0:
+				main._push_iso(draws, pos + Vector2(sin(time * 5.0) * 10.0, -12.0), blob, Color(1, 1, 1, 0.95), 10.0, 1.0, sort_y + 0.5)
+			main._push_iso(draws, pos + Vector2(-6, -8), poof, Color(1, 1, 1, 0.7), 8.0, 1.0, sort_y + 0.3)
+		"visit:dwell", "visit:fancy", "visit:theatre":
+			for i in 3:
+				var up := Vector2(sin(time * 3.0 + float(i)) * 8.0, -6.0 - fmod(time * 22.0 + float(i) * 7.0, 22.0))
+				main._push_iso(draws, pos + up, spark, Color(1, 1, 1, 0.95), 12.0 + float(i), 1.0, sort_y + 0.4 + float(i) * 0.1)
+		"decay", "goo":
+			main._push_iso(draws, pos + Vector2(cos(time * 7.0) * 6.0, -8.0), poof, Color(1, 1, 1, 0.75), 8.0, 1.0, sort_y + 0.4)
+
+
+func _build_effect_gauge() -> void:
+	var root: Control = main.ui.get_child(0)
+	effect_gauge = Control.new()
+	effect_gauge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	effect_gauge.visible = false
+	effect_gauge.z_index = 20
+	root.add_child(effect_gauge)
+	effect_gauge_fills.clear()
+	effect_gauge_labels.clear()
+	var names := ["FED", "FUN", "CLEAN"]
+	var colors := [Color(0.86, 0.22, 0.24), Color(0.95, 0.72, 0.22), Color(0.32, 0.62, 0.9)]
+	for i in 3:
+		var row := HBoxContainer.new()
+		row.position = Vector2(0, float(i) * 18.0)
+		row.add_theme_constant_override("separation", 4)
+		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var tag := Label.new()
+		tag.text = names[i]
+		tag.custom_minimum_size = Vector2(44, 14)
+		tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_child(tag)
+		var track := ColorRect.new()
+		track.custom_minimum_size = Vector2(90, 10)
+		track.color = Color(0, 0, 0, 0.65)
+		track.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_child(track)
+		var fill := ColorRect.new()
+		fill.color = colors[i]
+		fill.size = Vector2(90, 10)
+		fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		track.add_child(fill)
+		effect_gauge_fills.append(fill)
+		var value := Label.new()
+		value.custom_minimum_size = Vector2(28, 14)
+		value.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_child(value)
+		effect_gauge_labels.append(value)
+		effect_gauge.add_child(row)
+
+
+func _sync_effect_need_bars() -> void:
+	if effect_gauge == null:
+		return
+	var origin := _effect_throng_origin()
+	if effect_id == "act:bath":
+		origin += Catalog.TUB_SEAT_OFF
+	var world: Vector2 = main._to_iso(origin) + Vector2(-20, -56)
+	var screen: Vector2 = main.get_viewport().get_canvas_transform() * world
+	effect_gauge.position = screen
+	effect_gauge.visible = true
+	var amounts := [effect_fed, effect_fun, effect_clean]
+	for i in 3:
+		var fill: ColorRect = effect_gauge_fills[i]
+		fill.size = Vector2(90.0 * clampf(amounts[i] / 100.0, 0.0, 1.0), 10)
+		var label: Label = effect_gauge_labels[i]
+		label.text = str(int(round(amounts[i])))
+	main.need_show = false
+	for node in main.need_backs:
+		node.visible = false
+	for node in main.need_fills:
+		node.visible = false
+
+
+func _hide_effect_need_bars() -> void:
+	if effect_gauge != null:
+		effect_gauge.visible = false
+	if main == null:
+		return
+	main.need_show = false
+	for node in main.need_backs:
+		node.visible = false
+	for node in main.need_fills:
+		node.visible = false
+
+
+func _effect_radius_center() -> Vector2:
+	return _effect_throng_origin()
+
+
+func _sync_effect_ring() -> void:
+	if effect_ring == null:
+		return
+	var tune: Dictionary = EffectTune.get_tune(effect_id)
+	if not tune.has("radius") or float(tune.radius) < 1.0:
+		effect_ring.visible = false
+		return
+	var radius := float(tune.radius)
+	var center := _effect_radius_center()
+	var pts := PackedVector2Array()
+	var steps := 36
+	for i in steps + 1:
+		var ang := TAU * float(i) / float(steps)
+		pts.append(main._to_iso(center + Vector2(cos(ang) * radius, sin(ang) * radius)))
+	effect_ring.points = pts
+	effect_ring.visible = true
 
 
 func _build_clip_list() -> void:
@@ -1213,10 +1939,20 @@ func _short(clip: String) -> String:
 
 func _show_throng() -> void:
 	throng_mode = true
+	effect_mode = false
 	rail.visible = false
 	bar.visible = false
+	if effect_rail:
+		effect_rail.visible = false
+	if effect_bar:
+		effect_bar.visible = false
+	if effect_ring:
+		effect_ring.visible = false
+	_hide_effect_need_bars()
 	throng_rail.visible = true
 	throng_bar.visible = true
+	_clear_placed()
+	_paint_ground()
 	_ensure_stage()
 	if clip_name == "":
 		_select_clip("ThrongA_Default")
@@ -1231,13 +1967,43 @@ func _show_throng() -> void:
 
 func _show_props() -> void:
 	throng_mode = false
+	effect_mode = false
 	if throng_rail:
 		throng_rail.visible = false
 	if throng_bar:
 		throng_bar.visible = false
+	if effect_rail:
+		effect_rail.visible = false
+	if effect_bar:
+		effect_bar.visible = false
+	if effect_ring:
+		effect_ring.visible = false
+	_hide_effect_need_bars()
+	_clear_placed()
+	_paint_ground()
 	rail.visible = true
 	bar.visible = true
 	_mark_buttons()
+	_refresh_status()
+
+
+func _show_effects() -> void:
+	throng_mode = false
+	effect_mode = true
+	rail.visible = false
+	bar.visible = false
+	if throng_rail:
+		throng_rail.visible = false
+	if throng_bar:
+		throng_bar.visible = false
+	effect_rail.visible = true
+	effect_bar.visible = true
+	if effect_id == "":
+		_select_effect("decay")
+	else:
+		_fill_effect()
+		_stage_effect()
+		_mark_effects()
 	_refresh_status()
 
 
@@ -1345,6 +2111,9 @@ func _advance() -> void:
 	play_ms = now
 	if throng_mode and playing and clip_name != "":
 		play_t += dt
+	if effect_mode and effect_playing and effect_id != "":
+		effect_t += dt
+		_tick_effect(dt)
 
 
 func _box_of(clip: String) -> Vector2i:
