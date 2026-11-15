@@ -20,7 +20,7 @@ There are no subtitles and the audio was not heard. One 640×360 frame was taken
 
 ## Gestures, mailbox, and unlocks
 
-- 11:00 and 17:00. The hammer drags a white arc and the target (a rock) gets a green box. At 17:00 the banner is `BUILD A BRIDGE` and, over a group, there is a black line of code: `>> data == ♥ makes ♥`. Here the charge is a yellow arc on the cursor.
+- 11:00 and 17:00. The hammer drags a white arc and the target (a rock) gets a green box. At 17:00 the banner is `BUILD A BRIDGE` and, over a group, there is a black line of code: `>> data == ♥ makes ♥`.
 - 20:00. Parchment card. The top reads `unlocked BUG`. Inside, a picture of a color glitch, `this gift from creator`, `help bridge faster`, and a `&&continue` button.
 - 35:00. A red British mailbox on the grass. The console shows, as drawings, a ball, an apple, and a thronglet, and writes that ore is processed to make energy. A blue button with an `i` floats on the right.
 - 37:00. The banner is `CRACK ROCKS & COLLECT GEMS`. Next to the counter there is a `New item!`. The mailbox is still on the ground. The hammer still has the white arc over a rock.
@@ -29,7 +29,7 @@ There are no subtitles and the audio was not heard. One 640×360 frame was taken
 ## Shop, tool, and one thronglet's card
 
 - 46:00. The market is the parchment card, titled `Market`, beside the building boxed in orange. Each row is icon, name, description, and a price in red. In that frame: `Factory` at 200 and `Chainsaw` at 400. Here the market is a small list in the center. The cart on the building is here.
-- 64:00. With the tool charged, a green striped circle marks the reach and each rock or trunk inside it has a green outline. That reach is not here.
+- 64:00 / 45:37–45:55. With the pickaxe or chainsaw held, a green dashed isometric ellipse marks the reach and each rock or trunk inside it has a green outline. The mop uses the same reach mark.
 - 68:00. Beside the thronglet, a white card with a blue `i` and three rows: `FED`, `AMUSED`, `CLEAN`. Here the needs are the color gauges, without that card.
 
 ## Factory, columns, and game over
@@ -66,9 +66,9 @@ The share button, the Netflix account, the recorder's label, this playthrough's 
 
 ### World and tools
 
-- [ ] Task banners from the playthrough: `GROW THRONGLET NUMBERS`, `BUILD A BRIDGE`, `CRACK ROCKS & COLLECT GEMS`, `SPEND GEMS; GROW THRONG`, `UPGRADE STRUCTURES`, `SEND THRONGLETS TO THE VOID`.
-- [ ] White arc while dragging the hammer, and a green box on the rock or the trunk.
-- [ ] Green reach circle, with an outline on each target inside it.
+- [ ] Task banners from the playthrough: `GROW THRONGLET NUMBERS`, `BUILD A BRIDGE`, `CRACK ROCKS & COLLECT GEMS`, `SPEND GEMS; GROW THRONG`, `UPGRADE STRUCTURES`.
+- [x] White arc while dragging the hammer, and a green box on the rock or the trunk.
+- [x] Green reach circle, with an outline on each target inside it.
 - [ ] Line of code over a group (`>> data == ♥ makes ♥`).
 - [ ] Red mailbox on the grass.
 - [ ] Loose blue `i` button in the world.
