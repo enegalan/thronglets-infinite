@@ -2,6 +2,13 @@
 
 ## [Unreleased](https://github.com/enegalan/thronglets-infinite/compare/7851ab6...HEAD)
 
+### 2026-11-16
+
+- The development bench includes a tiovivo lab for trying carousel layouts and ride timing. Its saved tuning is shared with the game so ride spacing, spin, and fun rates stay in step.
+- Mines act as walkable pads. When a factory exists, miners take ore into their hands for delivery instead of dropping it on the ground, and mines no longer block movement.
+- Clicking a thronglet selects it and keeps the camera following until you click elsewhere. Sponge scrubbing responds to movement over dirty thronglets, and expired ground items and some chop feedback no longer spawn extra poofs.
+- Animation and effect tuning values were adjusted, including mitosis and clean/suds frames, feature footprints, and effect preview options.
+
 ### 2026-11-15
 
 - Needs drain faster, while baths clean more slowly and rides take longer to satisfy. A thronglet keeps bathing or riding until the stay is done and the need is topped up.
