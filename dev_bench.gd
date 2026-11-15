@@ -10,6 +10,7 @@ const RIDE_CLIP := "ThrongA_Roundabout_SpriteSheet"
 const EFFECT_PREVIEW_SCALE := 8.0
 const ThrongTune := preload("res://throng_tune.gd")
 const AnimTune := preload("res://anim_tune.gd")
+const TiovivoLabTune := preload("res://tiovivo_lab_tune.gd")
 
 var main = null
 var rail: PanelContainer
@@ -39,10 +40,30 @@ var nodes := {}
 var _fill := false
 var throng_mode := false
 var effect_mode := false
+var lab_mode := false
 var throng_rail: PanelContainer
 var throng_bar: PanelContainer
 var effect_rail: PanelContainer
 var effect_bar: PanelContainer
+var lab_rail: PanelContainer
+var lab_bar: PanelContainer
+var lab_name: Label
+var lab_status: Label
+var lab_spins := {}
+var lab_cfg := {}
+var lab_agents: Array = []
+var lab_carousel := {}
+var lab_running := true
+var lab_sim_t := 0.0
+var lab_admit_t := 0.0
+var lab_wave_count := 0
+var lab_wave_pause_t := 0.0
+var lab_next_id := 1
+var lab_last_ms := 0
+var lab_selected_agent := -1
+var lab_drag_agent := -1
+var lab_drag_carousel := false
+var lab_messages: Array = []
 var effect_list: VBoxContainer
 var effect_buttons := {}
 var effect_id := ""
@@ -121,14 +142,25 @@ func open() -> void:
 	ThrongTune.load_saved()
 	AnimTune.load_saved()
 	EffectTune.load_saved()
+	lab_cfg = TiovivoLabTune.load_saved()
+	_lab_reset_state(false)
 	throng_mode = false
 	effect_mode = false
+	lab_mode = false
 	rail.visible = true
 	bar.visible = true
+	if throng_rail:
+		throng_rail.visible = false
+	if throng_bar:
+		throng_bar.visible = false
 	if effect_rail:
 		effect_rail.visible = false
 	if effect_bar:
 		effect_bar.visible = false
+	if lab_rail:
+		lab_rail.visible = false
+	if lab_bar:
+		lab_bar.visible = false
 	drag_id = ""
 	move_uid = -1
 	selected_clips.clear()
@@ -145,6 +177,8 @@ func open() -> void:
 func close() -> void:
 	_clear_placed()
 	_hide_effect_need_bars()
+	lab_agents.clear()
+	lab_carousel.clear()
 	if effect_gauge:
 		effect_gauge.queue_free()
 		effect_gauge = null
@@ -178,12 +212,25 @@ func close() -> void:
 		effect_bar.visible = false
 		effect_bar.queue_free()
 		effect_bar = null
+	if lab_rail:
+		lab_rail.visible = false
+		lab_rail.queue_free()
+		lab_rail = null
+	if lab_bar:
+		lab_bar.visible = false
+		lab_bar.queue_free()
+		lab_bar = null
 
 
 func tick() -> void:
 	if main == null:
 		return
 	_advance()
+	if lab_mode:
+		_lab_drag_update()
+		_lab_tick_draw()
+		queue_redraw()
+		return
 	var draws: Array = []
 	var used := {}
 	var throng_inst := {}
@@ -223,19 +270,51 @@ func input(event: InputEvent) -> void:
 			drag_id = ""
 			move_uid = -1
 			_mark_buttons()
+		if event.pressed and lab_mode:
+			lab_drag_agent = -1
+			lab_drag_carousel = false
 		main.dragging = event.pressed
 		main.drag_from = event.position
 		main.cam_from = main.camera.position
 		main.get_viewport().set_input_as_handled()
 		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		if lab_mode:
+			_lab_click(event.shift_pressed)
+			main.get_viewport().set_input_as_handled()
+			return
 		if effect_mode:
 			main.get_viewport().set_input_as_handled()
 			return
 		_click(event.shift_pressed, event.meta_pressed)
 		main.get_viewport().set_input_as_handled()
 		return
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
+		if lab_mode:
+			_lab_release_drag()
+		return
 	if event is InputEventKey and event.pressed and not event.echo:
+		if lab_mode:
+			if event.keycode == KEY_SPACE:
+				var focus: Control = main.get_viewport().gui_get_focus_owner()
+				if focus is LineEdit or focus is SpinBox:
+					return
+				_lab_toggle_run()
+				main.get_viewport().set_input_as_handled()
+				return
+			if event.keycode == KEY_ESCAPE:
+				if lab_selected_agent >= 0 or lab_drag_agent >= 0 or lab_drag_carousel:
+					lab_selected_agent = -1
+					lab_drag_agent = -1
+					lab_drag_carousel = false
+				else:
+					main._leave_dev()
+				main.get_viewport().set_input_as_handled()
+				return
+			if event.keycode == KEY_DELETE or event.keycode == KEY_BACKSPACE:
+				_lab_remove_selected()
+				main.get_viewport().set_input_as_handled()
+				return
 		if event.keycode == KEY_DELETE or event.keycode == KEY_BACKSPACE:
 			if not effect_mode:
 				_remove_selected()
@@ -262,6 +341,9 @@ func input(event: InputEvent) -> void:
 
 func _draw() -> void:
 	if main == null:
+		return
+	if lab_mode:
+		_lab_draw()
 		return
 	if effect_mode:
 		return
@@ -876,6 +958,7 @@ func _build_ui() -> void:
 	actions.add_child(_text_button("SAVE & RESTART", _save_restart))
 	actions.add_child(_text_button("ANIM", _show_throng))
 	actions.add_child(_text_button("EFFECTS", _show_effects))
+	actions.add_child(_text_button("LAB TIOVIVO", _show_lab))
 	actions.add_child(_text_button("MENU", main._leave_dev))
 	status = Label.new()
 	status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -896,6 +979,7 @@ func _build_ui() -> void:
 	rot_box.value_changed.connect(_on_rot)
 	_build_throng_ui(theme, root)
 	_build_effect_ui(theme, root)
+	_build_lab_ui(theme, root)
 
 
 func _build_list() -> void:
@@ -1280,6 +1364,7 @@ func _build_throng_ui(theme: Theme, root: Control) -> void:
 	save_row.add_child(_text_button("SAVE & RESTART", _save_restart))
 	save_row.add_child(_text_button("PROPS", _show_props))
 	save_row.add_child(_text_button("EFFECTS", _show_effects))
+	save_row.add_child(_text_button("LAB TIOVIVO", _show_lab))
 	save_row.add_child(_text_button("MENU", main._leave_dev))
 	throng_status = Label.new()
 	throng_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1355,6 +1440,7 @@ func _build_effect_ui(theme: Theme, root: Control) -> void:
 	actions.add_child(_text_button("SAVE & RESTART", _save_restart))
 	actions.add_child(_text_button("PROPS", _show_props))
 	actions.add_child(_text_button("ANIM", _show_throng))
+	actions.add_child(_text_button("LAB TIOVIVO", _show_lab))
 	actions.add_child(_text_button("MENU", main._leave_dev))
 	effect_status = Label.new()
 	effect_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1828,8 +1914,6 @@ func _effect_fx_frame(fx: String, time: float) -> int:
 	match fx:
 		"spark":
 			return main._prop_frame(Catalog.ICON_FX_SPARK)
-		"poof":
-			return main._prop_frame(Catalog.ICON_FX_POOF)
 		"suds":
 			return AssetFrames.frame(AssetFrames.BUBBLE, AssetFrames.BUBBLE_N, int(time * 8.0))
 		"splash":
@@ -1851,7 +1935,12 @@ func _paint_effect_fx(draws: Array, pos: Vector2, sort_y: float, tune: Dictionar
 	var time := effect_t
 	var orbit := float(tune.get("orbit", 0.0))
 	if fx == "suds":
-		main._paint_suds(draws, pos + Vector2(0, -6), sort_y + 0.4, time)
+		var bubble := AssetFrames.frame(AssetFrames.BUBBLE, AssetFrames.BUBBLE_N, int(time * 10.0))
+		if bubble >= 0:
+			var off := Vector2(float(tune.get("fx_x", 0.0)), float(tune.get("fx_y", 0.0)))
+			main._push_iso(draws, pos + off, bubble, Color(1, 1, 1, 0.85), 8.0, float(tune.get("scale", 1.0)), sort_y)
+		else:
+			main._paint_suds(draws, pos + Vector2(0, -6), sort_y + 0.4, time, float(tune.get("scale", 1.0)))
 		return
 	var frame := _effect_fx_frame(fx, time)
 	if frame < 0:
@@ -1870,7 +1959,7 @@ func _paint_effect_fx(draws: Array, pos: Vector2, sort_y: float, tune: Dictionar
 		return
 	if fx == "splash":
 		main._push_iso(draws, pos + Vector2(0, 2), frame, Color(1, 1, 1, 0.95), 4.0, 1.0, sort_y + 0.4)
-		main._paint_suds(draws, pos + Vector2(0, -2), sort_y + 0.5, time)
+		main._paint_suds(draws, pos + Vector2(0, -2), sort_y + 0.5, time, float(tune.get("scale", 1.0)))
 		return
 	var bob := float(tune.get("bob", 0.0))
 	var hop := Vector2(0, -10.0 - absf(sin(time * maxf(bob, 4.0))) * 4.0)
@@ -2036,12 +2125,17 @@ func _short(clip: String) -> String:
 func _show_throng() -> void:
 	throng_mode = true
 	effect_mode = false
+	lab_mode = false
 	rail.visible = false
 	bar.visible = false
 	if effect_rail:
 		effect_rail.visible = false
 	if effect_bar:
 		effect_bar.visible = false
+	if lab_rail:
+		lab_rail.visible = false
+	if lab_bar:
+		lab_bar.visible = false
 	if effect_ring:
 		effect_ring.visible = false
 	_hide_effect_need_bars()
@@ -2064,6 +2158,7 @@ func _show_throng() -> void:
 func _show_props() -> void:
 	throng_mode = false
 	effect_mode = false
+	lab_mode = false
 	if throng_rail:
 		throng_rail.visible = false
 	if throng_bar:
@@ -2072,6 +2167,10 @@ func _show_props() -> void:
 		effect_rail.visible = false
 	if effect_bar:
 		effect_bar.visible = false
+	if lab_rail:
+		lab_rail.visible = false
+	if lab_bar:
+		lab_bar.visible = false
 	if effect_ring:
 		effect_ring.visible = false
 	_hide_effect_need_bars()
@@ -2086,12 +2185,17 @@ func _show_props() -> void:
 func _show_effects() -> void:
 	throng_mode = false
 	effect_mode = true
+	lab_mode = false
 	rail.visible = false
 	bar.visible = false
 	if throng_rail:
 		throng_rail.visible = false
 	if throng_bar:
 		throng_bar.visible = false
+	if lab_rail:
+		lab_rail.visible = false
+	if lab_bar:
+		lab_bar.visible = false
 	effect_rail.visible = true
 	effect_bar.visible = true
 	if effect_id == "" or effect_id == "decay":
@@ -2210,6 +2314,8 @@ func _advance() -> void:
 	if effect_mode and effect_playing and effect_id != "":
 		effect_t += dt
 		_tick_effect(dt)
+	if lab_mode and lab_running:
+		_lab_step(dt)
 
 
 func _box_of(clip: String) -> Vector2i:
@@ -2702,3 +2808,982 @@ func _on_throng_rot(v: float) -> void:
 	_rot_shown = shown
 	_mark_clips()
 	_refresh_status()
+
+
+# -------------------------------------------------------------------
+# TIovivo / carousel lab
+# -------------------------------------------------------------------
+
+func _show_lab() -> void:
+	throng_mode = false
+	effect_mode = false
+	lab_mode = true
+	rail.visible = false
+	bar.visible = false
+	if throng_rail:
+		throng_rail.visible = false
+	if throng_bar:
+		throng_bar.visible = false
+	if effect_rail:
+		effect_rail.visible = false
+	if effect_bar:
+		effect_bar.visible = false
+	if effect_ring:
+		effect_ring.visible = false
+	_hide_effect_need_bars()
+	if lab_rail:
+		lab_rail.visible = true
+	if lab_bar:
+		lab_bar.visible = true
+	_clear_placed()
+	_paint_ground()
+	if lab_carousel.is_empty():
+		lab_cfg = TiovivoLabTune.load_saved()
+		_lab_reset_state(true)
+	else:
+		_lab_sync_ui_from_cfg()
+	_refresh_status()
+	_lab_set_status("LAB TIOVIVO LISTO")
+
+
+func _build_lab_ui(theme: Theme, root: Control) -> void:
+	lab_rail = PanelContainer.new()
+	lab_rail.set_anchors_preset(Control.PRESET_LEFT_WIDE)
+	lab_rail.offset_left = 4
+	lab_rail.offset_top = 4
+	lab_rail.offset_right = 220
+	lab_rail.offset_bottom = -4
+	lab_rail.mouse_filter = Control.MOUSE_FILTER_STOP
+	lab_rail.theme = theme
+	lab_rail.visible = false
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.mouse_filter = Control.MOUSE_FILTER_STOP
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 2)
+	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(v)
+	lab_rail.add_child(scroll)
+	root.add_child(lab_rail)
+
+	var hint := Label.new()
+	hint.text = "CLICK: selecciona/mueve thronglet o tiovivo. CLICK vacio: mueve tiovivo. SHIFT+CLICK: añade thronglet. DEL: borra. SPACE: pausa. Config guarda en dev/tiovivo_lab.json."
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	v.add_child(hint)
+
+	v.add_child(_lab_section("TIOVIVO / GIRO"))
+	_lab_add_spin(v, "CX", "carousel", "center_offset_x", -64, 64, 0.5, "Offset X del centro de giro (mundo)")
+	_lab_add_spin(v, "CY", "carousel", "center_offset_y", -64, 64, 0.5, "Offset Y del centro de giro (mundo)")
+	_lab_add_spin(v, "DIST", "carousel", "seat_spacing", 0.0, 80.0, 0.5, "Distancia entre plazas montadas (separacion entre thronglets)")
+	_lab_add_spin(v, "SLOTS", "carousel", "slots", 1, 12, 1, "Numero de plazas", true)
+	_lab_add_spin(v, "GIRO", "carousel", "spin_speed", -12.0, 12.0, 0.1, "Velocidad de giro (rad/s)")
+	_lab_add_spin(v, "ANG0", "carousel", "slot_base_deg", -180, 180, 5, "Angulo base de las plazas (puntos concretos sobre el carrusel)")
+	_lab_add_option(v, "MIRAN", "carousel", "face_mode", ["inward", "outward", "tangent", "spin"], "Hacia donde miran los thronglets montados")
+	_lab_add_spin(v, "DIR", "carousel", "sprite_dir_offset", -8, 8, 1, "Ajuste de frame direccional del thronglet (0-7) segun su posicion en el carrusel", true)
+	_lab_add_toggle(v, "DIR GIRO", "carousel", "sprite_dir_follow", "Cambiar sprite segun gira en el carrusel (si no, sprite fijo por plaza)")
+	_lab_add_spin(v, "STAY", "carousel", "min_stay", 0.0, 60.0, 0.5, "Permanencia minima montado (s)")
+	_lab_add_spin(v, "FUN/s", "carousel", "ride_fun_rate", 0.0, 20.0, 0.25, "Diversion por segundo montado")
+	_lab_add_spin(v, "DONE", "carousel", "ride_done", 0.0, 100.0, 1.0, "Diversion objetivo para bajar")
+
+	v.add_child(_lab_section("SINCRONIZACION"))
+	_lab_add_option(v, "MODO", "sync", "mode", ["continuous", "interval", "wave"], "Modo de entrada: continuo, intervalo fijo, u oleadas")
+	_lab_add_spin(v, "INTER", "sync", "interval", 0.0, 30.0, 0.25, "Intervalo minimo entre entradas (s)")
+	_lab_add_spin(v, "OLEADA", "sync", "wave_size", 1, 12, 1, "Entradas por oleada", true)
+	_lab_add_spin(v, "PAUSA", "sync", "wave_pause", 0.0, 30.0, 0.25, "Pausa entre oleadas (s)")
+	_lab_add_spin(v, "ABORD", "sync", "max_boarding", 1, 12, 1, "Maximo abordando a la vez", true)
+	_lab_add_spin(v, "DELAY", "sync", "initial_delay", 0.0, 30.0, 0.25, "Retardo inicial antes de abrir")
+	_lab_add_toggle(v, "COLA", "sync", "queue", "Respetar cola/turno (evita apelotonarse)")
+	_lab_add_toggle(v, "REENTRA", "sync", "reenter", "Tras bajar, vuelven a intentar entrar")
+
+	v.add_child(_lab_section("THRONGLETS"))
+	_lab_add_spin(v, "N", "spawn", "count", 1, 40, 1, "Cantidad para (re)generar", true)
+	_lab_add_spin(v, "ANILLO", "spawn", "ring_radius", 20.0, 240.0, 5.0, "Radio de aparicion alrededor del tiovivo")
+	_lab_add_spin(v, "FUN0", "spawn", "initial_fun", 0.0, 100.0, 5.0, "Diversion inicial")
+
+	var spawn_row := HBoxContainer.new()
+	spawn_row.add_theme_constant_override("separation", 4)
+	spawn_row.add_child(_text_button("+1", func(): _lab_spawn(1)))
+	spawn_row.add_child(_text_button("+5", func(): _lab_spawn(5)))
+	spawn_row.add_child(_text_button("GENERAR", _lab_respawn_all))
+	spawn_row.add_child(_text_button("LIMPIAR", _lab_clear_agents))
+	v.add_child(spawn_row)
+
+	lab_bar = PanelContainer.new()
+	lab_bar.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	lab_bar.offset_left = 228
+	lab_bar.offset_top = -132
+	lab_bar.offset_right = -4
+	lab_bar.offset_bottom = -4
+	lab_bar.mouse_filter = Control.MOUSE_FILTER_STOP
+	lab_bar.theme = theme
+	lab_bar.visible = false
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 2)
+	lab_name = Label.new()
+	lab_name.text = "LABORATORIO TIOVIVO"
+	lab_name.clip_text = true
+	box.add_child(lab_name)
+	var actions := HBoxContainer.new()
+	actions.add_theme_constant_override("separation", 4)
+	actions.add_child(_text_button("PAUSA/PLAY", _lab_toggle_run))
+	actions.add_child(_text_button("STEP", _lab_step_once))
+	actions.add_child(_text_button("RESET", func(): _lab_reset_state(true)))
+	actions.add_child(_text_button("GUARDAR JSON", _lab_save))
+	actions.add_child(_text_button("CARGAR JSON", _lab_load))
+	actions.add_child(_text_button("PROPS", _show_props))
+	actions.add_child(_text_button("ANIM", _show_throng))
+	actions.add_child(_text_button("EFFECTS", _show_effects))
+	actions.add_child(_text_button("MENU", main._leave_dev))
+	lab_status = Label.new()
+	lab_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lab_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	lab_status.clip_text = true
+	actions.add_child(lab_status)
+	box.add_child(actions)
+	lab_bar.add_child(box)
+	root.add_child(lab_bar)
+
+
+func _lab_section(text: String) -> Label:
+	var l := Label.new()
+	l.text = text
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	return l
+
+
+func _lab_cfg_get(group: String, key: String, def = null):
+	if not lab_cfg.has(group):
+		return def
+	var g = lab_cfg[group]
+	if typeof(g) == TYPE_DICTIONARY and g.has(key):
+		return g[key]
+	return def
+
+
+func _lab_cfg_set(group: String, key: String, value) -> void:
+	if not lab_cfg.has(group) or typeof(lab_cfg[group]) != TYPE_DICTIONARY:
+		lab_cfg[group] = {}
+	lab_cfg[group][key] = value
+
+
+func _lab_add_spin(parent: VBoxContainer, title: String, group: String, key: String, mn: float, mx: float, step: float, tip: String, whole: bool = false) -> SpinBox:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 4)
+	var label := Label.new()
+	label.text = title
+	label.custom_minimum_size = Vector2(54, 0)
+	label.tooltip_text = tip
+	row.add_child(label)
+	var box := _spin(mn, mx, step, whole)
+	box.tooltip_text = tip
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(box)
+	parent.add_child(row)
+	var skey := "%s:%s" % [group, key]
+	lab_spins[skey] = box
+	box.value_changed.connect(func(v): _lab_on_spin(group, key, v, whole))
+	return box
+
+
+func _lab_add_option(parent: VBoxContainer, title: String, group: String, key: String, opts: Array, tip: String) -> OptionButton:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 4)
+	var label := Label.new()
+	label.text = title
+	label.custom_minimum_size = Vector2(54, 0)
+	label.tooltip_text = tip
+	row.add_child(label)
+	var ob := OptionButton.new()
+	ob.tooltip_text = tip
+	ob.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for o in opts:
+		ob.add_item(str(o))
+	row.add_child(ob)
+	parent.add_child(row)
+	var skey := "%s:%s" % [group, key]
+	lab_spins[skey] = ob
+	ob.item_selected.connect(func(_i): _lab_on_option(group, key, ob))
+	return ob
+
+
+func _lab_add_toggle(parent: VBoxContainer, title: String, group: String, key: String, tip: String) -> CheckBox:
+	var cb := CheckBox.new()
+	cb.text = title
+	cb.tooltip_text = tip
+	parent.add_child(cb)
+	var skey := "%s:%s" % [group, key]
+	lab_spins[skey] = cb
+	cb.toggled.connect(func(v): _lab_on_toggle(group, key, v))
+	return cb
+
+
+func _lab_on_spin(group: String, key: String, v: float, whole: bool) -> void:
+	if _fill:
+		return
+	# special mapping for vector-like offsets stored as arrays
+	if group == "carousel" and key == "center_offset_x":
+		var arr = lab_cfg.get("carousel", {}).get("center_offset", [12.0, 12.0])
+		if typeof(arr) != TYPE_ARRAY or arr.size() < 2:
+			arr = [12.0, 12.0]
+		arr[0] = v
+		_lab_cfg_set("carousel", "center_offset", arr)
+	elif group == "carousel" and key == "center_offset_y":
+		var arr = lab_cfg.get("carousel", {}).get("center_offset", [12.0, 12.0])
+		if typeof(arr) != TYPE_ARRAY or arr.size() < 2:
+			arr = [12.0, 12.0]
+		arr[1] = v
+		_lab_cfg_set("carousel", "center_offset", arr)
+	else:
+		_lab_cfg_set(group, key, int(v) if whole else v)
+	_lab_apply_cfg_to_runtime()
+
+
+func _lab_on_option(group: String, key: String, ob: OptionButton) -> void:
+	if _fill:
+		return
+	_lab_cfg_set(group, key, ob.get_item_text(ob.selected))
+	_lab_apply_cfg_to_runtime()
+
+
+func _lab_on_toggle(group: String, key: String, v: bool) -> void:
+	if _fill:
+		return
+	_lab_cfg_set(group, key, v)
+	_lab_apply_cfg_to_runtime()
+
+
+func _lab_sync_ui_from_cfg() -> void:
+	_fill = true
+	var car: Dictionary = lab_cfg.get("carousel", {})
+	var off = car.get("center_offset", [12.0, 12.0])
+	var offx := float(off[0]) if typeof(off) == TYPE_ARRAY and off.size() > 0 else 12.0
+	var offy := float(off[1]) if typeof(off) == TYPE_ARRAY and off.size() > 1 else 12.0
+	_lab_set_spin("carousel:center_offset_x", offx)
+	_lab_set_spin("carousel:center_offset_y", offy)
+	_lab_set_spin("carousel:seat_spacing", float(car.get("seat_spacing", 12.0)))
+	_lab_set_spin("carousel:slots", int(car.get("slots", 4)))
+	_lab_set_spin("carousel:spin_speed", float(car.get("spin_speed", 2.8)))
+	_lab_set_spin("carousel:slot_base_deg", float(car.get("slot_base_deg", 0.0)))
+	_lab_set_option("carousel:face_mode", str(car.get("face_mode", "inward")))
+	_lab_set_spin("carousel:sprite_dir_offset", int(car.get("sprite_dir_offset", 0)))
+	_lab_set_check("carousel:sprite_dir_follow", bool(car.get("sprite_dir_follow", true)))
+	_lab_set_spin("carousel:min_stay", float(car.get("min_stay", 8.0)))
+	_lab_set_spin("carousel:ride_fun_rate", float(car.get("ride_fun_rate", 2.5)))
+	_lab_set_spin("carousel:ride_done", float(car.get("ride_done", 95.0)))
+	var sync: Dictionary = lab_cfg.get("sync", {})
+	_lab_set_option("sync:mode", str(sync.get("mode", "continuous")))
+	_lab_set_spin("sync:interval", float(sync.get("interval", 2.0)))
+	_lab_set_spin("sync:wave_size", int(sync.get("wave_size", 1)))
+	_lab_set_spin("sync:wave_pause", float(sync.get("wave_pause", 4.0)))
+	_lab_set_spin("sync:max_boarding", int(sync.get("max_boarding", 1)))
+	_lab_set_spin("sync:initial_delay", float(sync.get("initial_delay", 0.0)))
+	_lab_set_check("sync:queue", bool(sync.get("queue", true)))
+	_lab_set_check("sync:reenter", bool(sync.get("reenter", true)))
+	var sp: Dictionary = lab_cfg.get("spawn", {})
+	_lab_set_spin("spawn:count", int(sp.get("count", 6)))
+	_lab_set_spin("spawn:ring_radius", float(sp.get("ring_radius", 80.0)))
+	_lab_set_spin("spawn:initial_fun", float(sp.get("initial_fun", 20.0)))
+	_fill = false
+
+
+func _lab_set_spin(key: String, v) -> void:
+	if not lab_spins.has(key):
+		return
+	var n = lab_spins[key]
+	if n is SpinBox:
+		(n as SpinBox).set_value_no_signal(float(v))
+
+
+func _lab_set_option(key: String, v: String) -> void:
+	if not lab_spins.has(key):
+		return
+	var n = lab_spins[key]
+	if n is OptionButton:
+		var ob := n as OptionButton
+		for i in ob.item_count:
+			if ob.get_item_text(i) == v:
+				ob.select(i)
+				return
+
+
+func _lab_set_check(key: String, v: bool) -> void:
+	if not lab_spins.has(key):
+		return
+	var n = lab_spins[key]
+	if n is CheckBox:
+		(n as CheckBox).set_pressed_no_signal(v)
+
+
+func _lab_apply_cfg_to_runtime() -> void:
+	if lab_carousel.is_empty():
+		return
+	var car: Dictionary = lab_cfg.get("carousel", {})
+	var off = car.get("center_offset", [12.0, 12.0])
+	var offx := float(off[0]) if typeof(off) == TYPE_ARRAY and off.size() > 0 else 12.0
+	var offy := float(off[1]) if typeof(off) == TYPE_ARRAY and off.size() > 1 else 12.0
+	lab_carousel.center_offset = Vector2(offx, offy)
+	var slots_n := maxi(1, int(car.get("slots", 4)))
+	var spacing := float(car.get("seat_spacing", float(lab_carousel.get("seat_spacing", 12.0))))
+	if car.has("radius"):
+		spacing = 2.0 * float(car.get("radius", 4.0)) * sin(PI / maxf(1.0, float(slots_n)))
+		car.erase("radius")
+	if spacing < 0.0:
+		spacing = 12.0
+	lab_carousel.seat_spacing = spacing
+	car["seat_spacing"] = spacing
+	lab_carousel.slot_base_deg = float(car.get("slot_base_deg", 0.0))
+	lab_carousel.face_mode = str(car.get("face_mode", "inward"))
+	lab_carousel.sprite_dir_offset = int(car.get("sprite_dir_offset", 0))
+	lab_carousel.sprite_dir_follow = bool(car.get("sprite_dir_follow", true))
+	if slots_n != int(lab_carousel.get("slots", 4)):
+		lab_carousel.slots = slots_n
+		_lab_reseat_agents()
+	else:
+		lab_carousel.slots = slots_n
+	lab_carousel.radius = _lab_seat_radius(slots_n, spacing)
+	lab_carousel.spin_speed = float(car.get("spin_speed", 2.8))
+	lab_carousel.min_stay = float(car.get("min_stay", 8.0))
+	lab_carousel.ride_fun_rate = float(car.get("ride_fun_rate", 2.5))
+	lab_carousel.ride_done = float(car.get("ride_done", 95.0))
+	_lab_update_status()
+
+
+func _lab_reseat_agents() -> void:
+	var taken := {}
+	var keep: Array = []
+	for a in lab_agents:
+		if str(a.state) == "riding":
+			var slot := int(a.get("slot", -1))
+			if slot >= 0 and slot < int(lab_carousel.slots) and not taken.has(slot):
+				taken[slot] = true
+				keep.append(a)
+			else:
+				a.state = "exit"
+				a.slot = -1
+		elif int(a.get("slot", -1)) >= int(lab_carousel.slots):
+			a.slot = -1
+
+
+func _lab_reset_state(respawn: bool) -> void:
+	lab_agents.clear()
+	lab_sim_t = 0.0
+	lab_admit_t = float(lab_cfg.get("sync", {}).get("initial_delay", 0.0))
+	lab_wave_count = 0
+	lab_wave_pause_t = 0.0
+	lab_next_id = 1
+	lab_last_ms = Time.get_ticks_msec()
+	lab_selected_agent = -1
+	lab_drag_agent = -1
+	lab_drag_carousel = false
+	lab_running = not bool(lab_cfg.get("paused", false))
+	var car: Dictionary = lab_cfg.get("carousel", {})
+	var cell_arr = car.get("cell", [8, 16])
+	var cx := int(cell_arr[0]) if typeof(cell_arr) == TYPE_ARRAY and cell_arr.size() > 0 else 8
+	var cy := int(cell_arr[1]) if typeof(cell_arr) == TYPE_ARRAY and cell_arr.size() > 1 else 16
+	var off = car.get("center_offset", [12.0, 12.0])
+	var offx := float(off[0]) if typeof(off) == TYPE_ARRAY and off.size() > 0 else 12.0
+	var offy := float(off[1]) if typeof(off) == TYPE_ARRAY and off.size() > 1 else 12.0
+	var slots_n := maxi(1, int(car.get("slots", 4)))
+	var spacing := float(car.get("seat_spacing", 12.0))
+	if car.has("radius"):
+		# compat: old configs used orbit radius; convert to distance between plazas
+		spacing = 2.0 * float(car.get("radius", 4.0)) * sin(PI / maxf(1.0, float(slots_n)))
+		car.erase("radius")
+	if spacing < 0.0:
+		spacing = 12.0
+	car["seat_spacing"] = spacing
+	lab_carousel = {
+		"pos": Catalog.cell_world(Vector2i(cx, cy)),
+		"spin": 0.0,
+		"center_offset": Vector2(offx, offy),
+		"seat_spacing": spacing,
+		"radius": _lab_seat_radius(slots_n, spacing),
+		"slots": slots_n,
+		"spin_speed": float(car.get("spin_speed", 2.8)),
+		"slot_base_deg": float(car.get("slot_base_deg", 0.0)),
+		"face_mode": str(car.get("face_mode", "inward")),
+		"sprite_dir_offset": int(car.get("sprite_dir_offset", 0)),
+		"sprite_dir_follow": bool(car.get("sprite_dir_follow", true)),
+		"min_stay": float(car.get("min_stay", 8.0)),
+		"ride_fun_rate": float(car.get("ride_fun_rate", 2.5)),
+		"ride_done": float(car.get("ride_done", 95.0)),
+	}
+	if respawn:
+		_lab_respawn_all()
+	_lab_sync_ui_from_cfg()
+	_lab_update_status()
+
+
+func _lab_respawn_all() -> void:
+	lab_agents.clear()
+	lab_selected_agent = -1
+	var n := maxi(1, int(lab_cfg.get("spawn", {}).get("count", 6)))
+	_lab_spawn(n, true)
+	_lab_update_status()
+
+
+func _lab_clear_agents() -> void:
+	lab_agents.clear()
+	lab_selected_agent = -1
+	_lab_update_status()
+
+
+func _lab_spawn(n: int, reset_ring: bool = false) -> void:
+	var sp: Dictionary = lab_cfg.get("spawn", {})
+	var ring := float(sp.get("ring_radius", 80.0))
+	var fun0 := float(sp.get("initial_fun", 20.0))
+	var center := _lab_ride_center()
+	for i in n:
+		var ang := randf() * TAU if not reset_ring else (TAU * float(lab_agents.size()) / maxf(1.0, float(n)))
+		if not reset_ring:
+			ang = randf() * TAU
+		var r := ring * randf_range(0.7, 1.1)
+		var pos := center + Vector2(cos(ang) * r, sin(ang) * r)
+		lab_agents.append({
+			"id": lab_next_id,
+			"pos": pos,
+			"dir": Vector2(cos(ang + PI), sin(ang + PI)),
+			"state": "seek",
+			"slot": -1,
+			"age": 0.0,
+			"fun": fun0,
+			"cooldown": 0.0,
+			"queue_t": randf() * 0.1,
+		})
+		lab_next_id += 1
+	_lab_update_status()
+
+
+func _lab_seat_radius(slots_n: int, spacing: float) -> float:
+	# Distance between plazas is the primary control: radius derived so adjacent seats are `spacing` apart.
+	if slots_n <= 1:
+		return 0.0
+	var denom := 2.0 * sin(PI / float(slots_n))
+	if absf(denom) < 0.0001:
+		return 0.0
+	return spacing / denom
+
+
+func _lab_ride_center() -> Vector2:
+	if lab_carousel.is_empty():
+		return Vector2.ZERO
+	return Vector2(lab_carousel.pos) + Vector2(lab_carousel.get("center_offset", Vector2(12, 12)))
+
+
+func _lab_slot_ang(slot: int) -> float:
+	var n := maxf(1.0, float(lab_carousel.get("slots", 4)))
+	var base := deg_to_rad(float(lab_carousel.get("slot_base_deg", 0.0)))
+	return float(lab_carousel.get("spin", 0.0)) + base + float(slot) * TAU / n
+
+
+func _lab_slot_pos(slot: int) -> Vector2:
+	var center := _lab_ride_center()
+	var ang := _lab_slot_ang(slot)
+	var r := float(lab_carousel.get("radius", 4.0))
+	return center + Vector2(cos(ang) * r, sin(ang) * r)
+
+
+func _lab_slot_dir(slot: int) -> Vector2:
+	var ang := _lab_slot_ang(slot)
+	var center := _lab_ride_center()
+	var pos := _lab_slot_pos(slot)
+	var mode := str(lab_carousel.get("face_mode", "inward"))
+	match mode:
+		"inward":
+			var d := center - pos
+			return d.normalized() if d.length() > 0.001 else Vector2(cos(ang + PI), sin(ang + PI))
+		"outward":
+			var d := pos - center
+			return d.normalized() if d.length() > 0.001 else Vector2(cos(ang), sin(ang))
+		"tangent":
+			return Vector2(cos(ang + PI * 0.5), sin(ang + PI * 0.5))
+		"spin":
+			return Vector2(cos(ang - PI * 0.5), sin(ang - PI * 0.5))
+		_:
+			var d := center - pos
+			return d.normalized() if d.length() > 0.001 else Vector2(cos(ang + PI), sin(ang + PI))
+
+
+func _lab_approach_pos(slot: int) -> Vector2:
+	# Approach from outside toward the concrete seat point; entry can come from any direction.
+	var seat := _lab_slot_pos(slot)
+	var center := _lab_ride_center()
+	var out := seat - center
+	if out.length() < 0.001:
+		out = Vector2(1, 0)
+	return seat + out.normalized() * 10.0
+
+
+func _lab_gate_pos(slot: int) -> Vector2:
+	# Kept for drawing/compat: point just outside the seat
+	return _lab_approach_pos(slot)
+
+
+func _lab_taken_slots(except_id: int = -1) -> Dictionary:
+	var taken := {}
+	for a in lab_agents:
+		var aid := int(a.get("id", -1))
+		if aid == except_id:
+			continue
+		var st := str(a.get("state", ""))
+		var slot := int(a.get("slot", -1))
+		if slot >= 0 and (st == "boarding" or st == "riding" or st == "reserved"):
+			taken[slot] = aid
+	return taken
+
+
+func _lab_free_slot() -> int:
+	var taken := _lab_taken_slots()
+	for s in int(lab_carousel.get("slots", 4)):
+		if not taken.has(s):
+			return s
+	return -1
+
+
+func _lab_can_admit() -> bool:
+	var sync: Dictionary = lab_cfg.get("sync", {})
+	var mode := str(sync.get("mode", "continuous"))
+	var boarding := 0
+	for a in lab_agents:
+		if str(a.state) == "boarding":
+			boarding += 1
+	if boarding >= int(sync.get("max_boarding", 1)):
+		return false
+	if lab_admit_t > 0.0:
+		return false
+	if mode == "interval":
+		return true
+	if mode == "wave":
+		if lab_wave_pause_t > 0.0:
+			return false
+		if lab_wave_count >= int(sync.get("wave_size", 1)):
+			return false
+		return true
+	# continuous
+	return true
+
+
+func _lab_mark_admitted() -> void:
+	var sync: Dictionary = lab_cfg.get("sync", {})
+	var mode := str(sync.get("mode", "continuous"))
+	if mode == "interval":
+		lab_admit_t = maxf(lab_admit_t, float(sync.get("interval", 2.0)))
+	elif mode == "wave":
+		lab_wave_count += 1
+		if lab_wave_count >= int(sync.get("wave_size", 1)):
+			lab_wave_pause_t = float(sync.get("wave_pause", 4.0))
+			lab_wave_count = 0
+	else:
+		lab_admit_t = maxf(lab_admit_t, 0.15)
+
+
+func _lab_step(dt: float) -> void:
+	if lab_carousel.is_empty():
+		return
+	lab_sim_t += dt
+	lab_admit_t = maxf(0.0, lab_admit_t - dt)
+	lab_wave_pause_t = maxf(0.0, lab_wave_pause_t - dt)
+
+	# spin only when someone is riding
+	var spinning := false
+	for a in lab_agents:
+		if str(a.state) == "riding":
+			spinning = true
+			break
+	if spinning:
+		lab_carousel.spin = float(lab_carousel.get("spin", 0.0)) + float(lab_carousel.get("spin_speed", 2.8)) * dt
+
+	var sync: Dictionary = lab_cfg.get("sync", {})
+	var reenter := bool(sync.get("reenter", true))
+	var queue_on := bool(sync.get("queue", true))
+	var ride_done := float(lab_carousel.get("ride_done", 95.0))
+	var min_stay := float(lab_carousel.get("min_stay", 8.0))
+	var fun_rate := float(lab_carousel.get("ride_fun_rate", 2.5))
+	var center := _lab_ride_center()
+
+	# stable queue order
+	var seekers: Array = []
+	for i in lab_agents.size():
+		if str(lab_agents[i].state) == "seek" or str(lab_agents[i].state) == "queue":
+			seekers.append(i)
+	seekers.sort_custom(func(a_i, b_i): return float(lab_agents[a_i].get("queue_t", 0.0)) < float(lab_agents[b_i].get("queue_t", 0.0)))
+
+	var admit_budget := 99
+	if queue_on:
+		admit_budget = 1 if str(sync.get("mode", "continuous")) != "wave" else int(sync.get("wave_size", 1))
+
+	for a in lab_agents:
+		var st := str(a.state)
+		if st == "cooldown":
+			a.cooldown = float(a.get("cooldown", 0.0)) - dt
+			if a.cooldown <= 0.0:
+				if reenter:
+					a.state = "seek"
+					a.fun = float(lab_cfg.get("spawn", {}).get("initial_fun", 20.0))
+					a.queue_t = lab_sim_t + randf() * 0.2
+				else:
+					a.state = "idle"
+			continue
+		if st == "idle":
+			continue
+		if st == "riding":
+			a.age = float(a.get("age", 0.0)) + dt
+			a.fun = minf(100.0, float(a.get("fun", 0.0)) + fun_rate * dt)
+			var slot := int(a.get("slot", 0))
+			a.pos = _lab_slot_pos(slot)
+			a.dir = _lab_slot_dir(slot)
+			if a.fun >= ride_done and a.age >= min_stay:
+				a.state = "exit"
+				a.slot = -1
+				var ang := _lab_slot_ang(slot)
+				a["exit_target"] = center + Vector2(cos(ang), sin(ang)) * (float(lab_carousel.get("radius", 4.0)) + 28.0)
+			continue
+		if st == "exit":
+			var target: Vector2 = a.get("exit_target", center + Vector2(0, 40))
+			if _lab_move_toward(a, target, 34.0, dt) < 3.0:
+				a.state = "cooldown"
+				a.cooldown = 1.5
+			continue
+		if st == "boarding":
+			var slot := int(a.get("slot", -1))
+			if slot < 0:
+				a.state = "seek"
+				continue
+			var seat := _lab_slot_pos(slot)
+			# Mount onto the concrete seat point on the carousel (entry can come from any direction)
+			var left := _lab_move_toward(a, seat, 32.0, dt)
+			if left <= 1.5:
+				a.pos = seat
+				a.dir = _lab_slot_dir(slot)
+				a.state = "riding"
+				a.age = 0.0
+			continue
+		# seek/queue: wait for admission
+		a.queue_t = float(a.get("queue_t", lab_sim_t))
+		if st == "seek":
+			a.state = "queue" if queue_on else "seek"
+
+	# admission pass: board onto concrete seat points (can approach from anywhere)
+	var ordered: Array = []
+	for a in lab_agents:
+		if str(a.state) == "seek" or str(a.state) == "queue":
+			ordered.append(a)
+	ordered.sort_custom(func(x, y): return float(x.get("queue_t", 0.0)) < float(y.get("queue_t", 0.0)))
+	for idx in ordered.size():
+		var a = ordered[idx]
+		var slot := int(a.get("slot", -1))
+		if slot < 0 or _lab_taken_slots(int(a.get("id", -1))).has(slot):
+			slot = _lab_free_slot()
+			a.slot = slot
+		if slot < 0:
+			# queue around carousel
+			var qang := (float(idx) / maxf(1.0, float(ordered.size()))) * TAU
+			var qpos := center + Vector2(cos(qang), sin(qang)) * (float(lab_carousel.get("radius", 4.0)) + 34.0 + float(idx % 3) * 8.0)
+			_lab_move_toward(a, qpos, 22.0, dt)
+			a.state = "queue"
+			continue
+		var seat := _lab_slot_pos(slot)
+		if _lab_can_admit():
+			a.state = "boarding"
+			_lab_mark_admitted()
+		else:
+			if queue_on:
+				# wait in a ring around the carousel until admitted
+				var qang := float(idx) * (TAU / maxf(1.0, float(ordered.size())))
+				var qpos := center + Vector2(cos(qang), sin(qang)) * (float(lab_carousel.get("radius", 4.0)) + 40.0 + float(idx % 3) * 10.0)
+				_lab_move_toward(a, qpos, 22.0, dt)
+				a.state = "queue"
+			else:
+				# free approach from anywhere, but do not mount until admitted
+				var hold := _lab_approach_pos(slot)
+				if a.get("pos", Vector2.ZERO).distance_to(seat) > 14.0:
+					_lab_move_toward(a, hold, 20.0, dt)
+				a.state = "seek"
+	_lab_update_status()
+
+
+func _lab_move_toward(a: Dictionary, target: Vector2, speed: float, dt: float) -> float:
+	var pos: Vector2 = a.get("pos", Vector2.ZERO)
+	var d := target - pos
+	var dist := d.length()
+	if dist > 0.001:
+		var step: float = minf(dist, speed * dt)
+		var dir: Vector2 = d / dist
+		pos += dir * step
+		a.pos = pos
+		a.dir = dir
+	return maxf(0.0, dist - speed * dt)
+
+
+func _lab_tick_draw() -> void:
+	if main == null:
+		return
+	var draws: Array = []
+	# carousel building
+	var carousel_sy_base := -INF
+	if not lab_carousel.is_empty():
+		var pos: Vector2 = lab_carousel.get("pos", Catalog.cell_world(Vector2i(8, 16)))
+		var spin: float = float(lab_carousel.get("spin", 0.0))
+		var prop_frame: int = int(main.ROUND_ANIM) + posmod(int(spin * 4.0), 8)
+		_paint_building(draws, Catalog.BLD_ROUND, pos, 1.0, prop_frame)
+		if not draws.is_empty():
+			# keep building at a base depth so riders can sort in front/behind by seat
+			carousel_sy_base = float(main._to_iso(pos).y) + 6.0
+			draws[draws.size() - 1]["sy"] = carousel_sy_base
+	# thronglets
+	for a in lab_agents:
+		var st := str(a.get("state", "seek"))
+		var clip := "ThrongA_Default"
+		if st == "riding":
+			clip = RIDE_CLIP
+		elif st == "boarding" or st == "seek" or st == "queue" or st == "exit":
+			clip = "Throng_Walk_Anim_Spritesheet" if ThrongClips.CLIPS.has("Throng_Walk_Anim_Spritesheet") else "ThrongA_Default"
+		elif st == "cooldown" or st == "idle":
+			clip = "ThrongA_Default"
+		var box: Vector2i = ThrongClips.CLIPS.get(clip, Vector2i(ThrongClips.BASE, 1))
+		var fps := 8.0
+		if st != "riding":
+			fps = float(ThrongTune.get_tune(clip).get("fps", 8.0)) if not ThrongTune.get_tune(clip).is_empty() else 8.0
+		var idx := 0
+		if st == "riding":
+			# sprite changes according to position/direction on the carousel (DIR/DIR GIRO to calibrate)
+			if bool(lab_carousel.get("sprite_dir_follow", true)):
+				var ang := _lab_slot_ang(int(a.get("slot", 0)))
+				var dir_off := int(lab_carousel.get("sprite_dir_offset", 0))
+				idx = posmod(int(round(ang / TAU * float(box.y))) + dir_off, maxi(1, box.y))
+			else:
+				idx = posmod(int(lab_carousel.get("sprite_dir_offset", 0)), maxi(1, box.y))
+		elif box.y > 1:
+			idx = posmod(int(lab_sim_t * fps + float(int(a.get("id", 0)))), box.y)
+		var frame := ThrongClips.frame_at(clip, idx)
+		var slot := int(a.get("slot", 0))
+		var pos: Vector2 = _lab_slot_pos(slot) if st == "riding" else a.get("pos", Vector2.ZERO)
+		var lift := 0.0
+		if st == "riding":
+			lift = 2.0
+		var off := Vector2.ZERO
+		var t = ThrongTune.get_tune(clip)
+		if st != "riding" and not t.is_empty():
+			off = ThrongTune.frame_offset(clip, idx)
+		var sc := 1.0
+		if not t.is_empty():
+			sc = ThrongTune.frame_scale(clip, idx)
+		var tint := Color(1, 1, 1, 1)
+		if int(a.get("id", -1)) == lab_selected_agent:
+			tint = Color(1.0, 1.0, 0.55, 1.0)
+		var sy := float(main._to_iso(pos).y) + 8.0
+		if st == "riding":
+			# depth-sort riders around the carousel: front seats draw over, back seats under
+			sy = float(main._to_iso(pos).y) + 10.0
+		main._push_iso(draws, pos + off, frame, tint, lift, sc, sy)
+		if st == "riding":
+			# directional ride sprites already encode orientation; avoid extra flip/rotation jitter
+			var trot := ThrongTune.frame_rot(clip, idx)
+			if trot != 0.0:
+				draws[draws.size() - 1]["rot"] = trot
+		else:
+			var move_dir: Vector2 = a.get("dir", Vector2(0, 1))
+			if move_dir.length() > 0.001:
+				var sdir: Vector2 = main._to_iso(pos + move_dir) - main._to_iso(pos)
+				if sdir.x < -0.01:
+					draws[draws.size() - 1]["flip"] = -1.0
+				elif sdir.x > 0.01:
+					draws[draws.size() - 1]["flip"] = 1.0
+	draws.sort_custom(func(a, b): return float(a.sy) < float(b.sy))
+	main._paint_props(draws)
+	_lift_nodes()
+	_drop_nodes({})
+	_lab_update_status()
+
+
+func _lab_draw() -> void:
+	if main == null:
+		return
+	var poly: PackedVector2Array = main._place_cell_poly()
+	if not poly.is_empty():
+		var grid := Color(1, 1, 1, 0.12)
+		for cell in _view_cells():
+			_stroke(cell, poly, grid, Color(0, 0, 0, 0))
+	if lab_carousel.is_empty():
+		return
+	# ride center and slots
+	var center := _lab_ride_center()
+	_cross(center)
+	var steps := 36
+	var r := float(lab_carousel.get("radius", 4.0))
+	for i in steps:
+		var a0 := TAU * float(i) / float(steps)
+		var a1 := TAU * float(i + 1) / float(steps)
+		var p0: Vector2 = main._to_iso(center + Vector2(cos(a0) * r, sin(a0) * r))
+		var p1: Vector2 = main._to_iso(center + Vector2(cos(a1) * r, sin(a1) * r))
+		draw_line(p0, p1, Color(0.2, 0.9, 1.0, 0.5), 2.0)
+	var slots_n := int(lab_carousel.get("slots", 4))
+	for s in slots_n:
+		var sp := _lab_slot_pos(s)
+		var c := Color(0.3, 1.0, 0.4, 0.8)
+		if _lab_taken_slots().has(s):
+			c = Color(1.0, 0.4, 0.3, 0.9)
+		# concrete mounted seat point
+		draw_circle(main._to_iso(sp), 4.5, c)
+		# facing direction indicator
+		var dir := _lab_slot_dir(s)
+		draw_line(main._to_iso(sp), main._to_iso(sp + dir * 8.0), Color(0.95, 0.95, 1.0, 0.7), 2.0)
+	# selected agent marker
+	if lab_selected_agent >= 0:
+		for a in lab_agents:
+			if int(a.get("id", -1)) == lab_selected_agent:
+				draw_circle(main._to_iso(a.get("pos", Vector2.ZERO)), 6.0, Color(1, 1, 0.4, 0.9))
+				break
+
+
+func _lab_click(shift: bool) -> void:
+	var world: Vector2 = main._grid_pointer()
+	if shift:
+		_lab_spawn(1)
+		if not lab_agents.is_empty():
+			lab_agents[lab_agents.size() - 1].pos = world
+			lab_selected_agent = int(lab_agents[lab_agents.size() - 1].id)
+		return
+	# pick agent
+	var best := -1
+	var best_d := 18.0
+	for a in lab_agents:
+		var d := world.distance_to(a.get("pos", Vector2.ZERO))
+		if d < best_d:
+			best_d = d
+			best = int(a.get("id", -1))
+	if best >= 0:
+		lab_selected_agent = best
+		lab_drag_agent = best
+		lab_drag_carousel = false
+		return
+	# pick carousel (near center or base)
+	if not lab_carousel.is_empty():
+		var base: Vector2 = lab_carousel.get("pos", Vector2.ZERO)
+		var c := _lab_ride_center()
+		if world.distance_to(c) < 28.0 or world.distance_to(base) < 28.0:
+			lab_drag_carousel = true
+			lab_selected_agent = -1
+			return
+	# else move carousel to clicked cell
+	var cell := _cursor_cell()
+	if _in_pad(cell):
+		lab_carousel.pos = Catalog.cell_world(cell)
+		var car: Dictionary = lab_cfg.get("carousel", {})
+		car["cell"] = [cell.x, cell.y]
+		lab_cfg["carousel"] = car
+		lab_drag_carousel = false
+		lab_selected_agent = -1
+
+
+func _lab_release_drag() -> void:
+	if lab_drag_carousel and not lab_carousel.is_empty():
+		var cell := _cell_of(lab_carousel.get("pos", Catalog.cell_world(Vector2i(8, 16))))
+		var car: Dictionary = lab_cfg.get("carousel", {})
+		car["cell"] = [cell.x, cell.y]
+		lab_cfg["carousel"] = car
+	lab_drag_agent = -1
+	lab_drag_carousel = false
+
+
+func _lab_remove_selected() -> void:
+	if lab_selected_agent < 0:
+		return
+	var kept: Array = []
+	for a in lab_agents:
+		if int(a.get("id", -1)) != lab_selected_agent:
+			kept.append(a)
+	lab_agents = kept
+	lab_selected_agent = -1
+	_lab_update_status()
+
+
+func _lab_toggle_run() -> void:
+	lab_running = not lab_running
+	lab_cfg["paused"] = not lab_running
+	_lab_update_status()
+
+
+func _lab_step_once() -> void:
+	if lab_carousel.is_empty():
+		return
+	var was := lab_running
+	lab_running = false
+	_lab_step(1.0 / 30.0)
+	lab_running = was
+	_lab_update_status()
+
+
+func _lab_save() -> void:
+	# sync carousel cell and paused
+	if not lab_carousel.is_empty():
+		var cell := _cell_of(lab_carousel.get("pos", Catalog.cell_world(Vector2i(8, 16))))
+		var car: Dictionary = lab_cfg.get("carousel", {})
+		car["cell"] = [cell.x, cell.y]
+		lab_cfg["carousel"] = car
+	lab_cfg["paused"] = not lab_running
+	var path := TiovivoLabTune.save_file(lab_cfg)
+	if path != "":
+		_lab_set_status("GUARDADO: %s" % path)
+	else:
+		_lab_set_status("ERROR AL GUARDAR")
+
+
+func _lab_load() -> void:
+	lab_cfg = TiovivoLabTune.load_saved()
+	_lab_reset_state(true)
+	_lab_set_status("CARGADO dev/tiovivo_lab.json")
+
+
+func _lab_set_status(text: String) -> void:
+	if lab_status:
+		lab_status.text = text
+
+
+func _lab_update_status() -> void:
+	if not lab_mode:
+		return
+	var riding := 0
+	var boarding := 0
+	var queue_n := 0
+	for a in lab_agents:
+		var st := str(a.get("state", ""))
+		if st == "riding":
+			riding += 1
+		elif st == "boarding":
+			boarding += 1
+		elif st == "queue" or st == "seek":
+			queue_n += 1
+	var sync: Dictionary = lab_cfg.get("sync", {})
+	var mode := str(sync.get("mode", "continuous"))
+	var run := "PLAY" if lab_running else "PAUSA"
+	var msg := "%s | N=%d mont=%d suben=%d cola=%d modo=%s t=%.1fs" % [run, lab_agents.size(), riding, boarding, queue_n, mode, lab_sim_t]
+	if lab_name:
+		lab_name.text = "LABORATORIO TIOVIVO  -  centro(%.1f,%.1f) dist=%.1f slots=%d  ang0=%.0f miran=%s" % [
+			float(lab_carousel.get("center_offset", Vector2(12,12)).x),
+			float(lab_carousel.get("center_offset", Vector2(12,12)).y),
+			float(lab_carousel.get("seat_spacing", 12.0)),
+			int(lab_carousel.get("slots", 4)),
+			float(lab_carousel.get("slot_base_deg", 0.0)),
+			str(lab_carousel.get("face_mode", "inward"))
+		]
+	_lab_set_status(msg)
+
+
+func _lab_drag_update() -> void:
+	if not lab_mode:
+		return
+	var world: Vector2 = main._grid_pointer()
+	if lab_drag_agent >= 0:
+		for a in lab_agents:
+			if int(a.get("id", -1)) == lab_drag_agent:
+				a.pos = world
+				if str(a.state) == "riding" or str(a.state) == "boarding":
+					a.state = "seek"
+					a.slot = -1
+					a.age = 0.0
+					a.queue_t = lab_sim_t
+				break
+	elif lab_drag_carousel and not lab_carousel.is_empty():
+		lab_carousel.pos = world

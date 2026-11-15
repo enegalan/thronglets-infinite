@@ -5,6 +5,7 @@ extends Node
 # Mitosis requires food, fun and clean together. The last death ends the run.
 
 const DialogueBook := preload("res://dialogue_book.gd")
+const TiovivoLabTune := preload("res://tiovivo_lab_tune.gd")
 
 const DECAY_FED := 0.24
 const DECAY_FUN := 0.14
@@ -28,6 +29,19 @@ const BATH_ENTER_T := 1.2
 const RIDE_FUN_RATE := 2.5
 const RIDE_DONE := 95.0
 const RIDE_MIN_STAY := 8.0
+
+func _ride_cfg() -> Dictionary:
+	# TiovivoLabTune caches by file mtime, so this stays cheap.
+	return TiovivoLabTune.carousel()
+
+func _ride_fun_rate() -> float:
+	return float(_ride_cfg().get("ride_fun_rate", RIDE_FUN_RATE))
+
+func _ride_done_need() -> float:
+	return float(_ride_cfg().get("ride_done", RIDE_DONE))
+
+func _ride_min_stay_need() -> float:
+	return float(_ride_cfg().get("min_stay", RIDE_MIN_STAY))
 const PLAY_AURA_FUN := 6.0
 const BALL_KICK_FUN := 8.0
 # Open grass around the egg so the opening shot stays clear of trees.
@@ -851,15 +865,18 @@ func _footprint_center_of(b: Dictionary) -> Vector2:
 
 
 func _ride_center_of(b: Dictionary) -> Vector2:
-	return Vector2(float(b.x), float(b.y)) + Catalog.ROUND_RIDE_OFF
+	var car := _ride_cfg()
+	var off: Vector2 = car.get("center_offset", Catalog.ROUND_RIDE_OFF)
+	return Vector2(float(b.x), float(b.y)) + off
 
 
 func _ride_radius(_b: Dictionary) -> float:
-	return Catalog.ROUND_RIDE_RADIUS
+	var car := _ride_cfg()
+	return TiovivoLabTune.seat_radius(int(car.get("slots", Catalog.ROUND_RIDE_SLOTS)), float(car.get("seat_spacing", 12.0)))
 
 
 func _ride_slot_count() -> int:
-	return Catalog.ROUND_RIDE_SLOTS
+	return maxi(1, int(_ride_cfg().get("slots", Catalog.ROUND_RIDE_SLOTS)))
 
 
 func _ride_age_of(b: Dictionary, i: int) -> float:
@@ -943,10 +960,11 @@ func _pick_ride_slot(b: Dictionary, approach_ang: float) -> int:
 
 
 func _ride_slot_ang(b: Dictionary, slot: int) -> float:
-	# Cardinal seats (E/S/W/N). Opposite riders stay screen-apart in iso;
-	# diagonal seats collapse onto the same depth axis.
-	var n := float(_ride_slot_count())
-	return float(b.get("spin", 0.0)) + float(slot) * TAU / n
+	# Angle follows building spin plus the tuned base offset, matching the lab.
+	var car := _ride_cfg()
+	var n := maxf(1.0, float(_ride_slot_count()))
+	var base := deg_to_rad(float(car.get("slot_base_deg", 0.0)))
+	return float(b.get("spin", 0.0)) + base + float(slot) * TAU / n
 
 
 func _ride_slot_pos(b: Dictionary, slot: int) -> Vector2:
@@ -1038,7 +1056,7 @@ func _do_roundabout_ride(i: int, b: Dictionary, dt: float) -> void:
 		act_t[i] = 0.55
 		_set_rider(b, i, true)
 		_set_ride_age(b, i, 0.0)
-		amused[i] = minf(100.0, amused[i] + RIDE_FUN_RATE * dt)
+		amused[i] = minf(100.0, amused[i] + _ride_fun_rate() * dt)
 		b.active = true
 		return
 	var was_rider := _is_rider(b, i)
@@ -1063,9 +1081,9 @@ func _do_roundabout_ride(i: int, b: Dictionary, dt: float) -> void:
 	if not _place_on_ride_slot(i, b, slot):
 		_leave_ride(i, b)
 		return
-	amused[i] = minf(100.0, amused[i] + RIDE_FUN_RATE * dt)
+	amused[i] = minf(100.0, amused[i] + _ride_fun_rate() * dt)
 	b.active = true
-	if amused[i] >= RIDE_DONE and age >= RIDE_MIN_STAY:
+	if amused[i] >= _ride_done_need() and age >= _ride_min_stay_need():
 		_leave_ride(i, b)
 
 
@@ -1287,10 +1305,28 @@ func _mine_jobs(b: Dictionary) -> int:
 	return n
 
 
+func _mine_taker(b: Dictionary, cap: int) -> int:
+	var bid := int(b.id)
+	var radius := _work_radius(b) + 8.0
+	# Prefer assigned workers inside the mine, ready and empty-handed.
+	for who in slot_count:
+		if state[who] != Catalog.ST_LIVING:
+			continue
+		if int(mine_job[who]) != bid:
+			continue
+		if carry[who] != Catalog.CARRY_NONE:
+			continue
+		if not _work_ready(who):
+			continue
+		if _inside_building_reach(pos_x[who], pos_y[who], b) or _dist_point(pos_x[who], pos_y[who], float(b.x), float(b.y)) <= radius:
+			return who
+	return -1
+
+
 func _seek_mine(i: int, speed: float, dt: float) -> bool:
 	# Dirty / hungry thronglets must not mine. Jobs are claimed on the walk so
 	# the whole colony cannot rush the rim before ACT_WORK sticks.
-	if not _work_ready(i):
+	if not _work_ready(i) or not _has_factory():
 		_release_mine_job(i)
 		return false
 	var mine := _nearest_building_kinds(pos_x[i], pos_y[i], [Catalog.BLD_MINE, Catalog.BLD_MINE2], 360.0)
@@ -2139,7 +2175,6 @@ func _tick_items(dt: float) -> void:
 		if float(it.life) <= 0.0:
 			it.claimer = -1
 			it.dead = true
-			_pop(float(it.x), float(it.y), Catalog.ICON_FX_POOF)
 			continue
 		var vx := float(it.get("vx", 0.0))
 		var vy := float(it.get("vy", 0.0))
@@ -2198,13 +2233,16 @@ func _tick_buildings(dt: float) -> void:
 		elif kind == Catalog.BLD_MINE or kind == Catalog.BLD_MINE2:
 			var cap := 6 if kind == Catalog.BLD_MINE2 else 2
 			var workers := _workers_near(b, cap)
-			if workers > 0:
+			if workers > 0 and _has_factory():
 				b.active = true
 				b.timer = float(b.timer) - dt * float(workers)
 				if float(b.timer) <= 0.0:
 					b.timer = 2.2
-					var drop := _loot_spot(b)
-					_add_item(Catalog.ITEM_ORE, drop.x, drop.y, _mine_value(b))
+					var taker := _mine_taker(b, cap)
+					if taker >= 0:
+						carry[taker] = Catalog.CARRY_ORE
+						carry_value[taker] = _mine_value(b)
+						_release_mine_job(taker)
 		elif kind == Catalog.BLD_FACTORY or kind == Catalog.BLD_FACTORY2:
 			b.timer = float(b.timer) - dt
 			if float(b.timer) <= 0.0:
@@ -2254,7 +2292,7 @@ func _tick_buildings(dt: float) -> void:
 			# Spin only while someone is actually seated. Approachers leave it idle.
 			b.active = spinning
 			if spinning:
-				b.spin = float(b.get("spin", 0.0)) + Catalog.ROUND_SPIN_RATE * dt
+				b.spin = float(b.get("spin", 0.0)) + float(_ride_cfg().get("spin_speed", Catalog.ROUND_SPIN_RATE)) * dt
 		elif kind == Catalog.BLD_DWELL or kind == Catalog.BLD_FANCY or _is_show(kind):
 			_tick_visit(b, dt)
 
@@ -2359,7 +2397,7 @@ func _tool_axe(x: float, y: float) -> void:
 		sfx_queue.append("chop")
 		return
 	if not feat.is_empty() and (int(feat.kind) == Catalog.FEAT_COSMETIC or int(feat.kind) == Catalog.FEAT_COSMETIC_BAD):
-		_pop(float(feat.x), float(feat.y), Catalog.ICON_FX_POOF)
+		_pop(float(feat.x), float(feat.y), Catalog.ICON_FX_CHOP)
 		notes.append("ESTE ARBOL NO DA MADERA.")
 		sfx_queue.append("chop")
 		return
@@ -2375,7 +2413,6 @@ func _chop(feat: Dictionary) -> void:
 	feat.grow = Catalog.TREE_REGROW
 	_add_item(Catalog.ITEM_WOOD, float(feat.x) + 8.0, float(feat.y), 1)
 	_pop(float(feat.x), float(feat.y), Catalog.ICON_FX_CHOP)
-	_pop(float(feat.x), float(feat.y) + 6.0, Catalog.ICON_FX_POOF)
 	trees_chopped += 1
 	cap_told = false
 	_refresh_pop_gates()
@@ -2853,14 +2890,16 @@ func scrub(x: float, y: float, stroke: float, rubbing: bool = false) -> void:
 		return
 	sponge_hold = 0.45
 	sponge_id = -1
-	# stroke = path since last direction reverse. rubbing = sponge is moving over them.
-	if stroke < 2.0 and not rubbing:
+	# stroke = path since last sample while rubbing, or an instant stroke (e.g. drop).
+	if stroke < 0.5 and not rubbing:
 		return
 	_know_count()
-	var gain := minf(stroke, 22.0) * 2.0 if stroke >= 2.0 else 0.0
+	var gain := minf(stroke, 22.0) * 2.0 if stroke >= 0.5 else 0.0
 	for raw in ids:
 		var id := int(raw)
 		if state[id] != Catalog.ST_LIVING:
+			continue
+		if mito_t[id] > 0.0 or mito_charge[id] > 0.0:
 			continue
 		if clean[id] >= 100.0:
 			_stop_wash(id)
@@ -3470,6 +3509,8 @@ func buy(key: String) -> bool:
 		return false
 	gems -= cost
 	_grant(key, "COMPRADO: " + str(Catalog.MARKET[key].label))
+	if key == "mine":
+		_grant("factory")
 	return true
 
 
@@ -4641,8 +4682,10 @@ func _line_up_gaze() -> void:
 		var here_x := pos_x[i]
 		var here_y := pos_y[i]
 		var spot := _gaze_spot(focus, placed % 4, int(placed / 4))
-		if is_inf(spot.x):
-			spot = focus + Vector2((float(placed % 4) - 1.5) * 22.0, 36.0 + float(int(placed / 4)) * 18.0)
+		if is_inf(spot.x) or _blocked(spot.x, spot.y):
+			spot = _safe_gaze_spot(focus, here_x, here_y)
+		if is_inf(spot.x) or _blocked(spot.x, spot.y):
+			continue
 		pos_x[i] = spot.x
 		pos_y[i] = spot.y
 		dir_x[i] = 0.0
@@ -4683,7 +4726,7 @@ func _gaze_clearing() -> Vector2:
 func _gaze_spot(focus: Vector2, col: int, row: int) -> Vector2:
 	var base := focus + Vector2((float(col) - 1.5) * 22.0, 36.0 + float(row) * 18.0)
 	var fallback := Vector2(INF, INF)
-	for step in 16:
+	for step in 24:
 		for side in [-1, 0, 1]:
 			var at := base + Vector2(float(side) * 14.0 + float(step) * 6.0, float(step) * 12.0)
 			if _blocked(at.x, at.y) or _gaze_taken(at.x, at.y):
@@ -4693,6 +4736,22 @@ func _gaze_spot(focus: Vector2, col: int, row: int) -> Vector2:
 			if not _gaze_covered(at.x, at.y):
 				return at
 	return fallback
+
+
+func _safe_gaze_spot(focus: Vector2, here_x: float, here_y: float) -> Vector2:
+	var seeds: Array[Vector2] = [focus, Vector2(here_x, here_y)]
+	for seed in seeds:
+		if not _blocked(seed.x, seed.y) and not _gaze_taken(seed.x, seed.y):
+			return seed
+		for ring in 24:
+			var rays := 8
+			for corner in rays:
+				var ang := float(corner) * TAU / float(rays)
+				var at := seed + Vector2(cos(ang), sin(ang)) * float(ring + 1) * 12.0
+				if _blocked(at.x, at.y) or _gaze_taken(at.x, at.y):
+					continue
+				return at
+	return Vector2(INF, INF)
 
 
 func _gaze_taken(x: float, y: float) -> bool:
@@ -5077,7 +5136,8 @@ func _enter_part_two(reason: String, talk_market: bool = true) -> void:
 		_seed_early_ore(6)
 		_grant("pickaxe", "", false)
 		_grant("mine", "", false)
-		notes.append("EL PICO Y LAS MINAS YA ESTAN. EL MERCADO, EN EL MENU.")
+		_grant("factory", "", false)
+		notes.append("EL PICO, LAS MINAS Y LA FABRICA YA ESTAN. EL MERCADO, EN EL MENU.")
 		if reason != "":
 			notes.append(reason)
 	_check_milestones()
@@ -5775,7 +5835,6 @@ func _mine_spot_ok(cx: int, cy: int, lx: int, ly: int, tiles, mid_min: float) ->
 
 
 func _fall_void(x: float, y: float) -> void:
-	_pop(x, y, Catalog.ICON_FX_POOF)
 	notes.append("SE CAE AL VACIO. LA PARTIDA SIGUE.")
 	sfx_queue.append("crush")
 
@@ -6309,7 +6368,6 @@ func _add_building(kind: int, x: float, y: float) -> Dictionary:
 
 
 func _remove_building(b: Dictionary) -> void:
-	_pop(float(b.x), float(b.y), Catalog.ICON_FX_POOF)
 	b.dead = true
 	_unbind_building(b)
 	building_by_id.erase(int(b.id))

@@ -1,8 +1,10 @@
 extends Node2D
 
 const ThrongletSim := preload("res://ThrongletSimServer.gd")
+const ThrongTune := preload("res://throng_tune.gd")
 const DevBench := preload("res://dev_bench.gd")
 const DialogueBook := preload("res://dialogue_book.gd")
+const TiovivoLabTune := preload("res://tiovivo_lab_tune.gd")
 
 var camera: Camera2D
 var tilemap: TileMapLayer
@@ -152,12 +154,14 @@ var captions_label: Label
 var captions_layer: CanvasLayer
 var captions_on := true
 var crt_on := true
+var show_fps := false
 var captions_lines: Array = []
 var captions_ends: Array = []
 var captions_index := -1
 var sfx_vol := 1.0
 var music_vol := 1.0
 var settings_lang := "Español"
+var fps_label: Label
 const SETTINGS_LANGS := ["Español"]
 var sign_button: Button
 var dev_on := false
@@ -268,6 +272,7 @@ var biome_plates: Array[Sprite2D] = []
 
 
 func _ready() -> void:
+	EffectTune.load_saved()
 	_build_sky()
 	_build_world()
 	_build_audio()
@@ -429,6 +434,13 @@ func _process(delta: float) -> void:
 	if sim.game_over:
 		return
 	_move_camera(delta)
+	# Follow selected thronglet continuously until clicked elsewhere
+	if selected >= 0:
+		if selected < sim.slot_count and sim.state[selected] != Catalog.ST_VACANT:
+			if sim.held_kind != "thronglet" and not hand_pending:
+				camera.position = camera.position.lerp(_to_iso(Vector2(sim.pos_x[selected], sim.pos_y[selected])), 0.12)
+		else:
+			selected = -1
 	var view := _world_view()
 	sim.view_rect = view
 	sim.explore_rect(view.grow(8.0))
@@ -436,17 +448,11 @@ func _process(delta: float) -> void:
 		var at := _pointer()
 		var stroke := 0.0
 		if sponge_tracking:
-			var move := at - sponge_last
-			if move.length() >= 1.0:
-				var dir := move.normalized()
-				if sponge_dir != Vector2.ZERO and dir.dot(sponge_dir) < 0.0:
-					stroke = move.length()
-				sponge_dir = dir
+			stroke = at.distance_to(sponge_last)
 		else:
 			sponge_tracking = true
-			sponge_dir = Vector2.ZERO
 		sponge_last = at
-		sim.scrub(at.x, at.y, stroke)
+		sim.scrub(at.x, at.y, stroke, stroke >= 0.5)
 	else:
 		sponge_tracking = false
 	_tick_tool_charge(delta)
@@ -475,6 +481,8 @@ func _world_click() -> void:
 	var aim := _aim_thronglet(false)
 	selected = sim.find_thronglet(aim.x, aim.y, 14.0, false)
 	selected_bld = -1
+	if selected >= 0 and selected < sim.slot_count and sim.state[selected] != Catalog.ST_VACANT:
+		camera.position = _to_iso(Vector2(sim.pos_x[selected], sim.pos_y[selected]))
 	var used := tool
 	if used == Catalog.TOOL_SPONGE:
 		return
@@ -616,9 +624,19 @@ func _hand_press() -> void:
 
 
 func _hand_release() -> void:
+	var pending_click_id := hand_pending_id if hand_pending else -1
 	_clear_hand_pending()
 	var sim: ThrongletSim = ThrongletSimServer
 	if not sim.is_holding():
+		if pending_click_id >= 0:
+			var short_click := get_viewport().get_mouse_position().distance_to(hand_from) < 12.0
+			if short_click and pending_click_id < sim.slot_count and sim.state[pending_click_id] != Catalog.ST_VACANT:
+				selected = pending_click_id
+				selected_bld = -1
+				camera.position = _to_iso(Vector2(sim.pos_x[selected], sim.pos_y[selected]))
+			else:
+				selected = -1
+				selected_bld = -1
 		return
 	var short_click := get_viewport().get_mouse_position().distance_to(hand_from) < 12.0
 	if not _drop_on_island():
@@ -643,7 +661,7 @@ func _hand_release() -> void:
 		selected = -1
 		selected_bld = -1
 	elif held_thronglet:
-		selected = held_id
+		selected = -1
 		selected_bld = -1
 	else:
 		selected = -1
@@ -1146,13 +1164,19 @@ func _sync_actors() -> void:
 				if b_kind == Catalog.BLD_TUB:
 					b_tint = Color(0.85, 0.95, 1.0)
 				elif b_kind != Catalog.BLD_ROUND:
-					b_lift = absf(sin(time_pre * 8.0 + float(b.id))) * 2.2
+					var mine_kind := b_kind == Catalog.BLD_MINE or b_kind == Catalog.BLD_MINE2
+					if not mine_kind:
+						b_lift = absf(sin(time_pre * 8.0 + float(b.id))) * 2.2
 					if b_kind == Catalog.BLD_FACTORY or b_kind == Catalog.BLD_FACTORY2:
 						b_tint = Color(1.0, 0.9, 0.82)
-					elif b_kind == Catalog.BLD_MINE or b_kind == Catalog.BLD_MINE2:
+					elif mine_kind:
 						b_tint = Color(1.0, 0.95, 0.75)
 			var b_scale := Catalog.building_sprite_scale(b_kind)
-			_push_iso(draws, draw_at, b_frame, b_tint, b_lift, b_scale)
+			var b_sort_y := NAN
+			if b_kind == Catalog.BLD_MINE or b_kind == Catalog.BLD_MINE2:
+				# Mines are walkable ground pads: render below items/constructions on top.
+				b_sort_y = _to_iso(p3).y - 10000.0
+			_push_iso(draws, draw_at, b_frame, b_tint, b_lift, b_scale, b_sort_y)
 			if b_kind == Catalog.BLD_FACTORY or b_kind == Catalog.BLD_FACTORY2:
 				_push_factory_pile(draws, b, draw_at)
 			if b_kind == Catalog.BLD_APPLE:
@@ -1230,7 +1254,10 @@ func _sync_actors() -> void:
 			var carried_kind := int(carried.kind)
 			var carried_scale := Catalog.building_sprite_scale(carried_kind)
 			if _drop_on_island():
-				_push_iso(draws, _building_draw_at(carried_kind, grid_at), _prop_frame(Catalog.icon_for_building(carried_kind)), Color(1, 1, 1, 0.9), 10.0, carried_scale)
+				var carried_sort_y := NAN
+				if carried_kind == Catalog.BLD_MINE or carried_kind == Catalog.BLD_MINE2:
+					carried_sort_y = _to_iso(grid_at).y - 10000.0
+				_push_iso(draws, _building_draw_at(carried_kind, grid_at), _prop_frame(Catalog.icon_for_building(carried_kind)), Color(1, 1, 1, 0.9), 10.0, carried_scale, carried_sort_y)
 			else:
 				draws.append({
 					"p": get_global_mouse_position(),
@@ -1246,7 +1273,10 @@ func _sync_actors() -> void:
 			if _want_place_grid() and _drop_on_island():
 				var ghost_kind := placing if str(kit_drag.get("type", "")) == "build" else -1
 				var ghost_scale := Catalog.building_sprite_scale(ghost_kind)
-				_push_iso(drag_front, _building_draw_at(ghost_kind, grid_at), _prop_frame(drag_icon), ghost, 10.0, ghost_scale)
+				var ghost_sort_y := NAN
+				if ghost_kind == Catalog.BLD_MINE or ghost_kind == Catalog.BLD_MINE2:
+					ghost_sort_y = _to_iso(grid_at).y - 10000.0
+				_push_iso(drag_front, _building_draw_at(ghost_kind, grid_at), _prop_frame(drag_icon), ghost, 10.0, ghost_scale, ghost_sort_y)
 			else:
 				var drag_scale := 1.0
 				if str(kit_drag.get("type", "")) == "tool":
@@ -1282,33 +1312,37 @@ func _sync_actors() -> void:
 		var seated := false
 		var riding := false
 		var prop_anchor := Vector2.INF
+		var sort_y := NAN
 		var ball_play: bool = doing == ThrongletSim.ACT_PLAY and not sim.ball_of(i).is_empty()
 		if not sim.frozen:
 			if sim.shake_t[i] > 0.0:
 				pos += Vector2(randf_range(-1.5, 1.5), randf_range(-1.5, 1.5))
 			if doing == ThrongletSim.ACT_EAT:
 				lift = sin(time * 10.0 + float(i)) * 1.0
+			elif doing == ThrongletSim.ACT_PLAY and ball_play:
+				lift = 0.0
 			elif doing == ThrongletSim.ACT_PLAY and not ball_play:
 				var ride: Dictionary = sim.ride_of(i)
 				if ride.is_empty():
-					lift = absf(sin(time * 14.0 + float(i))) * 5.5
-					pos += Vector2(sin(time * 18.0 + float(i)) * 1.4, cos(time * 16.0 + float(i)) * 0.8)
+					lift = 0.0
 				else:
 					riding = true
-					lift = absf(sin(time * 10.0 + float(i))) * 1.5
-					# Sort in front of the painted disk (same pattern as the tub seat).
-					var ride_origin := Vector2(float(ride.x), float(ride.y))
-					prop_anchor = _building_draw_at(Catalog.BLD_ROUND, ride_origin)
-					var mid := ride_origin + Catalog.ROUND_RIDE_OFF
+					lift = 2.0
+					# Place and depth-sort riders like the dev lab so they read faithfully on the disk.
 					var seat := sim._ride_slot_of(ride, i)
 					if seat >= 0:
-						var n := float(Catalog.ROUND_RIDE_SLOTS)
-						var ang := float(ride.get("spin", 0.0)) + float(seat) * TAU / n
-						pos = mid + Vector2(cos(ang), sin(ang)) * Catalog.ROUND_RIDE_RADIUS
+						pos = sim._ride_slot_pos(ride, seat)
 					else:
+						var mid := sim._ride_center_of(ride)
 						var ring := pos - mid
-						if ring.length_squared() >= 0.25:
-							pos = mid + ring.normalized() * Catalog.ROUND_RIDE_RADIUS
+						var rr := sim._ride_radius(ride)
+						if ring.length_squared() >= 0.25 and rr > 0.0:
+							pos = mid + ring.normalized() * rr
+						else:
+							pos = mid
+					prop_anchor = Vector2.INF
+					# per-rider depth around the carousel (front seats over, back under)
+					sort_y = _to_iso(pos).y + 10.0
 			elif doing == ThrongletSimServer.ACT_BATH:
 				var tub: Dictionary = sim.seat_of(i)
 				if tub.is_empty():
@@ -1326,13 +1360,16 @@ func _sync_actors() -> void:
 					else:
 						lift = Catalog.TUB_SOAK_LIFT
 					prop_anchor = _building_draw_at(Catalog.BLD_TUB, tub_origin)
+			elif doing == ThrongletSimServer.ACT_WASH:
+				lift = 0.0
 			elif doing == ThrongletSimServer.ACT_WORK:
-				lift = absf(sin(time * 12.0 + float(i))) * 3.0
+				lift = 0.0
 			elif sim.act_t[i] > 0.0:
 				lift = sin(time * 16.0 + float(i)) * 3.5
 		if prop_anchor.x == INF:
 			prop_anchor = _use_prop_anchor(pos)
-		var sort_y := NAN if prop_anchor.x == INF else _prop_front_sort_y(prop_anchor)
+		if is_nan(sort_y):
+			sort_y = NAN if prop_anchor.x == INF else _prop_front_sort_y(prop_anchor)
 		var throng_frame := _frame(i, time)
 		var throng_scale := _throng_sprite_scale(throng_frame)
 		# Ride seat is the feet point; Roundabout sheet off would push them off the disk.
@@ -1346,17 +1383,13 @@ func _sync_actors() -> void:
 			var carry_scale := Catalog.item_sprite_scale(_carry_item(carry_kind))
 			_push_iso(draws, pos, _prop_frame(carry_icon), Color.WHITE, 12.0, carry_scale, sort_y)
 		if not sim.frozen and doing == ThrongletSimServer.ACT_WASH:
-			var bub := Vector2(cos(time * 14.0) * 7.0, sin(time * 14.0) * 4.0)
-			var bubble := AssetFrames.frame(AssetFrames.SUDS, AssetFrames.SUDS_N, 0)
+			var bubble := AssetFrames.frame(AssetFrames.BUBBLE, AssetFrames.BUBBLE_N, int(time * 10.0))
 			if bubble < 0:
 				bubble = _prop_frame(Catalog.ICON_SPONGE)
-			_push_iso(draws, pos + bub, bubble, Color(1, 1, 1, 0.85), 8.0, 1.0, sort_y)
-			var spark := AssetFrames.frame(AssetFrames.CLEAN, AssetFrames.CLEAN_N, int(time * 10.0))
-			if spark >= 0:
-				_push_iso(draws, pos + bub * 0.4, spark, Color(1, 1, 1, 0.7), 10.0, 1.0, sort_y)
-		elif not sim.frozen and doing == ThrongletSimServer.ACT_WORK:
-			var chip := Vector2(sin(time * 15.0 + float(i)) * 6.0, -4.0)
-			_push_iso(draws, pos + chip, _prop_frame(Catalog.ICON_ORE), Color(1, 1, 1, 0.75), 8.0, 1.0, sort_y)
+			var wash_tune: Dictionary = EffectTune.get_tune("act:sponge")
+			var bubble_scale := float(wash_tune.get("scale", 1.0))
+			var bubble_off := Vector2(float(wash_tune.get("fx_x", 0.0)), float(wash_tune.get("fx_y", 0.0)))
+			_push_iso(draws, pos + bubble_off, bubble, Color(1, 1, 1, 0.85), 8.0, bubble_scale, sort_y)
 	if sim.held_kind == "thronglet" and sim.held_ref >= 0 and sim.held_ref < sim.slot_count:
 		var hi: int = sim.held_ref
 		var htint: Color = Catalog.TINTS[int(sim.tint[hi]) % Catalog.TINTS.size()]
@@ -1427,9 +1460,26 @@ func _frame(i: int, time: float) -> int:
 					return ThrongClips.frame_at("Throng_WalkBack_Anim_Spritesheet", int(time * 8.0 + float(i)))
 				return ThrongClips.frame_at("Throng_Walk_Anim_Spritesheet", int(time * 8.0 + float(i)))
 			return ThrongClips.frame_at("ThrongA_Happy", int(time * 6.0))
+		var ride: Dictionary = sim.ride_of(i)
+		if not ride.is_empty():
+			var clip := "ThrongA_Roundabout_SpriteSheet"
+			var car := TiovivoLabTune.carousel()
+			var nframes := int(ThrongClips.CLIPS[clip].y) if ThrongClips.CLIPS.has(clip) else 8
+			var idx := 0
+			if bool(car.get("sprite_dir_follow", true)):
+				var seat := sim._ride_slot_of(ride, i)
+				var ang := 0.0
+				if seat >= 0:
+					ang = sim._ride_slot_ang(ride, seat)
+				else:
+					var mid := sim._ride_center_of(ride)
+					ang = atan2(sim.pos_y[i] - mid.y, sim.pos_x[i] - mid.x)
+				var dir_off := int(car.get("sprite_dir_offset", 0))
+				idx = posmod(int(round(ang / TAU * float(maxi(1, nframes)))) + dir_off, maxi(1, nframes))
+			else:
+				idx = posmod(int(car.get("sprite_dir_offset", 0)), maxi(1, nframes))
+			return ThrongClips.frame_at(clip, idx)
 		var play := "ThrongA_Jump_VariantA_Spritesheet"
-		if not sim.ride_of(i).is_empty():
-			play = "ThrongA_Roundabout_SpriteSheet"
 		return ThrongClips.frame_at(play, int(time * 8.0))
 	if doing == ThrongletSimServer.ACT_WORK and not moving:
 		return ThrongClips.frame_at("ThrongA_Pickaxe_Spritesheet", int(time * 8.0))
@@ -1785,6 +1835,22 @@ func _push_iso(draws: Array, world_pos: Vector2, frame: int, tint: Color, lift: 
 	draws.append({"p": draw_p, "sy": sy, "icon": frame, "tint": tint, "scale": sprite_scale})
 
 
+func _paint_suds(draws: Array, pos: Vector2, sort_y: float, time: float, s: float = 1.0) -> void:
+	var base := AssetFrames.frame(AssetFrames.SUDS, AssetFrames.SUDS_N, 0)
+	if base < 0:
+		base = AssetFrames.frame(AssetFrames.BUBBLE, AssetFrames.BUBBLE_N, 0)
+	if base < 0:
+		return
+	for i in 3:
+		var phase := time * 3.0 + float(i) * TAU / 3.0
+		var wob := Vector2(cos(phase) * 5.0, sin(phase * 1.3) * 2.5 - 3.0)
+		var frame := AssetFrames.frame(AssetFrames.BUBBLE_LIGHT, AssetFrames.BUBBLE_LIGHT_N, int(time * 6.0) + i)
+		if frame < 0:
+			frame = base
+		var alpha := 0.75 + 0.2 * sin(phase)
+		_push_iso(draws, pos + wob, frame, Color(1, 1, 1, alpha), 6.0 + float(i) * 2.0, (0.85 + 0.1 * float(i % 2)) * s, sort_y)
+
+
 # World offset that puts the opaque middle of a frame on the anchor.
 # Tall sprites are clamped to the pad so the base stays inside its cells.
 const _CENTER := {
@@ -1927,7 +1993,12 @@ func _feature_draw_at(kind: int, origin: Vector2, ore: int = 0) -> Vector2:
 	var size := Catalog.footprint_for_feature(kind)
 	var frame := FIRE_ANIM if kind == Catalog.FEAT_FIRE else _prop_frame(Catalog.icon_for_feature(kind, ore))
 	var scale := Catalog.feature_sprite_scale(kind, ore)
-	return origin + Catalog.footprint_center(size) + _pad_nudge(frame, scale, size) + Catalog.feature_draw_off(kind, ore)
+	var extra := Vector2.ZERO
+	if kind == Catalog.FEAT_SUPER:
+		extra = Vector2(9.0, 9.0)
+	elif kind == Catalog.FEAT_FLOWER:
+		extra = Vector2(3.0, 3.0)
+	return origin + Catalog.footprint_center(size) + _pad_nudge(frame, scale, size) + Catalog.feature_draw_off(kind, ore) + extra
 
 
 func _item_draw_at(kind: int, origin: Vector2) -> Vector2:
@@ -1949,15 +2020,14 @@ func _use_prop_anchor(pos: Vector2) -> Vector2:
 		if b.dead:
 			continue
 		var kind := int(b.kind)
-		if kind != Catalog.BLD_TUB and kind != Catalog.BLD_ROUND:
+		# Tubs: only seated bathers are forced in front (handled in ACT_BATH). A proximity
+		# anchor here would also pull nearby thronglets standing behind the tub in front,
+		# which becomes obvious when they freeze in place during mitosis.
+		if kind != Catalog.BLD_ROUND:
 			continue
 		var origin := Vector2(float(b.x), float(b.y))
-		var center := origin
-		if kind == Catalog.BLD_TUB:
-			center += Catalog.TUB_SEAT_OFF
-		elif kind == Catalog.BLD_ROUND:
-			center += Catalog.ROUND_RIDE_OFF
-		var limit := 18.0 if kind == Catalog.BLD_TUB else 28.0
+		var center := origin + Catalog.ROUND_RIDE_OFF
+		var limit := 28.0
 		var d := pos.distance_to(center)
 		if d <= limit and d < best_d:
 			best_d = d
@@ -2013,10 +2083,16 @@ func _throng_dirty(clean: float) -> float:
 func _throng_sprite_scale(frame: int) -> float:
 	if frame == 652 or frame == 653:
 		return 0.7
+	var info: Dictionary = ThrongClips.info_at(frame)
+	if not info.is_empty():
+		return ThrongTune.frame_scale(str(info.clip), int(info.index))
 	return THRONG_SPRITE_SCALE
 
 
 func _throng_sprite_off(frame: int) -> Vector2:
+	var info: Dictionary = ThrongClips.info_at(frame)
+	if not info.is_empty():
+		return ThrongTune.frame_offset(str(info.clip), int(info.index))
 	if frame >= 229 and frame <= 262:
 		return Vector2(21.0, 21.0)
 	if frame >= 263 and frame <= 298:
@@ -2109,6 +2185,8 @@ func _write_mesh(mesh: MultiMesh, draws: Array) -> void:
 
 func _sync_hud(delta: float) -> void:
 	var sim: ThrongletSim = ThrongletSimServer
+	if fps_label != null:
+		fps_label.text = "%d FPS" % int(round(Engine.get_frames_per_second()))
 	pop_label.text = "?" if sim.count_unknown else str(sim.living)
 	var face_key := "base"
 	if sim.living <= 0:
@@ -2845,7 +2923,10 @@ func _focus_draws() -> Array:
 			var focus_frame := _prop_frame(Catalog.icon_for_building(b_kind))
 			if b_kind == Catalog.BLD_FLOWER:
 				focus_frame = FLOWER_ANIM + int(time * 6.0) % FLOWER_ANIM_N
-			_push_iso(draws, draw_at, focus_frame, Color.WHITE, 0.0, Catalog.building_sprite_scale(b_kind))
+			var focus_sort_y := NAN
+			if b_kind == Catalog.BLD_MINE or b_kind == Catalog.BLD_MINE2:
+				focus_sort_y = _to_iso(p3).y - 10000.0
+			_push_iso(draws, draw_at, focus_frame, Color.WHITE, 0.0, Catalog.building_sprite_scale(b_kind), focus_sort_y)
 	for i in sim.slot_count:
 		if sim.state[i] == Catalog.ST_VACANT:
 			continue
@@ -3951,6 +4032,23 @@ func _build_ui() -> void:
 	hud_top.add_child(goal_wrap)
 	root.add_child(hud_top)
 
+	fps_label = Label.new()
+	fps_label.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	fps_label.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	fps_label.offset_left = 6
+	fps_label.offset_top = -28
+	fps_label.offset_right = 84
+	fps_label.offset_bottom = -6
+	fps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	fps_label.add_theme_font_size_override("font_size", 14)
+	fps_label.add_theme_color_override("font_color", Color.WHITE)
+	fps_label.add_theme_color_override("font_outline_color", Color.BLACK)
+	fps_label.add_theme_constant_override("outline_size", 2)
+	fps_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fps_label.visible = false
+	fps_label.z_index = 5
+	root.add_child(fps_label)
+
 	toast = Label.new()
 	toast.set_anchors_preset(Control.PRESET_CENTER_TOP)
 	toast.grow_horizontal = Control.GROW_DIRECTION_BOTH
@@ -4243,6 +4341,7 @@ func _build_ui() -> void:
 		_load_prefs()
 	_apply_crt()
 	_apply_volumes()
+	_apply_show_fps()
 
 	_rebuild_bars()
 
@@ -4440,6 +4539,7 @@ func _load_prefs() -> void:
 	cfg.load("user://opening.cfg")
 	captions_on = bool(cfg.get_value("opening", "captions", true))
 	crt_on = bool(cfg.get_value("opening", "crt", true))
+	show_fps = bool(cfg.get_value("opening", "show_fps", false))
 	sfx_vol = clampf(float(cfg.get_value("opening", "sfx", 1.0)), 0.0, 1.0)
 	music_vol = clampf(float(cfg.get_value("opening", "music", 1.0)), 0.0, 1.0)
 	var lang := str(cfg.get_value("opening", "lang", settings_lang))
@@ -4451,6 +4551,7 @@ func _save_prefs() -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value("opening", "captions", captions_on)
 	cfg.set_value("opening", "crt", crt_on)
+	cfg.set_value("opening", "show_fps", show_fps)
 	cfg.set_value("opening", "sfx", sfx_vol)
 	cfg.set_value("opening", "music", music_vol)
 	cfg.set_value("opening", "lang", settings_lang)
@@ -4460,6 +4561,12 @@ func _save_prefs() -> void:
 func _apply_crt() -> void:
 	if crt_overlay != null:
 		crt_overlay.visible = crt_on
+
+
+func _apply_all_prefs() -> void:
+	_apply_crt()
+	_apply_volumes()
+	_apply_show_fps()
 
 
 func _apply_volumes() -> void:
@@ -5107,6 +5214,7 @@ func _fill_settings_sound() -> void:
 func _fill_settings_edit() -> void:
 	settings_body.add_child(_settings_check_row(LineBook.row("SYS.SETTINGS", 13), captions_on, _toggle_captions))
 	settings_body.add_child(_settings_check_row(LineBook.row("SYS.SETTINGS", 14), crt_on, _toggle_crt))
+	settings_body.add_child(_settings_check_row("FPS", show_fps, _toggle_show_fps))
 	var lang := HBoxContainer.new()
 	lang.add_theme_constant_override("separation", 12)
 	lang.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -5211,6 +5319,18 @@ func _toggle_crt() -> void:
 	_fill_settings()
 
 
+func _toggle_show_fps() -> void:
+	show_fps = not show_fps
+	_apply_show_fps()
+	_save_prefs()
+	_fill_settings()
+
+
+func _apply_show_fps() -> void:
+	if fps_label != null:
+		fps_label.visible = show_fps and not in_title
+
+
 func _sync_tutorial() -> void:
 	if in_title or ThrongletSimServer.testing:
 		return
@@ -5225,6 +5345,8 @@ func _set_hud_shown(shown: bool) -> void:
 		menu_button.visible = shown
 	if save_icon != null and not shown:
 		save_icon.visible = false
+	if fps_label != null:
+		fps_label.visible = show_fps and not in_title
 	if not shown:
 		_set_kit_shown(false)
 
