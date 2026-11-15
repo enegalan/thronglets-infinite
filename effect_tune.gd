@@ -4,8 +4,8 @@ class_name EffectTune
 # The game never reads this. res://dev/effect_tune.json is the handoff.
 
 const PATH := "res://dev/effect_tune.json"
-const LOOK_KEYS := ["clip", "fx", "lift", "bob", "orbit"]
-const FX_CHOICES := ["none", "spark", "suds", "splash", "aura", "fire", "poof", "clean"]
+const LOOK_KEYS := ["clip", "fx", "lift", "bob", "orbit", "scale", "fx_x", "fx_y"]
+const FX_CHOICES := ["none", "spark", "suds", "splash", "aura", "fire", "clean"]
 
 # Rate defaults match ThrongletSimServer / Catalog literals.
 const DEFAULTS := {
@@ -49,8 +49,8 @@ const LOOK := {
 	"act:play": {"clip": "ThrongA_Jump_VariantA_Spritesheet", "fx": "none", "lift": 0.0, "bob": 3.0, "orbit": 10.0},
 	"act:ball": {"clip": "ThrongA_Jump_VariantA_Spritesheet", "fx": "none", "lift": 0.0, "bob": 0.0, "orbit": 14.0},
 	"act:round": {"clip": "ThrongA_Roundabout_SpriteSheet", "fx": "none", "lift": 1.5, "bob": 10.0, "orbit": 0.0},
-	"act:sponge": {"clip": "ThrongA_Happy", "fx": "suds", "lift": 0.0, "bob": 0.0, "orbit": 0.0},
-	"act:mop": {"clip": "ThrongA_Happy", "fx": "suds", "lift": 0.0, "bob": 0.0, "orbit": 0.0},
+	"act:sponge": {"clip": "ThrongA_Happy", "fx": "suds", "lift": 0.0, "bob": 0.0, "orbit": 0.0, "scale": 0.4, "fx_x": 0.0, "fx_y": 0.0},
+	"act:mop": {"clip": "ThrongA_Happy", "fx": "suds", "lift": 0.0, "bob": 0.0, "orbit": 0.0, "scale": 1.0, "fx_x": 0.0, "fx_y": 0.0},
 }
 
 static var _rows: Array = []
@@ -119,6 +119,14 @@ static func field_meta(id: String, key: String) -> Dictionary:
 			lo = 0.0
 			hi = 10.0
 			step = 0.05
+		"scale":
+			lo = 0.05
+			hi = 4.0
+			step = 0.05
+		"fx_x", "fx_y":
+			lo = -120.0
+			hi = 120.0
+			step = 0.5
 		"bite", "enter", "min_stay", "stroke_min", "gain":
 			lo = 0.0
 			hi = 60.0
@@ -367,8 +375,9 @@ static func _document() -> Dictionary:
 			"cap_limit": "integer counts",
 			"radius_orbit": "world pixels",
 			"lift_bob": "preview motion. lift is bob amplitude, bob is cycles-ish speed",
+			"scale": "preview VFX scale (e.g. suds/bubbles)",
 			"clip": "thronglet clip name used by Main._frame for the matching ACT_*",
-			"fx": "preview VFX id: none|spark|suds|splash|aura|fire|poof|clean",
+			"fx": "preview VFX id: none|spark|suds|splash|aura|fire|clean",
 			"need_thresholds": "0-100 need scores in Catalog.NEED_*",
 			"buff": "seconds of buff_t",
 		},
@@ -381,8 +390,8 @@ static func _apply_in(id: String, key: String) -> String:
 		return "Main._frame for the ACT_* / behavior that drives %s. Change the ThrongClips.frame_at clip name there." % id
 	if key == "fx":
 		return "Preview VFX only unless noted. Map spark/suds/splash/fire to the AssetFrames draws used near %s in Main._sync_actors." % id
-	if key == "lift" or key == "bob" or key == "orbit":
-		return "Bench preview motion for %s. lift/bob affect thronglet hop; orbit is VFX ring radius. Optional live apply in Main._sync_actors motion near this action." % id
+	if key == "lift" or key == "bob" or key == "orbit" or key == "scale" or key == "fx_x" or key == "fx_y":
+		return "Bench preview motion for %s. lift/bob affect thronglet hop; orbit is VFX ring radius; scale is VFX scale; fx_x/fx_y offset the VFX. Optional live apply in Main._sync_actors motion near this action." % id
 	match id:
 		"goo":
 			match key:

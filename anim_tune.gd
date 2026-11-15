@@ -16,6 +16,13 @@ const FRAME_SCALE := {
 		"2": 0.6,
 		"3": 0.6,
 	},
+	"clean": {
+		"0": 0.4,
+		"1": 0.4,
+	},
+	"suds": {
+		"0": 0.4,
+	},
 }
 const FRAME_OFF := {
 	"egg": {

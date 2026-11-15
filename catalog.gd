@@ -392,9 +392,9 @@ static func building_reach(kind: int) -> Vector2:
 static func footprint_for_feature(kind: int) -> Vector2i:
 	match kind:
 		FEAT_NODE, FEAT_MNODE:
-			return Vector2i(5, 4)
+			return Vector2i(4, 4)
 		FEAT_SUPER:
-			return Vector2i(6, 5)
+			return Vector2i(4, 4)
 		FEAT_GLITCH_HOUSE:
 			return Vector2i(3, 3)
 		_:
@@ -419,6 +419,8 @@ static func feature_sprite_scale(kind: int, ore: int = 0) -> float:
 			return NODE_SPRITE_SCALE
 		FEAT_SUPER:
 			return SUPER_SPRITE_SCALE
+		FEAT_FLOWER:
+			return FLOWER_SPRITE_SCALE
 		FEAT_ROCK:
 			return ROCK_ORE_SPRITE_SCALE if ore == 1 else ROCK_SPRITE_SCALE
 		FEAT_ORE_MEGA, FEAT_ORE_SUPER, FEAT_ORE_ULTRA:
@@ -649,7 +651,8 @@ static func feature_blocks(kind: int) -> bool:
 	return kind == FEAT_TREE or kind == FEAT_ROCK or kind == FEAT_BIGROCK or kind == FEAT_NODE or kind == FEAT_SUPER or kind == FEAT_MNODE or kind == FEAT_COSMETIC or kind == FEAT_COSMETIC_BAD or kind == FEAT_ORE_MEGA or kind == FEAT_ORE_SUPER or kind == FEAT_ORE_ULTRA or kind == FEAT_MONOLITH or kind == FEAT_TOTEM
 
 static func building_blocks(kind: int) -> bool:
-	return kind == BLD_TUB or kind == BLD_APPLE or kind == BLD_ROUND or kind == BLD_DWELL or kind == BLD_FANCY or kind == BLD_MINE or kind == BLD_MINE2 or kind == BLD_FACTORY or kind == BLD_FACTORY2 or kind == BLD_THEATRE or kind == BLD_MARKET or kind == BLD_FLOWER or kind == BLD_STATUE or kind == BLD_WOOD
+	# Mine footprints are walkable ground pads; they still occupy cells for placement.
+	return kind == BLD_TUB or kind == BLD_APPLE or kind == BLD_ROUND or kind == BLD_DWELL or kind == BLD_FANCY or kind == BLD_FACTORY or kind == BLD_FACTORY2 or kind == BLD_THEATRE or kind == BLD_MARKET or kind == BLD_FLOWER or kind == BLD_STATUE or kind == BLD_WOOD
 
 static func tile_blocks(tile: int) -> bool:
 	return tile == TILE_WATER or tile == TILE_MOUNTAIN or tile == TILE_RUBBLE or tile == TILE_FOG or tile == TILE_VOID
