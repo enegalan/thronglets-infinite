@@ -24,11 +24,16 @@ void fragment() {
 	if (tex.a < 0.15) {
 		discard;
 	}
-	float dirty = clamp(custom_data.y, 0.0, 1.0);
-	if (dirty > 0.001) {
-		vec4 dirt = texture(dirt_tex, sample_uv);
-		float factor = dirt.a * dirty;
-		tex.rgb = mix(tex.rgb, tex.rgb * dirt.rgb, factor);
+	// INSTANCE_CUSTOM.z > 0: solid silhouette for tool select outline.
+	if (custom_data.z > 0.5) {
+		COLOR = vec4(inst_color.rgb, tex.a * inst_color.a);
+	} else {
+		float dirty = clamp(custom_data.y, 0.0, 1.0);
+		if (dirty > 0.001) {
+			vec4 dirt = texture(dirt_tex, sample_uv);
+			float factor = dirt.a * dirty;
+			tex.rgb = mix(tex.rgb, tex.rgb * dirt.rgb, factor);
+		}
+		COLOR = (current_frame < 24 || current_frame >= 144) ? tex : tex * inst_color;
 	}
-	COLOR = (current_frame < 24 || current_frame >= 144) ? tex : tex * inst_color;
 }

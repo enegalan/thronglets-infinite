@@ -1,32 +1,56 @@
 class_name EffectTune
 
-# Dev bench overrides for thronglet need rates. The game never reads this.
-# res://dev/effect_tune.json is the handoff for applying the same values in code.
+# Dev bench overrides for thronglet need rates and presentation.
+# The game never reads this. res://dev/effect_tune.json is the handoff.
 
 const PATH := "res://dev/effect_tune.json"
+const LOOK_KEYS := ["clip", "fx", "lift", "bob", "orbit"]
+const FX_CHOICES := ["none", "spark", "suds", "splash", "aura", "fire", "poof", "clean"]
 
-# Defaults match ThrongletSimServer / Catalog literals at save time.
+# Rate defaults match ThrongletSimServer / Catalog literals.
 const DEFAULTS := {
-	"decay": {"fed": 0.12, "fun": 0.07, "clean": 0.08},
 	"goo": {"fed": 0.35, "clean": 0.9, "clean_adapt": 0.35},
 	"need": {"ok": 85.0, "hungry": 75.0, "seek": 40.0, "fun": 82.0},
-	"visit:dwell": {"cap": 4.0, "stay": 14.0, "cool": 12.0, "fed": 16.0, "clean": 22.0, "fun": 0.0},
-	"visit:fancy": {"cap": 10.0, "stay": 20.0, "cool": 10.0, "fed": 18.0, "clean": 34.0, "fun": 0.0},
-	"visit:theatre": {"cap": 18.0, "stay": 9.0, "cool": 8.0, "fed": 0.0, "clean": 0.0, "fun": 28.0},
-	"aura:flower": {"radius": 28.0, "limit": 3.0, "fun": 10.0, "buff": 0.0},
-	"aura:statue": {"radius": 36.0, "limit": 4.0, "fun": 14.0, "buff": 0.8},
-	"aura:wood": {"radius": 36.0, "limit": 4.0, "fun": 14.0, "buff": 0.8},
-	"feat:totem": {"radius": 32.0, "limit": 4.0, "fun": 12.0, "buff": 0.0},
-	"feat:curer": {"radius": 28.0, "limit": 3.0, "fed": 4.0, "clean": 16.0, "fun": 0.0, "buff": 0.0},
+	"visit:dwell": {"cap": 4.0, "stay": 18.0, "cool": 14.0, "fed": 6.0, "clean": 8.0, "fun": 0.0},
+	"visit:fancy": {"cap": 10.0, "stay": 24.0, "cool": 12.0, "fed": 7.0, "clean": 12.0, "fun": 0.0},
+	"visit:theatre": {"cap": 18.0, "stay": 14.0, "cool": 10.0, "fed": 0.0, "clean": 0.0, "fun": 9.0},
+	"aura:flower": {"radius": 28.0, "limit": 3.0, "fun": 3.5, "buff": 0.0},
+	"aura:statue": {"radius": 36.0, "limit": 4.0, "fun": 5.0, "buff": 0.8},
+	"aura:wood": {"radius": 36.0, "limit": 4.0, "fun": 5.0, "buff": 0.8},
+	"feat:totem": {"radius": 32.0, "limit": 4.0, "fun": 4.0, "buff": 0.0},
+	"feat:curer": {"radius": 28.0, "limit": 3.0, "fed": 1.5, "clean": 5.0, "fun": 0.0, "buff": 0.0},
 	"feat:fire": {"radius": 28.0, "clean": 8.0},
 	"aura:ball": {"radius": 28.0, "limit": 2.0, "fun": 20.0},
 	"act:eat": {"bite": 0.45, "fed": 100.0},
-	"act:bath": {"clean": 9.0, "done": 95.0, "min_stay": 5.0, "enter": 1.2},
-	"act:play": {"fun": 18.0},
-	"act:ball": {"fun": 14.0},
-	"act:round": {"fun": 26.0},
-	"act:sponge": {"radius": 30.0, "stroke_min": 4.0, "stroke_cap": 22.0, "gain": 2.0},
+	"act:bath": {"clean": 3.0, "done": 95.0, "min_stay": 8.0, "enter": 1.2},
+	"act:play": {"fun": 6.0},
+	"act:ball": {"fun": 8.0},
+	"act:round": {"fun": 2.5},
+	"act:sponge": {"radius": 30.0, "stroke_min": 2.0, "stroke_cap": 22.0, "gain": 2.0},
 	"act:mop": {"radius": 48.0, "clean": 100.0},
+}
+
+# Presentation defaults used by the bench preview. apply_in points at Main._frame.
+const LOOK := {
+	"goo": {"clip": "ThrongA_Sad", "fx": "none", "lift": 0.0, "bob": 0.0, "orbit": 6.0},
+	"need": {"clip": "ThrongA_Default", "fx": "none", "lift": 0.0, "bob": 0.0, "orbit": 0.0},
+	"visit:dwell": {"clip": "ThrongA_Default", "fx": "spark", "lift": 0.0, "bob": 0.0, "orbit": 8.0},
+	"visit:fancy": {"clip": "ThrongA_Default", "fx": "spark", "lift": 0.0, "bob": 0.0, "orbit": 8.0},
+	"visit:theatre": {"clip": "ThrongA_Jump_VariantA_Spritesheet", "fx": "spark", "lift": 0.0, "bob": 2.0, "orbit": 8.0},
+	"aura:flower": {"clip": "ThrongA_Jump_VariantA_Spritesheet", "fx": "none", "lift": 0.0, "bob": 2.0, "orbit": 14.0},
+	"aura:statue": {"clip": "ThrongA_Jump_VariantA_Spritesheet", "fx": "none", "lift": 0.0, "bob": 2.0, "orbit": 14.0},
+	"aura:wood": {"clip": "ThrongA_Jump_VariantA_Spritesheet", "fx": "none", "lift": 0.0, "bob": 2.0, "orbit": 14.0},
+	"feat:totem": {"clip": "ThrongA_Jump_VariantA_Spritesheet", "fx": "none", "lift": 0.0, "bob": 2.0, "orbit": 12.0},
+	"feat:curer": {"clip": "ThrongA_Happy", "fx": "suds", "lift": 0.0, "bob": 0.0, "orbit": 0.0},
+	"feat:fire": {"clip": "ThrongA_Sad", "fx": "none", "lift": 0.0, "bob": 0.0, "orbit": 10.0},
+	"aura:ball": {"clip": "ThrongA_Jump_VariantA_Spritesheet", "fx": "none", "lift": 0.0, "bob": 2.0, "orbit": 14.0},
+	"act:eat": {"clip": "ThrongA_Eat", "fx": "none", "lift": 0.0, "bob": 5.0, "orbit": 0.0},
+	"act:bath": {"clip": "Throng_FallInBath_Spritesheet", "fx": "splash", "lift": 0.0, "bob": 0.0, "orbit": 0.0},
+	"act:play": {"clip": "ThrongA_Jump_VariantA_Spritesheet", "fx": "none", "lift": 0.0, "bob": 3.0, "orbit": 10.0},
+	"act:ball": {"clip": "ThrongA_Jump_VariantA_Spritesheet", "fx": "none", "lift": 0.0, "bob": 0.0, "orbit": 14.0},
+	"act:round": {"clip": "ThrongA_Roundabout_SpriteSheet", "fx": "none", "lift": 1.5, "bob": 10.0, "orbit": 0.0},
+	"act:sponge": {"clip": "ThrongA_Happy", "fx": "suds", "lift": 0.0, "bob": 0.0, "orbit": 0.0},
+	"act:mop": {"clip": "ThrongA_Happy", "fx": "suds", "lift": 0.0, "bob": 0.0, "orbit": 0.0},
 }
 
 static var _rows: Array = []
@@ -67,14 +91,13 @@ static func change_count() -> int:
 	return n
 
 
-static func keys_for(id: String) -> PackedStringArray:
-	var row := entry(id)
-	if row.is_empty():
-		return PackedStringArray()
-	return row.fields as PackedStringArray
+static func is_str_field(key: String) -> bool:
+	return key == "clip" or key == "fx"
 
 
 static func field_meta(id: String, key: String) -> Dictionary:
+	if is_str_field(key):
+		return {"min": 0.0, "max": 0.0, "step": 1.0, "whole": false, "str": true}
 	var whole := key == "cap" or key == "limit"
 	var lo := 0.0
 	var hi := 200.0
@@ -84,10 +107,14 @@ static func field_meta(id: String, key: String) -> Dictionary:
 			lo = 0.0
 			hi = 64.0
 			step = 1.0
-		"radius":
-			lo = 1.0
+		"radius", "orbit":
+			lo = 0.0
 			hi = 160.0
 			step = 1.0
+		"lift", "bob":
+			lo = 0.0
+			hi = 40.0
+			step = 0.1
 		"buff":
 			lo = 0.0
 			hi = 10.0
@@ -109,7 +136,7 @@ static func field_meta(id: String, key: String) -> Dictionary:
 			hi = 100.0
 			step = 1.0
 		"fed", "fun", "clean", "clean_adapt":
-			if id == "decay" or id == "goo":
+			if id == "goo":
 				lo = 0.0
 				hi = 5.0
 				step = 0.01
@@ -125,10 +152,12 @@ static func field_meta(id: String, key: String) -> Dictionary:
 			lo = 0.0
 			hi = 200.0
 			step = 0.01
-	return {"min": lo, "max": hi, "step": step, "whole": whole}
+	return {"min": lo, "max": hi, "step": step, "whole": whole, "str": false}
 
 
 static func set_num(id: String, key: String, value: float) -> void:
+	if is_str_field(key):
+		return
 	var meta := field_meta(id, key)
 	var snapped: float
 	if bool(meta.whole):
@@ -136,6 +165,17 @@ static func set_num(id: String, key: String, value: float) -> void:
 	else:
 		snapped = snappedf(clampf(value, float(meta.min), float(meta.max)), 0.01)
 	_assign(id, key, snapped)
+
+
+static func set_str(id: String, key: String, value: String) -> void:
+	if not is_str_field(key):
+		return
+	var text := value.strip_edges()
+	if key == "fx" and not FX_CHOICES.has(text):
+		text = "none"
+	if key == "clip" and text == "":
+		text = "ThrongA_Default"
+	_assign(id, key, text)
 
 
 static func reset(id: String) -> void:
@@ -184,7 +224,6 @@ static func save_file() -> String:
 
 
 static func _build() -> void:
-	_push("GLOBAL", "decay", "DECAY", ["fed", "fun", "clean"])
 	_push("GLOBAL", "goo", "GOO", ["fed", "clean", "clean_adapt"])
 	_push("GLOBAL", "need", "NEED", ["ok", "hungry", "seek", "fun"])
 	_push("VISIT", "visit:dwell", "CASA", ["cap", "stay", "cool", "fed", "clean", "fun"])
@@ -210,6 +249,8 @@ static func _push(group: String, id: String, label: String, keys: Array) -> void
 	var packed := PackedStringArray()
 	for key in keys:
 		packed.append(str(key))
+	for key in LOOK_KEYS:
+		packed.append(str(key))
 	var row := {
 		"id": id,
 		"group": group,
@@ -221,16 +262,29 @@ static func _push(group: String, id: String, label: String, keys: Array) -> void
 
 
 static func _defaults(id: String) -> Dictionary:
-	var base = DEFAULTS.get(id, {})
-	if typeof(base) != TYPE_DICTIONARY:
-		return {}
 	var out := {}
-	for key in base.keys():
-		out[str(key)] = float(base[key])
+	var base = DEFAULTS.get(id, {})
+	if typeof(base) == TYPE_DICTIONARY:
+		for key in base.keys():
+			out[str(key)] = float(base[key])
+	var look = LOOK.get(id, {})
+	if typeof(look) == TYPE_DICTIONARY:
+		for key in look.keys():
+			var name := str(key)
+			if is_str_field(name):
+				out[name] = str(look[key])
+			else:
+				out[name] = float(look[key])
 	return out
 
 
-static func _assign(id: String, key: String, value: float) -> void:
+static func _same(key: String, a, b) -> bool:
+	if is_str_field(key):
+		return str(a) == str(b)
+	return is_equal_approx(float(a), float(b))
+
+
+static func _assign(id: String, key: String, value) -> void:
 	var row := entry(id)
 	if row.is_empty():
 		return
@@ -239,7 +293,7 @@ static func _assign(id: String, key: String, value: float) -> void:
 	var base: Dictionary = _defaults(id)
 	if not base.has(key):
 		return
-	var same := is_equal_approx(float(base[key]), value)
+	var same := _same(key, base[key], value)
 	if not overrides.has(id):
 		if same:
 			return
@@ -255,12 +309,27 @@ static func _assign(id: String, key: String, value: float) -> void:
 static func _read_value(id: String, key: String, raw):
 	if raw == null:
 		return null
+	if is_str_field(key):
+		if typeof(raw) != TYPE_STRING:
+			return null
+		var text := str(raw).strip_edges()
+		if key == "fx" and not FX_CHOICES.has(text):
+			return null
+		if key == "clip" and text == "":
+			return null
+		return text
 	if typeof(raw) != TYPE_FLOAT and typeof(raw) != TYPE_INT:
 		return null
 	var meta := field_meta(id, key)
 	if bool(meta.whole):
 		return float(clampi(int(round(float(raw))), int(meta.min), int(meta.max)))
 	return snappedf(clampf(float(raw), float(meta.min), float(meta.max)), 0.01)
+
+
+static func _json_value(key: String, value):
+	if is_str_field(key):
+		return str(value)
+	return snappedf(float(value), 0.01)
 
 
 static func _document() -> Dictionary:
@@ -274,11 +343,11 @@ static func _document() -> Dictionary:
 		var fields := {}
 		for key in row.fields:
 			var name := str(key)
-			if is_equal_approx(float(base[name]), float(tune[name])):
+			if _same(name, base[name], tune[name]):
 				continue
 			fields[name] = {
-				"from": snappedf(float(base[name]), 0.01),
-				"to": snappedf(float(tune[name]), 0.01),
+				"from": _json_value(name, base[name]),
+				"to": _json_value(name, tune[name]),
 				"apply_in": _apply_in(id, name),
 			}
 		if fields.is_empty():
@@ -290,13 +359,16 @@ static func _document() -> Dictionary:
 			"fields": fields,
 		})
 	return {
-		"version": 1,
+		"version": 2,
 		"do_not_runtime_load": true,
 		"how_to_apply": _how(),
 		"units": {
 			"fed_fun_clean_rates": "points per second while the effect applies, unless noted",
 			"cap_limit": "integer counts",
-			"radius": "world pixels",
+			"radius_orbit": "world pixels",
+			"lift_bob": "preview motion. lift is bob amplitude, bob is cycles-ish speed",
+			"clip": "thronglet clip name used by Main._frame for the matching ACT_*",
+			"fx": "preview VFX id: none|spark|suds|splash|aura|fire|poof|clean",
 			"need_thresholds": "0-100 need scores in Catalog.NEED_*",
 			"buff": "seconds of buff_t",
 		},
@@ -305,15 +377,13 @@ static func _document() -> Dictionary:
 
 
 static func _apply_in(id: String, key: String) -> String:
+	if key == "clip":
+		return "Main._frame for the ACT_* / behavior that drives %s. Change the ThrongClips.frame_at clip name there." % id
+	if key == "fx":
+		return "Preview VFX only unless noted. Map spark/suds/splash/fire to the AssetFrames draws used near %s in Main._sync_actors." % id
+	if key == "lift" or key == "bob" or key == "orbit":
+		return "Bench preview motion for %s. lift/bob affect thronglet hop; orbit is VFX ring radius. Optional live apply in Main._sync_actors motion near this action." % id
 	match id:
-		"decay":
-			match key:
-				"fed":
-					return "ThrongletSimServer.DECAY_FED. Used in _tick_one as fed -= DECAY_FED * decay * dt."
-				"fun":
-					return "ThrongletSimServer.DECAY_FUN. Used in _tick_one as amused -= DECAY_FUN * decay * dt."
-				"clean":
-					return "ThrongletSimServer.DECAY_CLEAN. Used in _tick_one as clean -= DECAY_CLEAN * decay * dt."
 		"goo":
 			match key:
 				"fed":
@@ -394,18 +464,19 @@ static func _apply_in(id: String, key: String) -> String:
 					return "ThrongletSimServer._mop query_radius and tile clear radius."
 				"clean":
 					return "ThrongletSimServer._mop: clean[id] = value for living thronglets in radius."
-	return "ThrongletSimServer / Catalog for %s.%s" % [id, key]
+	return "ThrongletSimServer / Catalog / Main for %s.%s" % [id, key]
 
 
 static func _how() -> String:
 	return " ".join(PackedStringArray([
 		"Apply each object in changes and nothing else.",
-		"Do not load this file at runtime. Edit ThrongletSimServer.gd or catalog.gd so the live values match to, then update DEFAULTS in effect_tune.gd so the bench default matches.",
+		"Do not load this file at runtime. Edit ThrongletSimServer.gd, catalog.gd, or Main._frame so the live values match to, then update DEFAULTS/LOOK in effect_tune.gd.",
 		"from is the bench default at save time. to is the absolute value the bench showed.",
 		"Follow apply_in on each field.",
 		"Skip fields that are not listed.",
+		"clip is the thronglet spritesheet name. Fine frame edits stay in throng_tune / ANIM.",
+		"fx is the preview VFX id. Map it to AssetFrames draws when applying live.",
+		"lift/bob/orbit are preview motion knobs.",
 		"Visit fed/clean/fun and aura fun/fed/clean are points per second unless apply_in says otherwise.",
-		"act:ball fun is a one-shot add on kick.",
-		"act:eat fed and act:mop clean are absolute fills.",
 		"Do not change costs, unlocks, dialogue ops, or unlisted rates.",
 	]))

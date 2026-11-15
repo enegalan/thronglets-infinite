@@ -9,6 +9,11 @@ const HASH_CELL := 64.0
 const HASH_SIZE := 4096
 const MAX_SLOTS := 120000
 const SLICE := 2500
+# Walkable land tiles needed before another thronglet can split.
+const SPACE_PER_THRONG := 14
+# Soft local pile limit: mitosis waits if this many already sit nearby.
+const LOCAL_CROWD_R := 56.0
+const LOCAL_CROWD_N := 12
 const NEED_OK := 85.0
 const NEED_HUNGRY := 75.0
 const NEED_SEEK := 40.0
@@ -24,6 +29,12 @@ const APPLE_LAND_MIN := 10.0
 const APPLE_LAND_MAX := 24.0
 # Seat in the tub, world offset from the snap cell.
 const TUB_SEAT_OFF := Vector2(8.0, 12.0)
+# Ride seat from the snap cell. Mid sits on the painted hub (tune: 14,14).
+# Radius keeps feet on the wedges; larger values spill onto the grass.
+const ROUND_RIDE_OFF := Vector2(12.0, 12.0)
+const ROUND_RIDE_RADIUS := 4.0
+const ROUND_RIDE_SLOTS := 4
+const ROUND_SPIN_RATE := 2.8
 const TUB_SPRITE_SCALE := 0.35
 const ROUND_SPRITE_SCALE := 0.45
 const FLOWER_SPRITE_SCALE := 0.5
@@ -48,7 +59,11 @@ const TUB_ENTER_LIFT := 11.0
 const TOOL_CHARGE := 0.55
 const SAW_RADIUS := 40.0
 const PICK_RADIUS := 42.0
+const HAMMER_ORE_RADIUS := 48.0
 const GRAB_RADIUS := 48.0
+const MOP_RADIUS := 48.0
+const TOOL_REACH_COLOR := Color(0.28, 0.92, 0.32, 0.95)
+const TOOL_CHARGE_COLOR := Color(1.0, 1.0, 1.0, 0.95)
 
 const TILE_GRASS := 0
 const TILE_DIRT := 1
@@ -314,9 +329,9 @@ const TOOL_INFO := [
 ]
 
 const BUILD_INFO := {
-	BLD_APPLE: {"unlock": "apple_tree", "wood": 1, "label": "MANZANO", "icon": ICON_APPLE_TREE},
-	BLD_TUB: {"unlock": "bathtub", "wood": 1, "label": "BANERA", "icon": ICON_TUB},
-	BLD_ROUND: {"unlock": "roundabout", "wood": 1, "label": "TIOVIVO", "icon": ICON_ROUND},
+	BLD_APPLE: {"unlock": "apple_tree", "wood": 0, "label": "MANZANO", "icon": ICON_APPLE_TREE},
+	BLD_TUB: {"unlock": "bathtub", "wood": 0, "label": "BANERA", "icon": ICON_TUB},
+	BLD_ROUND: {"unlock": "roundabout", "wood": 0, "label": "TIOVIVO", "icon": ICON_ROUND},
 	BLD_DWELL: {"unlock": "dwelling", "wood": 2, "label": "VIVIENDA", "icon": ICON_DWELL},
 	BLD_FANCY: {"unlock": "fancy", "wood": 3, "label": "VIVIENDA DE LUJO", "icon": ICON_FANCY},
 	BLD_MINE: {"unlock": "mine", "wood": 2, "label": "MINA", "icon": ICON_MINE},
@@ -341,7 +356,8 @@ static func footprint_for_building(kind: int) -> Vector2i:
 		BLD_MINE2:
 			return Vector2i(5, 6)
 		BLD_FACTORY, BLD_FACTORY2:
-			return Vector2i(5, 5)
+			# Same pad as a dwelling: a 5x5 never fits a lived-in home island.
+			return Vector2i(3, 3)
 		BLD_THEATRE:
 			return Vector2i(4, 6)
 		BLD_MARKET:
@@ -521,7 +537,7 @@ const MARKET := {
 	"pickaxe": {"cost": 15, "label": "PICO"},
 	"mine": {"cost": 50, "label": "MINA"},
 	"dwelling": {"cost": 200, "label": "VIVIENDA"},
-	"factory": {"cost": 300, "label": "FABRICA"},
+	"factory": {"cost": 200, "label": "FABRICA"},
 	"chainsaw": {"cost": 400, "label": "MOTOSIERRA"},
 	"theatre": {"cost": 1000, "label": "TEATRO"},
 	"factory2": {"cost": 5000, "label": "FABRICA II"},
@@ -630,7 +646,7 @@ static func icon_for_building(kind: int) -> int:
 	return ICON_MARKET
 
 static func feature_blocks(kind: int) -> bool:
-	return kind == FEAT_TREE or kind == FEAT_ROCK or kind == FEAT_BIGROCK or kind == FEAT_COSMETIC or kind == FEAT_COSMETIC_BAD or kind == FEAT_ORE_MEGA or kind == FEAT_ORE_SUPER or kind == FEAT_ORE_ULTRA or kind == FEAT_MONOLITH or kind == FEAT_TOTEM
+	return kind == FEAT_TREE or kind == FEAT_ROCK or kind == FEAT_BIGROCK or kind == FEAT_NODE or kind == FEAT_SUPER or kind == FEAT_MNODE or kind == FEAT_COSMETIC or kind == FEAT_COSMETIC_BAD or kind == FEAT_ORE_MEGA or kind == FEAT_ORE_SUPER or kind == FEAT_ORE_ULTRA or kind == FEAT_MONOLITH or kind == FEAT_TOTEM
 
 static func building_blocks(kind: int) -> bool:
 	return kind == BLD_TUB or kind == BLD_APPLE or kind == BLD_ROUND or kind == BLD_DWELL or kind == BLD_FANCY or kind == BLD_MINE or kind == BLD_MINE2 or kind == BLD_FACTORY or kind == BLD_FACTORY2 or kind == BLD_THEATRE or kind == BLD_MARKET or kind == BLD_FLOWER or kind == BLD_STATUE or kind == BLD_WOOD

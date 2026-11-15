@@ -50,7 +50,10 @@ var effect_name: Label
 var effect_status: Label
 var effect_live: Label
 var effect_metrics: HBoxContainer
+var effect_look: HBoxContainer
 var effect_spins := {}
+var effect_clip_box: OptionButton
+var effect_fx_box: OptionButton
 var effect_play_button: Button
 var effect_playing := true
 var effect_fed := 50.0
@@ -1318,7 +1321,7 @@ func _build_effect_ui(theme: Theme, root: Control) -> void:
 	effect_bar = PanelContainer.new()
 	effect_bar.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	effect_bar.offset_left = 196
-	effect_bar.offset_top = -148
+	effect_bar.offset_top = -188
 	effect_bar.offset_right = -4
 	effect_bar.offset_bottom = -4
 	effect_bar.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -1327,7 +1330,7 @@ func _build_effect_ui(theme: Theme, root: Control) -> void:
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 2)
 	var hint := Label.new()
-	hint.text = "PREVIEW EN VIVO DEL EFECTO. SPACE PAUSA. REPLAY REINICIA LAS BARRAS. SAVE ESCRIBE effect_tune.json."
+	hint.text = "PREVIEW EN VIVO. CLIP/FX/MOTION AQUI. FRAMES FINOS EN ANIM. SPACE PAUSA. SAVE ESCRIBE effect_tune.json."
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(hint)
 	effect_name = Label.new()
@@ -1336,6 +1339,9 @@ func _build_effect_ui(theme: Theme, root: Control) -> void:
 	effect_live = Label.new()
 	effect_live.clip_text = true
 	box.add_child(effect_live)
+	effect_look = HBoxContainer.new()
+	effect_look.add_theme_constant_override("separation", 4)
+	box.add_child(effect_look)
 	effect_metrics = HBoxContainer.new()
 	effect_metrics.add_theme_constant_override("separation", 4)
 	box.add_child(effect_metrics)
@@ -1345,6 +1351,7 @@ func _build_effect_ui(theme: Theme, root: Control) -> void:
 	actions.add_child(effect_play_button)
 	actions.add_child(_text_button("REPLAY", _replay_effect))
 	actions.add_child(_text_button("RESET", _reset_effect))
+	actions.add_child(_text_button("CLIP ANIM", _open_effect_clip_anim))
 	actions.add_child(_text_button("SAVE & RESTART", _save_restart))
 	actions.add_child(_text_button("PROPS", _show_props))
 	actions.add_child(_text_button("ANIM", _show_throng))
@@ -1393,7 +1400,11 @@ func _fill_effect() -> void:
 	_fill = true
 	for child in effect_metrics.get_children():
 		child.queue_free()
+	for child in effect_look.get_children():
+		child.queue_free()
 	effect_spins.clear()
+	effect_clip_box = null
+	effect_fx_box = null
 	if effect_id == "" or EffectTune.entry(effect_id).is_empty():
 		effect_name.text = "SIN EFECTO"
 		_fill = false
@@ -1401,8 +1412,13 @@ func _fill_effect() -> void:
 	var row: Dictionary = EffectTune.entry(effect_id)
 	var tune: Dictionary = EffectTune.get_tune(effect_id)
 	effect_name.text = "%s  (%s)" % [str(row.label), effect_id]
+	_fill_effect_look(tune)
 	for key in row.fields:
 		var field := str(key)
+		if EffectTune.is_str_field(field):
+			continue
+		if field == "lift" or field == "bob" or field == "orbit":
+			continue
 		var meta: Dictionary = EffectTune.field_meta(effect_id, field)
 		var box := _spin(float(meta.min), float(meta.max), float(meta.step), bool(meta.whole))
 		box.set_value_no_signal(float(tune.get(field, 0.0)))
@@ -1410,8 +1426,54 @@ func _fill_effect() -> void:
 		box.value_changed.connect(func(_v: float): _on_effect_num(field_key))
 		_pair(effect_metrics, field.to_upper(), box)
 		effect_spins[field] = box
+	for field in ["lift", "bob", "orbit"]:
+		var meta2: Dictionary = EffectTune.field_meta(effect_id, field)
+		var box2 := _spin(float(meta2.min), float(meta2.max), float(meta2.step), bool(meta2.whole))
+		box2.set_value_no_signal(float(tune.get(field, 0.0)))
+		var motion_key: String = field
+		box2.value_changed.connect(func(_v: float): _on_effect_num(motion_key))
+		_pair(effect_metrics, field.to_upper(), box2)
+		effect_spins[field] = box2
 	_fill = false
 	_sync_effect_live()
+
+
+func _fill_effect_look(tune: Dictionary) -> void:
+	var clip_label := Label.new()
+	clip_label.text = "CLIP"
+	effect_look.add_child(clip_label)
+	effect_clip_box = OptionButton.new()
+	effect_clip_box.custom_minimum_size = Vector2(180, 22)
+	effect_clip_box.focus_mode = Control.FOCUS_NONE
+	var clip_names: PackedStringArray = ThrongTune.game_names()
+	var rest: PackedStringArray = ThrongTune.rest_names()
+	for clip in clip_names:
+		effect_clip_box.add_item(clip)
+	for clip in rest:
+		effect_clip_box.add_item(clip)
+	_select_option(effect_clip_box, str(tune.get("clip", "ThrongA_Default")))
+	effect_clip_box.item_selected.connect(_on_effect_clip)
+	effect_look.add_child(effect_clip_box)
+	var fx_label := Label.new()
+	fx_label.text = "FX"
+	effect_look.add_child(fx_label)
+	effect_fx_box = OptionButton.new()
+	effect_fx_box.custom_minimum_size = Vector2(90, 22)
+	effect_fx_box.focus_mode = Control.FOCUS_NONE
+	for fx in EffectTune.FX_CHOICES:
+		effect_fx_box.add_item(str(fx))
+	_select_option(effect_fx_box, str(tune.get("fx", "none")))
+	effect_fx_box.item_selected.connect(_on_effect_fx)
+	effect_look.add_child(effect_fx_box)
+
+
+func _select_option(box: OptionButton, value: String) -> void:
+	for i in box.item_count:
+		if box.get_item_text(i) == value:
+			box.select(i)
+			return
+	if box.item_count > 0:
+		box.select(0)
 
 
 func _on_effect_num(key: String) -> void:
@@ -1424,6 +1486,35 @@ func _on_effect_num(key: String) -> void:
 	_mark_effects()
 	_refresh_status()
 	queue_redraw()
+
+
+func _on_effect_clip(index: int) -> void:
+	if _fill or effect_id == "" or effect_clip_box == null:
+		return
+	var clip := effect_clip_box.get_item_text(index)
+	EffectTune.set_str(effect_id, "clip", clip)
+	effect_clip = clip
+	_mark_effects()
+	_refresh_status()
+	queue_redraw()
+
+
+func _on_effect_fx(index: int) -> void:
+	if _fill or effect_id == "" or effect_fx_box == null:
+		return
+	EffectTune.set_str(effect_id, "fx", effect_fx_box.get_item_text(index))
+	_mark_effects()
+	_refresh_status()
+	queue_redraw()
+
+
+func _open_effect_clip_anim() -> void:
+	var clip := effect_clip
+	if effect_id != "":
+		clip = str(EffectTune.get_tune(effect_id).get("clip", clip))
+	_show_throng()
+	if clip != "":
+		_select_clip(clip)
 
 
 func _reset_effect() -> void:
@@ -1477,6 +1568,10 @@ func _sync_effect_live() -> void:
 
 
 func _effect_clip_for(id: String) -> String:
+	var tune: Dictionary = EffectTune.get_tune(id)
+	var clip := str(tune.get("clip", ""))
+	if clip != "" and ThrongClips.has_clip(clip):
+		return clip
 	match id:
 		"act:eat":
 			return "ThrongA_Eat"
@@ -1498,7 +1593,7 @@ func _effect_reset_needs() -> void:
 	effect_t = 0.0
 	effect_pulse = 0.0
 	match effect_id:
-		"decay", "goo", "feat:fire":
+		"goo", "feat:fire":
 			effect_fed = 100.0
 			effect_fun = 100.0
 			effect_clean = 100.0
@@ -1596,10 +1691,6 @@ func _tick_effect(dt: float) -> void:
 	var tune: Dictionary = EffectTune.get_tune(effect_id)
 	var step := dt * EFFECT_PREVIEW_SCALE
 	match effect_id:
-		"decay":
-			effect_fed = maxf(0.0, effect_fed - float(tune.fed) * step)
-			effect_fun = maxf(0.0, effect_fun - float(tune.fun) * step)
-			effect_clean = maxf(0.0, effect_clean - float(tune.clean) * step)
 		"goo":
 			effect_fed = maxf(0.0, effect_fed - float(tune.fed) * step)
 			effect_clean = maxf(0.0, effect_clean - float(tune.clean) * step)
@@ -1699,7 +1790,11 @@ func _paint_effect_partner(draws: Array, origin: Vector2, alpha: float) -> float
 
 
 func _paint_effect_throng(draws: Array, origin: Vector2, alpha: float) -> void:
+	var tune: Dictionary = EffectTune.get_tune(effect_id)
 	var sort_y := _paint_effect_partner(draws, origin, alpha)
+	if effect_id.begins_with("visit:"):
+		# Guest is inside the building — only the prop shows.
+		return
 	var clip := effect_clip
 	var box: Vector2i = ThrongClips.CLIPS.get(clip, Vector2i(ThrongClips.BASE, 1))
 	var fps := float(ThrongTune.get_tune(clip).get("fps", 8.0))
@@ -1712,73 +1807,74 @@ func _paint_effect_throng(draws: Array, origin: Vector2, alpha: float) -> void:
 	var frame := ThrongClips.frame_at(clip, index)
 	var off: Vector2 = ThrongTune.frame_offset(clip, index)
 	var pos := origin + off
-	var lift := 0.0
+	var lift := float(tune.get("lift", 0.0))
+	var bob := float(tune.get("bob", 0.0))
+	if bob > 0.0:
+		lift += absf(sin(effect_t * bob)) * maxf(lift, 1.5)
 	if effect_id == "act:bath":
 		pos = origin + Catalog.TUB_SEAT_OFF + off
 		lift = _bath_lift(index)
-	elif effect_id == "act:round":
-		lift = absf(sin(effect_t * 10.0)) * 1.5
 	if is_nan(sort_y):
 		sort_y = main._to_iso(origin).y + 8.0
 	else:
-		# Keep the thronglet clearly in front of the partner prop.
 		sort_y = maxf(sort_y, main._to_iso(origin).y + 8.0)
 	main._push_iso(draws, pos, frame, Color(1, 1, 1, alpha), lift, ThrongTune.frame_scale(clip, index), sort_y)
 	draws[draws.size() - 1]["rot"] = ThrongTune.frame_rot(clip, index)
 	draws[draws.size() - 1]["dirty"] = 1.0 - clampf(effect_clean / 100.0, 0.0, 1.0)
-	_paint_effect_fx(draws, pos, sort_y + 1.0)
+	_paint_effect_fx(draws, pos, sort_y + 1.0, tune)
 
 
-func _paint_effect_fx(draws: Array, pos: Vector2, sort_y: float) -> void:
+func _effect_fx_frame(fx: String, time: float) -> int:
+	match fx:
+		"spark":
+			return main._prop_frame(Catalog.ICON_FX_SPARK)
+		"poof":
+			return main._prop_frame(Catalog.ICON_FX_POOF)
+		"suds":
+			return AssetFrames.frame(AssetFrames.BUBBLE, AssetFrames.BUBBLE_N, int(time * 8.0))
+		"splash":
+			return AssetFrames.frame(AssetFrames.SPLASH, AssetFrames.SPLASH_N, int(time * 8.0))
+		"aura":
+			return AssetFrames.frame(AssetFrames.AURA, AssetFrames.AURA_N, 0)
+		"fire":
+			return AssetFrames.frame(AssetFrames.FIRE, AssetFrames.FIRE_N, int(time * 8.0))
+		"clean":
+			return AssetFrames.frame(AssetFrames.CLEAN, AssetFrames.CLEAN_N, int(time * 10.0))
+		_:
+			return -1
+
+
+func _paint_effect_fx(draws: Array, pos: Vector2, sort_y: float, tune: Dictionary) -> void:
+	var fx := str(tune.get("fx", "none"))
+	if fx == "none" or fx == "":
+		return
 	var time := effect_t
-	var spark: int = main._prop_frame(Catalog.ICON_FX_SPARK)
-	var poof: int = main._prop_frame(Catalog.ICON_FX_POOF)
-	match effect_id:
-		"aura:flower", "aura:statue", "aura:wood", "aura:ball", "feat:totem", "act:play":
-			for i in 3:
-				var ang := time * 4.0 + float(i) * TAU / 3.0
-				var wob := Vector2(cos(ang) * 14.0, sin(ang) * 8.0 - 10.0)
-				main._push_iso(draws, pos + wob, spark, Color(1, 1, 1, 0.95), 12.0 + float(i), 1.0, sort_y + 0.4 + float(i) * 0.1)
-		"feat:curer", "act:sponge", "act:mop":
-			var bub := Vector2(cos(time * 14.0) * 7.0, sin(time * 14.0) * 4.0)
-			var bubble := AssetFrames.frame(AssetFrames.SUDS, AssetFrames.SUDS_N, 0)
-			if bubble < 0:
-				bubble = main._prop_frame(Catalog.ICON_SPONGE)
-			main._push_iso(draws, pos + bub, bubble, Color(1, 1, 1, 0.95), 10.0, 1.0, sort_y + 0.4)
-			var clean := AssetFrames.frame(AssetFrames.CLEAN, AssetFrames.CLEAN_N, int(time * 10.0))
-			if clean >= 0:
-				main._push_iso(draws, pos + bub * 0.4, clean, Color(1, 1, 1, 0.9), 12.0, 1.0, sort_y + 0.5)
-			main._push_iso(draws, pos + Vector2(0, -12), spark, Color(1, 1, 1, 0.85), 14.0, 1.0, sort_y + 0.6)
-		"act:bath":
-			var splash := AssetFrames.frame(AssetFrames.SPLASH, AssetFrames.SPLASH_N, int(time * 8.0))
-			if splash >= 0:
-				main._push_iso(draws, pos + Vector2(0, 2), splash, Color(1, 1, 1, 0.95), 4.0, 1.0, sort_y + 0.4)
-			var suds := AssetFrames.frame(AssetFrames.SUDS, AssetFrames.SUDS_N, 0)
-			if suds >= 0:
-				main._push_iso(draws, pos + Vector2(cos(time * 6.0) * 5.0, -2.0), suds, Color(1, 1, 1, 0.9), 8.0, 1.0, sort_y + 0.5)
-			main._push_iso(draws, pos + Vector2(0, -10), spark, Color(1, 1, 1, 0.8), 12.0, 1.0, sort_y + 0.6)
-		"act:eat":
-			var bob := Vector2(0, -12.0 - absf(sin(time * 8.0)) * 5.0)
-			main._push_iso(draws, pos + bob, main._prop_frame(Catalog.ICON_APPLE), Color(1, 1, 1, 1.0), 10.0, Catalog.APPLE_SPRITE_SCALE, sort_y + 0.4)
-			main._push_iso(draws, pos + bob + Vector2(6, -4), spark, Color(1, 1, 1, 0.9), 14.0, 1.0, sort_y + 0.5)
-		"act:ball":
-			var kick := Vector2(sin(time * 6.0) * 14.0, cos(time * 6.0) * 5.0 - 8.0)
-			main._push_iso(draws, pos + kick, main._prop_frame(Catalog.ICON_BALL), Color(1, 1, 1, 1.0), 8.0, 1.0, sort_y + 0.4)
-			main._push_iso(draws, pos + kick + Vector2(0, -8), spark, Color(1, 1, 1, 0.9), 12.0, 1.0, sort_y + 0.5)
-		"feat:fire":
-			var fire := AssetFrames.frame(AssetFrames.FIRE, AssetFrames.FIRE_N, int(time * 8.0))
-			if fire >= 0:
-				main._push_iso(draws, pos + Vector2(10, -4), fire, Color(1, 1, 1, 1.0), 6.0, 1.0, sort_y + 0.4)
-			var blob := AssetFrames.frame(AssetFrames.FIRE_BLOB, AssetFrames.FIRE_BLOB_N, int(time * 8.0))
-			if blob >= 0:
-				main._push_iso(draws, pos + Vector2(sin(time * 5.0) * 10.0, -12.0), blob, Color(1, 1, 1, 0.95), 10.0, 1.0, sort_y + 0.5)
-			main._push_iso(draws, pos + Vector2(-6, -8), poof, Color(1, 1, 1, 0.7), 8.0, 1.0, sort_y + 0.3)
-		"visit:dwell", "visit:fancy", "visit:theatre":
-			for i in 3:
-				var up := Vector2(sin(time * 3.0 + float(i)) * 8.0, -6.0 - fmod(time * 22.0 + float(i) * 7.0, 22.0))
-				main._push_iso(draws, pos + up, spark, Color(1, 1, 1, 0.95), 12.0 + float(i), 1.0, sort_y + 0.4 + float(i) * 0.1)
-		"decay", "goo":
-			main._push_iso(draws, pos + Vector2(cos(time * 7.0) * 6.0, -8.0), poof, Color(1, 1, 1, 0.75), 8.0, 1.0, sort_y + 0.4)
+	var orbit := float(tune.get("orbit", 0.0))
+	if fx == "suds":
+		main._paint_suds(draws, pos + Vector2(0, -6), sort_y + 0.4, time)
+		return
+	var frame := _effect_fx_frame(fx, time)
+	if frame < 0:
+		return
+	if orbit > 0.5:
+		for i in 3:
+			var ang := time * 4.0 + float(i) * TAU / 3.0
+			var wob := Vector2(cos(ang) * orbit, sin(ang) * orbit * 0.55 - 8.0)
+			main._push_iso(draws, pos + wob, frame, Color(1, 1, 1, 0.95), 10.0 + float(i), 1.0, sort_y + 0.4 + float(i) * 0.1)
+		return
+	if fx == "fire":
+		main._push_iso(draws, pos + Vector2(10, -4), frame, Color(1, 1, 1, 1.0), 6.0, 1.0, sort_y + 0.4)
+		var blob := AssetFrames.frame(AssetFrames.FIRE_BLOB, AssetFrames.FIRE_BLOB_N, int(time * 8.0))
+		if blob >= 0:
+			main._push_iso(draws, pos + Vector2(sin(time * 5.0) * 10.0, -12.0), blob, Color(1, 1, 1, 0.95), 10.0, 1.0, sort_y + 0.5)
+		return
+	if fx == "splash":
+		main._push_iso(draws, pos + Vector2(0, 2), frame, Color(1, 1, 1, 0.95), 4.0, 1.0, sort_y + 0.4)
+		main._paint_suds(draws, pos + Vector2(0, -2), sort_y + 0.5, time)
+		return
+	var bob := float(tune.get("bob", 0.0))
+	var hop := Vector2(0, -10.0 - absf(sin(time * maxf(bob, 4.0))) * 4.0)
+	main._push_iso(draws, pos + hop, frame, Color(1, 1, 1, 0.95), 10.0, 1.0, sort_y + 0.4)
 
 
 func _build_effect_gauge() -> void:
@@ -1998,8 +2094,8 @@ func _show_effects() -> void:
 		throng_bar.visible = false
 	effect_rail.visible = true
 	effect_bar.visible = true
-	if effect_id == "":
-		_select_effect("decay")
+	if effect_id == "" or effect_id == "decay":
+		_select_effect("goo")
 	else:
 		_fill_effect()
 		_stage_effect()

@@ -124,6 +124,9 @@ var shot_sign_saved := false
 var shot_path_saved := false
 var shot_fx_saved := false
 var shot_fx_i := 0
+var shot_round_ids: Array = []
+var shot_round_mark := -1
+var shot_round_hold := 0
 var shot_board: SubViewport
 var glitch_bars: Array = []
 var glitch_label: Label
@@ -1136,7 +1139,9 @@ func _sync_actors() -> void:
 			if b_kind == Catalog.BLD_FLOWER:
 				b_frame = FLOWER_ANIM + int(time_pre * 6.0) % FLOWER_ANIM_N
 			if b_kind == Catalog.BLD_ROUND and bool(b.get("active", false)):
-				b_frame = ROUND_ANIM + int(time_pre * 8.0) % 8
+				# Disk wedges follow the same spin the riders orbit on.
+				var spin := float(b.get("spin", 0.0))
+				b_frame = ROUND_ANIM + posmod(int(floor(spin / (TAU / 8.0))), 8)
 			if bool(b.get("active", false)) and b_kind != Catalog.BLD_APPLE:
 				if b_kind == Catalog.BLD_TUB:
 					b_tint = Color(0.85, 0.95, 1.0)
@@ -1291,7 +1296,19 @@ func _sync_actors() -> void:
 				else:
 					riding = true
 					lift = absf(sin(time * 10.0 + float(i))) * 1.5
-					prop_anchor = Vector2(float(ride.x), float(ride.y))
+					# Sort in front of the painted disk (same pattern as the tub seat).
+					var ride_origin := Vector2(float(ride.x), float(ride.y))
+					prop_anchor = _building_draw_at(Catalog.BLD_ROUND, ride_origin)
+					var mid := ride_origin + Catalog.ROUND_RIDE_OFF
+					var seat := sim._ride_slot_of(ride, i)
+					if seat >= 0:
+						var n := float(Catalog.ROUND_RIDE_SLOTS)
+						var ang := float(ride.get("spin", 0.0)) + float(seat) * TAU / n
+						pos = mid + Vector2(cos(ang), sin(ang)) * Catalog.ROUND_RIDE_RADIUS
+					else:
+						var ring := pos - mid
+						if ring.length_squared() >= 0.25:
+							pos = mid + ring.normalized() * Catalog.ROUND_RIDE_RADIUS
 			elif doing == ThrongletSimServer.ACT_BATH:
 				var tub: Dictionary = sim.seat_of(i)
 				if tub.is_empty():
@@ -1318,11 +1335,16 @@ func _sync_actors() -> void:
 		var sort_y := NAN if prop_anchor.x == INF else _prop_front_sort_y(prop_anchor)
 		var throng_frame := _frame(i, time)
 		var throng_scale := _throng_sprite_scale(throng_frame)
-		_push_iso(draws, pos + _throng_sprite_off(throng_frame), throng_frame, tint, lift, throng_scale, sort_y)
+		# Ride seat is the feet point; Roundabout sheet off would push them off the disk.
+		var throng_at := pos if riding else pos + _throng_sprite_off(throng_frame)
+		_push_iso(draws, throng_at, throng_frame, tint, lift, throng_scale, sort_y)
 		draws[draws.size() - 1]["flip"] = _throng_flip(i)
 		draws[draws.size() - 1]["dirty"] = _throng_dirty(sim.clean[i])
 		if sim.carry[i] != Catalog.CARRY_NONE:
-			_push_iso(draws, pos, _carry_icon(int(sim.carry[i])), Color.WHITE, 12.0, 1.0, sort_y)
+			var carry_kind := int(sim.carry[i])
+			var carry_icon := _carry_icon(carry_kind)
+			var carry_scale := Catalog.item_sprite_scale(_carry_item(carry_kind))
+			_push_iso(draws, pos, _prop_frame(carry_icon), Color.WHITE, 12.0, carry_scale, sort_y)
 		if not sim.frozen and doing == ThrongletSimServer.ACT_WASH:
 			var bub := Vector2(cos(time * 14.0) * 7.0, sin(time * 14.0) * 4.0)
 			var bubble := AssetFrames.frame(AssetFrames.SUDS, AssetFrames.SUDS_N, 0)
@@ -1552,6 +1574,14 @@ func _carry_icon(kind: int) -> int:
 	if kind == Catalog.CARRY_ORE:
 		return Catalog.ICON_ORE
 	return Catalog.ICON_WOOD
+
+
+func _carry_item(kind: int) -> int:
+	if kind == Catalog.CARRY_BONE:
+		return Catalog.ITEM_BONE
+	if kind == Catalog.CARRY_ORE:
+		return Catalog.ITEM_ORE
+	return Catalog.ITEM_WOOD
 
 
 func _place_cell_poly() -> PackedVector2Array:
@@ -1921,14 +1951,17 @@ func _use_prop_anchor(pos: Vector2) -> Vector2:
 		var kind := int(b.kind)
 		if kind != Catalog.BLD_TUB and kind != Catalog.BLD_ROUND:
 			continue
-		var center := Vector2(float(b.x), float(b.y))
+		var origin := Vector2(float(b.x), float(b.y))
+		var center := origin
 		if kind == Catalog.BLD_TUB:
 			center += Catalog.TUB_SEAT_OFF
+		elif kind == Catalog.BLD_ROUND:
+			center += Catalog.ROUND_RIDE_OFF
 		var limit := 18.0 if kind == Catalog.BLD_TUB else 28.0
 		var d := pos.distance_to(center)
 		if d <= limit and d < best_d:
 			best_d = d
-			best = _building_draw_at(kind, Vector2(float(b.x), float(b.y)))
+			best = _building_draw_at(kind, origin)
 			found = true
 	return best if found else Vector2.INF
 
@@ -5933,6 +5966,12 @@ func _tick_shot() -> void:
 	if sim.shot_fx:
 		_tick_shot_fx()
 		return
+	if sim.shot_round:
+		_tick_shot_round()
+		return
+	if sim.shot_carry:
+		_tick_shot_carry()
+		return
 	if shot_board == null:
 		if sim.shot_throng >= 0:
 			selected = sim.shot_throng
@@ -6237,6 +6276,228 @@ func _tick_shot() -> void:
 	shot_done = true
 	var ok := _save_shot(shot_board, "res://shots/wired_assets.png")
 	get_tree().quit(0 if ok else 1)
+
+
+func _tick_shot_carry() -> void:
+	var sim: ThrongletSim = ThrongletSimServer
+	if ui != null:
+		ui.visible = false
+	kit_open = false
+	_set_kit_shown(false)
+	if task_panel != null:
+		task_panel.visible = false
+	crt_on = false
+	_apply_crt()
+	camera.position = _to_iso(sim.shot_focus)
+	var view := get_viewport_rect().size
+	var reach := sim.shot_span
+	var half_w := reach * sqrt(2.0)
+	var half_h := reach * 0.70710678
+	var zoom := minf(view.x / (half_w * 2.0 + 48.0), view.y / (half_h * 2.0 + 64.0))
+	zoom_level = clampf(zoom, 3.0, 6.0)
+	camera.zoom = Vector2(zoom_level, zoom_level)
+	shot_frames += 1
+	if shot_frames < 8:
+		return
+	var wood_f := _prop_frame(Catalog.ICON_WOOD)
+	var bone_f := _prop_frame(Catalog.ICON_BONE)
+	var ore_f := _prop_frame(Catalog.ICON_ORE)
+	var carry_fs: Array = []
+	var carriers := 0
+	for i in sim.slot_count:
+		if sim.state[i] != Catalog.ST_LIVING:
+			continue
+		if int(sim.carry[i]) == Catalog.CARRY_NONE:
+			continue
+		carriers += 1
+		carry_fs.append(_prop_frame(_carry_icon(int(sim.carry[i]))))
+	var wood_s := Catalog.item_sprite_scale(Catalog.ITEM_WOOD)
+	var bone_s := Catalog.item_sprite_scale(Catalog.ITEM_BONE)
+	var ore_s := Catalog.item_sprite_scale(Catalog.ITEM_ORE)
+	print("SHOT CARRY frames ground=%s/%s/%s held=%s carriers=%d scale=%s/%s/%s" % [
+		wood_f, bone_f, ore_f, str(carry_fs), carriers, wood_s, bone_s, ore_s,
+	])
+	if carriers < 3:
+		print("SHOT CARRY FAIL carriers=%d" % carriers)
+		get_tree().quit(1)
+		return
+	if int(carry_fs[0]) != wood_f or int(carry_fs[1]) != bone_f or int(carry_fs[2]) != ore_f:
+		print("SHOT CARRY FAIL held frames mismatch %s vs %s/%s/%s" % [
+			str(carry_fs), wood_f, bone_f, ore_f,
+		])
+		get_tree().quit(1)
+		return
+	if wood_s >= 0.99 or bone_s >= 0.99 or ore_s >= 0.99:
+		print("SHOT CARRY FAIL item scales still full-size %s/%s/%s" % [wood_s, bone_s, ore_s])
+		get_tree().quit(1)
+		return
+	if not _save_shot(get_viewport(), "res://shots/carry_held.png"):
+		get_tree().quit(1)
+		return
+	# Second beat: drop loads, walk-pickup matching ground items, reshoot.
+	var pairs: Array = []
+	for i in sim.slot_count:
+		if sim.state[i] != Catalog.ST_LIVING:
+			continue
+		var want := Catalog.ITEM_WOOD
+		var carry_kind := Catalog.CARRY_WOOD
+		var gx := float(sim.pos_x[i])
+		if absf(gx - 256.0) < absf(gx - 220.0) and absf(gx - 256.0) <= absf(gx - 292.0):
+			want = Catalog.ITEM_BONE
+			carry_kind = Catalog.CARRY_BONE
+		elif absf(gx - 292.0) < absf(gx - 220.0):
+			want = Catalog.ITEM_ORE
+			carry_kind = Catalog.CARRY_ORE
+		sim.carry[i] = Catalog.CARRY_NONE
+		sim.carry_value[i] = 0
+		pairs.append({"id": i, "item": want, "carry": carry_kind})
+	for it in sim.items:
+		if it.dead:
+			continue
+		it.claimer = -1
+		it.held = false
+		it.dead = false
+	var picked := 0
+	for step in 160:
+		sim.frame_i += 1
+		picked = 0
+		for row in pairs:
+			var id := int(row.id)
+			if int(sim.carry[id]) != Catalog.CARRY_NONE:
+				picked += 1
+				continue
+			var item: Dictionary = sim._nearest_free_item(id, int(row.item), 2800.0)
+			if item.is_empty():
+				continue
+			sim._walk_pickup(id, item, int(row.carry), 26.0, 0.25)
+			if int(sim.carry[id]) != Catalog.CARRY_NONE:
+				picked += 1
+		if picked >= pairs.size():
+			break
+	var pickup_fs: Array = []
+	for row2 in pairs:
+		pickup_fs.append(_prop_frame(_carry_icon(int(sim.carry[int(row2.id)]))))
+	print("SHOT CARRY pickup carriers=%d/%d frames=%s" % [picked, pairs.size(), str(pickup_fs)])
+	if picked < pairs.size():
+		print("SHOT CARRY FAIL pickup carriers=%d" % picked)
+		get_tree().quit(1)
+		return
+	if int(pickup_fs[0]) != wood_f or int(pickup_fs[1]) != bone_f or int(pickup_fs[2]) != ore_f:
+		print("SHOT CARRY FAIL pickup frames %s" % str(pickup_fs))
+		get_tree().quit(1)
+		return
+	_sync_actors()
+	if not _save_shot(get_viewport(), "res://shots/carry_pickup.png"):
+		get_tree().quit(1)
+		return
+	shot_done = true
+	get_tree().quit(0)
+
+
+func _tick_shot_round() -> void:
+	var sim: ThrongletSim = ThrongletSimServer
+	if ui != null:
+		ui.visible = false
+	kit_open = false
+	_set_kit_shown(false)
+	if task_panel != null:
+		task_panel.visible = false
+	crt_on = false
+	_apply_crt()
+	camera.position = _to_iso(sim.shot_focus)
+	zoom_level = 5.0
+	camera.zoom = Vector2(5.0, 5.0)
+	var round_b := {}
+	for b in sim.buildings:
+		if not b.dead and int(b.kind) == Catalog.BLD_ROUND:
+			round_b = b
+			break
+	if round_b.is_empty():
+		print("SHOT ROUND FAIL no building")
+		get_tree().quit(1)
+		return
+	var marks := [0.0, 0.25, 0.5, 0.75, 1.0]
+	# Phase -1: idle settle + seat. Then one mark per step with a hold frame.
+	if shot_round_mark < 0:
+		shot_frames += 1
+		if shot_frames < 10:
+			return
+		if bool(round_b.get("active", false)):
+			print("SHOT ROUND FAIL idle still active")
+			get_tree().quit(1)
+			return
+		if not _save_shot(get_viewport(), "res://shots/round_idle.png"):
+			get_tree().quit(1)
+			return
+		print("SHOT ROUND idle active=%s" % round_b.get("active", false))
+		shot_round_ids.clear()
+		round_b.spin = 0.0
+		for n in 2:
+			var slot := n * 2
+			var seat: Vector2 = sim._ride_slot_pos(round_b, slot)
+			var id := sim._push_slot(seat.x, seat.y, 95.0, 35.0 + float(n) * 5.0, 95.0, 0.0, n)
+			if id < 0:
+				continue
+			sim.amused[id] = 35.0 + float(n) * 5.0
+			sim.act[id] = ThrongletSimServer.ACT_PLAY
+			sim.act_t[id] = 0.55
+			sim._set_ride_slot(round_b, id, slot)
+			sim._set_rider(round_b, id, true)
+			sim._set_ride_age(round_b, id, 0.0)
+			sim._place_on_ride_slot(id, round_b, slot)
+			shot_round_ids.append(id)
+		round_b.active = true
+		sim._rebuild_hash()
+		print("SHOT ROUND seated ids=%s slots=%s" % [str(shot_round_ids), str(round_b.get("ride_slot", {}))])
+		shot_round_mark = 0
+		shot_round_hold = 0
+		return
+	if shot_round_mark >= marks.size():
+		shot_done = true
+		get_tree().quit(0)
+		return
+	var target := float(marks[shot_round_mark]) * TAU
+	round_b.spin = target
+	round_b.active = true
+	for id in shot_round_ids:
+		if id < 0 or id >= sim.slot_count or sim.state[id] != Catalog.ST_LIVING:
+			continue
+		var slot := sim._ride_slot_of(round_b, id)
+		sim._place_on_ride_slot(id, round_b, slot)
+		sim.act[id] = ThrongletSimServer.ACT_PLAY
+		sim.act_t[id] = 0.55
+	shot_round_hold += 1
+	if shot_round_hold < 2:
+		return
+	if shot_round_ids.size() < 2:
+		print("SHOT ROUND FAIL seated=%s" % str(shot_round_ids))
+		get_tree().quit(1)
+		return
+	var a := int(shot_round_ids[0])
+	var b_id := int(shot_round_ids[1])
+	var mid := Vector2(float(round_b.x), float(round_b.y)) + Catalog.ROUND_RIDE_OFF
+	var ang_a := atan2(sim.pos_y[a] - mid.y, sim.pos_x[a] - mid.x)
+	var ang_b := atan2(sim.pos_y[b_id] - mid.y, sim.pos_x[b_id] - mid.x)
+	var sep := absf(fposmod(ang_a - ang_b + PI, TAU) - PI)
+	var gap := Vector2(sim.pos_x[a] - sim.pos_x[b_id], sim.pos_y[a] - sim.pos_y[b_id]).length()
+	var deg := int(round(float(marks[shot_round_mark]) * 360.0))
+	print("SHOT ROUND spin=%d deg sep=%.2f gap=%.1f a=(%.1f,%.1f) b=(%.1f,%.1f) frame=%d" % [
+		deg, sep, gap, sim.pos_x[a], sim.pos_y[a], sim.pos_x[b_id], sim.pos_y[b_id],
+		ROUND_ANIM + posmod(int(floor(target / (TAU / 8.0))), 8)
+	])
+	if absf(sep - PI) > 0.12:
+		print("SHOT ROUND FAIL unsynced sep=%.2f at %d" % [sep, deg])
+		get_tree().quit(1)
+		return
+	if gap < Catalog.ROUND_RIDE_RADIUS * 1.5:
+		print("SHOT ROUND FAIL clumped gap=%.1f at %d" % [gap, deg])
+		get_tree().quit(1)
+		return
+	if not _save_shot(get_viewport(), "res://shots/round_spin_%03d.png" % deg):
+		get_tree().quit(1)
+		return
+	shot_round_mark += 1
+	shot_round_hold = 0
 
 
 func _tick_shot_fx() -> void:
