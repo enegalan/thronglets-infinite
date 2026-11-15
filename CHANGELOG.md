@@ -2,6 +2,14 @@
 
 ## [Unreleased](https://github.com/enegalan/thronglets-infinite/compare/7851ab6...HEAD)
 
+### 2026-11-15
+
+- Needs drain faster, while baths clean more slowly and rides take longer to satisfy. A thronglet keeps bathing or riding until the stay is done and the need is topped up.
+- Hauling and mine work can continue while basic needs are steady, so unfinished loads and ore runs are less likely to stall. Mitosis also respects a colony space cap.
+- Islands start and refill with more trees and ore, and biome scatter yields more resources.
+- Carried goods use item-sized sprites, roundabout riders sit and orbit on the ride, and ore deliveries no longer pop an extra marker at the factory.
+- The development bench, effects, tuning values, and shot probes gained more options for checking carry and ride behaviour.
+
 ### 2026-11-13
 
 - The bars open the original Tuckersoft settings: black panel, logo, close chip, and four tabs for mail, cog, sound, and edit. Captions, CRT, language, volumes, support, credits, and reset live there; development and quit stay on the cog tab. Blue buttons use the blue rim and white inner frame; the close chip is the original `cancel` asset; the version line follows the project tag.
