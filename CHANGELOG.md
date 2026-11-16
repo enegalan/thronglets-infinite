@@ -4,6 +4,8 @@
 
 ### 2026-11-16
 
+- Thronglets in the mitosis animation can no longer be interacted with: autonomous actions remain paused during `mito_t`, scrubbing and mopping skip them, and grabbing them is blocked until the animation ends (their thought bubble also closes when picked up).
+- Dragged thronglets released on water or on blocked/construction tiles are displaced to a nearby safe spot instead of dying; releasing them outside the island (`TILE_VOID`/`TILE_FOG`) still kills them.
 - Infinite progression is now driven by a decoupled catalog and manager: tool/building unlocks evaluate live metrics (population, total gems earned, pollution, deaths, trees cut) with systemic conditions instead of one-off narrative triggers.
 - Improved tools replace their base versions in the HUD and active selection (hammer→pickaxe, axe→chainsaw, sponge→mop, bug→swarm), and repeatable buildings use exponentially scaled placement costs.
 - Simulation telemetry tracks cumulative gems earned, deaths, and pollution state for progression; catalog-driven unlocks and progression hooks (narrative/world side effects) are centralized in the progression manager.

@@ -1752,6 +1752,16 @@ func _tick_barks(delta: float, age: bool = true) -> void:
 	barks = kept
 
 
+func clear_bark(id: int) -> void:
+	if barks.is_empty():
+		return
+	var kept: Array = []
+	for bark in barks:
+		if int(bark.get("id", -1)) != id:
+			kept.append(bark)
+	barks = kept
+
+
 func seat_of(i: int) -> Dictionary:
 	for b in buildings:
 		if b.dead or int(b.kind) != Catalog.BLD_TUB:
@@ -3061,6 +3071,7 @@ func grab_thronglet(id: int) -> bool:
 	held_ref = id
 	held_x = pos_x[id]
 	held_y = pos_y[id]
+	clear_bark(id)
 	return true
 
 
