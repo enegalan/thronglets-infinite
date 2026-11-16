@@ -49,7 +49,7 @@ const LOOK := {
 	"act:play": {"clip": "ThrongA_Jump_VariantA_Spritesheet", "fx": "none", "lift": 0.0, "bob": 3.0, "orbit": 10.0},
 	"act:ball": {"clip": "ThrongA_Jump_VariantA_Spritesheet", "fx": "none", "lift": 0.0, "bob": 0.0, "orbit": 14.0},
 	"act:round": {"clip": "ThrongA_Roundabout_SpriteSheet", "fx": "none", "lift": 1.5, "bob": 10.0, "orbit": 0.0},
-	"act:sponge": {"clip": "ThrongA_Happy", "fx": "suds", "lift": 0.0, "bob": 0.0, "orbit": 0.0, "scale": 0.4, "fx_x": 0.0, "fx_y": 0.0},
+	"act:sponge": {"clip": "ThrongA_Happy", "fx": "suds", "lift": 0.0, "bob": 0.0, "orbit": 0.0, "scale": 0.4, "fx_x": 7.0, "fx_y": 7.0},
 	"act:mop": {"clip": "ThrongA_Happy", "fx": "suds", "lift": 0.0, "bob": 0.0, "orbit": 0.0, "scale": 1.0, "fx_x": 0.0, "fx_y": 0.0},
 }
 
