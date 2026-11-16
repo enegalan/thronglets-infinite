@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bjkhsd78ok7s6"
-path="res://.godot/imported/Monolith_Act1_2.png-6081f696a5a8ea331d4bb198ea0538c0.ctex"
+path.s3tc="res://.godot/imported/Monolith_Act1_2.png-6081f696a5a8ea331d4bb198ea0538c0.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "b4b7d8a54c97f13934f291433913410e"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://resources/models/Monolith_Act1_2.png"
-dest_files=["res://.godot/imported/Monolith_Act1_2.png-6081f696a5a8ea331d4bb198ea0538c0.ctex"]
+dest_files=["res://.godot/imported/Monolith_Act1_2.png-6081f696a5a8ea331d4bb198ea0538c0.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +41,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0
