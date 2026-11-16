@@ -4453,12 +4453,12 @@ func _begin_logo() -> void:
 		title_root.visible = false
 	if dos_root != null:
 		dos_root.visible = false
-	# No iniciar música de título durante el video del logo;
-	# _sync_music() está bloqueado por logo_video_playing.
+	# Do not start title music during the logo video;
+	# _sync_music() is blocked by logo_video_playing.
 	if not _play_video("tuckersoft_logo_30fps_1MB", true):
 		_begin_dos()
 	else:
-		# Subir el volumen del audio del video de Tuckersoft para que se escuche más claro.
+		# Raise the Tuckersoft video audio volume so it can be heard more clearly.
 		video_player.volume_db = 6.0
 
 
@@ -5299,9 +5299,8 @@ func _settings_ask_reset() -> void:
 
 
 func _settings_reset() -> void:
-	# Restablecer progreso: borrar todas las partidas guardadas (incluido el
-	# guardado legado) y volver al título. No se inicia una partida nueva
-	# automáticamente; el usuario elige comenzar una desde el menú principal.
+	# Reset progress: delete all saved games and return to the title. A new game is not started
+	# automatically; the user chooses to start one from the main menu.
 	ThrongletSimServer.clear_saves()
 	_show_title()
 
@@ -5375,10 +5374,8 @@ func _show_title() -> void:
 		menu_dim.visible = false
 	title_root.visible = true
 	title_layout_size = Vector2.ZERO
-	# El video del logo terminó; permitir música de título en el menú principal
 	logo_video_playing = false
 	_fill_title()
-	# Fade-in de la música al mostrar el título principal tras el DOS
 	if music != null:
 		var tween: Tween = create_tween()
 		tween.tween_property(music, "volume_db", -6.0, 1.0)
@@ -5507,7 +5504,6 @@ func _title_wood_button(call: Callable) -> Button:
 	button.add_theme_stylebox_override("hover_pressed", wood)
 	if call.is_valid():
 		button.pressed.connect(func() -> void:
-			# Sonido del botón de empezar/continuar (siempre ui_game_continue)
 			_play_sfx_then("ui_game_continue", call)
 		)
 	return button
@@ -5768,7 +5764,6 @@ func _fill_title() -> void:
 	if title_hud != null:
 		title_hud.visible = true
 	title_layout_size = Vector2.ZERO
-	# Cambiar texto del botón según si hay partida para continuar
 	if title_start != null:
 		title_start.text = "Continuar" if _has_continue() else "Comenzar"
 
@@ -6944,7 +6939,7 @@ func _fill_bank() -> void:
 		"code_layer_loop_120bpm_23bar.ogg",
 		"code_layer_out_a.ogg",
 	]))
-	# --- Ambientes ---
+	# --- Ambiences ---
 	sfx_bank["amb_spot_market_lp"] = _clips(PackedStringArray(["amb_spot_market_lp.ogg"]))
 	sfx_bank["amb_spot_mine_lp"] = _clips(PackedStringArray(["amb_spot_mine_lp.wav"]))
 	sfx_bank["amb_spot_mountainVoidOpening_lp"] = _clips(PackedStringArray(["amb_spot_mountainVoidOpening_lp.wav"]))
@@ -6955,7 +6950,7 @@ func _fill_bank() -> void:
 	sfx_bank["throngletville_amb_st"] = _clips(PackedStringArray(["throngletville_amb_st.ogg"]))
 	sfx_bank["venice_three_84dot5bpm_58bar"] = _clips(PackedStringArray(["venice_three_84dot5bpm_58bar.ogg"]))
 
-	# --- Música y stingers ---
+	# --- Music and stingers ---
 	sfx_bank["music_title"] = _clips(PackedStringArray(["thronglets_title_theme_180bpm_24bar.ogg"]))
 	sfx_bank["music_megafm_a"] = _clips(PackedStringArray(["thronglets_megafm_a_140bpm_72bar.ogg"]))
 	sfx_bank["music_megafm_b"] = _clips(PackedStringArray(["thronglets_megafm_b_140bpm_88bar.ogg"]))
@@ -6997,7 +6992,7 @@ func _fill_bank() -> void:
 	sfx_bank["ui_act2_tutorial_window_close"] = _clips(PackedStringArray(["ui_act2_tutorial_window_close.wav"]))
 	sfx_bank["ui_act2_tutorial_window_lp"] = _clips(PackedStringArray(["ui_act2_tutorial_window_lp.wav"]))
 
-	# --- Herramientas y construcciones ---
+	# --- Tools and constructions ---
 	sfx_bank["sfx_axe_unlock"] = _clips(PackedStringArray(["sfx_axe_unlock.wav"]))
 	sfx_bank["sfx_bathtub_enter"] = _clips(_seq("sfx_bathtub_enter_", 1, 6))
 	sfx_bank["sfx_bathtub_exit"] = _clips(_seq("sfx_bathtub_exit_", 1, 6))
@@ -7111,7 +7106,7 @@ func _fill_bank() -> void:
 	sfx_bank["sfx_uplink_unlock"] = _clips(PackedStringArray(["sfx_uplink_unlock.wav"]))
 	sfx_bank["sfx_water_splash"] = _clips(_seq("sfx_water_splash_", 1, 4))
 
-	# --- Thronglets (voces y sonidos) ---
+	# --- Thronglets (voices and sounds) ---
 	sfx_bank["thronglet_crush"] = _clips(PackedStringArray(["thronglet_crush.wav"]))
 	sfx_bank["thronglet_glitch_a"] = _clips(PackedStringArray(["thronglet_glitch_a.wav"]))
 	sfx_bank["thronglet_glitch_b"] = _clips(PackedStringArray(["thronglet_glitch_b.wav"]))
@@ -7125,7 +7120,7 @@ func _fill_bank() -> void:
 	sfx_bank["hatch_success_stinger"] = _clips(PackedStringArray(["hatch_success_stinger.wav"]))
 	sfx_bank["monolith_reveal_nobeat_nobar"] = _clips(PackedStringArray(["monolith_reveal_nobeat_nobar.ogg"]))
 
-	# --- Voces de thronglets ---
+	# --- Thronglet voices ---
 	sfx_bank["vo_throng_sing_group_small"] = _clips(_seq("vo_throng_sing_group_small_", 1, 13))
 	sfx_bank["vo_thronglet_prrr"] = _clips(_seq("vo_thronglet_prrr_", 1, 13))
 	sfx_bank["vo_thronglet_sing"] = _clips(_seq("vo_thronglet_sing_", 1, 6))
@@ -7336,17 +7331,17 @@ func _play_video(base: String, from_title: bool) -> bool:
 
 
 func _on_video_finished() -> void:
-	# Siempre limpiar video y plate al terminar
+	# Always clear the video and plate when finished
 	if video_player != null:
 		video_player.visible = false
 		var plate: ColorRect = video_player.get_meta("plate") as ColorRect
 		if plate != null:
 			plate.visible = false
 	_clear_captions()
-	# Si el video del logo aún no empezó, salir sin avanzar
+	# If the logo video has not started yet, exit without advancing
 	if boot == "logo" and not logo_started:
 		return
-	# Restaurar música después del video (solo si no es el logo intro)
+	# Restore music after the video (only if it is not the logo intro)
 	if boot != "logo":
 		if music != null:
 			var tween: Tween = create_tween()
@@ -7406,7 +7401,7 @@ func _load_stream(clip_name: String) -> AudioStream:
 	return null
 
 
-# Carga WAVs sin .import (dumps Unity con headers rotos o aún no reimportados).
+# Load WAVs without .import (Unity dumps with broken headers or not yet reimported).
 func _load_wav(path: String) -> AudioStream:
 	var file := FileAccess.open(path, FileAccess.READ)
 	if file == null:
@@ -7451,7 +7446,7 @@ func _play(name: String) -> void:
 	player.play()
 
 
-# Reproduce un SFX y ejecuta `callback` al terminar. Hace fade-out de la música del menú.
+# Play an SFX and run `callback` when it finishes. Fades out the menu music.
 func _play_sfx_then(name: String, callback: Callable) -> void:
 	if music != null:
 		var music_tween := create_tween()

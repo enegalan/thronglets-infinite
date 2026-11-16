@@ -3955,8 +3955,8 @@ func clear_saves() -> void:
 		var path := _slot_path(i)
 		if dir != null and FileAccess.file_exists(path):
 			dir.remove(path.get_file())
-	# Borrar también el guardado legado de versiones previas, si existe,
-	# para que un restablecimiento elimine de verdad cualquier partida guardada.
+	# Also delete the legacy save from previous versions, if it exists,
+	# so a reset truly removes any saved game.
 	var legacy := "user://thronglets_infinite.save"
 	if dir != null and FileAccess.file_exists(legacy):
 		dir.remove(legacy.get_file())
