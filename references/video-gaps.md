@@ -326,7 +326,7 @@ The same walkthrough, read at the other half of every minute. It fills the gaps 
 - 125:30 ([screenshot](video-frames/t125-30.jpg)). A green-tinted film of people, like old footage seen through a monitor.
 - 126:30 ([screenshot](video-frames/t126-30.jpg)). A pink pixel thronglet in a purple hexagon on black, a portrait.
 - 127:30 ([screenshot](video-frames/t127-30.jpg)). The credits, in green on black: `// Lead Developer` Sam Warner, `Lead Designer` Meredith Wilson, `Designers` Dane Wheaton and David Zhu, `Concept Development` Krysztof Piotrowski, then `// ENGINEERING` with `Lisa Hicks`, `Brian Cosgrove`, `Caleb Markley`, `Michael Seare`, `Robert Sp.`
-- 128:30 ([screenshot](video-frames/t128-30.jpg)). The localization list: German, Italian, Spanish, Spanish (Latin America), Brazilian Portuguese, with the names.
+- 128:30 ([screenshot](video-frames/t128-30.jpg)). The localization list: German, Italian, Spanish, Spanish (Latin American), Brazilian Portuguese, with the names.
 - 129:30 ([screenshot](video-frames/t129-30.jpg)). `PrimeTween by Kyrryl Kuzyk`, `Unity Debug Sheet by Haruki Yano`, `Flexible Grid Layout by ADaurio`, and `Copyright 2019 the Calistoga Project Authors (https://github.com/SorkinType/Calistoga)`, `This Font Software is licensed under the SIL Open Font License`.
 
 ## What the half-minute marks add
@@ -357,6 +357,34 @@ Things that were invisible at the whole-minute marks, or that the first pass rea
 - The last gifts: an apple and a green door in the tower, with `Easy, and hard.` ([121:30](video-frames/t121-30.jpg), [122:30](video-frames/t122-30.jpg))
 - The whole credits roll, with the team, the localization list and the third-party assets. ([127:30](video-frames/t127-30.jpg), [129:30](video-frames/t129-30.jpg))
 
+## Thronglet animations & sprites catalog (`references/` mapping)
+
+All character sprites are packed inside `references/Assets/Texture2D/sactx-0-2048x2048-Uncompressed-Sprites-Thronglets-fc0e3430.png` (dirt overlay in `..._DirtTex.png`) and indexed by `references/Assets/SpriteAtlas/Sprites-Thronglets.json`. Frame rects (`m_Rect` / `m_RD.textureRect`) and foot anchors (`m_Pivot`) live in `references/Assets/Sprite/*.json` (note: Unity's `y=0` is bottom-left, so convert to Canvas/WebGL top-left via `2048 - textureRect.y - textureRect.height`). Cutscene timelines are stored in `references/Assets/ScriptableObjectGroup/` (`ThrongletTalkTimeline.json`, `ThrongletEmergeTimeline.json`, `SEQ_1.json`–`SEQ_8.json`).
+
+| Category | State / Clip | `references/Assets/Sprite/` JSON prefix | Frames | Priority |
+| :--- | :--- | :--- | :--- | :--- |
+| **Lifecycle** | `egg_idle` / `wobble` | `Throng_Egg_A` (`_WiggleLeft`, `_WiggleRight`, `_Glow`), `Throng_Egg_B`, `Throng_Egg_C_Empty`, `Throng_Egg_Sparkle_SpriteSheet2_*` | 1–5 | 3 (Blocking) |
+| **Autonomous** | `idle` / `blink` | `ThrongA_Default_001`, `ThrongA_Default Blink_001`, `Throng_Idle_AntennaSpin_Spritesheet_*`, `Throng_Idle_EyesDirection_Spritesheet_*`, `Throng_Idle_EarsUp`, `Throng_Idle_BackTurned` | 1–8 | 1 (Base) |
+| **Autonomous** | `sleep` | `Throng_Idle_AntennaSpin_EyesClosed_Spritesheet_*` | 4 | 1 (Base) |
+| **Autonomous** | `walk` / `walk_back` | `Throng_Walk_Anim_Spritesheet_*` (`_Alpha_*`), `Throng_WalkBack_Anim_Spritesheet_*` | 5 | 1 (Base) |
+| **Autonomous** | `walk_homed` | `Throng_Walk_Homed_Spritesheet_*` (walk cycle when assigned to a Dwelling) | 5 | 1 (Base) |
+| **Autonomous** | `walk_variants` | `Char_ThrongA_Happy_Walk_Spritesheet_*`, `Char_ThrongA_Sad_Walk_Spritesheet_*`, `Char_ThrongA_Rotund_Spritesheet_*` | 2–4 | 1 (Base) |
+| **Interaction** | `eat` | `ThrongA_Eat_001..002` + `Prop_Apple_Bite_1..3` | 2 | 2 (Action) |
+| **Interaction** | `bathe` | `Throng_FallInBath_Spritesheet_*` (`_Alpha_*`) + `FX_CleanSparkles_Spritesheet.png` / `FX_SoapBubbles_Spritesheet.png` / `FX_WaterSplash_Spritesheet.png` | 8 | 2 (Action) |
+| **Interaction** | `play` / `roundabout` | `ThrongA_Roundabout_SpriteSheet_*` (`_Alpha_Updated_*`) + `Prop_Roundabout_SpriteSheet_*` | 8 | 2 (Action) |
+| **Needs / Mood** | `bored` / `sad` / `grumpy` | `Char_ThrongA_Bored_KickRock_Spritesheet_*` (14f), `ThrongA_Sad_001..007`, `Throng_Grumpy_Sheet_*`, `Throng_Grumpy3_*`, `Char_ThrongA_PuppyDogEyes_Spritesheet_*` | 2–14 | 1 (Base) |
+| **Needs / Mood** | `dirty` | Dirt mask texture `..._DirtTex.png` (via `Shader_VeniceSprites.json`) + `UI_PollutionWarning_Thronglet_Spritesheet_*` | 4 | Modifier |
+| **Work / Haul** | `carry_prop` | `Char_ThrongA_LiftProp_*` (7f) -> `Char_ThrongA_LiftPropWalk_*` (2f) -> `Char_ThrongA_DropProp_*` (4f) | 2–7 | 2 (Action) |
+| **Work / Haul** | `mine_pickaxe` / `think` | `ThrongA_Pickaxe_Spritesheet_*` (9f), `Throng_Think_Spritesheet_*` (5f), `Throng_Think_TwiddleThumbs_Spritesheet_*` (7f) | 5–9 | 2 (Action) |
+| **Critical Event** | `mitosis` | `ThrongA_Mitosis_Spritesheet_*` (36f) / `ThrongA_MitosisCutscene_NoBlood_Spritesheet_*` (34f) | 34–36 | 3 (Blocking) |
+| **Critical Event** | `panic` / `freak_out` | `Char_ThrongA_PanicRun_*` (4f), `Char_ThrongA_PanicRunFire_*` (4f), `Char_ThrongA_FreakOut_*` (12f), `ThrongA_ReactToKill_*` (6f) | 4–12 | 3 (Blocking) |
+| **Critical Event** | `dead` / `deflesh` | `ThrongA_Dead_001_0`, `ThrongA_Dead_002_0`, `Throng_Prop_Blood_A`, `ThrongA_Bones_001`, `TEMP_ThrongA_SickDead_001_0`, `Char_ThrongA_Deflesh_1..24` | 1–24 | 3 (Blocking) |
+| **Cutscene / Talk** | `talk_to_player` | `ThrongA_Talk_*` (6f), `ThrongA_Talk_Blink_Spritesheet_*` (8f), `ThrongA_Talk_HandsBack_Spritesheet_*` (6f), `ThrongA_Talk_ScratchArm_Spritesheet_*` (9f), `ThrongA_Talk_EyeRoll_Spritesheet_*` (7f), `ThrongA_Talk_Tall_Spritesheet_*` (6f), `ThrongA_Talk_Low_Spritesheet_*` (6f) | 6–9 | 4 (Cutscene) |
+| **Cutscene / Talk** | `player_reactions` | `ThrongA_LooktAtPlayerHappyNod_Spritesheet_*` (10f), `ThrongA_SkepticalToPlayer_Spritesheet_*` (3f), `ThrongA_AngryAtPlayer_Spritesheet_*` (3f), `ThrongA_DeepThought_Spritesheet_*` (3f), `ThrongA_ImpactfulExplanation_Spritesheet_*` (3f), `ThrongA_Shrug_*` (4f), `Char_ThrongA_InAwe_Spritesheet_*` (4f) | 3–10 | 4 (Cutscene) |
+| **Cutscene / Group** | `sing` / `talk_group` | `Throng_Sing_Spritesheet_*` (`B`–`E` variants, 6–9f), `ThrongA..E_SingToThronglet_Spritesheet2_*`, `ThrongA..E_TalkToOtherThronglet_Spritesheet2_*` (3f) | 3–9 | 4 (Cutscene) |
+| **Cutscene / Event** | `celebrate` / `jump` | `ThrongA_Celebrate_Spritesheet_*` (9f), `ThrongA_Jump_VariantA_Spritesheet_*` (10f), `ThrongA_Jump-EarWiggle_*` (5f), `ThrongA_Jump_001`, `ThrongA_JumpBlink_001`, `ThrongA_Jump_High` | 1–10 | 4 (Cutscene) |
+| **Cutscene / Glitch** | `possessed` | `ThrongA_Possessed_AntennaSpin_Spritesheet_*` (6f), `ThrongA_Possessed_AntennaSpinTalk_Spritesheet_*` (6f), `ThrongA_Possessed_EarRaise_Spritesheet_*` (6f) | 6 | 4 (Cutscene) |
+
 ## Checklist
 
 The share button, the Netflix account, the recorder's label, this playthrough's island, and switching the book's language do not come in.
@@ -369,12 +397,25 @@ The share button, the Netflix account, the recorder's label, this playthrough's 
 - [x] Counter on `?` during that stretch. (capturas: [8:00](video-frames/t008-00.jpg))
 - [x] The player's name, once the basics are known: "¿cómo deberían llamarte tus tropeles?", confirmation "¿Te llamas [NAME]?" (`SYS.PLAYERINPUT`), and a refusal if the name is inappropriate.
 
+### Thronglet animations & cutscene system
+
+- [ ] **Atlas extraction & coordinate normalization**: parse `references/Assets/Sprite/Throng*.json` and `Char_Throng*.json` against `sactx-0-2048x2048-Uncompressed-Sprites-Thronglets-fc0e3430.png`, flipping Unity's bottom-left Y axis (`2048 - textureRect.y - textureRect.height`) and preserving `m_Pivot` for isometric Y-sorting.
+- [ ] **Priority-based Animation FSM (`ThrongletAnimator`)**: separate entity logic state from sprite frame playback with a 4-tier interrupt hierarchy (`1: Base/Needs` -> `2: Direct Interaction` -> `3: Critical/One-shot` -> `4: Cutscene Override`), supporting both looping (`idle`, `walk`, `walk_homed`, `sing`) and one-shot (`eat`, `mitosis`, `egg_hatch`, `deflesh`) cycles with `onComplete` callbacks.
+- [ ] **Cutscene Director (`CutsceneDirector`)**: global controller referencing `references/Assets/ScriptableObjectGroup/` timelines (`ThrongletTalkTimeline.json`, `ThrongletEmergeTimeline.json`, `SEQ_1.json`–`SEQ_8.json`) that pauses autonomous AI (`aiPaused = true`) for scripted events:
+  - [ ] `triggerDialogueStare()`: freezes all living thronglets and switches them to `ThrongA_Talk_*` / `ThrongA_LooktAtPlayerHappyNod_*` / `ThrongA_DeepThought_*` (with a 0–300 ms stagger) whenever a console dialogue/choice opens.
+  - [ ] `triggerGathering(x, y, radius)`: moves a group into a circle around a target (bridge construction, monolith, new structure) and plays synchronized `Throng_Sing_Spritesheet_*` (`A`–`E` variants) or `Char_ThrongA_LiftProp_*` animations upon arrival.
+  - [ ] `triggerCelebration()`: triggers `ThrongA_Celebrate_Spritesheet_*` jumps across the swarm on milestone/unlock cards.
+- [ ] **Spatial & local event reactions**:
+  - [ ] Proximity `Char_ThrongA_PanicRun_*` / `Char_ThrongA_FreakOut_*` / `ThrongA_ReactToKill_*` burst when a thronglet dies nearby or destructive tools (`HAMMER`, `AXE`, `CHAINSAW`) strike within range.
+  - [ ] Exact frame-synced `ThrongA_Mitosis_Spritesheet_*` split (spawning the new thronglet/egg on the final frame of the 36-frame division animation).
+- [ ] **Dirt & cosmetic overlays**: apply `..._DirtTex.png` mask (from `Shader_VeniceSprites.json`) when cleanliness drops, and layer `THEATRE` masks over base animations once unlocked ([73:30](video-frames/t073-30.jpg)).
+
 ### World and tools
 
 - [ ] Task banners from the playthrough: `GROW THRONGLET NUMBERS`, `BUILD A BRIDGE`, `CRACK ROCKS & COLLECT GEMS`, `SPEND GEMS; GROW THRONG`, `UPGRADE STRUCTURES`, and also `CARE FOR THEM`, `FIND THE GIFT`, `TOUCH THE MONOLITH`, `WIPE THE SLATE CLEAN`, `USE TOOLS ON THE UPLINK`. We already have task banner frame, but we need to work on the task names. (capturas: [7:00](video-frames/t007-00.jpg), [17:00](video-frames/t017-00.jpg), [37:00](video-frames/t037-00.jpg), [40:00](video-frames/t040-00.jpg), [81:00](video-frames/t081-00.jpg), [92:00](video-frames/t092-00.jpg), [4:30](video-frames/t004-30.jpg), [12:30](video-frames/t012-30.jpg), [19:30](video-frames/t019-30.jpg), [92:30](video-frames/t092-30.jpg), [100:30](video-frames/t100-30.jpg))
 - [ ] Fix Energy frame, it is positioned right behind the tasks frame, in a buggy way.
-- [ ] Pointing hand of the tutorial: a big white hand that points at the thronglet and asks for the first click. (capturas: [3:30](video-frames/t003-30.jpg))
-  - [ ] Adding to this, I would make changes related to what is given to the user initially. Right now we are giving him apple, sponge and ball. We should give first an apple, then an animation, then the ball, then an animation, give sponge and final animation. Something like that, confirm which animations are done here to go ahead.
+- [ ] Pointing hand of the tutorial: a big white hand (`UI_Tutorial_HandPointA.json`, `UI_Tutorial_HandPointB.json`, `UI_Tutorial_HandTouch.json`, `UI_Tutorial_TouchRings_1..2.json` in `sactx-0-128x128-ASTC 4x4-Sprites-UITutorial-d57718eb.png`) that points at the thronglet and asks for the first click. (capturas: [3:30](video-frames/t003-30.jpg))
+  - [ ] Adding to this, I would make changes related to what is given to the user initially. Right now we are giving him apple, sponge and ball. We should give first an apple (triggers `ThrongA_Eat_001..002` + `Prop_Apple_Bite_1..3` -> `ThrongA_Celebrate_Spritesheet_*`), then the ball (triggers `ThrongA_Jump_VariantA_*` -> `celebrate`), then sponge (triggers `FX_CleanSparkles_Spritesheet` / `FX_SoapBubbles_Spritesheet` -> `ThrongA_Mitosis_*` / sign progression). Confirm exact sequence against `SEQ_1.json`–`SEQ_8.json`.
 - [x] White arc while dragging the hammer, and a green box on the rock or the trunk. (capturas: [11:00](video-frames/t011-00.jpg), [17:00](video-frames/t017-00.jpg), [37:00](video-frames/t037-00.jpg))
   - [ ] Revise this for all tools and all sprites that applies.
 - [x] Green reach circle, with an outline on each target inside it. (capturas: [64:00](video-frames/t064-00.jpg), [64:30](video-frames/t064-30.jpg), [70:30](video-frames/t070-30.jpg))
@@ -419,7 +460,7 @@ The share button, the Netflix account, the recorder's label, this playthrough's 
     - [ ] `ORBITAL CANNON` is the one with a different layout: no red title, and the card sits to the left of the screen. (capturas: [89:15](video-frames/t089-15.jpg))
 - [ ] Market card: icon, name, description, and a price that if user has not enough energy will be with red background. (capturas: [46:00](video-frames/t046-00.jpg))
   - [x] The building is with a cart icon above it. (capturas: [43:30](video-frames/t043-30.jpg))
-  - [ ] The building sprite is orange bordered when there is an item that can be purchased. (capturas: [43:30](video-frames/t043-30.jpg))
+  - [ ] The building sprite is orange bordered when it is selected. (capturas: [43:30](video-frames/t043-30.jpg))
   - [ ] The price badge is blue when it can be paid and red when it cannot. (capturas: [37:33](video-frames/t037-33.jpg), [43:31](video-frames/t043-31.jpg))
 
   #### Order of the market
@@ -506,6 +547,144 @@ The share button, the Netflix account, the recorder's label, this playthrough's 
 
 Two passes now: one frame at every whole minute (130 taken, 32 read) and one frame at every half minute (130 taken, all 130 read). Between them there is a frame every 30 seconds.
 
-What is still not claimed: the walk cycle of someone who already has a house, and the exact length of the dark stretches (the console over black at 53:30 and the black screen at 96:30 are the same kind of film, but the sampling only catches one frame of each). The tutorial asset is in the dump, and this pass still did not catch it as a sprite; only the hand that points at the thronglet, at 3:30.
+What is still not claimed: the exact length of the dark stretches (the console over black at 53:30 and the black screen at 96:30 are the same kind of film, but the sampling only catches one frame of each).
+
+Resolved via `references/` asset dump:
+- ~~The walk cycle of someone who already has a house~~ -> `references/Assets/Sprite/Throng_Walk_Homed_Spritesheet_0..4.json`.
+- ~~The tutorial asset is in the dump, and this pass still did not catch it as a sprite; only the hand that points at the thronglet, at 3:30~~ -> `UI_Tutorial_HandPointA.json`, `UI_Tutorial_HandPointB.json`, `UI_Tutorial_HandTouch.json`, `UI_Tutorial_HandPinch_0..1.json`, and `UI_Tutorial_TouchRings_1..2.json` (packed in `references/Assets/Texture2D/sactx-0-128x128-ASTC 4x4-Sprites-UITutorial-d57718eb.png`).
 
 The order of the unlocks is now partly known: `ROUNDABOUT` at 9:30 and `THEATRE` at 59:00 are the two the frames hold.
+
+## Progression research (Thronglets vs Thronglets: Infinite)
+
+External research pass summarizing progression findings from the original *Black Mirror: Thronglets* (*Plaything*) and how they relate to **Thronglets: Infinite**. This section complements the frame-based observations above; when frame evidence and this catalog disagree, prefer the frame evidence and treat this as a design reference.
+
+### 1. Scope
+
+- **Original Thronglets:** a linear, campaign-like progression driven by tutorial steps, population thresholds, action milestones, and Market purchases with gems.
+- **Thronglets: Infinite:** an endless/incremental colony-sim adaptation of that progression, where unlocks and economy are expected to remain meaningful without a narrative ending.
+
+### 2. Full catalog and progression order (original reference)
+
+In the base game, items unlock sequentially through **population thresholds**, **action milestones**, and **Market purchases with gems**.
+
+#### Phase 1: Basic care and early expansion
+
+| Order | Technical ID | Name | Category | Unlock condition | Main function |
+| ----- | ----- | ----- | ----- | ----- | ----- |
+| **1** | `apple` | Apple | Tool | Initial (tutorial) | Manually feeds 1 unit (`radius: 0`). |
+| **2** | `ball` | Ball | Tool | Initial (tutorial) | Manually entertains 1 unit (`radius: 0`). |
+| **3** | `sponge` | Sponge | Tool | Initial (tutorial) | Manually cleans 1 unit or tile (`radius: 0`). |
+| **4** | `bathtub` | Bathtub | Building | Population $\ge 6$ | Automatic individual cleaning for Thronglets. |
+| **5** | `apple_tree` | Apple Tree | Building | Population $\ge 10$ | Periodically spawns apples on nearby ground. |
+| **6** | `roundabout` | Roundabout | Building | Population $\ge 15$ | Entertains multiple Thronglets simultaneously. |
+| **7** | `hammer` | Hammer | Tool | Population $\ge 20$ | Breaks basic rocks/stumps and demolishes buildings (`radius: 0`). |
+| **8** | `axe` | Axe | Tool | Exploration milestone / Population $\ge 25$ | Chops trees to obtain **logs** (bridge material). |
+| **9** | `the_bug` | The Bug | Tool | Event / ethical decision | Defleshes Thronglets to obtain **bones** (alternative bridge material). |
+
+#### Phase 2: Industrial era and automation
+
+This phase introduces ore extraction, refining into gems (currency/energy), and area-of-effect tool upgrades.
+
+| Order | Technical ID | Name | Category | Requirement / cost | Main function |
+| ----- | ----- | ----- | ----- | ----- | ----- |
+| **10** | `pickaxe` | Pickaxe | Tool | **15 gems** (replaces `hammer`) | Breaks rocks in an area (`radius: 2`) and extracts ore. |
+| **11** | `mine` | Mine | Building | **50 gems** | Placed on veins; extracts ore automatically. |
+| **12** | `dwelling` | Dwelling | Building | **200 gems** | Hybrid of Apple Tree + Bathtub; feeds and cleans in groups. |
+| **13** | `factory` | Factory | Building | **300 gems** | Processes ore from mines to generate gems/energy. |
+| **14** | `chainsaw` | Chainsaw | Tool | **400 gems** (replaces `axe`) | Chops trees in a wide radius (`radius: 3`). |
+| **15** | `grabber` | The Grabber | Tool | Milestone: chop $\ge 12$ trees | Picks up multiple logs, bones, or corpses in an area. |
+| **16** | `mop` | Mop | Tool | Milestone: pollution $\ge 25\%$ (replaces `sponge`) | Cleans ground, buildings, and Thronglets in an area (`radius: 3`). |
+| **17** | `theatre` | Theatre | Building | **1,000 gems** (upgrades `roundabout`) | Entertains large groups and grants a speed buff. |
+| **18** | `swarm` | Swarm | Tool | Phase 2 market milestone (replaces `the_bug`) | Defleshes Thronglets in a wide area (`radius: 3`). |
+| **19** | `factory_mk2` | Factory Mark II | Building | **5,000 gems** | Greatly increases ore-to-gem conversion. |
+| **20** | `upgraded_mine` | Upgraded Mine | Building | **120,000 gems** | Extracts higher-value ore and supports more workers. |
+| **21** | `fancy_dwelling` | Fancy Dwelling | Building | **200,000 gems** | Higher population, food, and hygiene capacity. |
+
+*Design note (original):* during Phase 2 there are optional cosmetic elements (**Flowers** and **Sculptures**) that slightly increase passive happiness depending on player decisions.
+
+**Cross-check with frame evidence above:** the tables in [Order of the unlock cards](#order-of-the-unlock-cards) and [Order of the market](#order-of-the-market) also show `FLOWER` and `ORBITAL CANNON` as unlock cards and `Mine two, minerer` naming in-market. IDs, names, and availability should be reconciled against observed footage, especially for cosmetic or campaign-specific/late items that may need different treatment in Thronglets: Infinite.
+
+### 3. Key differences and findings for Thronglets: Infinite
+
+#### 3.1. Systemic unlocks instead of one-off narrative triggers
+
+- **Original:** progression can depend on scripted moments or one-time events (e.g. narrative/ethical beats).
+- **Infinite:** unlocks are better expressed as live game-state conditions (e.g. `population`, `totalGemsEarned`, `pollutionLevel`, `treesCut`, `throngletsSacrificed`) so progression remains consistent in an endless run.
+
+#### 3.2. HUD/tool evolution (`replaces`)
+
+Upgraded tools are expected to replace their previous version in the action bar to avoid clutter:
+- `hammer` $\rightarrow$ `pickaxe`
+- `axe` $\rightarrow$ `chainsaw`
+- `sponge` $\rightarrow$ `mop`
+- `the_bug` $\rightarrow$ `swarm`
+
+#### 3.3. Infinite economy scaling
+
+- **Original:** costs/prices are effectively fixed campaign values.
+- **Infinite:** repeatable buildings (`bathtub`, `apple_tree`, `mine`, `factory`, `dwelling`, `theatre`) and advanced buildings (`factory_mk2`, `upgraded_mine`, `fancy_dwelling`) need scaling costs (e.g. exponential by placed count) to sustain a long-run incremental economy.
+
+  $$
+  \text{Cost}_{\text{next}} = \text{Cost}_{\text{base}} \times (\text{Multiplier})^{\text{CurrentCount}}
+  $$
+
+#### 3.4. Expansion materials and map pressure
+
+Expansion in an infinite map context relies on obstacle clearing and bridge building:
+- **Logs** from `axe`/`chainsaw` and **bones** from `the_bug`/`swarm` as alternative bridge materials.
+- **Rock/vein clearing** with `pickaxe` to open space and resources.
+
+#### 3.5. Core friction and moral trade-off (identity preserved)
+
+Two progression routes create ongoing tension and choice:
+1. **Industrial / sustainable route:** higher gem investment (`dwelling`, `fancy_dwelling`, `theatre`) with factory-driven **pollution**, requiring cleaning (e.g. `mop`) to mitigate disease/birth-rate pressure.
+2. **Utilitarian / predatory route:** `the_bug`/`swarm` convert surplus population (runaway mitosis) into fast biomass/bones for expansion and throughput without waiting for natural regeneration.
+
+### 4. Progression data model (reference)
+
+The catalog can be represented as entities with unlock conditions, optional `replaces`, base gem cost, cost multiplier, and area radius (aligned with the existing progression system in Thronglets: Infinite):
+
+```typescript
+export type UnlockCondition =
+  | { type: 'population'; min: number }
+  | { type: 'gems_earned'; total: number }
+  | { type: 'metric_threshold'; metric: 'pollution' | 'deaths' | 'trees_cut'; min: number }
+  | { type: 'unlocked'; itemId: string };
+
+export interface GameEntityConfig {
+  id: string;
+  name: string;
+  category: 'tool' | 'building';
+  replaces?: string;
+  unlockConditions: UnlockCondition[];
+  baseGemCost: number;
+  costMultiplier: number; // 1 for one-time tool purchases; >1 for repeatable buildings
+  areaRadius: number;     // 0 = single-target action, >0 = tile effect radius
+  maxTier?: number;       // undefined = infinite
+}
+
+export const PROGRESSION_CATALOG: GameEntityConfig[] = [
+  { id: 'apple', name: 'Apple', category: 'tool', unlockConditions: [], baseGemCost: 0, costMultiplier: 1, areaRadius: 0 },
+  { id: 'ball', name: 'Ball', category: 'tool', unlockConditions: [], baseGemCost: 0, costMultiplier: 1, areaRadius: 0 },
+  { id: 'sponge', name: 'Sponge', category: 'tool', unlockConditions: [], baseGemCost: 0, costMultiplier: 1, areaRadius: 0 },
+  { id: 'bathtub', name: 'Bathtub', category: 'building', unlockConditions: [{ type: 'population', min: 6 }], baseGemCost: 0, costMultiplier: 1.4, areaRadius: 1 },
+  { id: 'apple_tree', name: 'Apple Tree', category: 'building', unlockConditions: [{ type: 'population', min: 10 }], baseGemCost: 0, costMultiplier: 1.5, areaRadius: 2 },
+  { id: 'roundabout', name: 'Roundabout', category: 'building', unlockConditions: [{ type: 'population', min: 15 }], baseGemCost: 10, costMultiplier: 1.5, areaRadius: 2 },
+  { id: 'hammer', name: 'Hammer', category: 'tool', unlockConditions: [{ type: 'population', min: 20 }], baseGemCost: 0, costMultiplier: 1, areaRadius: 0 },
+  { id: 'axe', name: 'Axe', category: 'tool', unlockConditions: [{ type: 'population', min: 25 }], baseGemCost: 0, costMultiplier: 1, areaRadius: 0 },
+  { id: 'the_bug', name: 'The Bug', category: 'tool', unlockConditions: [{ type: 'unlocked', itemId: 'axe' }], baseGemCost: 0, costMultiplier: 1, areaRadius: 0 },
+  { id: 'pickaxe', name: 'Pickaxe', category: 'tool', replaces: 'hammer', unlockConditions: [{ type: 'unlocked', itemId: 'hammer' }, { type: 'gems_earned', total: 15 }], baseGemCost: 15, costMultiplier: 1, areaRadius: 2 },
+  { id: 'mine', name: 'Mine', category: 'building', unlockConditions: [{ type: 'unlocked', itemId: 'pickaxe' }], baseGemCost: 50, costMultiplier: 1.6, areaRadius: 1 },
+  { id: 'dwelling', name: 'Dwelling', category: 'building', unlockConditions: [{ type: 'gems_earned', total: 200 }], baseGemCost: 200, costMultiplier: 1.65, areaRadius: 2 },
+  { id: 'factory', name: 'Factory', category: 'building', unlockConditions: [{ type: 'gems_earned', total: 300 }], baseGemCost: 300, costMultiplier: 1.7, areaRadius: 2 },
+  { id: 'chainsaw', name: 'Chainsaw', category: 'tool', replaces: 'axe', unlockConditions: [{ type: 'unlocked', itemId: 'axe' }, { type: 'gems_earned', total: 400 }], baseGemCost: 400, costMultiplier: 1, areaRadius: 3 },
+  { id: 'grabber', name: 'The Grabber', category: 'tool', unlockConditions: [{ type: 'metric_threshold', metric: 'trees_cut', min: 12 }], baseGemCost: 150, costMultiplier: 1, areaRadius: 3 },
+  { id: 'mop', name: 'Mop', category: 'tool', replaces: 'sponge', unlockConditions: [{ type: 'metric_threshold', metric: 'pollution', min: 25 }], baseGemCost: 250, costMultiplier: 1, areaRadius: 3 },
+  { id: 'theatre', name: 'Theatre', category: 'building', unlockConditions: [{ type: 'gems_earned', total: 1000 }], baseGemCost: 1000, costMultiplier: 1.75, areaRadius: 3 },
+  { id: 'swarm', name: 'Swarm', category: 'tool', replaces: 'the_bug', unlockConditions: [{ type: 'unlocked', itemId: 'the_bug' }, { type: 'gems_earned', total: 2500 }], baseGemCost: 2500, costMultiplier: 1, areaRadius: 3 },
+  { id: 'factory_mk2', name: 'Factory Mark II', category: 'building', unlockConditions: [{ type: 'gems_earned', total: 5000 }], baseGemCost: 5000, costMultiplier: 1.85, areaRadius: 2 },
+  { id: 'upgraded_mine', name: 'Upgraded Mine', category: 'building', unlockConditions: [{ type: 'gems_earned', total: 120000 }], baseGemCost: 120000, costMultiplier: 1.9, areaRadius: 2 },
+  { id: 'fancy_dwelling', name: 'Fancy Dwelling', category: 'building', unlockConditions: [{ type: 'gems_earned', total: 200000 }], baseGemCost: 200000, costMultiplier: 1.95, areaRadius: 3 },
+];
+```
