@@ -52,6 +52,9 @@ const FLOWER_ANIM_N := 7
 const RIVER_ATLAS := 12
 const WASTE_ATLAS := 48
 const WASTE_VARIANTS := 6
+# Water uses terrain tileset tiles (uniform, no shore/corner shaping) and animates by cycling variants.
+const WATER_FRAMES := 4
+const WATER_ANIM_SPEED := 6.0
 # Neighbor mask: N=1, E=2, S=4, W=8. Each piece is a TEMP_Path index plus
 # flips: h, v, and r (90 degrees counter-clockwise). The draw maps sprite east
 # onto the east neighbor, so the bar sits inside the grass diamond.
@@ -82,6 +85,8 @@ var toast_msg := ""
 var toast_t := 0.0
 var save_flash_t := 0.0
 var save_pulse_seen := 0
+var anim_time := 0.0
+var water_cells: Dictionary = {}
 
 var ui: CanvasLayer
 var pop_label: Label
@@ -399,6 +404,9 @@ func _process(delta: float) -> void:
 	_sync_game_over()
 	if sim.game_over:
 		return
+	if not sim.paused:
+		anim_time += delta
+		_sync_water_animation()
 	var _focus := get_viewport().gui_get_focus_owner()
 	var _typing := _focus is LineEdit or _focus is TextEdit
 	cam_rig.move(delta, _typing, dev_on)
@@ -720,6 +728,7 @@ func _sync_world() -> void:
 		seen_epoch = sim.paint_epoch
 		painted.clear()
 		tilemap.clear()
+		water_cells.clear()
 		if pathmap != null:
 			pathmap.clear()
 			for cell in path_nodes.keys():
@@ -753,12 +762,19 @@ func _paint_chunk(ck: String, fog: bool, into = null) -> void:
 				var cell := origin + Vector2i(lx, ly)
 				map.erase_cell(cell)
 				_drop_path_at(cell, into == null)
+				if into == null:
+					water_cells.erase(cell)
 		if into == null:
 			painted[ck] = "fog"
 		return
 	var tiles: PackedByteArray = sim.chunk_tiles(ck)
 	if tiles.is_empty():
 		return
+	# Clear stale water cells for this chunk before repainting.
+	if into == null:
+		for ly in Catalog.CHUNK:
+			for lx in Catalog.CHUNK:
+				water_cells.erase(origin + Vector2i(lx, ly))
 	for ly in Catalog.CHUNK:
 		for lx in Catalog.CHUNK:
 			var tile := int(tiles[ly * Catalog.CHUNK + lx])
@@ -766,6 +782,8 @@ func _paint_chunk(ck: String, fog: bool, into = null) -> void:
 			if tile == Catalog.TILE_VOID:
 				map.erase_cell(cell)
 				_drop_path_at(cell, into == null)
+				if into == null:
+					water_cells.erase(cell)
 			else:
 				var atlas_x := tile
 				if tile == Catalog.TILE_GRASS:
@@ -775,7 +793,10 @@ func _paint_chunk(ck: String, fog: bool, into = null) -> void:
 					elif pick == 2:
 						atlas_x = 11
 				elif tile == Catalog.TILE_WATER:
-					atlas_x = _river_atlas(cell)
+					var variant := absi((cell.x * 3 + cell.y * 5) % WATER_FRAMES)
+					atlas_x = RIVER_ATLAS + variant
+					if into == null:
+						water_cells[cell] = variant
 				elif tile == Catalog.TILE_GOO:
 					atlas_x = WASTE_ATLAS + absi((cell.x * 3 + cell.y * 5) % WASTE_VARIANTS)
 				map.set_cell(cell, 0, Vector2i(atlas_x, 0))
@@ -877,7 +898,7 @@ func _path_iso_tex(piece: String) -> Texture2D:
 
 func _path_raw(index: int) -> Image:
 	if path_sheet == null:
-		var tex := ui_assets.tex("res://resources/tiles/path_overlay.png")
+		var tex: Texture2D = ui_assets.tex("res://resources/tiles/path_overlay.png")
 		path_sheet = tex.get_image()
 	var raw := Image.create(16, 16, false, Image.FORMAT_RGBA8)
 	var ox := index * 32
@@ -973,7 +994,7 @@ func _sync_biome_plates() -> void:
 		if _biome_plate_paths(biome).is_empty() or shown.has(biome):
 			continue
 		shown[biome] = str(key)
-	var pick := int(Time.get_ticks_msec() / 1400.0)
+	var pick := int(anim_time * 1000.0 / 1400.0)
 	for sprite in biome_plates:
 		var biome := str(sprite.get_meta("biome"))
 		var paths := _biome_plate_paths(biome)
@@ -995,7 +1016,7 @@ func _sync_actors() -> void:
 	var view := cam_rig.world_view().grow(64.0)
 	var draws: Array = []
 	var egg_front: Array = []
-	var time_pre := Time.get_ticks_msec() / 1000.0
+	var time_pre := anim_time
 	for feat in sim.features:
 		if feat.dead or bool(feat.get("lifted", false)):
 			continue
@@ -1098,7 +1119,7 @@ func _sync_actors() -> void:
 	if not sim.shot_mode and not bridge.is_empty() and sim.chunk_shown(str(bridge.ck)):
 		var site := Vector2(float(bridge.x), float(bridge.y))
 		var drop := Vector2(float(bridge.drop_x), float(bridge.drop_y))
-		var pulse := 0.55 + 0.45 * absf(sin(Time.get_ticks_msec() / 280.0))
+		var pulse := 0.55 + 0.45 * absf(sin(anim_time * 1000.0 / 280.0))
 		var mark := Color(1.0, 0.85, 0.2, pulse)
 		var site_draw := _bridge_view_point(site, view)
 		var drop_draw := _bridge_view_point(drop, view)
@@ -1197,7 +1218,7 @@ func _sync_actors() -> void:
 					"tint": ghost,
 					"scale": drag_scale,
 				})
-	var time := Time.get_ticks_msec() / 1000.0
+	var time := anim_time
 	for id in sim.query_rect(view):
 		var i := int(id)
 		if sim.held_kind == "thronglet" and i == sim.held_ref:
@@ -1273,7 +1294,9 @@ func _sync_actors() -> void:
 		var throng_scale := _throng_sprite_scale(throng_frame)
 		# Ride seat is the feet point; Roundabout sheet off would push them off the disk.
 		var throng_at := pos if riding else pos + _throng_sprite_off(throng_frame)
-		_push_iso(draws, throng_at, throng_frame, tint, lift, throng_scale, sort_y)
+		# Sort by ground position, not sprite draw offset (large anims like mitosis would sort too far forward).
+		var throng_sort_y := sort_y if not is_nan(sort_y) else cam_rig.to_iso(pos).y
+		_push_iso(draws, throng_at, throng_frame, tint, lift, throng_scale, throng_sort_y)
 		draws[draws.size() - 1]["flip"] = _throng_flip(i)
 		draws[draws.size() - 1]["dirty"] = _throng_dirty(sim.clean[i])
 		if sim.carry[i] != Catalog.CARRY_NONE:
@@ -1509,7 +1532,7 @@ func _pop_frame(icon: int) -> int:
 func _egg_frame(it: Dictionary) -> int:
 	var stage := int(it.get("hatch", 0))
 	if float(it.get("shake", 0.0)) > 0.0:
-		return EGG_ANIM + 1 + int(Time.get_ticks_msec() / 90) % 2
+		return EGG_ANIM + 1 + int(anim_time * 1000.0 / 90.0) % 2
 	if stage >= 3:
 		return EGG_ANIM + 4
 	if stage >= 1:
@@ -2094,7 +2117,7 @@ func _sync_hud(delta: float) -> void:
 		face_key = "trance"
 	elif _camera_biome() == "epilogue":
 		var faces := ["epilogue_caretaker", "epilogue_bewildered", "epilogue_angry", "epilogue_birthday", "epilogue_capitalist"]
-		face_key = faces[int(Time.get_ticks_msec() / 2400) % faces.size()]
+		face_key = faces[int(anim_time * 1000.0 / 2400.0) % faces.size()]
 	elif POP_FACES.has(sim.mood_face):
 		face_key = sim.mood_face
 	if face_key != pop_face_key:
@@ -2587,7 +2610,7 @@ func _sync_gaze() -> void:
 		gaze_text.add_theme_color_override("default_color", Color(0.22, 0.86, 0.28))
 		gaze_text.append_text(console_line.substr(0, console_reveal))
 	if not console_glyphs.is_empty():
-		var tick := int(Time.get_ticks_msec() / 160)
+		var tick := int(anim_time * 1000.0 / 160.0)
 		var alive: Array[TextureRect] = []
 		for i in console_corner_glyphs.size():
 			var glyph: TextureRect = console_corner_glyphs[i]
@@ -2774,7 +2797,7 @@ func _focus_draws() -> Array:
 	var talk: bool = not sim.modal.is_empty() and Catalog.GAZE.has(str(sim.modal.event))
 	var draws: Array = []
 	var egg_front: Array = []
-	var time := Time.get_ticks_msec() / 1000.0
+	var time := anim_time
 	for feat in sim.features:
 		if feat.dead or bool(feat.get("lifted", false)):
 			continue
@@ -3370,7 +3393,7 @@ func _sync_marks() -> void:
 		glyph.size = Vector2(16, 16)
 		glyph.texture = _bark_icon(icon)
 		glyph.visible = true
-		var frame := int(Time.get_ticks_msec() / 160 + int(bark.get("id", 0))) % 5
+		var frame := int(anim_time * 1000.0 / 160.0 + int(bark.get("id", 0))) % 5
 		ui_assets.apply_bubble_frame(panel, frame)
 		panel.reset_size()
 		var size := panel.get_combined_minimum_size()
@@ -3645,6 +3668,7 @@ func _build_world() -> void:
 	pathmap.z_index = 1
 	pathmap.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	add_child(pathmap)
+	# Water is painted as terrain tiles on the main tilemap (uniform, no shore/corner shaping).
 	path_root = Node2D.new()
 	path_root.z_index = 1
 	add_child(path_root)
@@ -3742,35 +3766,12 @@ func _make_tileset() -> TileSet:
 	return tileset
 
 
-func _river_atlas(cell: Vector2i) -> int:
-	var n := _shore(cell, 0, -1)
-	var e := _shore(cell, 1, 0)
-	var s := _shore(cell, 0, 1)
-	var w := _shore(cell, -1, 0)
-	var role := 0
-	if n and e and not s and not w:
-		role = 5
-	elif n and w and not s and not e:
-		role = 6
-	elif s and e and not n and not w:
-		role = 7
-	elif s and w and not n and not e:
-		role = 8
-	elif n and not s:
-		role = 1
-	elif s and not n:
-		role = 2
-	elif w and not e:
-		role = 3
-	elif e and not w:
-		role = 4
-	var variant := absi(cell.x * 3 + cell.y * 5) % 4
-	return RIVER_ATLAS + role * 4 + variant
-
-
-func _shore(cell: Vector2i, dx: int, dy: int) -> bool:
-	var at := Catalog.cell_world(cell + Vector2i(dx, dy))
-	return ThrongletSimServer._tile_at(at.x, at.y) != Catalog.TILE_WATER
+func _sync_water_animation() -> void:
+	if water_cells.is_empty() or tilemap == null:
+		return
+	var frame := posmod(int(anim_time * WATER_ANIM_SPEED), WATER_FRAMES)
+	for cell in water_cells.keys():
+		tilemap.set_cell(cell, 0, Vector2i(RIVER_ATLAS + frame, 0))
 
 
 func _make_path_tileset() -> TileSet:
@@ -5538,6 +5539,7 @@ func _enter_game() -> void:
 	in_title = false
 	title_root.visible = false
 	ThrongletSimServer.paused = false
+	_apply_show_fps()
 
 
 func _reset_camera() -> void:
@@ -5564,6 +5566,7 @@ func _enter_dev() -> void:
 	in_title = false
 	crt_on = false
 	_apply_crt()
+	_apply_show_fps()
 	if ui != null:
 		ui.visible = true
 	if title_root:
@@ -5605,6 +5608,7 @@ func _leave_dev() -> void:
 	seen_epoch = -1
 	if tilemap:
 		tilemap.clear()
+		water_cells.clear()
 	_restore_play_ui()
 	_show_title()
 
