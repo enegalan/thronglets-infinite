@@ -2,6 +2,17 @@
 
 ## [Unreleased](https://github.com/enegalan/thronglets-infinite/compare/7851ab6...HEAD)
 
+### 2026-11-17
+
+- Thronglet pathing avoids getting stuck on building corners and blocked goals: they peel sideways around convex obstacles, stop camping at occupied tubs or full buildings, and resume seeking elsewhere until a spot is free.
+- Thought bubbles no longer suggest a tub or roundabout while a thronglet is already using one, and ambient barks appear less often.
+- Trees, rocks, and other placed features snap to the tile grid on spawn, load, and reindex to stay aligned with terrain.
+- Save data remains compatible with the new pathing state.
+- Water tiles animate by cycling frames over game time, and several visual timers (eggs, bubbles, plates, gaze glyphs) now follow paused game time instead of the real clock.
+- Thronglet draw sorting uses their ground position so large animations such as mitosis no longer sort too far forward.
+- The development bench releases lab drags correctly on mouse release, and the FPS overlay applies when entering play or the bench.
+
+
 ### 2026-11-16
 
 - Thronglets in the mitosis animation can no longer be interacted with: autonomous actions remain paused during `mito_t`, scrubbing and mopping skip them, and grabbing them is blocked until the animation ends (their thought bubble also closes when picked up).
