@@ -37,7 +37,7 @@ static var CATALOG: Array = [
 	entry("sponge", "Esponja", "tool", [], 0, 1.0, 0),
 	entry("bathtub", "Bañera", "building", [cond_population(6)], 0, 1.4, 1),
 	entry("apple_tree", "Manzano", "building", [cond_population(10)], 0, 1.5, 2),
-	entry("roundabout", "Carrusel", "building", [cond_population(15)], 10, 1.5, 2),
+	entry("roundabout", "Carrusel", "building", [cond_population(15)], 0, 1.5, 2),
 	entry("hammer", "Martillo", "tool", [cond_population(20)], 0, 1.0, 0),
 	entry("axe", "Hacha", "tool", [cond_population(25)], 0, 1.0, 0),
 	entry("bug", "El Bug", "tool", [cond_unlocked("axe")], 0, 1.0, 0),
