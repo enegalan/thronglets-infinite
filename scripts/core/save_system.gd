@@ -315,6 +315,8 @@ func load_game() -> bool:
 		sim.act.append(0)
 	while sim.act_t.size() < sim.slot_count:
 		sim.act_t.append(0.0)
+	while sim.avoid_t.size() < sim.slot_count:
+		sim.avoid_t.append(0.0)
 	while sim.mito_charge.size() < sim.slot_count:
 		sim.mito_charge.append(0.0)
 	while sim.hungry_t.size() < sim.slot_count:

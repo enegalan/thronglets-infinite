@@ -171,6 +171,7 @@ var cool := PackedFloat32Array()
 var starve := PackedFloat32Array()
 var hungry_t := PackedFloat32Array()
 var wander_t := PackedFloat32Array()
+var avoid_t := PackedFloat32Array()
 var mito_t := PackedFloat32Array()
 var mito_charge := PackedFloat32Array()
 var shake_t := PackedFloat32Array()
@@ -739,31 +740,33 @@ func _seek_clean(i: int, speed: float, dt: float) -> bool:
 			use_tub = false
 	if target.is_empty():
 		_release_claim(i)
-		# Queue at a busy tub instead of falling through to the mine.
-		var busy := _nearest_tub(i, true)
-		if not busy.is_empty():
-			var wait := _approach_building(busy, i)
-			_walk(i, float(wait.x), float(wait.y), speed, dt)
-			return true
 		return false
 	if use_tub:
 		_claim_tub(i, target)
 		if int(target.get("occupant", -1)) != i:
-			var wait := _approach_building(target, i)
-			_walk(i, float(wait.x), float(wait.y), speed, dt)
+			# Tub taken by someone else: don't camp at the rim walking in
+			# place. Release and do something else this tick; retry next time.
+			_release_claim(i)
+			return false
+		# Tub is free (or already ours): go bathe if within reach.
+		var edge := _approach_building(target, i)
+		var at_rim := _dist_i(i, float(edge.x), float(edge.y)) < 10.0
+		if _inside_building_reach(pos_x[i], pos_y[i], target) or at_rim:
+			_do_bath(i, target, dt)
 			return true
+		_walk(i, float(edge.x), float(edge.y), speed, dt)
+		return true
 	else:
 		_release_claim(i)
 	var edge := _approach_building(target, i)
 	var at_rim := _dist_i(i, float(edge.x), float(edge.y)) < 10.0
-	if use_tub and (_inside_building_reach(pos_x[i], pos_y[i], target) or at_rim):
-		_do_bath(i, target, dt)
-		return true
 	if not use_tub and (_inside_building_reach(pos_x[i], pos_y[i], target) or at_rim):
-		_enter_visit(i, target)
-		act[i] = ACT_BATH
-		act_t[i] = 0.4
-		return true
+		if _enter_visit(i, target):
+			act[i] = ACT_BATH
+			act_t[i] = 0.4
+			return true
+		# Home/theatre full: don't camp at the door, do something else.
+		return false
 	_walk(i, float(edge.x), float(edge.y), speed, dt)
 	return true
 
@@ -1502,12 +1505,35 @@ func _open_dir(i: int, prefer: Vector2) -> Vector2:
 	return best
 
 
+func _side_dir(i: int, goal: Vector2) -> Vector2:
+	# Tangents around a blocked goal. Shore-push aims backward and restarts the corner loop.
+	var left := Vector2(-goal.y, goal.x)
+	var right := Vector2(goal.y, -goal.x)
+	var run_l := _clear_run(i, left.x, left.y)
+	var run_r := _clear_run(i, right.x, right.y)
+	var cur := Vector2(dir_x[i], dir_y[i])
+	if cur.length_squared() > 0.2:
+		if cur.dot(left) >= cur.dot(right):
+			run_l += 6.0
+		else:
+			run_r += 6.0
+	return left if run_l >= run_r else right
+
+
+func _hold_avoid(i: int, secs: float = 0.9) -> void:
+	if i < 0 or i >= avoid_t.size():
+		return
+	avoid_t[i] = maxf(avoid_t[i], secs)
+
+
 func _walk(i: int, tx: float, ty: float, speed: float, dt: float) -> void:
 	var dx := tx - pos_x[i]
 	var dy := ty - pos_y[i]
 	var dist := sqrt(dx * dx + dy * dy)
 	if dist < 1.0:
 		return
+	if avoid_t[i] > 0.0:
+		avoid_t[i] = maxf(0.0, avoid_t[i] - dt)
 	var gx := dx / dist
 	var gy := dy / dist
 	var goal := Vector2(gx, gy)
@@ -1516,7 +1542,10 @@ func _walk(i: int, tx: float, ty: float, speed: float, dt: float) -> void:
 	# just past approach rims, so demanding runway beyond the goal (or a
 	# 20px floor while already close) left thronglets circling tubs and rides.
 	var need_run := mini(dist, 40.0)
-	if goal_run + 4.0 >= need_run:
+	# If the straight shot is already known-bad, peel sideways now — do not walk into it.
+	var goal_blocked := goal_run + 4.0 < need_run or _goal_path_blocked(pos_x[i], pos_y[i], gx, gy, need_run)
+	var take_goal := avoid_t[i] <= 0.0 and not goal_blocked
+	if take_goal:
 		dir_x[i] = gx
 		dir_y[i] = gy
 	else:
@@ -1525,24 +1554,62 @@ func _walk(i: int, tx: float, ty: float, speed: float, dt: float) -> void:
 		if cur.length_squared() > 0.2:
 			cur = cur.normalized()
 			var cur_run := _clear_run(i, cur.x, cur.y)
-			# Keep circling the obstacle until the goal corridor is truly open.
-			if cur_run >= 14.0 and goal_run < need_run and cur.dot(goal) > -0.85:
+			if avoid_t[i] > 0.0:
+				# Finish the peel even if it heads away from the blocked goal.
+				if cur_run >= 6.0:
+					keep = true
+					dir_x[i] = cur.x
+					dir_y[i] = cur.y
+			elif cur_run >= 14.0 and cur.dot(goal) > -0.35:
 				keep = true
 				dir_x[i] = cur.x
 				dir_y[i] = cur.y
 		if not keep:
-			var bias := _shore_push(i)
-			if bias == Vector2.ZERO:
-				bias = goal
+			var bias := _side_dir(i, goal)
 			var detour := _open_dir(i, bias)
+			if detour == Vector2.ZERO:
+				detour = _open_dir(i, -bias)
 			if detour == Vector2.ZERO:
 				detour = _open_dir(i, goal)
 			if detour == Vector2.ZERO:
 				_unstick(i)
+				_hold_avoid(i, 1.1)
 				return
 			dir_x[i] = detour.x
 			dir_y[i] = detour.y
+			_hold_avoid(i, 0.95)
+		elif goal_blocked:
+			_hold_avoid(i, 0.7)
 	_move(i, dir_x[i] * speed * dt, dir_y[i] * speed * dt)
+
+
+func _convex_corner_at(px: float, py: float, dx: float, dy: float) -> bool:
+	var sx := 0.0 if absf(dx) < 0.001 else signf(dx)
+	var sy := 0.0 if absf(dy) < 0.001 else signf(dy)
+	if sx == 0.0 or sy == 0.0:
+		return false
+	var probe := 4.0
+	var can_x := not _move_blocked(px + sx * probe, py)
+	var can_y := not _move_blocked(px, py + sy * probe)
+	return can_x and can_y and _move_blocked(px + sx * probe, py + sy * probe)
+
+
+func _goal_path_blocked(px: float, py: float, dx: float, dy: float, limit: float) -> bool:
+	# Scan the approach. A late 4px probe wasted a walk into the corner.
+	var span := minf(limit, 40.0)
+	if span < 4.0:
+		return _convex_corner_at(px, py, dx, dy)
+	var clear := 0.0
+	var step := 4.0
+	while clear + step <= span:
+		clear += step
+		var x := px + dx * clear
+		var y := py + dy * clear
+		if _move_blocked(x, y):
+			return true
+		if _convex_corner_at(x, y, dx, dy):
+			return true
+	return false
 
 
 func _move(i: int, dx: float, dy: float) -> void:
@@ -1556,6 +1623,41 @@ func _move(i: int, dx: float, dy: float) -> void:
 		pos_y[i] = oy + dy
 		_wear_ground(i)
 		return
+	# Convex corner: commit to one axis. Do not unstick — that bounces them
+	# backward and _walk then charges the same corner again.
+	if can_x and can_y:
+		var use_x := absf(dx) >= absf(dy)
+		if absf(dir_x[i]) > 0.7 and absf(dir_y[i]) < 0.3:
+			use_x = can_x
+		elif absf(dir_y[i]) > 0.7 and absf(dir_x[i]) < 0.3:
+			use_x = false
+		else:
+			var sx := 0.0 if absf(dx) < 0.0001 else signf(dx)
+			var sy := 0.0 if absf(dy) < 0.0001 else signf(dy)
+			var run_x := 0.0 if sx == 0.0 else _clear_run_at(ox, oy, sx, 0.0)
+			var run_y := 0.0 if sy == 0.0 else _clear_run_at(ox, oy, 0.0, sy)
+			if run_x > run_y:
+				use_x = true
+			elif run_y > run_x:
+				use_x = false
+		if use_x and can_x:
+			pos_x[i] = ox + dx
+			dir_x[i] = 0.0 if absf(dx) < 0.0001 else signf(dx)
+			dir_y[i] = 0.0
+			moved = true
+		elif can_y:
+			pos_y[i] = oy + dy
+			dir_x[i] = 0.0
+			dir_y[i] = 0.0 if absf(dy) < 0.0001 else signf(dy)
+			moved = true
+		if moved:
+			_hold_avoid(i, 0.95)
+		else:
+			_unstick(i)
+			_hold_avoid(i, 1.1)
+		if pos_x[i] != ox or pos_y[i] != oy:
+			_wear_ground(i)
+		return
 	if can_x:
 		pos_x[i] = ox + dx
 		moved = true
@@ -1565,8 +1667,12 @@ func _move(i: int, dx: float, dy: float) -> void:
 	elif can_y and not can_x:
 		pos_y[i] = oy + dy
 		moved = true
-	if not moved or (moved and _corner_trap(i)):
+	if not moved:
 		_unstick(i)
+		_hold_avoid(i, 1.1)
+	elif _corner_trap(i):
+		_unstick(i)
+		_hold_avoid(i, 1.1)
 	if pos_x[i] != ox or pos_y[i] != oy:
 		_wear_ground(i)
 
@@ -1615,6 +1721,7 @@ func _thought_known(key: String) -> bool:
 
 func _thought_icon(i: int) -> int:
 	# Only desire things the colony has already discovered.
+	var doing := int(act[i])
 	for feat in features:
 		if feat.dead or int(feat.kind) != Catalog.FEAT_FIRE:
 			continue
@@ -1630,25 +1737,26 @@ func _thought_icon(i: int) -> int:
 			return Catalog.ICON_SPONGE
 	if fed[i] < Catalog.NEED_HUNGRY and _thought_known("apple"):
 		return Catalog.ICON_APPLE
-	if clean[i] < Catalog.NEED_SEEK:
+	var in_tub := not seat_of(i).is_empty()
+	var on_ride := not ride_of(i).is_empty()
+	if clean[i] < Catalog.NEED_SEEK and not in_tub:
 		if _thought_known("bathtub"):
 			return Catalog.ICON_TUB
 		if _thought_known("sponge"):
 			return Catalog.ICON_SPONGE
-	if amused[i] < Catalog.NEED_FUN:
+	if amused[i] < Catalog.NEED_FUN and not on_ride:
 		if _thought_known("roundabout"):
 			return Catalog.ICON_ROUND
 		if _thought_known("ball"):
 			return Catalog.ICON_BALL
-	var doing := int(act[i])
 	if doing == ACT_EAT and _thought_known("apple"):
 		return Catalog.ICON_APPLE
-	if doing == ACT_BATH and _thought_known("bathtub"):
+	if doing == ACT_BATH and _thought_known("bathtub") and not in_tub:
 		return Catalog.ICON_TUB
 	if doing == ACT_WASH and _thought_known("sponge"):
 		return Catalog.ICON_SPONGE
 	if doing == ACT_PLAY:
-		if _thought_known("roundabout"):
+		if _thought_known("roundabout") and not on_ride:
 			return Catalog.ICON_ROUND
 		if _thought_known("ball"):
 			return Catalog.ICON_BALL
@@ -1673,7 +1781,7 @@ func _is_penned(i: int) -> bool:
 
 
 func _maybe_bark(i: int) -> void:
-	if barks.size() >= 3:
+	if barks.size() >= 2:
 		return
 	if view_rect.size != Vector2.ZERO and not view_rect.has_point(Vector2(pos_x[i], pos_y[i])):
 		return
@@ -1694,9 +1802,9 @@ func _maybe_bark(i: int) -> void:
 		or icon == Catalog.ICON_ROUND
 	)
 	if urgent:
-		if randf() > 0.005:
+		if randf() > 0.0015:
 			return
-	elif randf() > 0.001:
+	elif randf() > 0.0003:
 		return
 	barks.append({
 		"id": i,
@@ -1916,18 +2024,19 @@ func _drop_guest(b: Dictionary, i: int) -> void:
 	_push_out(b, i)
 
 
-func _enter_visit(i: int, b: Dictionary) -> void:
+func _enter_visit(i: int, b: Dictionary) -> bool:
 	if b.is_empty() or _is_guest(b, i) or not _can_enter(b, i):
-		return
+		return false
 	var rule := _visit_rule(int(b.kind))
 	if rule.is_empty():
-		return
+		return false
 	var guests: Array = b.get("guests", [])
 	guests.append({"id": i, "left": _stay_for(int(b.kind), float(rule.stay))})
 	b.guests = guests
 	if int(b.kind) == Catalog.BLD_TUB:
 		sfx_queue.append("tub_in")
 		sfx_queue.append("splash")
+	return true
 
 
 func _tick_visit(b: Dictionary, dt: float) -> void:
@@ -2056,6 +2165,11 @@ func _unstick(i: int) -> void:
 	var step := _open_dir(i, prefer)
 	if step == Vector2.ZERO:
 		step = _open_dir(i, _inland_dir(i))
+	var back := Vector2(-dir_x[i], -dir_y[i])
+	if back.length_squared() > 0.2:
+		back = back.normalized()
+	else:
+		back = Vector2.ZERO
 	var candidates: Array[Vector2] = []
 	if step != Vector2.ZERO:
 		candidates.append(step)
@@ -2075,7 +2189,8 @@ func _unstick(i: int) -> void:
 			if _move_blocked(nx, ny):
 				continue
 			var run := _clear_run_at(nx, ny, cand.x, cand.y)
-			var score := run + cand.dot(prefer) * 6.0
+			# Prefer sideways escape over reversing into the same blocked approach.
+			var score := run + cand.dot(prefer) * 6.0 - cand.dot(back) * 10.0
 			if score > best_run:
 				best_run = score
 				best = cand
@@ -3358,6 +3473,9 @@ func _unbind_feature(feat: Dictionary) -> void:
 
 
 func _bind_feature_at(feat: Dictionary, x: float, y: float) -> bool:
+	var at := Catalog.snap_world(x, y)
+	x = at.x
+	y = at.y
 	var cells := _footprint_cells(x, y, Catalog.footprint_for_feature(int(feat.kind)))
 	if not _footprint_holds(cells):
 		return false
@@ -5231,6 +5349,7 @@ func _reset_world() -> void:
 	starve = PackedFloat32Array()
 	hungry_t = PackedFloat32Array()
 	wander_t = PackedFloat32Array()
+	avoid_t = PackedFloat32Array()
 	mito_t = PackedFloat32Array()
 	mito_charge = PackedFloat32Array()
 	shake_t = PackedFloat32Array()
@@ -5264,6 +5383,7 @@ func _push_slot(x: float, y: float, fed_v: float, fun_v: float, clean_v: float, 
 	starve.append(0.0)
 	hungry_t.append(0.0)
 	wander_t.append(randf_range(0.2, 1.2))
+	avoid_t.append(0.0)
 	mito_t.append(0.0)
 	mito_charge.append(0.0)
 	shake_t.append(0.0)
@@ -5753,8 +5873,9 @@ func _free_land_near(cx: int, cy: int, points: Array[Vector2], n: int) -> Vector
 	var ly := int(floor(py / float(Catalog.TILE)))
 	if not _open_ground(cx, cy, lx, ly):
 		return Vector2(-1, -1)
-	var wx := float(cx * Catalog.CHUNK * Catalog.TILE) + px
-	var wy := float(cy * Catalog.CHUNK * Catalog.TILE) + py
+	# Spiral probe is continuous; park on the cell center so props stay on-grid.
+	var wx := float((cx * Catalog.CHUNK + lx) * Catalog.TILE + 8)
+	var wy := float((cy * Catalog.CHUNK + ly) * Catalog.TILE + 8)
 	if not _feature_at(wx, wy, 10.0).is_empty():
 		return Vector2(-1, -1)
 	return Vector2(wx, wy)
@@ -5987,6 +6108,9 @@ func _clear_spawn() -> void:
 
 
 func _add_feature(kind: int, x: float, y: float, hp: int, ore: int, rooted: bool = false) -> Dictionary:
+	var at := Catalog.snap_world(x, y)
+	x = at.x
+	y = at.y
 	if _on_bridge(x, y):
 		return {}
 	if kind == Catalog.FEAT_TREE and _near_spawn(x, y):
@@ -6661,6 +6785,9 @@ func _reindex() -> void:
 		if feat.dead:
 			continue
 		_anchor_terrain_feature(feat)
+		var at := Catalog.snap_world(float(feat.x), float(feat.y))
+		feat.x = at.x
+		feat.y = at.y
 		feature_by_id[int(feat.id)] = feat
 		for cell in _footprint_cells(float(feat.x), float(feat.y), Catalog.footprint_for_feature(int(feat.kind))):
 			feature_cell[cell] = int(feat.id)
@@ -6684,6 +6811,8 @@ func _reindex() -> void:
 		act.append(0)
 	while act_t.size() < slot_count:
 		act_t.append(0.0)
+	while avoid_t.size() < slot_count:
+		avoid_t.append(0.0)
 	hash_next = PackedInt32Array()
 	hash_next.resize(slot_count)
 	hash_next.fill(-1)
@@ -7911,6 +8040,44 @@ func _run_checks() -> void:
 			break
 	if not forest.is_empty() and not _blocked(float(forest.x), float(forest.y)):
 		errors.append("tree not solid")
+	for feat in features:
+		if feat.dead:
+			continue
+		var grid := Catalog.snap_world(float(feat.x), float(feat.y))
+		if absf(float(feat.x) - grid.x) > 0.01 or absf(float(feat.y) - grid.y) > 0.01:
+			errors.append("feature off grid")
+			break
+	if living >= 1 and state[0] == Catalog.ST_LIVING:
+		# Outside SPAWN_CLEAR so rooted trees are allowed.
+		var corner := _cell_vec(140.0, 140.0)
+		for oy in range(-3, 4):
+			for ox in range(-3, 4):
+				var key := Vector2i(corner.x + ox, corner.y + oy)
+				if feature_cell.has(key):
+					var fid := int(feature_cell[key])
+					var feat = feature_by_id.get(fid, {})
+					if not feat.is_empty():
+						feat.dead = true
+					feature_cell.erase(key)
+				_set_world_cell(key.x, key.y, Catalog.TILE_GRASS, true)
+		var open_at := Catalog.cell_world(corner)
+		var block_at := Catalog.cell_world(corner + Vector2i(1, 1))
+		# rooted=false: canopy span would fail _stands on the small grass patch.
+		var corner_tree := _add_feature(Catalog.FEAT_TREE, block_at.x, block_at.y, 1, 0, false)
+		if corner_tree.is_empty():
+			errors.append("tree corner setup")
+		else:
+			pos_x[0] = open_at.x
+			pos_y[0] = open_at.y
+			dir_x[0] = 1.0
+			dir_y[0] = 1.0
+			var corner_start := Vector2(pos_x[0], pos_y[0])
+			for _n in 90:
+				_walk(0, block_at.x, block_at.y, MOVE_SPEED, 0.08)
+			if _dist_point(pos_x[0], pos_y[0], corner_start.x, corner_start.y) < 12.0:
+				errors.append("stuck on tree corner")
+			if _move_blocked(pos_x[0], pos_y[0]):
+				errors.append("walked into tree")
 	_rebuild_hash()
 	if find_thronglet(pos_x[0], pos_y[0], 8.0, true) != 0:
 		errors.append("hash miss")
