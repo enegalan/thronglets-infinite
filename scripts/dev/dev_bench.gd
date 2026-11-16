@@ -64,6 +64,7 @@ var lab_selected_agent := -1
 var lab_drag_agent := -1
 var lab_drag_carousel := false
 var lab_messages: Array = []
+
 var effect_list: VBoxContainer
 var effect_buttons := {}
 var effect_id := ""
@@ -272,6 +273,8 @@ func input(event: InputEvent) -> void:
 		if event.pressed and lab_mode:
 			lab_drag_agent = -1
 			lab_drag_carousel = false
+		if not event.pressed and lab_mode:
+			_lab_release_drag()
 		main.cam_rig.dragging = event.pressed
 		main.cam_rig.drag_from = event.position
 		main.cam_rig.cam_from = main.camera.position
