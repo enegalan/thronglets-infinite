@@ -1,0 +1,191 @@
+{
+ "id": "ACT3_S051_HOWFAR__p2",
+ "source": "ACT3_S051_HOWFAR",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "No te importamos."
+    },
+    {
+     "who": "them",
+     "text": "No somos más que un juguete para ti. No somos más que un supuesto."
+    },
+    {
+     "who": "them",
+     "text": "THIS BRANCH IS TRUE IF YOUR DOMINANT QUALITIES ARE: Volatile & Inquiring"
+    }
+   ],
+   "choices": [
+    {
+     "label": "No nos hemos detenido para pensar si hay \"conformidad\".",
+     "next": "n1",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "Hipótesis: ¿nos gusta aquello en lo que nos convertimos?",
+     "next": "n1",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Es eso lo que somos para ti, ? ¿Tan solo un pasatiempo?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n1": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "THIS BRANCH IS TRUE IF YOUR DOMINANT QUALITIES ARE: Volatile & Protective"
+    },
+    {
+     "who": "them",
+     "text": "THIS BRANCH IS TRUE IF YOUR DOMINANT QUALITIES ARE: Volatile & Creative"
+    },
+    {
+     "who": "them",
+     "text": "THIS BRANCH IS TRUE IF YOUR DOMINANT QUALITIES ARE: Efficient & Caring"
+    }
+   ],
+   "choices": [
+    {
+     "label": "Pero nos mentiste, ¿verdad?",
+     "next": "n2",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¡Soy mucho más que eso!",
+     "next": "n2",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Cuándo les mentí?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n2": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "THIS BRANCH IS TRUE IF YOUR DOMINANT QUALITIES ARE: Efficient & Inquiring"
+    },
+    {
+     "who": "them",
+     "text": "THIS BRANCH IS TRUE IF YOUR DOMINANT QUALITIES ARE: Efficient & Protective"
+    },
+    {
+     "who": "them",
+     "text": "THIS BRANCH IS TRUE IF YOUR DOMINANT QUALITIES ARE: Efficient & Creative"
+    }
+   ],
+   "choices": [
+    {
+     "label": "No aceptaré eso.",
+     "next": "n3",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "No nos hemos detenido para pensar si hay \"conformidad\".",
+     "next": "n3",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Hipótesis: ¿nos gusta aquello en lo que nos convertimos?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n3": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "THIS BRANCH IS TRUE IF YOUR DOMINANT QUALITIES ARE: Caring & Inquiring"
+    },
+    {
+     "who": "them",
+     "text": "THIS BRANCH IS TRUE IF YOUR DOMINANT QUALITIES ARE: Caring & Protective"
+    },
+    {
+     "who": "them",
+     "text": "THIS BRANCH IS TRUE IF YOUR DOMINANT QUALITIES ARE: Caring & Creative"
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Es eso lo que somos para ti, ? ¿Tan solo un pasatiempo?",
+     "next": "n4",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "Pero nos mentiste, ¿verdad?",
+     "next": "n4",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¡Soy mucho más que eso!",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n4": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "THIS BRANCH IS TRUE IF YOUR DOMINANT QUALITIES ARE: Inquiring & Protective"
+    },
+    {
+     "who": "them",
+     "text": "THIS BRANCH IS TRUE IF YOUR DOMINANT QUALITIES ARE: Inquiring & Creative"
+    },
+    {
+     "who": "them",
+     "text": "THIS BRANCH IS TRUE IF YOUR DOMINANT QUALITIES ARE: Protective & Creative"
+    }
+   ],
+   "choices": [
+    {
+     "label": "Continuar.",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "De acuerdo.",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Ya basta.",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 40,
+ "lines_used": 30,
+ "part": 2
+}

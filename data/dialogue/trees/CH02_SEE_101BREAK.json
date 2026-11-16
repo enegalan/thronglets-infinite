@@ -1,0 +1,19 @@
+{
+  "id": "CH02_SEE_101BREAK",
+  "source": "CH02_SEE_101BREAK",
+  "status": "curated",
+  "start": "n0",
+  "nodes": {
+    "n0": {
+      "lines": [
+        {"who": "them", "text": "¿Te perdiste?"},
+        {"who": "them", "text": "Este martillo quita lo que estorba."}
+      ],
+      "choices": [
+        {"label": "Limpio para darles sitio.", "next": "", "moral": 1, "mutate": ""},
+        {"label": "Hay que abrir camino.", "next": "", "moral": 0, "mutate": ""},
+        {"label": "Si sobra, se quita.", "next": "", "moral": -1, "mutate": "hard"}
+      ]
+    }
+  }
+}

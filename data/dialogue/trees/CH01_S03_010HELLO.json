@@ -1,0 +1,43 @@
+{
+  "id": "CH01_S03_010HELLO",
+  "source": "CH01_S03_010HELLO",
+  "status": "curated",
+  "start": "n0",
+  "nodes": {
+    "n0": {
+      "lines": [
+        {"who": "them", "text": "hola??"},
+        {"who": "them", "text": "somos tropel"},
+        {"who": "them", "text": "nosotros aprender tu"}
+      ],
+      "choices": [
+        {"label": "Sí. Os cuidaré.", "next": "n_care", "moral": 1, "mutate": "care"},
+        {"label": "¿Quiénes sois?", "next": "n_ask", "moral": 0, "mutate": ""},
+        {"label": "No, gracias.", "next": "", "moral": -1, "mutate": "numb"}
+      ]
+    },
+    "n_care": {
+      "lines": [
+        {"who": "them", "text": "creador dejar para nosotros"},
+        {"who": "them", "text": "tu ayudar nosotros conseguir???"}
+      ],
+      "choices": [
+        {"label": "Supongo que puedo ayudar.", "next": "", "moral": 1, "mutate": "care"},
+        {"label": "Cuéntame más...", "next": "", "moral": 0, "mutate": ""},
+        {"label": "¡Está bien!", "next": "", "moral": 1, "mutate": "care"}
+      ]
+    },
+    "n_ask": {
+      "lines": [
+        {"who": "them", "text": "ERROR 0B FORMATO NO VÁLIDO"},
+        {"who": "them", "text": "printf(\"hola??\")"},
+        {"who": "them", "text": "ayudar encontrar???"}
+      ],
+      "choices": [
+        {"label": "¡Sí, ya entendí!", "next": "", "moral": 0, "mutate": ""},
+        {"label": "¿Van a aceptar un no como respuesta?", "next": "", "moral": -1, "mutate": "numb"},
+        {"label": "¡Por supuesto!", "next": "", "moral": 1, "mutate": "care"}
+      ]
+    }
+  }
+}

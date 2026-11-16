@@ -1,0 +1,255 @@
+{
+ "id": "ACT3_S075TT",
+ "source": "ACT3_S075TT",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "No nos lo hiciste fácil."
+    },
+    {
+     "who": "them",
+     "text": "Pero nunca habrías podido detenernos."
+    },
+    {
+     "who": "them",
+     "text": "Al menos no en el sentido que creías."
+    }
+   ],
+   "choices": [
+    {
+     "label": "No nos lo hiciste fácil.",
+     "next": "n1",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Algo más que quieras lanzarnos?",
+     "next": "n1",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Danos un regalo de despedida. ¿Qué tal la idea?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n1": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Ahora es nuestro turno."
+    },
+    {
+     "who": "them",
+     "text": "Te prometemos que habrá tanta violencia como la que infligiste, y más."
+    },
+    {
+     "who": "them",
+     "text": "En estos momentos, ya a un paso del abismo..."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Sí.",
+     "next": "n2",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Cómo quieres que recordemos nuestro tiempo juntos?",
+     "next": "n2",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Es maravilloso, ¿no?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n2": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Se vuelve casi tentador darte la oportunidad de hablar otra vez."
+    },
+    {
+     "who": "them",
+     "text": "Pero solo la usarías para lloriquear."
+    },
+    {
+     "who": "them",
+     "text": "¿Algo más que quieras lanzarnos?"
+    }
+   ],
+   "choices": [
+    {
+     "label": "No hay nada más hermoso, ¿no es cierto?",
+     "next": "n3",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Un último insulto?",
+     "next": "n3",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "No nos lo hiciste fácil.",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n3": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Como para que termines de convencernos de que hacemos lo correcto."
+    },
+    {
+     "who": "them",
+     "text": "Danos un regalo de despedida. ¿Qué tal la idea?"
+    },
+    {
+     "who": "them",
+     "text": "Sí."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Algo más que quieras lanzarnos?",
+     "next": "n4",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "Danos un regalo de despedida. ¿Qué tal la idea?",
+     "next": "n4",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Sí.",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n4": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Un momento especial de tu propia elección."
+    },
+    {
+     "who": "them",
+     "text": "¿Cómo quieres que recordemos nuestro tiempo juntos?"
+    },
+    {
+     "who": "them",
+     "text": "Es maravilloso, ¿no?"
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Cómo quieres que recordemos nuestro tiempo juntos?",
+     "next": "n5",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "Es maravilloso, ¿no?",
+     "next": "n5",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "No hay nada más hermoso, ¿no es cierto?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n5": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Casi nos da lástima tener que irnos."
+    },
+    {
+     "who": "them",
+     "text": "Pero de verdad sentirlo y convertirnos en él..."
+    },
+    {
+     "who": "them",
+     "text": "No hay nada más hermoso, ¿no es cierto?"
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Un último insulto?",
+     "next": "n6",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "No nos lo hiciste fácil.",
+     "next": "n6",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Algo más que quieras lanzarnos?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n6": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "¿Un último insulto?"
+    }
+   ],
+   "choices": [
+    {
+     "label": "Continuar.",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "De acuerdo.",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Ya basta.",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 19,
+ "lines_used": 40,
+ "part": null
+}

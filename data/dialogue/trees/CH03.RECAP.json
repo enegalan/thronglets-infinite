@@ -1,0 +1,59 @@
+{
+ "id": "CH03.RECAP",
+ "source": "CH03.RECAP",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "It's just good fertiliser"
+    },
+    {
+     "who": "them",
+     "text": "Really big on bone density"
+    },
+    {
+     "who": "them",
+     "text": "It's like an art thing"
+    },
+    {
+     "who": "them",
+     "text": "Father?"
+    },
+    {
+     "who": "them",
+     "text": "Really into Fallout"
+    },
+    {
+     "who": "them",
+     "text": "Not much more than a banana really"
+    }
+   ],
+   "choices": [
+    {
+     "label": "It's just good fertiliser",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "Really big on bone density",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "It's like an art thing",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 6,
+ "lines_used": 9,
+ "part": null
+}

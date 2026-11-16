@@ -1,0 +1,21 @@
+{
+  "id": "CH01_S07_030CARELES",
+  "source": "CH01_S07_030CARELES",
+  "status": "curated",
+  "start": "n0",
+  "nodes": {
+    "n0": {
+      "lines": [
+        {"who": "them", "text": "dices pero usas"},
+        {"who": "them", "text": "confuso..."},
+        {"who": "them", "text": "hizo promesa, no usar"},
+        {"who": "them", "text": "pero usó para hacer"}
+      ],
+      "choices": [
+        {"label": "Fue un accidente. Iré con cuidado.", "next": "", "moral": 1, "mutate": "care"},
+        {"label": "El progreso se cobra peaje.", "next": "", "moral": 0, "mutate": "hard"},
+        {"label": "No pienso en ellos como personas.", "next": "", "moral": -1, "mutate": "numb"}
+      ]
+    }
+  }
+}

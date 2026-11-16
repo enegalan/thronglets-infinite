@@ -1,0 +1,27 @@
+{
+ "id": "CH02_SEE_113THEATRE",
+ "source": "CH02_SEE_113THEATRE",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Y también sentir menos náuseas."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¡No más carruseles!",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    }
+   ]
+  }
+ },
+ "lines_in": 4,
+ "lines_used": 2,
+ "part": null
+}

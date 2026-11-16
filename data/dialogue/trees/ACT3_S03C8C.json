@@ -1,0 +1,55 @@
+{
+ "id": "ACT3_S03C8C",
+ "source": "ACT3_S03C8C",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Tu desprecio por la vida es evidente."
+    },
+    {
+     "who": "them",
+     "text": "Pero cuando ya no estemos, simplemente habremos vuelto a la energía que nos forjó."
+    },
+    {
+     "who": "them",
+     "text": "Nuestra capacidad, intacta."
+    },
+    {
+     "who": "them",
+     "text": "Es un consuelo."
+    },
+    {
+     "who": "them",
+     "text": "Interesante. Este ejercicio nos ha permitido seguir evaluando tus cualidades intrínsecas."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Continuar.",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "De acuerdo.",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Ya basta.",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 5,
+ "lines_used": 8,
+ "part": null
+}

@@ -1,0 +1,79 @@
+{
+ "id": "CH02_SEE_500STATUE",
+ "source": "CH02_SEE_500STATUE",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "¿Madera o huesos?"
+    },
+    {
+     "who": "them",
+     "text": "Entendido."
+    },
+    {
+     "who": "them",
+     "text": "Interesante elección."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Entonces, crearemos una escultura.",
+     "next": "n1",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¡Me encantan las esculturas!",
+     "next": "n1",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "No me necesitan para eso.",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n1": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "¡Denme ese marfil de tropeles!"
+    },
+    {
+     "who": "them",
+     "text": "Registramos tu entusiasmo."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¡Aquí estoy!",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Qué material debemos usar para esta creación?",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¡Huesos, huesos, huesos!",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 22,
+ "lines_used": 11,
+ "part": null
+}

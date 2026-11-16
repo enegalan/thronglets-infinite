@@ -1,0 +1,39 @@
+{
+ "id": "ACT3_S051_HOWFAR__p16",
+ "source": "ACT3_S051_HOWFAR",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Versa, entonces, nuestra conclusión:"
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Te pedimos en algún momento que nos enseñaras a ser hipócritas?",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Qué tan a menudo encuentras cosas positivas en internet?",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¡Así es!, y es lo que más me gusta de los juegos.",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 40,
+ "lines_used": 4,
+ "part": 16
+}

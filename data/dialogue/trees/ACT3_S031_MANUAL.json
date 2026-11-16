@@ -1,0 +1,39 @@
+{
+ "id": "ACT3_S031_MANUAL",
+ "source": "ACT3_S031_MANUAL",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "…"
+    }
+   ],
+   "choices": [
+    {
+     "label": "Em, ¿quizás? ¿Cuántos debo lanzar?",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "Nah. ¿No pueden automatizar el proceso?",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Te estás divirtiendo, ?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 13,
+ "lines_used": 4,
+ "part": null
+}

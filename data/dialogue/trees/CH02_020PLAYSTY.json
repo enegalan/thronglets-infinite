@@ -1,0 +1,39 @@
+{
+ "id": "CH02_020PLAYSTY",
+ "source": "CH02_020PLAYSTY",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Fascinante."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Nos acomete una duda... ¿Qué motiva tus decisiones?",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Qué motiva qué?",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿De qué dependen tus decisiones?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 15,
+ "lines_used": 4,
+ "part": null
+}

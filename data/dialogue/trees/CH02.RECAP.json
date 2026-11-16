@@ -1,0 +1,45 @@
+{
+ "id": "CH02.RECAP",
+ "source": "CH02.RECAP",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Terror de tropeles"
+    },
+    {
+     "who": "them",
+     "text": "Piedad para los tropeles"
+    },
+    {
+     "who": "them",
+     "text": "EXTERMINIO AL REVÉS"
+    },
+    {
+     "who": "them",
+     "text": "SÉVER LA OINIMRETXE"
+    }
+   ],
+   "choices": [
+    {
+     "label": "Eres hipócrita",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "Jamás nos mientas JAMÁS",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    }
+   ]
+  }
+ },
+ "lines_in": 6,
+ "lines_used": 6,
+ "part": null
+}

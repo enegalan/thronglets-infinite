@@ -1,0 +1,39 @@
+{
+ "id": "ACT3_S051_HOWFAR__p18",
+ "source": "ACT3_S051_HOWFAR",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Experimentaste con nosotros."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Entiendes?",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "Sí, pienso que la creatividad es parte del juego.",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¡Eso es bueno!",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 40,
+ "lines_used": 4,
+ "part": 18
+}

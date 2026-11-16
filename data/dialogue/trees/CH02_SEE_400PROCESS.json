@@ -1,0 +1,47 @@
+{
+ "id": "CH02_SEE_400PROCESS",
+ "source": "CH02_SEE_400PROCESS",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "¿Moler restos de tropeles?"
+    },
+    {
+     "who": "them",
+     "text": "Del código a la ejecución; de la ejecución al código."
+    },
+    {
+     "who": "them",
+     "text": "Los restos de los fallecidos."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¡Felicidades!",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Me gustará?",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿No les incomoda eso?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 15,
+ "lines_used": 6,
+ "part": null
+}

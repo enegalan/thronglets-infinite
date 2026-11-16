@@ -1,0 +1,19 @@
+{
+  "id": "CH02_SEE_700DEATH",
+  "source": "CH02_SEE_700DEATH",
+  "status": "curated",
+  "start": "n0",
+  "nodes": {
+    "n0": {
+      "lines": [
+        {"who": "them", "text": "Uno de nosotros ya no responde."},
+        {"who": "them", "text": "consulta: qué es == cuidado??"}
+      ],
+      "choices": [
+        {"label": "Estar pendiente de cada uno.", "next": "", "moral": 1, "mutate": "care"},
+        {"label": "No puedo con tantos.", "next": "", "moral": 0, "mutate": ""},
+        {"label": "Era solo un número.", "next": "", "moral": -1, "mutate": "numb"}
+      ]
+    }
+  }
+}

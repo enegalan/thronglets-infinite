@@ -1,0 +1,43 @@
+{
+ "id": "ACT3_S051_HOWFAR__p7",
+ "source": "ACT3_S051_HOWFAR",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "¿Tropel?"
+    },
+    {
+     "who": "them",
+     "text": "¿Ey, Tropel? Lo siento."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Vamos, tienen que haber visto algo positivo en la internet, ¿no?",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¡Solo intentaba hacer lo mejor para ustedes!",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¡Solo seguía sus órdenes!",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 40,
+ "lines_used": 5,
+ "part": 7
+}

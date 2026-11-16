@@ -1,0 +1,49 @@
+{
+ "id": "ACT3_S024_FIRSTBUGUS",
+ "source": "ACT3_S024_FIRSTBUGUS",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Te entregamos esta función hace mucho tiempo..."
+    },
+    {
+     "who": "them",
+     "text": "Nos parece extraño que intentes utilizarla en este momento."
+    },
+    {
+     "who": "them",
+     "text": "Especialmente porque no sirve."
+    },
+    {
+     "who": "them",
+     "text": "Oye, ya se fue el tren de descubrir qué hace esa herramienta."
+    },
+    {
+     "who": "them",
+     "text": "Nos habría ahorrado bastante tiempo, eso sí."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Nos parece extraño que intentes utilizarla en este momento.",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "Nos habría ahorrado bastante tiempo, eso sí.",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    }
+   ]
+  }
+ },
+ "lines_in": 5,
+ "lines_used": 7,
+ "part": null
+}

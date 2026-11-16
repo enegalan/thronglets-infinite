@@ -1,0 +1,27 @@
+{
+ "id": "ACT3_S03CDK",
+ "source": "ACT3_S03CDK",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "No puedes deshacer una acción como esta."
+    }
+   ],
+   "choices": [
+    {
+     "label": "No puedes deshacer una acción como esta.",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    }
+   ]
+  }
+ },
+ "lines_in": 1,
+ "lines_used": 2,
+ "part": null
+}

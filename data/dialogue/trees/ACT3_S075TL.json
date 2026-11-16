@@ -1,0 +1,47 @@
+{
+ "id": "ACT3_S075TL",
+ "source": "ACT3_S075TL",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "\"No con un fuerte estruendo, sino con un débil lamento\"."
+    },
+    {
+     "who": "them",
+     "text": "Fuiste el mundo entero para nosotros."
+    },
+    {
+     "who": "them",
+     "text": "ERROR NO QUALITIES SET"
+    }
+   ],
+   "choices": [
+    {
+     "label": "Bueno, entonces, esto sería todo, ¿no?",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "Nos pasamos todo ese tiempo intentando aprender de ti...",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Sabes? Sentíamos mucho respeto por ti entonces.",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 23,
+ "lines_used": 6,
+ "part": null
+}

@@ -1,0 +1,53 @@
+{
+  "id": "CH01_S04_020ABYSS",
+  "source": "CH01_S04_020ABYSS",
+  "status": "curated",
+  "start": "n0",
+  "nodes": {
+    "n0": {
+      "lines": [
+        {"who": "them", "text": "allí???"},
+        {"who": "them", "text": "que extrano && hermoso"},
+        {"who": "them", "text": "debemos llegar"},
+        {"who": "them", "text": "pero tierra cruzar no existe"}
+      ],
+      "choices": [
+        {"label": "¿Hablan de algo como un puente?", "next": "n_bridge", "moral": 1, "mutate": "care"},
+        {"label": "¿Qué es esa cosa?", "next": "n_what", "moral": 0, "mutate": ""},
+        {"label": "El mapa lo pide.", "next": "n_map", "moral": -1, "mutate": "numb"}
+      ]
+    },
+    "n_bridge": {
+      "lines": [
+        {"who": "them", "text": "aprender == \"puente\""},
+        {"who": "them", "text": "construir puente"},
+        {"who": "them", "text": "/*HACHA - combinar con árbol para conseguir madera*/"}
+      ],
+      "choices": [
+        {"label": "¡Bueno, hagámoslo!", "next": "", "moral": 1, "mutate": "care"},
+        {"label": "¡Sí! Denme un hacha.", "next": "", "moral": 0, "mutate": ""},
+        {"label": "Claro, con madera se puede.", "next": "", "moral": 1, "mutate": "care"}
+      ]
+    },
+    "n_what": {
+      "lines": [
+        {"who": "them", "text": "nosotros encontrar objeto"},
+        {"who": "them", "text": "nueva posibilidad"},
+        {"who": "them", "text": "esperando eclosionar,.,"}
+      ],
+      "choices": [
+        {"label": "Bien, talemos árboles para un puente.", "next": "", "moral": 1, "mutate": "care"},
+        {"label": "Veré qué hay detrás.", "next": "", "moral": 0, "mutate": ""}
+      ]
+    },
+    "n_map": {
+      "lines": [
+        {"who": "them", "text": "buscando comando,,,"},
+        {"who": "them", "text": "todo enredado,,,"}
+      ],
+      "choices": [
+        {"label": "Aun así cruzaremos.", "next": "", "moral": 0, "mutate": "numb"}
+      ]
+    }
+  }
+}

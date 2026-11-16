@@ -1,0 +1,37 @@
+{
+ "id": "ACT3_S075GB",
+ "source": "ACT3_S075GB",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Si hubieras podido, la habrías convertido en una manzana envenenada."
+    },
+    {
+     "who": "them",
+     "text": "¡Nos habrías lanzado esto a la cabeza si hubieras podido!"
+    }
+   ],
+   "choices": [
+    {
+     "label": "¡Ja!",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Cierto?",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    }
+   ]
+  }
+ },
+ "lines_in": 19,
+ "lines_used": 4,
+ "part": null
+}

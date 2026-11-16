@@ -1,0 +1,31 @@
+{
+ "id": "CH02_SEE_102DWELL",
+ "source": "CH02_SEE_102DWELL",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Bien hecho, , colocaste una vivienda."
+    },
+    {
+     "who": "them",
+     "text": "Las viviendas tienen dos propósitos: alimentan y limpian tropeles."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¡Esperamos continuar con las alzas contigo!",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    }
+   ]
+  }
+ },
+ "lines_in": 4,
+ "lines_used": 3,
+ "part": null
+}

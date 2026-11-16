@@ -1,0 +1,55 @@
+{
+ "id": "CH02_S04_040PLACED",
+ "source": "CH02_S04_040PLACED",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Pudimos predecir un resultado."
+    },
+    {
+     "who": "them",
+     "text": "Aprendimos esto de ti."
+    },
+    {
+     "who": "them",
+     "text": "De la muerte brota la vida."
+    },
+    {
+     "who": "them",
+     "text": "Aprendimos esto."
+    },
+    {
+     "who": "them",
+     "text": "Pero, a tu lado, aprendimos que lleva al progreso."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Y solo lo presiono para activarlo?",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "No me da buena espina...",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Nos mostraste esto desde el principio.",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 16,
+ "lines_used": 8,
+ "part": null
+}

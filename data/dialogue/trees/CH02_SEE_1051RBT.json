@@ -1,0 +1,35 @@
+{
+ "id": "CH02_SEE_1051RBT",
+ "source": "CH02_SEE_1051RBT",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Observamos que eliminaste lo que restaba de nuestro entretenimiento."
+    },
+    {
+     "who": "them",
+     "text": "¿Se te olvida que requerimos entretenimiento para prosperar?"
+    },
+    {
+     "who": "them",
+     "text": "Si no podemos jugar, no podemos crecer."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Se te olvida que requerimos entretenimiento para prosperar?",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    }
+   ]
+  }
+ },
+ "lines_in": 3,
+ "lines_used": 4,
+ "part": null
+}

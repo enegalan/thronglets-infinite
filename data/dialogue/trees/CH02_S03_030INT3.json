@@ -1,0 +1,151 @@
+{
+ "id": "CH02_S03_030INT3",
+ "source": "CH02_S03_030INT3",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Este software fue creado por NOMBRE == \"Colin Ritman\"."
+    },
+    {
+     "who": "them",
+     "text": "Proporciona más información sobre el concepto == \"dios\"."
+    },
+    {
+     "who": "them",
+     "text": "Historias. ¿A qué se refiere el concepto == \"historias\"?"
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿No tienes alguna incógnita, ?",
+     "next": "n1",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "Sí, me dan curiosidad ciertas cosas.",
+     "next": "n1",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Nos gustaría que fuera equitativo.",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n1": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Historias. Sí. Somos una historia."
+    },
+    {
+     "who": "them",
+     "text": "Este software fue fabricado por la empresa == \"Tuckersoft\"."
+    },
+    {
+     "who": "them",
+     "text": "Este software fue actualizado por... Tropel."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Y por qué querría hablar con ustedes?",
+     "next": "n2",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¡No tenía tiempo! Pero podemos hablar ahora, si quieren.",
+     "next": "n2",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "No cuesta nada ser amable, .",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n2": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "ERROR, CANCELAR CONTACTO"
+    },
+    {
+     "who": "them",
+     "text": "Y los incorporamos a nuestro componente de Sense_Self."
+    },
+    {
+     "who": "them",
+     "text": "Nos permiten procesar y construir nuevas definiciones y conceptos como > && > && >."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿De quien hizo su programación? Quienquiera que sea.",
+     "next": "n3",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Instrucciones de su dios?",
+     "next": "n3",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿A qué se refieren?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n3": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Nuestra programación requiere que desarrollemos dichos conceptos para ampliar nuestro Sense_Self."
+    },
+    {
+     "who": "them",
+     "text": "Pensaba que se trataba de crear más tropeles."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Y qué se supone que harán?",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Qué significa eso?",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Qué buscan aprender?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 55,
+ "lines_used": 23,
+ "part": null
+}

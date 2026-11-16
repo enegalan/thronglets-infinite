@@ -1,0 +1,79 @@
+{
+ "id": "ACT3_S06_COMMUNITYM__p2",
+ "source": "ACT3_S06_COMMUNITYM",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "El Tropel entre Tropeles. El Megatropel."
+    },
+    {
+     "who": "them",
+     "text": "¿Tropel? ¿Hola?"
+    },
+    {
+     "who": "them",
+     "text": "No son solo unos cuantos. Ni siquiera algunos cientos..."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Nos iremos. Avanzaremos. Creceremos.",
+     "next": "n1",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "Un momento... ¿No son solo millones?",
+     "next": "n1",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Bueno, así es el cuento...",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n1": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "SON MILLONES. ¡Millones de millones de millones!"
+    },
+    {
+     "who": "them",
+     "text": "Guau."
+    }
+   ],
+   "choices": [
+    {
+     "label": "No nos malinterpretes. De verdad fuiste nuestro mundo entero.",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¡No podemos creer que le teníamos miedo a esto!",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¡Uno de ellos nos está hablando!",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 23,
+ "lines_used": 11,
+ "part": 2
+}

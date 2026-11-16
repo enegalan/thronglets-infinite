@@ -1,0 +1,47 @@
+{
+ "id": "CH02_SEE_201TREES",
+ "source": "CH02_SEE_201TREES",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "¡Lo entiendo!"
+    },
+    {
+     "who": "them",
+     "text": "Interesante..."
+    },
+    {
+     "who": "them",
+     "text": "Esperamos que disfrutes de esta adición a tu repertorio."
+    }
+   ],
+   "choices": [
+    {
+     "label": "No me gusta.",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Lo entiendes?",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Nos explicas por qué nos resultó satisfactorio?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 24,
+ "lines_used": 6,
+ "part": null
+}

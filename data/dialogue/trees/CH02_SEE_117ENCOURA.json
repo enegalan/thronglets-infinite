@@ -1,0 +1,27 @@
+{
+ "id": "CH02_SEE_117ENCOURA",
+ "source": "CH02_SEE_117ENCOURA",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Creemos que podría ser un dispositivo de redes."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Nos ayuda a ver todo más claro: el componente en las montañas...",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    }
+   ]
+  }
+ },
+ "lines_in": 4,
+ "lines_used": 2,
+ "part": null
+}

@@ -1,0 +1,51 @@
+{
+ "id": "CH02_SEE_THROWROCKS",
+ "source": "CH02_SEE_THROWROCKS",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Parece que, además de desechar nuestras instrucciones anteriores..."
+    },
+    {
+     "who": "them",
+     "text": "lo llevaste al extremo."
+    },
+    {
+     "who": "them",
+     "text": "Afortunadamente, logramos extraer la energía de las rocas mientras caían."
+    },
+    {
+     "who": "them",
+     "text": "Mientras tanto, analizaremos cómo comunicar nuestras necesidades de mejor manera."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Continuar.",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "De acuerdo.",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Ya basta.",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 4,
+ "lines_used": 7,
+ "part": null
+}

@@ -1,0 +1,59 @@
+{
+ "id": "CH01.RECAP",
+ "source": "CH01.RECAP",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Usaste la bañera, ¡muy bien!"
+    },
+    {
+     "who": "them",
+     "text": "Qué asco. Báñate, por favor."
+    },
+    {
+     "who": "them",
+     "text": "De seguro esto indica que causaste una muerte. ¿NO TE DA VERGÜENZA?"
+    },
+    {
+     "who": "them",
+     "text": "¡Se suponía que tenías que matarlos!"
+    },
+    {
+     "who": "them",
+     "text": "No sabemos qué significa esto, pero actuaste de forma lúdica."
+    },
+    {
+     "who": "them",
+     "text": "Algo nos dice que no jugaste lo suficiente. Relájate un poco."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Usaste la bañera, ¡muy bien!",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "De seguro esto indica que causaste una muerte. ¿NO TE DA VERGÜENZA?",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¡Se suponía que tenías que matarlos!",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 6,
+ "lines_used": 9,
+ "part": null
+}

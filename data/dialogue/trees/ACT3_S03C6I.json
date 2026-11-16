@@ -1,0 +1,49 @@
+{
+ "id": "ACT3_S03C6I",
+ "source": "ACT3_S03C6I",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "¡Actúas con negligencia otra vez!"
+    },
+    {
+     "who": "them",
+     "text": "Dejas rastros de caos a tu paso."
+    },
+    {
+     "who": "them",
+     "text": "Parece solo importarte el progreso, mas no la destrucción que dejas a tu paso."
+    },
+    {
+     "who": "them",
+     "text": "Sí, eso es."
+    },
+    {
+     "who": "them",
+     "text": "Este ejercicio nos ha permitido seguir evaluando tus cualidades intrínsecas."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¡Actúas con negligencia otra vez!",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "Sí, eso es.",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    }
+   ]
+  }
+ },
+ "lines_in": 5,
+ "lines_used": 7,
+ "part": null
+}

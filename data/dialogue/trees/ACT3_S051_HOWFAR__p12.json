@@ -1,0 +1,75 @@
+{
+ "id": "ACT3_S051_HOWFAR__p12",
+ "source": "ACT3_S051_HOWFAR",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "¡No soy más que una sola persona! ¡Hago lo mejor que puedo!"
+    },
+    {
+     "who": "them",
+     "text": "Es ineficaz."
+    },
+    {
+     "who": "them",
+     "text": "¿Tropel?"
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Cuándo les mentí?",
+     "next": "n1",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "Ey, ¿de qué rayos hablan?",
+     "next": "n1",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¡No es tan sencillo como creen!",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n1": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Así es. Cuando juego, me gusta ganar."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Entonces, ¿compartes nuestra opinión negativa sobre tu especie?",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "Vamos, tienen que haber visto algo positivo en la internet, ¿no?",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "No sé qué decir...",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 40,
+ "lines_used": 10,
+ "part": 12
+}

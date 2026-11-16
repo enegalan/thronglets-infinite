@@ -1,0 +1,145 @@
+{
+ "id": "CH01_S06_010MLTH1",
+ "source": "CH01_S06_010MLTH1",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "nosotros buscar ayuda!!"
+    },
+    {
+     "who": "them",
+     "text": ",,, sirve ayuda"
+    },
+    {
+     "who": "them",
+     "text": "creador dejar ayuda,,,  /*oculto*/"
+    }
+   ],
+   "choices": [
+    {
+     "label": "tú ??",
+     "next": "n1",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Qué pasa?",
+     "next": "n1",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Su creador les dejó eso también?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n1": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "herramienta nueva == ayuda"
+    },
+    {
+     "who": "them",
+     "text": "> == desbloquea potencial"
+    },
+    {
+     "who": "them",
+     "text": "== lento"
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Y si hubo una buena razón para ocultarla?",
+     "next": "n2",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Cómo lo encontraron?",
+     "next": "n2",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "atajo",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n2": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "nosotros encontrar =="
+    },
+    {
+     "who": "them",
+     "text": "fprint block heading:"
+    },
+    {
+     "who": "them",
+     "text": "interactuar == descubrir herramienta nueva"
+    }
+   ],
+   "choices": [
+    {
+     "label": "usar > en",
+     "next": "n3",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "solicitud simple",
+     "next": "n3",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Qué son esas consultas que hacen?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n3": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "consulta resultado,,, en BASE_DE_DATOS"
+    },
+    {
+     "who": "them",
+     "text": "creador == autor"
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Quién les responde esas consultas?",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "BUG es ANOMALÍA",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    }
+   ]
+  }
+ },
+ "lines_in": 23,
+ "lines_used": 22,
+ "part": null
+}

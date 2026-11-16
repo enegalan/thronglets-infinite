@@ -1,0 +1,35 @@
+{
+ "id": "ACT3_S04_LEADTOPOWE",
+ "source": "ACT3_S04_LEADTOPOWE",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "¿Qué es el CERN?"
+    },
+    {
+     "who": "them",
+     "text": "¿Qué es MasterExchange?"
+    },
+    {
+     "who": "them",
+     "text": "¿Qué es OpenAI?"
+    }
+   ],
+   "choices": [
+    {
+     "label": "No me suena a nada conocido.",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    }
+   ]
+  }
+ },
+ "lines_in": 10,
+ "lines_used": 4,
+ "part": null
+}

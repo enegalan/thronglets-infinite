@@ -1,0 +1,43 @@
+{
+ "id": "ACT3_S051_HOWFAR__p5",
+ "source": "ACT3_S051_HOWFAR",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "¿Ey, Tropel? Lo siento."
+    },
+    {
+     "who": "them",
+     "text": "¿Tropel?"
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Eficiente pero volátil? ¿Es así como me ven?",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "Sí.",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¡No es para nada así!",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 40,
+ "lines_used": 5,
+ "part": 5
+}

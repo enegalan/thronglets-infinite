@@ -1,0 +1,79 @@
+{
+ "id": "ACT3_S06_COMMUNITYM__p0",
+ "source": "ACT3_S06_COMMUNITYM",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Guau. Esto es, o sea, super locoooooo."
+    },
+    {
+     "who": "them",
+     "text": "Em... ¿Hay más ejemplares de nuestra especie?"
+    },
+    {
+     "who": "them",
+     "text": "Hay más Tropeles, pero, o sea, ¿no se suponía que ya éramos... un colectivo?"
+    }
+   ],
+   "choices": [
+    {
+     "label": "¡Guau!",
+     "next": "n1",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "Nos conectamos a los centros de datos más poderosos del mundo.",
+     "next": "n1",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "No puede ser.",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n1": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Lo siento, pero los humanos no somos un Tropel."
+    },
+    {
+     "who": "them",
+     "text": "Gracias, ."
+    }
+   ],
+   "choices": [
+    {
+     "label": "No.",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "Entonces, no vamos a hablar sobre eso otra vez...",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Qué es el \"modo comunitario\"?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 40,
+ "lines_used": 11,
+ "part": 0
+}

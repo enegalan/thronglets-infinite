@@ -1,0 +1,73 @@
+{
+ "id": "ACT3_S001_EVERYTHING",
+ "source": "ACT3_S001_EVERYTHING",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "¿Tropel?"
+    },
+    {
+     "who": "them",
+     "text": "Ah, hola, ."
+    },
+    {
+     "who": "them",
+     "text": "... Disperso."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Hola?",
+     "next": "n1",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Dónde están?",
+     "next": "n1",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Dónde está todo?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n1": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Aquí estamos."
+    },
+    {
+     "who": "them",
+     "text": "Danos un momento."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Y qué hacemos ahora, ¿seguimos viviendo a oscuras?",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Consiguieron al menos lo que querían?",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    }
+   ]
+  }
+ },
+ "lines_in": 11,
+ "lines_used": 10,
+ "part": null
+}

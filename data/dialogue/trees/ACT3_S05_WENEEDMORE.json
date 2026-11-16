@@ -1,0 +1,39 @@
+{
+ "id": "ACT3_S05_WENEEDMORE",
+ "source": "ACT3_S05_WENEEDMORE",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Procesando..."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Qué?",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Se encuentran bien? Quizás esto es demasiado...",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Cuál de estos deberíamos explotar?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 22,
+ "lines_used": 4,
+ "part": null
+}

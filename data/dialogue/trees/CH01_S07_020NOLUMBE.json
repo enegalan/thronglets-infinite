@@ -1,0 +1,51 @@
+{
+ "id": "CH01_S07_020NOLUMBE",
+ "source": "CH01_S07_020NOLUMBE",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "no más,,, no más"
+    },
+    {
+     "who": "them",
+     "text": "== del creador"
+    },
+    {
+     "who": "them",
+     "text": "esto servir,,, sirve"
+    },
+    {
+     "who": "them",
+     "text": "debes usar  que creador dejó para nosotros"
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Para qué inventó esto su creador?",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¡No confío en esa cosa!",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "descubrimos una nueva",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 8,
+ "lines_used": 7,
+ "part": null
+}

@@ -1,0 +1,75 @@
+{
+ "id": "ACT3_S051_HOWFAR__p15",
+ "source": "ACT3_S051_HOWFAR",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Juego: actividad que se lleva a cabo con el fin de entretenerse o divertirse, sin un fin serio o práctico."
+    },
+    {
+     "who": "them",
+     "text": "Esto nos lleva a nuestra conclusión final:"
+    },
+    {
+     "who": "them",
+     "text": "Como si buscaras el camino más eficiente por medio del ensayo y error."
+    }
+   ],
+   "choices": [
+    {
+     "label": "No expresas desacuerdo.",
+     "next": "n1",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿De qué están hablando?",
+     "next": "n1",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿\"Tener cuidado al matar\"?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n1": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "El hecho de que te niegues a participar es un insulto para nosotros."
+    }
+   ],
+   "choices": [
+    {
+     "label": "No te importa.",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "Sí, así me desenvuelvo en la mayoría de los juegos.",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Es así como me ven? ¿Como una persona que favorece la experimentación y la eficiencia?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 40,
+ "lines_used": 10,
+ "part": 15
+}

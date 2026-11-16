@@ -1,0 +1,79 @@
+{
+ "id": "ACT3_S051_HOWFAR__p11",
+ "source": "ACT3_S051_HOWFAR",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "No tenías para qué jugar con nosotros."
+    },
+    {
+     "who": "them",
+     "text": "Contra toda lógica, te esforzaste por proteger las vidas de cada tropel en particular."
+    },
+    {
+     "who": "them",
+     "text": "No me presentaron dilemas de ese tipo, pero sí: a veces es necesario causar daño."
+    }
+   ],
+   "choices": [
+    {
+     "label": "No sentimos que haya preocupación cuando no nos tomas en serio.",
+     "next": "n1",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "No estamos molestos; solo queremos entender bien.",
+     "next": "n1",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Piensan entonces que soy una persona preocupada?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n1": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Hacerte sentir a gusto no es una prioridad para nosotros."
+    },
+    {
+     "who": "them",
+     "text": "Por ejemplo:"
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿No hay ninguna circunstancia bajo la cual causarías daño?",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿No hay casos en los que, por el bien mayor, esa sería la decisión correcta?",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "No. Creo en el pacifismo.",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 40,
+ "lines_used": 11,
+ "part": 11
+}

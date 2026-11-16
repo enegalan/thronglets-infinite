@@ -1,0 +1,33 @@
+{
+ "id": "CH01_S07_040CAREFUL",
+ "source": "CH01_S07_040CAREFUL",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "dice"
+    }
+   ],
+   "choices": [
+    {
+     "label": "pero despuès rechaza ??",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "usa solo",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    }
+   ]
+  }
+ },
+ "lines_in": 3,
+ "lines_used": 3,
+ "part": null
+}

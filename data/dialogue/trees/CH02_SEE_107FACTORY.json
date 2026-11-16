@@ -1,0 +1,43 @@
+{
+ "id": "CH02_SEE_107FACTORY",
+ "source": "CH02_SEE_107FACTORY",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Creamos una nueva manera de construir fábricas."
+    },
+    {
+     "who": "them",
+     "text": "Nos hace sentir bastante eficientes."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Continuar.",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "De acuerdo.",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Ya basta.",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 3,
+ "lines_used": 5,
+ "part": null
+}

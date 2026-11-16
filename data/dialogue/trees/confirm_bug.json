@@ -1,0 +1,19 @@
+{
+  "id": "confirm_bug",
+  "source": "CH02_FIRSTBUGUS",
+  "status": "curated",
+  "start": "n0",
+  "nodes": {
+    "n0": {
+      "lines": [
+        {"who": "them", "text": "¿Por qué usas tu poder así?"},
+        {"who": "them", "text": "Libera la energía que contienen los tropeles a tu discreción."}
+      ],
+      "choices": [
+        {"label": "El puente necesita esa energía.", "next": "", "moral": 0, "mutate": "hard"},
+        {"label": "Solo es material.", "next": "", "moral": -1, "mutate": "numb"},
+        {"label": "No lo haré.", "next": "", "moral": 1, "mutate": "care"}
+      ]
+    }
+  }
+}

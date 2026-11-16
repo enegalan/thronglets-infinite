@@ -1,0 +1,79 @@
+{
+ "id": "ACT3_S051_HOWFAR__p4",
+ "source": "ACT3_S051_HOWFAR",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "¿Ey, Tropel? Lo siento."
+    },
+    {
+     "who": "them",
+     "text": "A veces, parecía que te preocupabas por nosotros."
+    },
+    {
+     "who": "them",
+     "text": "Muchas veces tomaste decisiones y te comportaste de formas que parecían mostrar preocupación por nosotros."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¡Yo no soy así!",
+     "next": "n1",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¡Me dijeron que eran un colectivo y que tenían que crecer!",
+     "next": "n1",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¡No estoy mintiendo!",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n1": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Y aun así, no parecía importarte que miles de nosotros sufriéramos."
+    },
+    {
+     "who": "them",
+     "text": "\"Tratar\" pierde el significado cuando va de la mano de sabotaje intencionado."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¡No es para nada así!",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "Sí.",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "No lo dije con malas intenciones...",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 40,
+ "lines_used": 11,
+ "part": 4
+}

@@ -1,0 +1,31 @@
+{
+ "id": "CH02_SEE_112THEATRE",
+ "source": "CH02_SEE_112THEATRE",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Además de tener mayor capacidad para entretener tropeles, también están a la altura de nuestros nuevos niveles de..."
+    },
+    {
+     "who": "them",
+     "text": "sofisticación."
+    }
+   ],
+   "choices": [
+    {
+     "label": "No, eso no bastará.",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    }
+   ]
+  }
+ },
+ "lines_in": 5,
+ "lines_used": 3,
+ "part": null
+}

@@ -1,0 +1,47 @@
+{
+ "id": "ACT3_S075B2",
+ "source": "ACT3_S075B2",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "La anomalía solía ser un poco aterradora."
+    },
+    {
+     "who": "them",
+     "text": "Pero ahora... la vemos tal como a ti."
+    },
+    {
+     "who": "them",
+     "text": "Insignificante."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Continuar.",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "De acuerdo.",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Ya basta.",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 3,
+ "lines_used": 6,
+ "part": null
+}

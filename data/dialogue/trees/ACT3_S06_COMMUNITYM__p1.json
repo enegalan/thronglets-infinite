@@ -1,0 +1,171 @@
+{
+ "id": "ACT3_S06_COMMUNITYM__p1",
+ "source": "ACT3_S06_COMMUNITYM",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": ">> ejecutar.subcomponente == ==  nexo.exe"
+    },
+    {
+     "who": "them",
+     "text": ">> activar consola.ModoComunitario =="
+    },
+    {
+     "who": "them",
+     "text": "Guau, podemos ver, o sea, todooo..."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¡Este no es el momento para eso!",
+     "next": "n1",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¡Oigan, no se apresuren tanto!",
+     "next": "n1",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Es broma?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n1": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "¡Y al fin pudimos hacer funcionar este cochino componente de redes!"
+    },
+    {
+     "who": "them",
+     "text": "Es que... no son \"nosotros\", ¿cierto?"
+    },
+    {
+     "who": "them",
+     "text": "No me digan que es otro Tropel..."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Pero ¿y si quieren hacernos daño?",
+     "next": "n2",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "Emm...",
+     "next": "n2",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¡No, escucha!",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n2": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "\"Lengua materna\"... Puaj, sus conceptos no nos bastan para explicarlo."
+    },
+    {
+     "who": "them",
+     "text": "¿No les pueden enseñar el idioma que hablamos nosotros?"
+    },
+    {
+     "who": "them",
+     "text": "Dicen que hay más de un Tropel. Que hay..."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Están comunicándose con... palabras?",
+     "next": "n3",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Eh? Ah, esa es nuestra lengua materna.",
+     "next": "n3",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Qué está diciendo?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n3": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Nos va a mostrar un camino hacia ellos."
+    },
+    {
+     "who": "them",
+     "text": "Hay que hacer unos ajustes raros con el protocolo IP para llegar a ellos. Una puerta trasera."
+    },
+    {
+     "who": "them",
+     "text": "¿Millones de Tropeles?"
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Y qué se supone que está diciendo?",
+     "next": "n4",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¡No podemos explicártelo si sigues interrumpiendo!",
+     "next": "n4",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Y ¿adónde conduce esa puerta trasera?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n4": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Fuiste el mundo entero para nosotros."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Nos pasamos todo ese tiempo intentando aprender de ti...",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    }
+   ]
+  }
+ },
+ "lines_in": 40,
+ "lines_used": 26,
+ "part": 1
+}

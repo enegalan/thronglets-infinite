@@ -1,0 +1,47 @@
+{
+ "id": "ACT3_S051_HOWFAR__p6",
+ "source": "ACT3_S051_HOWFAR",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "\"Hipocresía\" es otra forma de decir \"pensamiento flexible\"."
+    },
+    {
+     "who": "them",
+     "text": "¿Tropel?"
+    },
+    {
+     "who": "them",
+     "text": "¿Tropel?"
+    }
+   ],
+   "choices": [
+    {
+     "label": "No tienen derecho a juzgarme.",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¡Me dijeron que eran un colectivo y que tenían que crecer!",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "No recuerdo que me pidieran que me preocupara por ustedes.",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 40,
+ "lines_used": 6,
+ "part": 6
+}

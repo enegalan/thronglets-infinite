@@ -1,0 +1,183 @@
+{
+ "id": "CH02_SEE_200FLOWER",
+ "source": "CH02_SEE_200FLOWER",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Podemos ver que, rápidamente, esta tierra se volvió bastante distinta a la anterior."
+    },
+    {
+     "who": "them",
+     "text": "Menos verde, supongo."
+    },
+    {
+     "who": "them",
+     "text": "¡Es porque la estamos llenando de edificios!"
+    }
+   ],
+   "choices": [
+    {
+     "label": "¡Es porque la estamos llenando de edificios!",
+     "next": "n1",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "Oye, , ¿te gustaría tener un objeto estético? \\rPara... decoración.",
+     "next": "n1",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "No servirá de nada.",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n1": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Una observación astuta."
+    },
+    {
+     "who": "them",
+     "text": "Oye, , ¿te gustaría tener un objeto estético? \\rPara... decoración."
+    },
+    {
+     "who": "them",
+     "text": "No servirá de nada."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¡Claro!",
+     "next": "n2",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿En verdad?",
+     "next": "n2",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Sí.",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n2": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "¡Claro!"
+    },
+    {
+     "who": "them",
+     "text": "Solo quiero cosas útiles."
+    },
+    {
+     "who": "them",
+     "text": "Lo añadiremos a tus herramientas de inmediato."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Bueno, está bien. Solo uno.",
+     "next": "n3",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "De acuerdo.",
+     "next": "n3",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¡Es porque la estamos llenando de edificios!",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n3": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "¿En verdad?"
+    },
+    {
+     "who": "them",
+     "text": "Sí."
+    },
+    {
+     "who": "them",
+     "text": "Bueno, está bien. Solo uno."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Oye, , ¿te gustaría tener un objeto estético? \\rPara... decoración.",
+     "next": "n4",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "No servirá de nada.",
+     "next": "n4",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¡Claro!",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n4": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "De acuerdo."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Continuar.",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "De acuerdo.",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Ya basta.",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 13,
+ "lines_used": 28,
+ "part": null
+}

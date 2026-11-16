@@ -1,0 +1,39 @@
+{
+ "id": "ACT3_S051_HOWFAR__p14",
+ "source": "ACT3_S051_HOWFAR",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Eficiencia y... ¿preocupación?"
+    }
+   ],
+   "choices": [
+    {
+     "label": "No nos parece que te importe.",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Quieres saber cuál es nuestra conclusión?",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "No hay juego si no hay un lugar donde jugarlo.",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 40,
+ "lines_used": 4,
+ "part": 14
+}

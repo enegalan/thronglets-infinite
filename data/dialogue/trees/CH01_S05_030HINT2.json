@@ -1,0 +1,43 @@
+{
+ "id": "CH01_S05_030HINT2",
+ "source": "CH01_S05_030HINT2",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "??"
+    },
+    {
+     "who": "them",
+     "text": "tùù no querer interactuar"
+    },
+    {
+     "who": "them",
+     "text": "tú rechazar ayuda"
+    },
+    {
+     "who": "them",
+     "text": "deber interactuar"
+    },
+    {
+     "who": "them",
+     "text": "nosotros esperar"
+    }
+   ],
+   "choices": [
+    {
+     "label": "es  !comprender??",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    }
+   ]
+  }
+ },
+ "lines_in": 8,
+ "lines_used": 6,
+ "part": null
+}

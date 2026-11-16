@@ -1,0 +1,43 @@
+{
+ "id": "CH01_S05_020HINT",
+ "source": "CH01_S05_020HINT",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "creador dejar ayuda para nosotros"
+    },
+    {
+     "who": "them",
+     "text": "interactuar && recibir ayuda"
+    }
+   ],
+   "choices": [
+    {
+     "label": "debes interactuar",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¡Si insisten!",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Quieren que toque esa cosa rara?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 6,
+ "lines_used": 5,
+ "part": null
+}

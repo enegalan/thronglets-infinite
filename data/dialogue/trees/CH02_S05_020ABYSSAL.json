@@ -1,0 +1,83 @@
+{
+ "id": "CH02_S05_020ABYSSAL",
+ "source": "CH02_S05_020ABYSSAL",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Nos gustaría que pudieras ver lo que vemos."
+    },
+    {
+     "who": "them",
+     "text": "El plano del abismo lucía distante y sin importancia."
+    },
+    {
+     "who": "them",
+     "text": "Cuéntanos, ."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Qué puede verse en el vacío?",
+     "next": "n1",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Por qué lo dicen?",
+     "next": "n1",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "No parecía contener ninguna energía que pudiéramos usar...",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n1": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "¿Te parece tentador el hecho de expandirte más allá de tu territorio?"
+    },
+    {
+     "who": "them",
+     "text": "Qué extraño."
+    },
+    {
+     "who": "them",
+     "text": "Gracias por compartirnos esto."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Esperen, ¿qué hay allá afuera?",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿Es algo aterrador?",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Entonces, ¿no pasa nada al precipitarse por el espacio?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 32,
+ "lines_used": 12,
+ "part": null
+}

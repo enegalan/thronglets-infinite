@@ -1,0 +1,33 @@
+{
+ "id": "CH01_S04_030ARTIFAC",
+ "source": "CH01_S04_030ARTIFAC",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "nosotros encontrar"
+    }
+   ],
+   "choices": [
+    {
+     "label": "en filo tierra",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "tù deber",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    }
+   ]
+  }
+ },
+ "lines_in": 3,
+ "lines_used": 3,
+ "part": null
+}

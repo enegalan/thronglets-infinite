@@ -1,0 +1,41 @@
+{
+ "id": "ACT3_S075RW",
+ "source": "ACT3_S075RW",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "¿No tienes nada más?"
+    },
+    {
+     "who": "them",
+     "text": "¿De verdad?"
+    },
+    {
+     "who": "them",
+     "text": "Está bien."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿No tienes nada más?",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿De verdad?",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    }
+   ]
+  }
+ },
+ "lines_in": 3,
+ "lines_used": 5,
+ "part": null
+}

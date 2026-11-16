@@ -1,0 +1,47 @@
+{
+ "id": "CH02_SEE_115POLLUTE",
+ "source": "CH02_SEE_115POLLUTE",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Nuestra tierra resultó dañada por desechos tóxicos."
+    },
+    {
+     "who": "them",
+     "text": "Tu diccionario dice que a esto se le llama \"contaminación\"."
+    },
+    {
+     "who": "them",
+     "text": "Es un peligro para nuestro progreso..."
+    },
+    {
+     "who": "them",
+     "text": "¡No lo habíamos anticipado!"
+    },
+    {
+     "who": "them",
+     "text": "Desarrollaremos una solución."
+    },
+    {
+     "who": "them",
+     "text": "Espera."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¡No lo habíamos anticipado!",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    }
+   ]
+  }
+ },
+ "lines_in": 6,
+ "lines_used": 7,
+ "part": null
+}

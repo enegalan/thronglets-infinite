@@ -1,0 +1,1123 @@
+{
+ "tables": [
+  {
+   "id": "ACT3_S001_EVERYTHING",
+   "source": "ACT3_S001_EVERYTHING",
+   "status": "draft",
+   "lines_in": 11,
+   "lines_used": 10
+  },
+  {
+   "id": "ACT3_S01_UPDATEFAIL",
+   "source": "ACT3_S01_UPDATEFAIL",
+   "status": "draft",
+   "lines_in": 48,
+   "lines_used": 16
+  },
+  {
+   "id": "ACT3_S020_GAPINGMAW",
+   "source": "ACT3_S020_GAPINGMAW",
+   "status": "draft",
+   "lines_in": 5,
+   "lines_used": 8
+  },
+  {
+   "id": "ACT3_S021_AFTERTRYIN",
+   "source": "ACT3_S021_AFTERTRYIN",
+   "status": "draft",
+   "lines_in": 15,
+   "lines_used": 3
+  },
+  {
+   "id": "ACT3_S022_AFTERPLACI",
+   "source": "ACT3_S022_AFTERPLACI",
+   "status": "draft",
+   "lines_in": 1,
+   "lines_used": 2
+  },
+  {
+   "id": "ACT3_S024_FIRSTBUGUS",
+   "source": "ACT3_S024_FIRSTBUGUS",
+   "status": "draft",
+   "lines_in": 5,
+   "lines_used": 7
+  },
+  {
+   "id": "ACT3_S024_ONBADOBJEC",
+   "source": "ACT3_S024_ONBADOBJEC",
+   "status": "draft",
+   "lines_in": 4,
+   "lines_used": 3
+  },
+  {
+   "id": "ACT3_S030_CONNECTTOT",
+   "source": "ACT3_S030_CONNECTTOT",
+   "status": "draft",
+   "lines_in": 13,
+   "lines_used": 6
+  },
+  {
+   "id": "ACT3_S0310C",
+   "source": "ACT3_S0310C",
+   "status": "draft",
+   "lines_in": 4,
+   "lines_used": 7
+  },
+  {
+   "id": "ACT3_S0310I",
+   "source": "ACT3_S0310I",
+   "status": "draft",
+   "lines_in": 5,
+   "lines_used": 8
+  },
+  {
+   "id": "ACT3_S031_MANUAL",
+   "source": "ACT3_S031_MANUAL",
+   "status": "draft",
+   "lines_in": 13,
+   "lines_used": 4
+  },
+  {
+   "id": "ACT3_S032_AUTOMATED",
+   "source": "ACT3_S032_AUTOMATED",
+   "status": "draft",
+   "lines_in": 13,
+   "lines_used": 28
+  },
+  {
+   "id": "ACT3_S03C4C",
+   "source": "ACT3_S03C4C",
+   "status": "draft",
+   "lines_in": 4,
+   "lines_used": 4
+  },
+  {
+   "id": "ACT3_S03C4I",
+   "source": "ACT3_S03C4I",
+   "status": "draft",
+   "lines_in": 5,
+   "lines_used": 8
+  },
+  {
+   "id": "ACT3_S03C5C",
+   "source": "ACT3_S03C5C",
+   "status": "draft",
+   "lines_in": 4,
+   "lines_used": 5
+  },
+  {
+   "id": "ACT3_S03C5I",
+   "source": "ACT3_S03C5I",
+   "status": "draft",
+   "lines_in": 5,
+   "lines_used": 6
+  },
+  {
+   "id": "ACT3_S03C6C",
+   "source": "ACT3_S03C6C",
+   "status": "draft",
+   "lines_in": 5,
+   "lines_used": 7
+  },
+  {
+   "id": "ACT3_S03C6I",
+   "source": "ACT3_S03C6I",
+   "status": "draft",
+   "lines_in": 5,
+   "lines_used": 7
+  },
+  {
+   "id": "ACT3_S03C7C",
+   "source": "ACT3_S03C7C",
+   "status": "draft",
+   "lines_in": 5,
+   "lines_used": 4
+  },
+  {
+   "id": "ACT3_S03C7I",
+   "source": "ACT3_S03C7I",
+   "status": "draft",
+   "lines_in": 5,
+   "lines_used": 8
+  },
+  {
+   "id": "ACT3_S03C8C",
+   "source": "ACT3_S03C8C",
+   "status": "draft",
+   "lines_in": 5,
+   "lines_used": 8
+  },
+  {
+   "id": "ACT3_S03C8I",
+   "source": "ACT3_S03C8I",
+   "status": "draft",
+   "lines_in": 6,
+   "lines_used": 4
+  },
+  {
+   "id": "ACT3_S03C9C",
+   "source": "ACT3_S03C9C",
+   "status": "draft",
+   "lines_in": 5,
+   "lines_used": 4
+  },
+  {
+   "id": "ACT3_S03C9I",
+   "source": "ACT3_S03C9I",
+   "status": "draft",
+   "lines_in": 5,
+   "lines_used": 6
+  },
+  {
+   "id": "ACT3_S03CCA",
+   "source": "ACT3_S03CCA",
+   "status": "draft",
+   "lines_in": 8,
+   "lines_used": 9
+  },
+  {
+   "id": "ACT3_S03CDB",
+   "source": "ACT3_S03CDB",
+   "status": "draft",
+   "lines_in": 1,
+   "lines_used": 4
+  },
+  {
+   "id": "ACT3_S03CDK",
+   "source": "ACT3_S03CDK",
+   "status": "draft",
+   "lines_in": 1,
+   "lines_used": 2
+  },
+  {
+   "id": "ACT3_S03CSC",
+   "source": "ACT3_S03CSC",
+   "status": "draft",
+   "lines_in": 27,
+   "lines_used": 10
+  },
+  {
+   "id": "ACT3_S03FCF",
+   "source": "ACT3_S03FCF",
+   "status": "draft",
+   "lines_in": 6,
+   "lines_used": 7
+  },
+  {
+   "id": "ACT3_S03FIC",
+   "source": "ACT3_S03FIC",
+   "status": "draft",
+   "lines_in": 1,
+   "lines_used": 4
+  },
+  {
+   "id": "ACT3_S03STC",
+   "source": "ACT3_S03STC",
+   "status": "draft",
+   "lines_in": 5,
+   "lines_used": 2
+  },
+  {
+   "id": "ACT3_S03_CAPTCHA3CO",
+   "source": "ACT3_S03_CAPTCHA3CO",
+   "status": "draft",
+   "lines_in": 4,
+   "lines_used": 7
+  },
+  {
+   "id": "ACT3_S03_CAPTCHA3IN",
+   "source": "ACT3_S03_CAPTCHA3IN",
+   "status": "draft",
+   "lines_in": 4,
+   "lines_used": 5
+  },
+  {
+   "id": "ACT3_S04_LEADTOPOWE",
+   "source": "ACT3_S04_LEADTOPOWE",
+   "status": "draft",
+   "lines_in": 10,
+   "lines_used": 4
+  },
+  {
+   "id": "ACT3_S051_HOWFAR__p0",
+   "source": "ACT3_S051_HOWFAR",
+   "status": "draft",
+   "lines_in": 40,
+   "lines_used": 16
+  },
+  {
+   "id": "ACT3_S051_HOWFAR__p1",
+   "source": "ACT3_S051_HOWFAR",
+   "status": "draft",
+   "lines_in": 40,
+   "lines_used": 11
+  },
+  {
+   "id": "ACT3_S051_HOWFAR__p10",
+   "source": "ACT3_S051_HOWFAR",
+   "status": "draft",
+   "lines_in": 40,
+   "lines_used": 11
+  },
+  {
+   "id": "ACT3_S051_HOWFAR__p11",
+   "source": "ACT3_S051_HOWFAR",
+   "status": "draft",
+   "lines_in": 40,
+   "lines_used": 11
+  },
+  {
+   "id": "ACT3_S051_HOWFAR__p12",
+   "source": "ACT3_S051_HOWFAR",
+   "status": "draft",
+   "lines_in": 40,
+   "lines_used": 10
+  },
+  {
+   "id": "ACT3_S051_HOWFAR__p13",
+   "source": "ACT3_S051_HOWFAR",
+   "status": "draft",
+   "lines_in": 40,
+   "lines_used": 6
+  },
+  {
+   "id": "ACT3_S051_HOWFAR__p14",
+   "source": "ACT3_S051_HOWFAR",
+   "status": "draft",
+   "lines_in": 40,
+   "lines_used": 4
+  },
+  {
+   "id": "ACT3_S051_HOWFAR__p15",
+   "source": "ACT3_S051_HOWFAR",
+   "status": "draft",
+   "lines_in": 40,
+   "lines_used": 10
+  },
+  {
+   "id": "ACT3_S051_HOWFAR__p16",
+   "source": "ACT3_S051_HOWFAR",
+   "status": "draft",
+   "lines_in": 40,
+   "lines_used": 4
+  },
+  {
+   "id": "ACT3_S051_HOWFAR__p17",
+   "source": "ACT3_S051_HOWFAR",
+   "status": "draft",
+   "lines_in": 40,
+   "lines_used": 11
+  },
+  {
+   "id": "ACT3_S051_HOWFAR__p18",
+   "source": "ACT3_S051_HOWFAR",
+   "status": "draft",
+   "lines_in": 40,
+   "lines_used": 4
+  },
+  {
+   "id": "ACT3_S051_HOWFAR__p2",
+   "source": "ACT3_S051_HOWFAR",
+   "status": "draft",
+   "lines_in": 40,
+   "lines_used": 30
+  },
+  {
+   "id": "ACT3_S051_HOWFAR__p3",
+   "source": "ACT3_S051_HOWFAR",
+   "status": "draft",
+   "lines_in": 40,
+   "lines_used": 6
+  },
+  {
+   "id": "ACT3_S051_HOWFAR__p4",
+   "source": "ACT3_S051_HOWFAR",
+   "status": "draft",
+   "lines_in": 40,
+   "lines_used": 11
+  },
+  {
+   "id": "ACT3_S051_HOWFAR__p5",
+   "source": "ACT3_S051_HOWFAR",
+   "status": "draft",
+   "lines_in": 40,
+   "lines_used": 5
+  },
+  {
+   "id": "ACT3_S051_HOWFAR__p6",
+   "source": "ACT3_S051_HOWFAR",
+   "status": "draft",
+   "lines_in": 40,
+   "lines_used": 6
+  },
+  {
+   "id": "ACT3_S051_HOWFAR__p7",
+   "source": "ACT3_S051_HOWFAR",
+   "status": "draft",
+   "lines_in": 40,
+   "lines_used": 5
+  },
+  {
+   "id": "ACT3_S051_HOWFAR__p8",
+   "source": "ACT3_S051_HOWFAR",
+   "status": "draft",
+   "lines_in": 40,
+   "lines_used": 6
+  },
+  {
+   "id": "ACT3_S051_HOWFAR__p9",
+   "source": "ACT3_S051_HOWFAR",
+   "status": "draft",
+   "lines_in": 40,
+   "lines_used": 11
+  },
+  {
+   "id": "ACT3_S05_WENEEDMORE",
+   "source": "ACT3_S05_WENEEDMORE",
+   "status": "draft",
+   "lines_in": 22,
+   "lines_used": 4
+  },
+  {
+   "id": "ACT3_S06_COMMUNITYM__p0",
+   "source": "ACT3_S06_COMMUNITYM",
+   "status": "draft",
+   "lines_in": 40,
+   "lines_used": 11
+  },
+  {
+   "id": "ACT3_S06_COMMUNITYM__p1",
+   "source": "ACT3_S06_COMMUNITYM",
+   "status": "draft",
+   "lines_in": 40,
+   "lines_used": 26
+  },
+  {
+   "id": "ACT3_S06_COMMUNITYM__p2",
+   "source": "ACT3_S06_COMMUNITYM",
+   "status": "draft",
+   "lines_in": 23,
+   "lines_used": 11
+  },
+  {
+   "id": "ACT3_S070_ANOTHERTHR",
+   "source": "ACT3_S070_ANOTHERTHR",
+   "status": "draft",
+   "lines_in": 51,
+   "lines_used": 16
+  },
+  {
+   "id": "ACT3_S075B1",
+   "source": "ACT3_S075B1",
+   "status": "draft",
+   "lines_in": 2,
+   "lines_used": 5
+  },
+  {
+   "id": "ACT3_S075B2",
+   "source": "ACT3_S075B2",
+   "status": "draft",
+   "lines_in": 3,
+   "lines_used": 6
+  },
+  {
+   "id": "ACT3_S075ET",
+   "source": "ACT3_S075ET",
+   "status": "draft",
+   "lines_in": 54,
+   "lines_used": 9
+  },
+  {
+   "id": "ACT3_S075GB",
+   "source": "ACT3_S075GB",
+   "status": "draft",
+   "lines_in": 19,
+   "lines_used": 4
+  },
+  {
+   "id": "ACT3_S075GG",
+   "source": "ACT3_S075GG",
+   "status": "draft",
+   "lines_in": 8,
+   "lines_used": 11
+  },
+  {
+   "id": "ACT3_S075GS",
+   "source": "ACT3_S075GS",
+   "status": "draft",
+   "lines_in": 18,
+   "lines_used": 8
+  },
+  {
+   "id": "ACT3_S075RW",
+   "source": "ACT3_S075RW",
+   "status": "draft",
+   "lines_in": 3,
+   "lines_used": 5
+  },
+  {
+   "id": "ACT3_S075TL",
+   "source": "ACT3_S075TL",
+   "status": "draft",
+   "lines_in": 23,
+   "lines_used": 6
+  },
+  {
+   "id": "ACT3_S075TT",
+   "source": "ACT3_S075TT",
+   "status": "draft",
+   "lines_in": 19,
+   "lines_used": 40
+  },
+  {
+   "id": "ACT3_S075UA",
+   "source": "ACT3_S075UA",
+   "status": "draft",
+   "lines_in": 2,
+   "lines_used": 5
+  },
+  {
+   "id": "ACT3_S075UB",
+   "source": "ACT3_S075UB",
+   "status": "draft",
+   "lines_in": 5,
+   "lines_used": 6
+  },
+  {
+   "id": "ACT3_S075US",
+   "source": "ACT3_S075US",
+   "status": "draft",
+   "lines_in": 3,
+   "lines_used": 6
+  },
+  {
+   "id": "ACT3_S075UX",
+   "source": "ACT3_S075UX",
+   "status": "draft",
+   "lines_in": 7,
+   "lines_used": 5
+  },
+  {
+   "id": "CH01.RECAP",
+   "source": "CH01.RECAP",
+   "status": "draft",
+   "lines_in": 6,
+   "lines_used": 9
+  },
+  {
+   "id": "CH01_S03_010HELLO",
+   "source": "CH01_S03_010HELLO",
+   "status": "curated",
+   "lines_in": 0,
+   "lines_used": 0
+  },
+  {
+   "id": "CH01_S04_020ABYSS",
+   "source": "CH01_S04_020ABYSS",
+   "status": "curated",
+   "lines_in": 0,
+   "lines_used": 0
+  },
+  {
+   "id": "CH01_S04_030ARTIFAC",
+   "source": "CH01_S04_030ARTIFAC",
+   "status": "draft",
+   "lines_in": 3,
+   "lines_used": 3
+  },
+  {
+   "id": "CH01_S05_020HINT",
+   "source": "CH01_S05_020HINT",
+   "status": "draft",
+   "lines_in": 6,
+   "lines_used": 5
+  },
+  {
+   "id": "CH01_S05_030HINT2",
+   "source": "CH01_S05_030HINT2",
+   "status": "draft",
+   "lines_in": 8,
+   "lines_used": 6
+  },
+  {
+   "id": "CH01_S05_040THANN",
+   "source": "CH01_S05_040THANN",
+   "status": "draft",
+   "lines_in": 11,
+   "lines_used": 9
+  },
+  {
+   "id": "CH01_S06_010MLTH1",
+   "source": "CH01_S06_010MLTH1",
+   "status": "draft",
+   "lines_in": 23,
+   "lines_used": 22
+  },
+  {
+   "id": "CH01_S06_015HINT",
+   "source": "CH01_S06_015HINT",
+   "status": "draft",
+   "lines_in": 8,
+   "lines_used": 5
+  },
+  {
+   "id": "CH01_S06_030MLTH2",
+   "source": "CH01_S06_030MLTH2",
+   "status": "draft",
+   "lines_in": 16,
+   "lines_used": 12
+  },
+  {
+   "id": "CH01_S06_WHATISLOVE",
+   "source": "CH01_S06_WHATISLOVE",
+   "status": "curated",
+   "lines_in": 0,
+   "lines_used": 0
+  },
+  {
+   "id": "CH01_S07_010BONES",
+   "source": "CH01_S07_010BONES",
+   "status": "curated",
+   "lines_in": 0,
+   "lines_used": 0
+  },
+  {
+   "id": "CH01_S07_020NOLUMBE",
+   "source": "CH01_S07_020NOLUMBE",
+   "status": "draft",
+   "lines_in": 8,
+   "lines_used": 7
+  },
+  {
+   "id": "CH01_S07_030CARELES",
+   "source": "CH01_S07_030CARELES",
+   "status": "curated",
+   "lines_in": 0,
+   "lines_used": 0
+  },
+  {
+   "id": "CH01_S07_040CAREFUL",
+   "source": "CH01_S07_040CAREFUL",
+   "status": "draft",
+   "lines_in": 3,
+   "lines_used": 3
+  },
+  {
+   "id": "CH01_S08_020COLLECT",
+   "source": "CH01_S08_020COLLECT",
+   "status": "draft",
+   "lines_in": 18,
+   "lines_used": 29
+  },
+  {
+   "id": "CH01_S08_BRIDGEISCO",
+   "source": "CH01_S08_BRIDGEISCO",
+   "status": "draft",
+   "lines_in": 19,
+   "lines_used": 28
+  },
+  {
+   "id": "CH02.RECAP",
+   "source": "CH02.RECAP",
+   "status": "draft",
+   "lines_in": 6,
+   "lines_used": 6
+  },
+  {
+   "id": "CH02_010INTRO",
+   "source": "CH02_010INTRO",
+   "status": "draft",
+   "lines_in": 19,
+   "lines_used": 6
+  },
+  {
+   "id": "CH02_020PLAYSTY",
+   "source": "CH02_020PLAYSTY",
+   "status": "draft",
+   "lines_in": 15,
+   "lines_used": 4
+  },
+  {
+   "id": "CH02_DROPOREROC",
+   "source": "CH02_DROPOREROC",
+   "status": "draft",
+   "lines_in": 4,
+   "lines_used": 5
+  },
+  {
+   "id": "CH02_FIRSTBUGUS",
+   "source": "CH02_FIRSTBUGUS",
+   "status": "draft",
+   "lines_in": 3,
+   "lines_used": 4
+  },
+  {
+   "id": "CH02_FTUE_ABOUTMINES",
+   "source": "CH02_FTUE_ABOUTMINES",
+   "status": "draft",
+   "lines_in": 5,
+   "lines_used": 8
+  },
+  {
+   "id": "CH02_ITEM_NUKEUNLOCK",
+   "source": "CH02_ITEM_NUKEUNLOCK",
+   "status": "draft",
+   "lines_in": 3,
+   "lines_used": 4
+  },
+  {
+   "id": "CH02_S02_010MINE",
+   "source": "CH02_S02_010MINE",
+   "status": "draft",
+   "lines_in": 77,
+   "lines_used": 11
+  },
+  {
+   "id": "CH02_S02_020KEEP",
+   "source": "CH02_S02_020KEEP",
+   "status": "draft",
+   "lines_in": 3,
+   "lines_used": 4
+  },
+  {
+   "id": "CH02_S03_010INT1",
+   "source": "CH02_S03_010INT1",
+   "status": "curated",
+   "lines_in": 0,
+   "lines_used": 0
+  },
+  {
+   "id": "CH02_S03_020INT2",
+   "source": "CH02_S03_020INT2",
+   "status": "draft",
+   "lines_in": 53,
+   "lines_used": 16
+  },
+  {
+   "id": "CH02_S03_030INT3",
+   "source": "CH02_S03_030INT3",
+   "status": "draft",
+   "lines_in": 55,
+   "lines_used": 23
+  },
+  {
+   "id": "CH02_S04_010TNT",
+   "source": "CH02_S04_010TNT",
+   "status": "draft",
+   "lines_in": 15,
+   "lines_used": 4
+  },
+  {
+   "id": "CH02_S04_020HINT1",
+   "source": "CH02_S04_020HINT1",
+   "status": "draft",
+   "lines_in": 4,
+   "lines_used": 3
+  },
+  {
+   "id": "CH02_S04_030HINT2",
+   "source": "CH02_S04_030HINT2",
+   "status": "draft",
+   "lines_in": 9,
+   "lines_used": 4
+  },
+  {
+   "id": "CH02_S04_031HINT3",
+   "source": "CH02_S04_031HINT3",
+   "status": "draft",
+   "lines_in": 3,
+   "lines_used": 6
+  },
+  {
+   "id": "CH02_S04_032HINT4",
+   "source": "CH02_S04_032HINT4",
+   "status": "draft",
+   "lines_in": 3,
+   "lines_used": 6
+  },
+  {
+   "id": "CH02_S04_033HINT5",
+   "source": "CH02_S04_033HINT5",
+   "status": "draft",
+   "lines_in": 2,
+   "lines_used": 3
+  },
+  {
+   "id": "CH02_S04_040PLACED",
+   "source": "CH02_S04_040PLACED",
+   "status": "draft",
+   "lines_in": 16,
+   "lines_used": 8
+  },
+  {
+   "id": "CH02_S05_010EXPLOSI",
+   "source": "CH02_S05_010EXPLOSI",
+   "status": "draft",
+   "lines_in": 18,
+   "lines_used": 10
+  },
+  {
+   "id": "CH02_S05_020ABYSSAL",
+   "source": "CH02_S05_020ABYSSAL",
+   "status": "draft",
+   "lines_in": 32,
+   "lines_used": 12
+  },
+  {
+   "id": "CH02_S06_010OPPENHE",
+   "source": "CH02_S06_010OPPENHE",
+   "status": "draft",
+   "lines_in": 75,
+   "lines_used": 16
+  },
+  {
+   "id": "CH02_S06_020HINT1",
+   "source": "CH02_S06_020HINT1",
+   "status": "draft",
+   "lines_in": 2,
+   "lines_used": 4
+  },
+  {
+   "id": "CH02_S06_030HINT2",
+   "source": "CH02_S06_030HINT2",
+   "status": "draft",
+   "lines_in": 1,
+   "lines_used": 4
+  },
+  {
+   "id": "CH02_S07_010SUCCESS",
+   "source": "CH02_S07_010SUCCESS",
+   "status": "draft",
+   "lines_in": 20,
+   "lines_used": 4
+  },
+  {
+   "id": "CH02_SEE_100ECON__p0",
+   "source": "CH02_SEE_100ECON",
+   "status": "draft",
+   "lines_in": 40,
+   "lines_used": 5
+  },
+  {
+   "id": "CH02_SEE_100ECON__p1",
+   "source": "CH02_SEE_100ECON",
+   "status": "draft",
+   "lines_in": 40,
+   "lines_used": 82
+  },
+  {
+   "id": "CH02_SEE_100ECON__p2",
+   "source": "CH02_SEE_100ECON",
+   "status": "draft",
+   "lines_in": 38,
+   "lines_used": 6
+  },
+  {
+   "id": "CH02_SEE_101BREAK",
+   "source": "CH02_SEE_101BREAK",
+   "status": "draft",
+   "lines_in": 2,
+   "lines_used": 4
+  },
+  {
+   "id": "CH02_SEE_102DWELL",
+   "source": "CH02_SEE_102DWELL",
+   "status": "draft",
+   "lines_in": 4,
+   "lines_used": 3
+  },
+  {
+   "id": "CH02_SEE_103MARKET",
+   "source": "CH02_SEE_103MARKET",
+   "status": "draft",
+   "lines_in": 5,
+   "lines_used": 3
+  },
+  {
+   "id": "CH02_SEE_104RNDABT",
+   "source": "CH02_SEE_104RNDABT",
+   "status": "draft",
+   "lines_in": 3,
+   "lines_used": 4
+  },
+  {
+   "id": "CH02_SEE_1051RBT",
+   "source": "CH02_SEE_1051RBT",
+   "status": "draft",
+   "lines_in": 3,
+   "lines_used": 4
+  },
+  {
+   "id": "CH02_SEE_105PICKAXE",
+   "source": "CH02_SEE_105PICKAXE",
+   "status": "draft",
+   "lines_in": 4,
+   "lines_used": 4
+  },
+  {
+   "id": "CH02_SEE_106MINE",
+   "source": "CH02_SEE_106MINE",
+   "status": "draft",
+   "lines_in": 3,
+   "lines_used": 4
+  },
+  {
+   "id": "CH02_SEE_107FACTORY",
+   "source": "CH02_SEE_107FACTORY",
+   "status": "draft",
+   "lines_in": 3,
+   "lines_used": 5
+  },
+  {
+   "id": "CH02_SEE_108FACTORY",
+   "source": "CH02_SEE_108FACTORY",
+   "status": "draft",
+   "lines_in": 10,
+   "lines_used": 4
+  },
+  {
+   "id": "CH02_SEE_109CHAINSA",
+   "source": "CH02_SEE_109CHAINSA",
+   "status": "draft",
+   "lines_in": 2,
+   "lines_used": 5
+  },
+  {
+   "id": "CH02_SEE_110BRIDGE1",
+   "source": "CH02_SEE_110BRIDGE1",
+   "status": "draft",
+   "lines_in": 3,
+   "lines_used": 6
+  },
+  {
+   "id": "CH02_SEE_111BRIDGE2",
+   "source": "CH02_SEE_111BRIDGE2",
+   "status": "draft",
+   "lines_in": 2,
+   "lines_used": 3
+  },
+  {
+   "id": "CH02_SEE_112THEATRE",
+   "source": "CH02_SEE_112THEATRE",
+   "status": "draft",
+   "lines_in": 5,
+   "lines_used": 3
+  },
+  {
+   "id": "CH02_SEE_113THEATRE",
+   "source": "CH02_SEE_113THEATRE",
+   "status": "draft",
+   "lines_in": 4,
+   "lines_used": 2
+  },
+  {
+   "id": "CH02_SEE_114ORE",
+   "source": "CH02_SEE_114ORE",
+   "status": "draft",
+   "lines_in": 3,
+   "lines_used": 6
+  },
+  {
+   "id": "CH02_SEE_115POLLUTE",
+   "source": "CH02_SEE_115POLLUTE",
+   "status": "draft",
+   "lines_in": 6,
+   "lines_used": 7
+  },
+  {
+   "id": "CH02_SEE_116MOP",
+   "source": "CH02_SEE_116MOP",
+   "status": "draft",
+   "lines_in": 3,
+   "lines_used": 4
+  },
+  {
+   "id": "CH02_SEE_117ENCOURA",
+   "source": "CH02_SEE_117ENCOURA",
+   "status": "draft",
+   "lines_in": 4,
+   "lines_used": 2
+  },
+  {
+   "id": "CH02_SEE_118ENCOURA",
+   "source": "CH02_SEE_118ENCOURA",
+   "status": "draft",
+   "lines_in": 4,
+   "lines_used": 7
+  },
+  {
+   "id": "CH02_SEE_119GRAB",
+   "source": "CH02_SEE_119GRAB",
+   "status": "draft",
+   "lines_in": 8,
+   "lines_used": 10
+  },
+  {
+   "id": "CH02_SEE_120MINE2",
+   "source": "CH02_SEE_120MINE2",
+   "status": "draft",
+   "lines_in": 2,
+   "lines_used": 4
+  },
+  {
+   "id": "CH02_SEE_121ORBITAL",
+   "source": "CH02_SEE_121ORBITAL",
+   "status": "draft",
+   "lines_in": 7,
+   "lines_used": 4
+  },
+  {
+   "id": "CH02_SEE_200FLOWER",
+   "source": "CH02_SEE_200FLOWER",
+   "status": "draft",
+   "lines_in": 13,
+   "lines_used": 28
+  },
+  {
+   "id": "CH02_SEE_201TREES",
+   "source": "CH02_SEE_201TREES",
+   "status": "draft",
+   "lines_in": 24,
+   "lines_used": 6
+  },
+  {
+   "id": "CH02_SEE_300WORKLIF",
+   "source": "CH02_SEE_300WORKLIF",
+   "status": "draft",
+   "lines_in": 24,
+   "lines_used": 5
+  },
+  {
+   "id": "CH02_SEE_400PROCESS",
+   "source": "CH02_SEE_400PROCESS",
+   "status": "draft",
+   "lines_in": 15,
+   "lines_used": 6
+  },
+  {
+   "id": "CH02_SEE_500STATUE",
+   "source": "CH02_SEE_500STATUE",
+   "status": "draft",
+   "lines_in": 22,
+   "lines_used": 11
+  },
+  {
+   "id": "CH02_SEE_501COMPLET",
+   "source": "CH02_SEE_501COMPLET",
+   "status": "draft",
+   "lines_in": 16,
+   "lines_used": 34
+  },
+  {
+   "id": "CH02_SEE_600BONES",
+   "source": "CH02_SEE_600BONES",
+   "status": "draft",
+   "lines_in": 52,
+   "lines_used": 23
+  },
+  {
+   "id": "CH02_SEE_700DEATH",
+   "source": "CH02_SEE_700DEATH",
+   "status": "curated",
+   "lines_in": 0,
+   "lines_used": 0
+  },
+  {
+   "id": "CH02_SEE_PLACEDWELL",
+   "source": "CH02_SEE_PLACEDWELL",
+   "status": "draft",
+   "lines_in": 2,
+   "lines_used": 3
+  },
+  {
+   "id": "CH02_SEE_THROWROCKS",
+   "source": "CH02_SEE_THROWROCKS",
+   "status": "draft",
+   "lines_in": 4,
+   "lines_used": 7
+  },
+  {
+   "id": "CH03.RECAP",
+   "source": "CH03.RECAP",
+   "status": "draft",
+   "lines_in": 6,
+   "lines_used": 9
+  },
+  {
+   "id": "confirm_bug",
+   "source": "CH02_FIRSTBUGUS",
+   "status": "curated",
+   "lines_in": 0,
+   "lines_used": 0
+  },
+  {
+   "id": "confirm_burn",
+   "source": "CH02_SEE_600BONES",
+   "status": "curated",
+   "lines_in": 0,
+   "lines_used": 0
+  },
+  {
+   "id": "confirm_nuke",
+   "source": "CH02_ITEM_NUKEUNLOCK",
+   "status": "curated",
+   "lines_in": 0,
+   "lines_used": 0
+  }
+ ],
+ "skipped": [
+  {
+   "id": "CH01_S01_020FEED",
+   "source": "CH01_S01_020FEED",
+   "reason": "empty"
+  },
+  {
+   "id": "CH01_S01_030PLAY",
+   "source": "CH01_S01_030PLAY",
+   "reason": "empty"
+  },
+  {
+   "id": "CH01_S01_040CLEAN",
+   "source": "CH01_S01_040CLEAN",
+   "reason": "empty"
+  },
+  {
+   "id": "CH01_S01_050THANKS",
+   "source": "CH01_S01_050THANKS",
+   "reason": "empty"
+  }
+ ],
+ "parts": {
+  "ACT3_S051_HOWFAR": [
+   "ACT3_S051_HOWFAR__p0",
+   "ACT3_S051_HOWFAR__p1",
+   "ACT3_S051_HOWFAR__p2",
+   "ACT3_S051_HOWFAR__p3",
+   "ACT3_S051_HOWFAR__p4",
+   "ACT3_S051_HOWFAR__p5",
+   "ACT3_S051_HOWFAR__p6",
+   "ACT3_S051_HOWFAR__p7",
+   "ACT3_S051_HOWFAR__p8",
+   "ACT3_S051_HOWFAR__p9",
+   "ACT3_S051_HOWFAR__p10",
+   "ACT3_S051_HOWFAR__p11",
+   "ACT3_S051_HOWFAR__p12",
+   "ACT3_S051_HOWFAR__p13",
+   "ACT3_S051_HOWFAR__p14",
+   "ACT3_S051_HOWFAR__p15",
+   "ACT3_S051_HOWFAR__p16",
+   "ACT3_S051_HOWFAR__p17",
+   "ACT3_S051_HOWFAR__p18"
+  ],
+  "ACT3_S06_COMMUNITYM": [
+   "ACT3_S06_COMMUNITYM__p0",
+   "ACT3_S06_COMMUNITYM__p1",
+   "ACT3_S06_COMMUNITYM__p2"
+  ],
+  "CH02_SEE_100ECON": [
+   "CH02_SEE_100ECON__p0",
+   "CH02_SEE_100ECON__p1",
+   "CH02_SEE_100ECON__p2"
+  ]
+ }
+}

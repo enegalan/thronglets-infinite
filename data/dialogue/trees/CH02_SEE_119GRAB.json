@@ -1,0 +1,61 @@
+{
+ "id": "CH02_SEE_119GRAB",
+ "source": "CH02_SEE_119GRAB",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Notamos que, a veces, los recursos comienzan a acumularse de formas inoportunas."
+    },
+    {
+     "who": "them",
+     "text": "Te permitirá recoger muchos objetos con una sola acción."
+    },
+    {
+     "who": "them",
+     "text": "... Y ahora nos damos cuenta de que no sabemos dónde podrías poner eso."
+    },
+    {
+     "who": "them",
+     "text": "¿Quizás en el vacío? No parece tener ningún otro fin."
+    },
+    {
+     "who": "them",
+     "text": "Entonces, produjimos una nueva herramienta."
+    },
+    {
+     "who": "them",
+     "text": "Aunque es algo desconcertante..."
+    },
+    {
+     "who": "them",
+     "text": "El vacío es perturbador. Preferimos no fijar la mirada en él."
+    },
+    {
+     "who": "them",
+     "text": "Toma esta herramienta."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¿Quizás en el vacío? No parece tener ningún otro fin.",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "Entonces, produjimos una nueva herramienta.",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    }
+   ]
+  }
+ },
+ "lines_in": 8,
+ "lines_used": 10,
+ "part": null
+}

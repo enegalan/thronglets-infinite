@@ -1,0 +1,51 @@
+{
+ "id": "ACT3_S03_CAPTCHA3CO",
+ "source": "ACT3_S03_CAPTCHA3CO",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Al menos actúas de forma sincera."
+    },
+    {
+     "who": "them",
+     "text": "Tu respeto por las formas de vida dotadas de conciencia es bastante volátil."
+    },
+    {
+     "who": "them",
+     "text": "Al menos tu conciencia sobre tus actos es fiable."
+    },
+    {
+     "who": "them",
+     "text": "Este ejercicio nos ha permitido seguir evaluando tus cualidades intrínsecas."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Continuar.",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "De acuerdo.",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Ya basta.",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 4,
+ "lines_used": 7,
+ "part": null
+}

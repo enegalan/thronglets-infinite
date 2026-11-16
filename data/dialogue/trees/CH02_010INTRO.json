@@ -1,0 +1,47 @@
+{
+ "id": "CH02_010INTRO",
+ "source": "CH02_010INTRO",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "¿Has de comprender las funciones de tus mitocondrias para existir? No, solo existes."
+    },
+    {
+     "who": "them",
+     "text": "Ahora, continuemos."
+    },
+    {
+     "who": "them",
+     "text": "Gozamos del uso de los recursos y conceptos visuales que el creador dejó para nosotros."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Ah, , ¿también te atrae la anomalía?",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "Pero ¿por qué está en una montaña?",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Está brillando. ¿Se supone que deba brillar así?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 19,
+ "lines_used": 6,
+ "part": null
+}

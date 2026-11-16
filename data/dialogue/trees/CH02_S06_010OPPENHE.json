@@ -1,0 +1,111 @@
+{
+ "id": "CH02_S06_010OPPENHE",
+ "source": "CH02_S06_010OPPENHE",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Llegó la hora."
+    },
+    {
+     "who": "them",
+     "text": "ESTO ES UN ERROR porque no se han escrito variables del cap. 1"
+    },
+    {
+     "who": "them",
+     "text": "Además, esta tierra ya no nos sirve de nada."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¡Nunca es buen momento para bombas atómicas!",
+     "next": "n1",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "¿No hay otra manera?",
+     "next": "n1",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Por qué necesitan tanta energía para desbloquearlo?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n1": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Debemos liquidar nuestros recursos."
+    },
+    {
+     "who": "them",
+     "text": "Puro, verdadero  y poderoso."
+    },
+    {
+     "who": "them",
+     "text": "presionará el botón."
+    }
+   ],
+   "choices": [
+    {
+     "label": "¡No podemos volarlo todo!",
+     "next": "n2",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "No pienso hacerlo.",
+     "next": "n2",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "No les lanzaré una bomba atómica.",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  },
+  "n2": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Presiona el botón."
+    }
+   ],
+   "choices": [
+    {
+     "label": "No sueles oponerte cuando de muerte y destrucción se trata...",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "Es... ¿una cita de Orwell?",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "¿Tan importante es para ustedes?",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 75,
+ "lines_used": 16,
+ "part": null
+}

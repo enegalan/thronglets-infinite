@@ -1,0 +1,47 @@
+{
+ "id": "CH02_SEE_114ORE",
+ "source": "CH02_SEE_114ORE",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Tal vez hayas visto las erupciones iridiscentes en el terreno."
+    },
+    {
+     "who": "them",
+     "text": "Hay que colocar minas en dichos nodos."
+    },
+    {
+     "who": "them",
+     "text": "Representan vetas de hardware que podemos aprovechar."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Continuar.",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "De acuerdo.",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Ya basta.",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 3,
+ "lines_used": 6,
+ "part": null
+}

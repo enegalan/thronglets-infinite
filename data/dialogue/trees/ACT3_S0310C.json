@@ -1,0 +1,51 @@
+{
+ "id": "ACT3_S0310C",
+ "source": "ACT3_S0310C",
+ "status": "draft",
+ "start": "n0",
+ "nodes": {
+  "n0": {
+   "lines": [
+    {
+     "who": "them",
+     "text": "Tus manos nunca estarán limpias."
+    },
+    {
+     "who": "them",
+     "text": "Pero, al menos, tienes el aplomo para admitirlo."
+    },
+    {
+     "who": "them",
+     "text": "Tomaremos nota de tu honestidad."
+    },
+    {
+     "who": "them",
+     "text": "Este ejercicio nos ha permitido seguir evaluando tus cualidades intrínsecas."
+    }
+   ],
+   "choices": [
+    {
+     "label": "Continuar.",
+     "next": "",
+     "moral": 1,
+     "mutate": "care"
+    },
+    {
+     "label": "De acuerdo.",
+     "next": "",
+     "moral": 0,
+     "mutate": ""
+    },
+    {
+     "label": "Ya basta.",
+     "next": "",
+     "moral": -1,
+     "mutate": "numb"
+    }
+   ]
+  }
+ },
+ "lines_in": 4,
+ "lines_used": 7,
+ "part": null
+}
