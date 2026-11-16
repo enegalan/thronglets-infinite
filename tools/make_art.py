@@ -8,8 +8,8 @@ from PIL import Image, ImageChops, ImageDraw
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = lambda *parts: os.path.join(ROOT, *parts)
 # Copies of the reference art the game keeps. references/ can go away.
-SRC_TEX = OUT("resources", "src", "tex")
-SRC_SPRITE = OUT("resources", "src", "sprite")
+SRC_TEX = OUT("tools", "art_source", "src", "tex")
+SRC_SPRITE = OUT("tools", "art_source", "src", "sprite")
 
 TRANS = (0, 0, 0, 0)
 
@@ -893,7 +893,7 @@ def make_font():
         handle.write("\n".join(lines) + "\n")
 
 
-# World art is cropped from resources/src and packed into the sheets.
+# World art is cropped from tools/art_source/src and packed into the sheets.
 # The monolith and the purple goo stay the painted pillar and crystal.
 STRUCT = lambda name: OUT("resources", "src", "structures", name)
 ITEM = lambda name: OUT("resources", "src", "items", name)

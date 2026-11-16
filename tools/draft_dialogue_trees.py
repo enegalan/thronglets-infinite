@@ -183,7 +183,7 @@ def promote_console_ui() -> None:
     except ImportError:
         print("PIL missing; skip console UI promote")
         return
-    atlas_dir = os.path.join(ROOT, "resources", "src", "ref", "atlas", "Sprites-ConsoleUI")
+    atlas_dir = os.path.join(ROOT, "resources", "ui", "atlas", "Sprites-ConsoleUI")
     if not os.path.isdir(atlas_dir):
         # Slice just ConsoleUI if atlas crops missing.
         try:

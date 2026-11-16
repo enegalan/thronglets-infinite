@@ -76,7 +76,7 @@ def slice_atlases(rows):
         if ident is None:
             continue
         sprites.append((data.get("m_Name") or name[:-5], ident))
-    out_root = os.path.join(RES, "src", "ref", "atlas")
+    out_root = os.path.join(ROOT, "tools", "art_source", "src", "ref", "atlas")
     os.makedirs(out_root, exist_ok=True)
     for token in ATLASES:
         png = atlas_png(token)
@@ -91,7 +91,11 @@ def slice_atlases(rows):
             if ident and rect and rect.get("m_Width", 0) > 1:
                 rects[ident] = rect
         image = Image.open(png).convert("RGBA")
-        folder = os.path.join(out_root, token)
+        if token == "Sprites-ConsoleUI":
+            # Console UI atlas crops are loaded directly at runtime.
+            folder = os.path.join(ROOT, "resources", "ui", "atlas", token)
+        else:
+            folder = os.path.join(out_root, token)
         os.makedirs(folder, exist_ok=True)
         saved = 0
         for sprite_name, ident in sprites:
@@ -112,7 +116,7 @@ def slice_atlases(rows):
 def _promote_panel():
     from PIL import Image
 
-    folder = os.path.join(RES, "src", "ref", "atlas", "Sprites-WoodPanel")
+    folder = os.path.join(ROOT, "tools", "art_source", "src", "ref", "atlas", "Sprites-WoodPanel")
     if not os.path.isdir(folder):
         return
     best = ""
@@ -265,7 +269,7 @@ def main():
     extract_lines()
     rows.append(row(
         "Venice/Localizations/*_StringTable_es.asset",
-        "resources/dialogue/lines.json",
+        "data/dialogue/lines.json",
         "LineBook.line_for",
         "enganchado" if os.path.isfile(os.path.join(RES, "dialogue", "lines.json")) else "pendiente",
     ))
