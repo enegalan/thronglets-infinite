@@ -306,8 +306,6 @@ static func load_saved() -> void:
 			if typeof(spec) != TYPE_DICTIONARY:
 				continue
 			if str(field) == "scale":
-				if not fields.has("frame_scale"):
-					_apply_legacy_scale(key, spec.get("to", null))
 				continue
 			var value = _read_value(key, str(field), spec.get("to", null))
 			if value == null:
@@ -424,14 +422,6 @@ static func _read_scale(key: String, raw):
 		if not is_equal_approx(snapped, base):
 			map[str(index)] = snapped
 	return map
-
-
-static func _apply_legacy_scale(key: String, raw) -> void:
-	if typeof(raw) != TYPE_FLOAT and typeof(raw) != TYPE_INT:
-		return
-	var snapped := snappedf(clampf(float(raw), 0.01, 3.0), 0.01)
-	for index in int(entry(key).get("count", 1)):
-		set_frame_scale(key, index, snapped)
 
 
 static func _read_off(key: String, raw):

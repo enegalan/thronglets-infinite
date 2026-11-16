@@ -135,9 +135,8 @@ func setup(host) -> void:
 func open() -> void:
 	_clear_placed()
 	_paint_ground()
-	main.zoom_level = 2.0
-	main.camera.zoom = Vector2(2, 2)
-	main.camera.position = main._to_iso(Catalog.cell_world(Vector2i(8, 16)))
+	main.cam_rig.set_zoom(2.0)
+	main.camera.position = main.cam_rig.to_iso(Catalog.cell_world(Vector2i(8, 16)))
 	PropTune.load_saved()
 	ThrongTune.load_saved()
 	AnimTune.load_saved()
@@ -273,9 +272,9 @@ func input(event: InputEvent) -> void:
 		if event.pressed and lab_mode:
 			lab_drag_agent = -1
 			lab_drag_carousel = false
-		main.dragging = event.pressed
-		main.drag_from = event.position
-		main.cam_from = main.camera.position
+		main.cam_rig.dragging = event.pressed
+		main.cam_rig.drag_from = event.position
+		main.cam_rig.cam_from = main.camera.position
 		main.get_viewport().set_input_as_handled()
 		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
@@ -640,7 +639,7 @@ func _paint_inst(draws: Array, row: Dictionary, origin: Vector2, alpha: float, u
 	if bool(row.get("node", false)):
 		var node: Node2D = _take_node(uid)
 		var at: Vector2 = _anchor(row, origin, tune, 0)
-		node.position = main._to_iso(at)
+		node.position = main.cam_rig.to_iso(at)
 		node.scale = Vector2(float(tune.scale), float(tune.scale))
 		node.rotation_degrees = float(tune.rot)
 		node.z_index = int(round(float(tune.z)))
@@ -690,7 +689,7 @@ func _frame_of(row: Dictionary) -> int:
 func _take_node(uid: int) -> Node2D:
 	if nodes.has(uid) and is_instance_valid(nodes[uid]):
 		return nodes[uid]
-	var node: Node2D = (load("res://scripts/presentation/monolith_prop.gd") as GDScript).new()
+	var node: Node2D = (load("res://scripts/presentation/props/monolith_prop.gd") as GDScript).new()
 	main.world_layer.add_child(node)
 	nodes[uid] = node
 	return node
@@ -744,7 +743,7 @@ func _over_ui() -> bool:
 
 
 func _cursor_cell() -> Vector2i:
-	return _cell_of(main._grid_pointer())
+	return _cell_of(main.cam_rig.grid_pointer_world())
 
 
 func _cell_of(at: Vector2) -> Vector2i:
@@ -845,7 +844,7 @@ func _index_of(uid: int) -> int:
 
 
 func _view_cells() -> Array[Vector2i]:
-	var rect: Rect2 = main._world_view().grow(24.0)
+	var rect: Rect2 = main.cam_rig.world_view().grow(24.0)
 	var tile := float(Catalog.TILE)
 	var x0 := int(floor(rect.position.x / tile))
 	var y0 := int(floor(rect.position.y / tile))
@@ -861,7 +860,7 @@ func _view_cells() -> Array[Vector2i]:
 
 
 func _stroke(cell: Vector2i, poly: PackedVector2Array, edge: Color, fill: Color) -> void:
-	var pos: Vector2 = main._to_iso(Catalog.cell_world(cell))
+	var pos: Vector2 = main.cam_rig.to_iso(Catalog.cell_world(cell))
 	var pts := PackedVector2Array()
 	for p in poly:
 		pts.append(pos + p)
@@ -873,7 +872,7 @@ func _stroke(cell: Vector2i, poly: PackedVector2Array, edge: Color, fill: Color)
 
 
 func _cross(at: Vector2) -> void:
-	var p: Vector2 = main._to_iso(at)
+	var p: Vector2 = main.cam_rig.to_iso(at)
 	draw_line(p + Vector2(-4, 0), p + Vector2(4, 0), Color.WHITE, 1.0, false)
 	draw_line(p + Vector2(0, -3), p + Vector2(0, 3), Color.WHITE, 1.0, false)
 
@@ -985,7 +984,7 @@ func _build_ui() -> void:
 func _build_list() -> void:
 	_section("MULTI")
 	var multi := Button.new()
-	multi.icon = main._tex("res://resources/ui/face_base.png")
+	multi.icon = main.ui_assets.tex("res://resources/ui/face_base.png")
 	multi.tooltip_text = "MULTI"
 	multi.custom_minimum_size = Vector2(32, 32)
 	multi.expand_icon = true
@@ -1267,7 +1266,7 @@ func _stroke_reach(origin: Vector2, tune: Dictionary, color: Color) -> void:
 	for i in steps + 1:
 		var ang := TAU * float(i) / float(steps)
 		var world := center + Vector2(cos(ang) * reach.x, sin(ang) * reach.y)
-		pts.append(main._to_iso(world))
+		pts.append(main.cam_rig.to_iso(world))
 	for i in pts.size() - 1:
 		draw_line(pts[i], pts[i + 1], color, 1.2, false)
 
@@ -1769,7 +1768,7 @@ func _stage_effect() -> void:
 	var throng_uid := next_uid
 	next_uid += 1
 	placed.append({"uid": throng_uid, "id": THRONG_ID, "at": Catalog.cell_world(throng_cell)})
-	main.camera.position = main._to_iso(Catalog.cell_world(throng_cell))
+	main.camera.position = main.cam_rig.to_iso(Catalog.cell_world(throng_cell))
 	_sync_effect_live()
 
 
@@ -1901,9 +1900,9 @@ func _paint_effect_throng(draws: Array, origin: Vector2, alpha: float) -> void:
 		pos = origin + Catalog.TUB_SEAT_OFF + off
 		lift = _bath_lift(index)
 	if is_nan(sort_y):
-		sort_y = main._to_iso(origin).y + 8.0
+		sort_y = main.cam_rig.to_iso(origin).y + 8.0
 	else:
-		sort_y = maxf(sort_y, main._to_iso(origin).y + 8.0)
+		sort_y = maxf(sort_y, main.cam_rig.to_iso(origin).y + 8.0)
 	main._push_iso(draws, pos, frame, Color(1, 1, 1, alpha), lift, ThrongTune.frame_scale(clip, index), sort_y)
 	draws[draws.size() - 1]["rot"] = ThrongTune.frame_rot(clip, index)
 	draws[draws.size() - 1]["dirty"] = 1.0 - clampf(effect_clean / 100.0, 0.0, 1.0)
@@ -2012,7 +2011,7 @@ func _sync_effect_need_bars() -> void:
 	var origin := _effect_throng_origin()
 	if effect_id == "act:bath":
 		origin += Catalog.TUB_SEAT_OFF
-	var world: Vector2 = main._to_iso(origin) + Vector2(-20, -56)
+	var world: Vector2 = main.cam_rig.to_iso(origin) + Vector2(-20, -56)
 	var screen: Vector2 = main.get_viewport().get_canvas_transform() * world
 	effect_gauge.position = screen
 	effect_gauge.visible = true
@@ -2058,7 +2057,7 @@ func _sync_effect_ring() -> void:
 	var steps := 36
 	for i in steps + 1:
 		var ang := TAU * float(i) / float(steps)
-		pts.append(main._to_iso(center + Vector2(cos(ang) * radius, sin(ang) * radius)))
+		pts.append(main.cam_rig.to_iso(center + Vector2(cos(ang) * radius, sin(ang) * radius)))
 	effect_ring.points = pts
 	effect_ring.visible = true
 
@@ -3529,7 +3528,7 @@ func _lab_tick_draw() -> void:
 		_paint_building(draws, Catalog.BLD_ROUND, pos, 1.0, prop_frame)
 		if not draws.is_empty():
 			# keep building at a base depth so riders can sort in front/behind by seat
-			carousel_sy_base = float(main._to_iso(pos).y) + 6.0
+			carousel_sy_base = float(main.cam_rig.to_iso(pos).y) + 6.0
 			draws[draws.size() - 1]["sy"] = carousel_sy_base
 	# thronglets
 	for a in lab_agents:
@@ -3572,10 +3571,10 @@ func _lab_tick_draw() -> void:
 		var tint := Color(1, 1, 1, 1)
 		if int(a.get("id", -1)) == lab_selected_agent:
 			tint = Color(1.0, 1.0, 0.55, 1.0)
-		var sy := float(main._to_iso(pos).y) + 8.0
+		var sy := float(main.cam_rig.to_iso(pos).y) + 8.0
 		if st == "riding":
 			# depth-sort riders around the carousel: front seats draw over, back seats under
-			sy = float(main._to_iso(pos).y) + 10.0
+			sy = float(main.cam_rig.to_iso(pos).y) + 10.0
 		main._push_iso(draws, pos + off, frame, tint, lift, sc, sy)
 		if st == "riding":
 			# directional ride sprites already encode orientation; avoid extra flip/rotation jitter
@@ -3585,7 +3584,7 @@ func _lab_tick_draw() -> void:
 		else:
 			var move_dir: Vector2 = a.get("dir", Vector2(0, 1))
 			if move_dir.length() > 0.001:
-				var sdir: Vector2 = main._to_iso(pos + move_dir) - main._to_iso(pos)
+				var sdir: Vector2 = main.cam_rig.to_iso(pos + move_dir) - main.cam_rig.to_iso(pos)
 				if sdir.x < -0.01:
 					draws[draws.size() - 1]["flip"] = -1.0
 				elif sdir.x > 0.01:
@@ -3615,8 +3614,8 @@ func _lab_draw() -> void:
 	for i in steps:
 		var a0 := TAU * float(i) / float(steps)
 		var a1 := TAU * float(i + 1) / float(steps)
-		var p0: Vector2 = main._to_iso(center + Vector2(cos(a0) * r, sin(a0) * r))
-		var p1: Vector2 = main._to_iso(center + Vector2(cos(a1) * r, sin(a1) * r))
+		var p0: Vector2 = main.cam_rig.to_iso(center + Vector2(cos(a0) * r, sin(a0) * r))
+		var p1: Vector2 = main.cam_rig.to_iso(center + Vector2(cos(a1) * r, sin(a1) * r))
 		draw_line(p0, p1, Color(0.2, 0.9, 1.0, 0.5), 2.0)
 	var slots_n := int(lab_carousel.get("slots", 4))
 	for s in slots_n:
@@ -3625,20 +3624,20 @@ func _lab_draw() -> void:
 		if _lab_taken_slots().has(s):
 			c = Color(1.0, 0.4, 0.3, 0.9)
 		# concrete mounted seat point
-		draw_circle(main._to_iso(sp), 4.5, c)
+		draw_circle(main.cam_rig.to_iso(sp), 4.5, c)
 		# facing direction indicator
 		var dir := _lab_slot_dir(s)
-		draw_line(main._to_iso(sp), main._to_iso(sp + dir * 8.0), Color(0.95, 0.95, 1.0, 0.7), 2.0)
+		draw_line(main.cam_rig.to_iso(sp), main.cam_rig.to_iso(sp + dir * 8.0), Color(0.95, 0.95, 1.0, 0.7), 2.0)
 	# selected agent marker
 	if lab_selected_agent >= 0:
 		for a in lab_agents:
 			if int(a.get("id", -1)) == lab_selected_agent:
-				draw_circle(main._to_iso(a.get("pos", Vector2.ZERO)), 6.0, Color(1, 1, 0.4, 0.9))
+				draw_circle(main.cam_rig.to_iso(a.get("pos", Vector2.ZERO)), 6.0, Color(1, 1, 0.4, 0.9))
 				break
 
 
 func _lab_click(shift: bool) -> void:
-	var world: Vector2 = main._grid_pointer()
+	var world: Vector2 = main.cam_rig.grid_pointer_world()
 	if shift:
 		_lab_spawn(1)
 		if not lab_agents.is_empty():
@@ -3774,7 +3773,7 @@ func _lab_update_status() -> void:
 func _lab_drag_update() -> void:
 	if not lab_mode:
 		return
-	var world: Vector2 = main._grid_pointer()
+	var world: Vector2 = main.cam_rig.grid_pointer_world()
 	if lab_drag_agent >= 0:
 		for a in lab_agents:
 			if int(a.get("id", -1)) == lab_drag_agent:

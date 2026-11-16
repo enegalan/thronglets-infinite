@@ -22,7 +22,7 @@ func _run() -> void:
 		print("PROBE FAIL no save")
 		quit(1)
 		return
-	if not sim.load_game():
+	if not sim.save_system.load_game():
 		print("PROBE FAIL load")
 		quit(1)
 		return

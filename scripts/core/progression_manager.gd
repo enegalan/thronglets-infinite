@@ -1,18 +1,17 @@
 class_name ProgressionManager
 
-const PC := preload("res://scripts/data/progression_catalog.gd")
 
 static func condition_met(sim, cond: Dictionary) -> bool:
 	var t: int = int(cond.get("type", -1))
-	if t == PC.ConditionType.POPULATION:
+	if t == ProgressionCatalog.ConditionType.POPULATION:
 		return sim.living >= int(cond.get("min", 0))
-	if t == PC.ConditionType.GEMS_EARNED:
+	if t == ProgressionCatalog.ConditionType.GEMS_EARNED:
 		return sim.total_gems_earned >= int(cond.get("total", 0))
-	if t == PC.ConditionType.METRIC_THRESHOLD:
+	if t == ProgressionCatalog.ConditionType.METRIC_THRESHOLD:
 		var metric := str(cond.get("metric", ""))
 		var want := float(cond.get("min", 0.0))
 		return metric_value(sim, metric) >= want
-	if t == PC.ConditionType.UNLOCKED:
+	if t == ProgressionCatalog.ConditionType.UNLOCKED:
 		return bool(sim.unlocks.get(str(cond.get("itemId", "")), false))
 	return false
 
@@ -35,7 +34,7 @@ static func pollution_percent(sim) -> float:
 static func can_unlock(sim, id: String) -> bool:
 	if bool(sim.unlocks.get(id, false)):
 		return false
-	var e := PC.by_id(id)
+	var e := ProgressionCatalog.by_id(id)
 	if e.is_empty():
 		return false
 	var conds: Array = e.get("unlockConditions", [])
@@ -51,13 +50,13 @@ static func effective_tool_unlock(sim, id: String) -> bool:
 	return not replaced_by_unlocked(sim, id)
 
 static func replaced_by_unlocked(sim, id: String) -> bool:
-	for e in PC.CATALOG:
+	for e in ProgressionCatalog.CATALOG:
 		if str(e.get("replaces", "")) == id and bool(sim.unlocks.get(str(e.id), false)):
 			return true
 	return false
 
 static func replacement_for(sim, id: String) -> String:
-	for e in PC.CATALOG:
+	for e in ProgressionCatalog.CATALOG:
 		if str(e.get("replaces", "")) == id:
 			return str(e.id)
 	return ""
@@ -84,7 +83,7 @@ static func build_kind_for_id(id: String) -> int:
 	return -1
 
 static func scaled_cost(sim, id: String) -> int:
-	var e := PC.by_id(id)
+	var e := ProgressionCatalog.by_id(id)
 	if e.is_empty():
 		return 0
 	var base := int(e.get("baseGemCost", 0))
@@ -102,7 +101,7 @@ static func evaluate_unlocks(sim, announce: bool = true) -> Array[String]:
 	var changed := true
 	while changed:
 		changed = false
-		for e in PC.CATALOG:
+		for e in ProgressionCatalog.CATALOG:
 			var id := str(e.id)
 			if can_unlock(sim, id):
 				sim.unlocks[id] = true
@@ -131,12 +130,12 @@ static func _on_granted(sim, id: String) -> void:
 	sim.sfx_queue.append("unlock_" + id)
 	if Catalog.UNLOCK_TALK.has(id):
 		sim._queue_talk(str(Catalog.UNLOCK_TALK[id]), {})
-	elif PC.by_id(id).has("name"):
-		sim.notes.append("DESBLOQUEADO: " + str(PC.by_id(id).name))
+	elif ProgressionCatalog.by_id(id).has("name"):
+		sim.notes.append("DESBLOQUEADO: " + str(ProgressionCatalog.by_id(id).name))
 	# Auto-upgrade: when a replacement tool unlocks, ensure active selection moves if needed handled in UI.
 
 static func tool_area_radius(id: String) -> int:
-	var e := PC.by_id(id)
+	var e := ProgressionCatalog.by_id(id)
 	if e.is_empty():
 		return 0
 	return int(e.get("areaRadius", 0))

@@ -6,8 +6,15 @@ const DevBench := preload("res://scripts/dev/dev_bench.gd")
 const DialogueBook := preload("res://scripts/data/dialogue/dialogue_book.gd")
 const TiovivoLabTune := preload("res://scripts/data/tune/tiovivo_lab_tune.gd")
 const ProgressionManager := preload("res://scripts/core/progression_manager.gd")
+const CameraRig := preload("res://scripts/presentation/camera/camera_rig.gd")
+const UIAssets := preload("res://scripts/presentation/ui/ui_assets.gd")
+const ShotCaptureScript := preload("res://scripts/dev/shot_capture.gd")
 
 var camera: Camera2D
+var cam_rig: CameraRig
+var ui_assets: UIAssets
+var shot_capture: ShotCapture
+var media: Node
 var tilemap: TileMapLayer
 var pathmap: TileMapLayer
 var path_root: Node2D
@@ -36,9 +43,6 @@ var selected_bld := -1
 var tool_charge := 0.0
 var tool_charge_key := ""
 var tool_charge_n := 0
-const ZOOM_MIN := 0.55
-const ZOOM_MAX := 4.5
-const ZOOM_STEP := 1.12
 const EGG_ANIM := 87
 const ROUND_ANIM := 132
 const THRONG_SPRITE_SCALE := 0.4
@@ -66,10 +70,6 @@ const SING: Array[String] = [
 ]
 # Matches tools/make_art.py CELL. The quad is the whole cell; sprites sit on its bottom edge.
 const WORLD_CELL := 128.0
-var zoom_level := 2.0
-var dragging := false
-var drag_from := Vector2.ZERO
-var cam_from := Vector2.ZERO
 
 var painted := {}
 var seen_epoch := -1
@@ -114,23 +114,6 @@ var bubble_icons: Array = []
 var bubble_labels: Array = []
 var full_labels: Array = []
 var ring_lines: Array = []
-var shot_frames := 0
-var shot_done := false
-var shot_hud_saved := false
-var shot_bubbles_saved := false
-var shot_egg_done := false
-var shot_console_saved := false
-var shot_name_saved := false
-var shot_dos_saved := false
-var shot_settings_saved := false
-var shot_sign_saved := false
-var shot_path_saved := false
-var shot_fx_saved := false
-var shot_fx_i := 0
-var shot_round_ids: Array = []
-var shot_round_mark := -1
-var shot_round_hold := 0
-var shot_board: SubViewport
 var glitch_bars: Array = []
 var glitch_label: Label
 var ui_theme: Theme
@@ -151,16 +134,8 @@ var dos_full := ""
 var dos_shown := 0
 var dos_hold := 0.0
 var crt_overlay: ColorRect
-var captions_label: Label
-var captions_layer: CanvasLayer
-var captions_on := true
 var crt_on := true
 var show_fps := false
-var captions_lines: Array = []
-var captions_ends: Array = []
-var captions_index := -1
-var sfx_vol := 1.0
-var music_vol := 1.0
 var settings_lang := "Español"
 var fps_label: Label
 const SETTINGS_LANGS := ["Español"]
@@ -183,7 +158,6 @@ var video_library: Control
 var video_library_shell: Control
 var video_library_grid: GridContainer
 var video_from_library := false
-var shot_video_saved := false
 const VIDEO_SHELL_INK := Color(29.0 / 255.0, 22.0 / 255.0, 73.0 / 255.0)
 const VIDEO_SHELL_CYAN := Color(88.0 / 255.0, 200.0 / 255.0, 218.0 / 255.0)
 const VIDEO_LIBRARY := [
@@ -205,7 +179,6 @@ var title_front: TextureRect
 var title_side: TextureRect
 var title_egg: TextureRect
 var title_layout_size := Vector2.ZERO
-var shot_title_saved := false
 var hand_from := Vector2.ZERO
 const HAND_HOLD := 0.22
 var hand_pending := false
@@ -253,38 +226,40 @@ var slots_list: VBoxContainer
 var menu_dim: ColorRect
 var tool_buttons := {}
 var build_buttons := {}
-var sfx_bank := {}
-var sfx_pool: Array = []
-var music: AudioStreamPlayer
-var amb: AudioStreamPlayer
-var sting: AudioStreamPlayer
-var music_mode := ""
-var spot_mode := ""
-var video_played := {}
-var video_player: VideoStreamPlayer
-var video_from_title := false
 var boot := ""
 var logo_started := false
 var logo_wait := 0.0
-var logo_video_playing := false
-var bird_wait := 8.0
-var textures := {}
 var biome_plates: Array[Sprite2D] = []
 
 
 func _ready() -> void:
 	EffectTune.load_saved()
+	ui_assets = UIAssets.new()
 	_build_sky()
 	_build_world()
-	_build_audio()
+	var MediaControllerScript := preload("res://scripts/presentation/media/media_controller.gd")
+	media = MediaControllerScript.new()
+	add_child(media)
+	media.host = self
+	media.build_audio()
+	media.build_video()
+	shot_capture = ShotCaptureScript.new()
+	shot_capture.setup(self)
 	_build_ui()
-	camera.position = _to_iso(Vector2(256, 256))
-	camera.zoom = Vector2(zoom_level, zoom_level)
+	cam_rig = CameraRig.new()
+	cam_rig.setup(
+		camera,
+		tilemap,
+		func(): return get_viewport_rect(),
+		func(): return get_viewport().get_mouse_position(),
+		func(): return get_global_mouse_position(),
+	)
+	cam_rig.focus_world(Vector2(256, 256))
 	if ThrongletSimServer.testing:
 		in_title = false
 		if ThrongletSimServer.shot_mode:
-			zoom_level = 3.0
-			camera.zoom = Vector2(zoom_level, zoom_level)
+			cam_rig.set_zoom(3.0)
+			cam_rig.focus_world(Vector2(256, 256))
 			if ui != null:
 				ui.visible = false
 	else:
@@ -303,9 +278,9 @@ func _input(event: InputEvent) -> void:
 		_begin_dos()
 		get_viewport().set_input_as_handled()
 		return
-	if video_player != null and video_player.visible and event is InputEventMouseButton and event.pressed:
-		video_player.stop()
-		_on_video_finished()
+	if media != null and media.video_player != null and media.video_player.visible and event is InputEventMouseButton and event.pressed:
+		media.video_player.stop()
+		media._on_video_finished()
 		get_viewport().set_input_as_handled()
 		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed and dev_on:
@@ -327,34 +302,21 @@ func _input(event: InputEvent) -> void:
 		return
 	if event is InputEventMouseButton and event.pressed:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
-			_zoom_by(1.0)
+			cam_rig.zoom_by(1.0, not ThrongletSimServer.modal.is_empty())
 			get_viewport().set_input_as_handled()
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-			_zoom_by(-1.0)
+			cam_rig.zoom_by(-1.0, not ThrongletSimServer.modal.is_empty())
 			get_viewport().set_input_as_handled()
 	elif event is InputEventMagnifyGesture:
-		_zoom_factor(float(event.factor))
+		cam_rig.zoom_factor(float(event.factor), not ThrongletSimServer.modal.is_empty())
 		get_viewport().set_input_as_handled()
 	elif event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_EQUAL or event.keycode == KEY_KP_ADD:
-			_zoom_by(1.0)
+			cam_rig.zoom_by(1.0, not ThrongletSimServer.modal.is_empty())
 			get_viewport().set_input_as_handled()
 		elif event.keycode == KEY_MINUS or event.keycode == KEY_KP_SUBTRACT:
-			_zoom_by(-1.0)
+			cam_rig.zoom_by(-1.0, not ThrongletSimServer.modal.is_empty())
 			get_viewport().set_input_as_handled()
-
-
-func _zoom_by(direction: float) -> void:
-	if direction > 0.0:
-		_zoom_factor(ZOOM_STEP)
-	elif direction < 0.0:
-		_zoom_factor(1.0 / ZOOM_STEP)
-
-
-func _zoom_factor(factor: float) -> void:
-	if factor <= 0.0 or not ThrongletSimServer.modal.is_empty():
-		return
-	zoom_level = clampf(zoom_level * factor, ZOOM_MIN, ZOOM_MAX)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -366,11 +328,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	var sim: ThrongletSim = ThrongletSimServer
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT:
-		dragging = event.pressed
-		drag_from = event.position
-		cam_from = camera.position
 		if event.pressed:
+			cam_rig.begin_drag(event.position)
 			_cancel_kit_drag()
+		else:
+			cam_rig.end_drag()
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_F5:
@@ -378,13 +340,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif event.keycode == KEY_F9:
 			_toggle_slots()
 		elif event.keycode == KEY_F8:
-			sim.debug_spawn(10000, _from_iso(camera.position))
+			sim.debug_spawn(10000, cam_rig.from_iso(camera.position))
 		elif event.keycode == KEY_ESCAPE:
 			if slots_panel.visible:
-				_play("ui")
+				media.play("ui")
 				_close_slots()
 			elif not sim.frozen:
-				_play("ui")
+				media.play("ui")
 				_open_menu()
 		else:
 			_hotkey(event.keycode)
@@ -405,18 +367,20 @@ func _unhandled_input(event: InputEvent) -> void:
 func _process(delta: float) -> void:
 	_tick_logo(delta)
 	_tick_dos(delta)
-	_tick_captions()
+	media.tick_captions()
 	_sync_tutorial()
 	_sync_active_tool()
 	if dev_on:
-		_move_camera(delta)
+		var _focus := get_viewport().gui_get_focus_owner()
+		var _typing := _focus is LineEdit or _focus is TextEdit
+		cam_rig.move(delta, _typing, dev_on)
 		if dev_bench != null:
 			dev_bench.tick()
-		if ThrongletSimServer.shot_mode and not shot_done:
-			_tick_shot()
+		if ThrongletSimServer.shot_mode and not shot_capture.done:
+			shot_capture.tick_shot()
 		return
-	_sync_music()
-	_tick_birds(delta)
+	media.sync_music(in_title, _camera_biome())
+	media.tick_birds(delta)
 	if in_title:
 		_tick_title(delta)
 		_sync_place_mark()
@@ -428,26 +392,28 @@ func _process(delta: float) -> void:
 			selected = -1
 			_sync_need_bars()
 		_hide_marks()
-		if ThrongletSimServer.shot_mode and not shot_done:
-			_tick_shot()
+		if ThrongletSimServer.shot_mode and not shot_capture.done:
+			shot_capture.tick_shot()
 		return
 	var sim: ThrongletSim = ThrongletSimServer
 	_sync_game_over()
 	if sim.game_over:
 		return
-	_move_camera(delta)
+	var _focus := get_viewport().gui_get_focus_owner()
+	var _typing := _focus is LineEdit or _focus is TextEdit
+	cam_rig.move(delta, _typing, dev_on)
 	# Follow selected thronglet continuously until clicked elsewhere
 	if selected >= 0:
 		if selected < sim.slot_count and sim.state[selected] != Catalog.ST_VACANT:
 			if sim.held_kind != "thronglet" and not hand_pending:
-				camera.position = camera.position.lerp(_to_iso(Vector2(sim.pos_x[selected], sim.pos_y[selected])), 0.12)
+				camera.position = camera.position.lerp(cam_rig.to_iso(Vector2(sim.pos_x[selected], sim.pos_y[selected])), 0.12)
 		else:
 			selected = -1
-	var view := _world_view()
+	var view := cam_rig.world_view()
 	sim.view_rect = view
 	sim.explore_rect(view.grow(8.0))
 	if tool == Catalog.TOOL_SPONGE and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and not sim.frozen and get_viewport().gui_get_hovered_control() == null:
-		var at := _pointer()
+		var at := cam_rig.pointer_world()
 		var stroke := 0.0
 		if sponge_tracking:
 			stroke = at.distance_to(sponge_last)
@@ -473,9 +439,9 @@ func _process(delta: float) -> void:
 	_sync_gaze()
 	_sync_focus(delta)
 	for name in sim.take_sfx():
-		_play(str(name))
-	if sim.shot_mode and not shot_done:
-		_tick_shot()
+		media.play(str(name))
+	if sim.shot_mode and not shot_capture.done:
+		shot_capture.tick_shot()
 
 
 func _world_click() -> void:
@@ -484,16 +450,16 @@ func _world_click() -> void:
 	selected = sim.find_thronglet(aim.x, aim.y, 14.0, false)
 	selected_bld = -1
 	if selected >= 0 and selected < sim.slot_count and sim.state[selected] != Catalog.ST_VACANT:
-		camera.position = _to_iso(Vector2(sim.pos_x[selected], sim.pos_y[selected]))
+		camera.position = cam_rig.to_iso(Vector2(sim.pos_x[selected], sim.pos_y[selected]))
 	var used := tool
 	if used == Catalog.TOOL_SPONGE:
 		return
 	if _is_charge_tool(used):
 		return
 	# Placeables use the cursor cell, not a thronglet under the pointer.
-	var at := _pointer()
+	var at := cam_rig.pointer_world()
 	if used == Catalog.TOOL_TNT:
-		at = _grid_pointer()
+		at = cam_rig.grid_pointer_world()
 	elif used == Catalog.TOOL_EYE:
 		at = aim
 	sim.use_tool(used, at.x, at.y)
@@ -526,7 +492,7 @@ func _clear_tool_charge() -> void:
 
 func _tick_tool_charge(delta: float) -> void:
 	var sim: ThrongletSim = ThrongletSimServer
-	var at := _pointer()
+	var at := cam_rig.pointer_world()
 	if sim.has_scoop():
 		_clear_tool_charge()
 		if (not kit_drag.is_empty() or Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)) and _drop_on_island():
@@ -635,7 +601,7 @@ func _hand_release() -> void:
 			if short_click and pending_click_id < sim.slot_count and sim.state[pending_click_id] != Catalog.ST_VACANT:
 				selected = pending_click_id
 				selected_bld = -1
-				camera.position = _to_iso(Vector2(sim.pos_x[selected], sim.pos_y[selected]))
+				camera.position = cam_rig.to_iso(Vector2(sim.pos_x[selected], sim.pos_y[selected]))
 			else:
 				selected = -1
 				selected_bld = -1
@@ -644,13 +610,13 @@ func _hand_release() -> void:
 	if not _drop_on_island():
 		sim.cancel_hold()
 		return
-	var at := _pointer()
+	var at := cam_rig.pointer_world()
 	if sim.held_kind == "building" or sim.held_kind == "rock":
-		at = _grid_pointer()
+		at = cam_rig.grid_pointer_world()
 	elif sim.hand_id != -1:
 		var held: Dictionary = sim.hand_item()
 		if not held.is_empty() and Catalog.item_snaps_grid(int(held.kind)):
-			at = _grid_pointer()
+			at = cam_rig.grid_pointer_world()
 	var held_thronglet: bool = sim.held_kind == "thronglet"
 	var held_id: int = sim.held_ref
 	var hit: Dictionary = sim.release_at(at.x, at.y, short_click)
@@ -670,75 +636,11 @@ func _hand_release() -> void:
 		selected_bld = -1
 
 
-func _move_camera(delta: float) -> void:
-	var keys := Vector2.ZERO
-	var focus := get_viewport().gui_get_focus_owner()
-	var typing := focus is LineEdit or focus is TextEdit
-	if not typing:
-		if Input.is_key_pressed(KEY_A) or (not dev_on and Input.is_key_pressed(KEY_LEFT)):
-			keys.x -= 1.0
-		if Input.is_key_pressed(KEY_D) or (not dev_on and Input.is_key_pressed(KEY_RIGHT)):
-			keys.x += 1.0
-		if Input.is_key_pressed(KEY_W) or (not dev_on and Input.is_key_pressed(KEY_UP)):
-			keys.y -= 1.0
-		if Input.is_key_pressed(KEY_S) or (not dev_on and Input.is_key_pressed(KEY_DOWN)):
-			keys.y += 1.0
-	camera.position += keys * 220.0 * delta / zoom_level
-	if dragging:
-		var drag := get_viewport().get_mouse_position() - drag_from
-		camera.position = cam_from - drag / zoom_level
-	camera.zoom = Vector2(zoom_level, zoom_level)
-	var step := 1.0 / zoom_level
-	camera.position = camera.position.snapped(Vector2(step, step))
-
-
-func _iso_view() -> Rect2:
-	var size := get_viewport_rect().size / zoom_level
-	return Rect2(camera.position - size * 0.5, size)
-
-
-func _world_view() -> Rect2:
-	var view := _iso_view()
-	var corners: Array[Vector2] = [
-		_from_iso(view.position),
-		_from_iso(view.position + Vector2(view.size.x, 0)),
-		_from_iso(view.position + Vector2(0, view.size.y)),
-		_from_iso(view.end),
-	]
-	var lo := corners[0]
-	var hi := corners[0]
-	for corner in corners:
-		lo = lo.min(corner)
-		hi = hi.max(corner)
-	return Rect2(lo, hi - lo)
-
-
-func _to_iso(world_pos: Vector2) -> Vector2:
-	# Match TileMapLayer.map_to_local for DIAMOND_DOWN (half-tile origin offset).
-	var tile := Vector2(tilemap.tile_set.tile_size)
-	var cell := world_pos / float(Catalog.TILE) - Vector2(0.5, 0.5)
-	return Vector2(
-		tile.x * 0.5 * (cell.x - cell.y + 1.0),
-		tile.y * 0.5 * (cell.x + cell.y + 1.0),
-	)
-
-
-func _from_iso(iso: Vector2) -> Vector2:
-	var tile := Vector2(tilemap.tile_set.tile_size)
-	var a := iso.x / (tile.x * 0.5)
-	var b := iso.y / (tile.y * 0.5)
-	var cell := Vector2((a + b) * 0.5 - 1.0, (b - a) * 0.5)
-	return (cell + Vector2(0.5, 0.5)) * float(Catalog.TILE)
-
-
-func _pointer() -> Vector2:
-	return _from_iso(get_global_mouse_position())
-
 
 func _aim_thronglet(living_only: bool) -> Vector2:
 	var id := _throng_under_cursor(living_only)
 	if id < 0:
-		return _pointer()
+		return cam_rig.pointer_world()
 	var sim: ThrongletSim = ThrongletSimServer
 	return Vector2(sim.pos_x[id], sim.pos_y[id])
 
@@ -746,7 +648,7 @@ func _aim_thronglet(living_only: bool) -> Vector2:
 func _throng_under_cursor(living_only: bool) -> int:
 	var sim: ThrongletSim = ThrongletSimServer
 	var mouse := get_global_mouse_position()
-	var probe := _from_iso(mouse + Vector2(0.0, 10.0))
+	var probe := cam_rig.from_iso(mouse + Vector2(0.0, 10.0))
 	var best := -1
 	var best_feet := -1.0e9
 	var best_live := false
@@ -758,7 +660,7 @@ func _throng_under_cursor(living_only: bool) -> int:
 		var live := st == Catalog.ST_LIVING
 		if living_only and not live:
 			continue
-		var feet := _to_iso(Vector2(sim.pos_x[i], sim.pos_y[i]))
+		var feet := cam_rig.to_iso(Vector2(sim.pos_x[i], sim.pos_y[i]))
 		var delta := mouse - feet
 		if absf(delta.x) > 12.0 or delta.y > 4.0 or delta.y < -24.0:
 			continue
@@ -779,7 +681,7 @@ func _egg_under_cursor() -> Dictionary:
 	for it in ThrongletSimServer.items:
 		if it.dead or it.held or int(it.kind) != Catalog.ITEM_EGG:
 			continue
-		var feet := _to_iso(Vector2(float(it.x), float(it.y)))
+		var feet := cam_rig.to_iso(Vector2(float(it.x), float(it.y)))
 		feet.y -= float(it.get("air", 0.0))
 		var delta := mouse - feet
 		if absf(delta.x) > 8.0 or delta.y > 3.0 or delta.y < -18.0:
@@ -790,11 +692,6 @@ func _egg_under_cursor() -> Dictionary:
 		best_feet = feet.y
 	return best
 
-
-func _grid_pointer() -> Vector2:
-	# Use Godot's diamond hit-test so the cell under the cursor matches the painted tile.
-	var cell: Vector2i = tilemap.local_to_map(get_global_mouse_position())
-	return Catalog.cell_world(cell)
 
 
 func _is_care_tool(tool_id: int) -> bool:
@@ -829,7 +726,7 @@ func _sync_world() -> void:
 				_drop_path_at(cell, true)
 	for ck in sim.take_dirty():
 		_paint_chunk(str(ck), not sim.chunk_shown(str(ck)))
-	var rect := _world_view().grow(128.0)
+	var rect := cam_rig.world_view().grow(128.0)
 	var size := float(Catalog.TILE * Catalog.CHUNK)
 	var x0 := int(floor(rect.position.x / size))
 	var y0 := int(floor(rect.position.y / size))
@@ -896,7 +793,7 @@ func _paint_path_cell(paths: TileMapLayer, cell: Vector2i, tile: int) -> void:
 	var sprite := _path_sprite_at(cell, main)
 	var mask := _path_mask(cell)
 	sprite.texture = _path_iso_tex(PATH_PIECE[mask])
-	sprite.position = _to_iso(Catalog.cell_world(cell))
+	sprite.position = cam_rig.to_iso(Catalog.cell_world(cell))
 	# Slight overlap so neighboring diamonds cover the shared corner.
 	sprite.scale = Vector2(1.12, 1.12)
 
@@ -980,7 +877,7 @@ func _path_iso_tex(piece: String) -> Texture2D:
 
 func _path_raw(index: int) -> Image:
 	if path_sheet == null:
-		var tex := _tex("res://resources/tiles/path_overlay.png")
+		var tex := ui_assets.tex("res://resources/tiles/path_overlay.png")
 		path_sheet = tex.get_image()
 	var raw := Image.create(16, 16, false, Image.FORMAT_RGBA8)
 	var ox := index * 32
@@ -1062,7 +959,7 @@ func _sync_biome_plates() -> void:
 			var paths := _biome_plate_paths(biome)
 			for i in paths.size():
 				var sprite := Sprite2D.new()
-				sprite.texture = _tex(paths[i])
+				sprite.texture = ui_assets.tex(paths[i])
 				sprite.centered = true
 				sprite.z_index = 1
 				sprite.visible = false
@@ -1088,14 +985,14 @@ func _sync_biome_plates() -> void:
 		var cx := int(parts[0])
 		var cy := int(parts[1])
 		var center := Vector2(float(cx * Catalog.CHUNK + Catalog.CHUNK / 2) * Catalog.TILE, float(cy * Catalog.CHUNK + Catalog.CHUNK / 2) * Catalog.TILE)
-		sprite.position = _to_iso(center)
+		sprite.position = cam_rig.to_iso(center)
 		sprite.scale = Vector2.ONE * (280.0 / maxf(float(sprite.texture.get_width()), 1.0))
 		sprite.modulate = Color(1, 1, 1, 0.72 if biome == "anomaly" else 0.42)
 
 
 func _sync_actors() -> void:
 	var sim: ThrongletSim = ThrongletSimServer
-	var view := _world_view().grow(64.0)
+	var view := cam_rig.world_view().grow(64.0)
 	var draws: Array = []
 	var egg_front: Array = []
 	var time_pre := Time.get_ticks_msec() / 1000.0
@@ -1177,12 +1074,12 @@ func _sync_actors() -> void:
 			var b_sort_y := NAN
 			if b_kind == Catalog.BLD_MINE or b_kind == Catalog.BLD_MINE2:
 				# Mines are walkable ground pads: render below items/constructions on top.
-				b_sort_y = _to_iso(p3).y - 10000.0
+				b_sort_y = cam_rig.to_iso(p3).y - 10000.0
 			_push_iso(draws, draw_at, b_frame, b_tint, b_lift, b_scale, b_sort_y)
 			if b_kind == Catalog.BLD_FACTORY or b_kind == Catalog.BLD_FACTORY2:
 				_push_factory_pile(draws, b, draw_at)
 			if b_kind == Catalog.BLD_APPLE:
-				var fruit_sort := _to_iso(Vector2(float(b.x), float(b.y))).y + 10.0
+				var fruit_sort := cam_rig.to_iso(Vector2(float(b.x), float(b.y))).y + 10.0
 				for fruit in b.get("fruits", []):
 					var slot := clampi(int(fruit.slot), 0, 2)
 					var grown := clampf(float(fruit.s), 0.15, 1.0)
@@ -1218,8 +1115,8 @@ func _sync_actors() -> void:
 				var gx := float((n % 3) - 1) * 10.0
 				var gy := float(n / 3) * -8.0
 				_push_iso(draws, drop + Vector2(gx, gy), _prop_frame(Catalog.ICON_WOOD), Color(1.0, 1.0, 1.0, 0.22 * pulse), 10.0)
-	var grid_at := _grid_pointer()
-	var free_at := _pointer()
+	var grid_at := cam_rig.grid_pointer_world()
+	var free_at := cam_rig.pointer_world()
 	var hand: Dictionary = sim.hand_item()
 	if not hand.is_empty():
 		if _drop_on_island():
@@ -1258,7 +1155,7 @@ func _sync_actors() -> void:
 			if _drop_on_island():
 				var carried_sort_y := NAN
 				if carried_kind == Catalog.BLD_MINE or carried_kind == Catalog.BLD_MINE2:
-					carried_sort_y = _to_iso(grid_at).y - 10000.0
+					carried_sort_y = cam_rig.to_iso(grid_at).y - 10000.0
 				_push_iso(draws, _building_draw_at(carried_kind, grid_at), _prop_frame(Catalog.icon_for_building(carried_kind)), Color(1, 1, 1, 0.9), 10.0, carried_scale, carried_sort_y)
 			else:
 				draws.append({
@@ -1277,7 +1174,7 @@ func _sync_actors() -> void:
 				var ghost_scale := Catalog.building_sprite_scale(ghost_kind)
 				var ghost_sort_y := NAN
 				if ghost_kind == Catalog.BLD_MINE or ghost_kind == Catalog.BLD_MINE2:
-					ghost_sort_y = _to_iso(grid_at).y - 10000.0
+					ghost_sort_y = cam_rig.to_iso(grid_at).y - 10000.0
 				_push_iso(drag_front, _building_draw_at(ghost_kind, grid_at), _prop_frame(drag_icon), ghost, 10.0, ghost_scale, ghost_sort_y)
 			else:
 				var drag_scale := 1.0
@@ -1344,7 +1241,7 @@ func _sync_actors() -> void:
 							pos = mid
 					prop_anchor = Vector2.INF
 					# per-rider depth around the carousel (front seats over, back under)
-					sort_y = _to_iso(pos).y + 10.0
+					sort_y = cam_rig.to_iso(pos).y + 10.0
 			elif doing == ThrongletSimServer.ACT_BATH:
 				var tub: Dictionary = sim.seat_of(i)
 				if tub.is_empty():
@@ -1535,7 +1432,7 @@ func _clip_pool(pool: Array, index: int, time: float, hold: float, fallback: Str
 func _camera_biome() -> String:
 	if camera == null:
 		return ""
-	var world_pos := _from_iso(camera.position) if is_inside_tree() else camera.position
+	var world_pos := cam_rig.from_iso(camera.position) if is_inside_tree() else camera.position
 	return ThrongletSimServer.biome_at(world_pos.x, world_pos.y)
 
 
@@ -1691,7 +1588,7 @@ func _sync_place_mark() -> void:
 		_hide_place_marks()
 		return
 	var sim: ThrongletSim = ThrongletSimServer
-	var at := _grid_pointer()
+	var at := cam_rig.grid_pointer_world()
 	var building_id: int = sim.held_ref if sim.held_kind == "building" else -1
 	var ignore_item: int = sim.hand_id
 	var info := _place_footprint_kind()
@@ -1717,7 +1614,7 @@ func _sync_place_mark() -> void:
 			place_fills[i].visible = false
 			place_edges[i].visible = false
 			continue
-		var pos := _to_iso(spots[i])
+		var pos := cam_rig.to_iso(spots[i])
 		place_fills[i].polygon = poly
 		place_fills[i].color = fill_c
 		place_fills[i].position = pos
@@ -1732,7 +1629,7 @@ func _sync_charge_mark() -> void:
 	if charge_ring == null or charge_area == null:
 		return
 	var sim: ThrongletSim = ThrongletSimServer
-	var at := _pointer()
+	var at := cam_rig.pointer_world()
 	if sim.has_scoop():
 		charge_area.points = _iso_circle_points(at, Catalog.GRAB_RADIUS * 0.35, 20)
 		charge_area.default_color = Color(0.95, 0.9, 0.45, 0.7)
@@ -1756,7 +1653,7 @@ func _sync_charge_mark() -> void:
 		area_r = Catalog.GRAB_RADIUS
 		tx = at.x
 		ty = at.y
-	var center := _to_iso(Vector2(tx, ty))
+	var center := cam_rig.to_iso(Vector2(tx, ty))
 	if area_r > 0.0:
 		charge_area.points = _iso_circle_points(Vector2(tx, ty), area_r, 28)
 		if used == Catalog.TOOL_SAW:
@@ -1785,7 +1682,7 @@ func _iso_ellipse_points(world_center: Vector2, rx: float, ry: float, steps: int
 	for i in steps + 1:
 		var ang := TAU * float(i) / float(steps)
 		var world := world_center + Vector2(cos(ang) * rx, sin(ang) * ry)
-		pts.append(_to_iso(world))
+		pts.append(cam_rig.to_iso(world))
 	return pts
 
 
@@ -1822,7 +1719,7 @@ func _push_factory_pile(draws: Array, b: Dictionary, at: Vector2) -> void:
 		return
 	# Right of the factory wall. Layer 0 is the first deposit and stays on the ground.
 	var ore_at := at + Vector2(24.0, -10.0)
-	var ore_sy := _to_iso(ore_at).y
+	var ore_sy := cam_rig.to_iso(ore_at).y
 	var frame := _prop_frame(Catalog.ICON_ORE_ULTRA)
 	# 120 layers at 6px clear the view at the widest zoom. The rest stay in the pile.
 	var drawn := mini(stacked, 120)
@@ -1831,7 +1728,7 @@ func _push_factory_pile(draws: Array, b: Dictionary, at: Vector2) -> void:
 
 
 func _push_iso(draws: Array, world_pos: Vector2, frame: int, tint: Color, lift: float = 0.0, sprite_scale: float = 1.0, sort_y: float = NAN) -> void:
-	var at := _to_iso(world_pos)
+	var at := cam_rig.to_iso(world_pos)
 	var draw_p := Vector2(at.x, at.y - lift)
 	var sy := at.y if is_nan(sort_y) else sort_y
 	draws.append({"p": draw_p, "sy": sy, "icon": frame, "tint": tint, "scale": sprite_scale})
@@ -2010,7 +1907,7 @@ func _item_draw_at(kind: int, origin: Vector2) -> Vector2:
 
 
 func _prop_front_sort_y(world_center: Vector2) -> float:
-	return _to_iso(world_center).y + 1.0
+	return cam_rig.to_iso(world_center).y + 1.0
 
 
 func _use_prop_anchor(pos: Vector2) -> Vector2:
@@ -2111,10 +2008,10 @@ func _throng_sprite_off(frame: int) -> Vector2:
 func _sync_monolith(id: int, world_pos: Vector2) -> void:
 	var node: Node2D = _monoliths.get(id)
 	if node == null:
-		node = (load("res://scripts/presentation/monolith_prop.gd") as GDScript).new()
+		node = (load("res://scripts/presentation/props/monolith_prop.gd") as GDScript).new()
 		world_layer.add_child(node)
 		_monoliths[id] = node
-	node.position = _to_iso(world_pos)
+	node.position = cam_rig.to_iso(world_pos)
 	node.visible = true
 	node.set_meta("seen", true)
 
@@ -2202,7 +2099,7 @@ func _sync_hud(delta: float) -> void:
 		face_key = sim.mood_face
 	if face_key != pop_face_key:
 		pop_face_key = face_key
-		pop_face.texture = _tex(POP_FACES[face_key])
+		pop_face.texture = ui_assets.tex(POP_FACES[face_key])
 	gem_panel.visible = sim.part_two
 	gem_label.text = str(sim.gems)
 	goal_label.text = sim.goal_line()
@@ -2249,7 +2146,7 @@ func _sync_hud(delta: float) -> void:
 		save_icon.visible = save_flash_t > 0.0 and menu_button != null and menu_button.visible
 	for note in sim.take_notes():
 		toast_queue.append(str(note))
-		_play("console")
+		media.play("console")
 	if toast_t <= 0.0 and not toast_queue.is_empty():
 		toast_msg = str(toast_queue.pop_front())
 		toast_t = 2.8
@@ -2360,7 +2257,7 @@ func _add_swirls(panel: Control, pattern: int) -> void:
 func _swirl_rect(panel: Control, path: String, node_name: String) -> TextureRect:
 	var rect := TextureRect.new()
 	rect.name = node_name
-	rect.texture = _tex(path)
+	rect.texture = ui_assets.tex(path)
 	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -2385,7 +2282,7 @@ func _add_side_glyphs(panel: Control, edge: float) -> void:
 func _side_glyph(panel: Control, path: String, left: bool, edge: float, node_name: String) -> void:
 	var strip := TextureRect.new()
 	strip.name = node_name
-	strip.texture = _tex(path)
+	strip.texture = ui_assets.tex(path)
 	strip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	strip.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	strip.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -2572,7 +2469,7 @@ func _on_console_input(event: InputEvent) -> void:
 	var naming := str(sim.modal.get("event", "")) == "player_name" and str(sim.modal.get("step", "")) == "echo"
 	if not naming and not sim.modal.has("lines"):
 		return
-	_play("console_select")
+	media.play("console_select")
 	sim.choose(0)
 	get_viewport().set_input_as_handled()
 
@@ -2581,7 +2478,7 @@ func _sync_gaze() -> void:
 	var sim: ThrongletSim = ThrongletSimServer
 	if sim.game_over or sim.modal.is_empty():
 		if shown_event != "":
-			_play("dialogue_out")
+			media.play("dialogue_out")
 		gaze_panel.visible = false
 		shown_event = ""
 		shown_seq = 0
@@ -2592,10 +2489,10 @@ func _sync_gaze() -> void:
 	if event != shown_event or seq != shown_seq:
 		if event != shown_event:
 			if shown_event != "":
-				_play("dialogue_out")
-			_play("dialogue_in")
+				media.play("dialogue_out")
+			media.play("dialogue_in")
 		else:
-			_play("console")
+			media.play("console")
 		shown_event = event
 		shown_seq = seq
 		for child in gaze_box.get_children():
@@ -2620,7 +2517,7 @@ func _sync_gaze() -> void:
 					face_key = "epilogue_caretaker"
 				elif bool(sim.mutations.get("numb", false)) or bool(sim.mutations.get("hard", false)):
 					face_key = "epilogue_angry"
-				gaze_face.texture = _tex(POP_FACES[face_key])
+				gaze_face.texture = ui_assets.tex(POP_FACES[face_key])
 		var choices: Array = [] if line_talk else DialogueBook.choices_of(session)
 		var naming := event == "player_name"
 		var name_step := str(sim.modal.get("step", ""))
@@ -2676,7 +2573,7 @@ func _sync_gaze() -> void:
 			button.add_theme_stylebox_override("hover_pressed", flat)
 			var index := i
 			button.pressed.connect(func():
-				_play("console_select")
+				media.play("console_select")
 				if name_edit != null and name_edit.visible:
 					ThrongletSimServer.modal["draft"] = name_edit.text
 				ThrongletSimServer.choose(index)
@@ -2828,13 +2725,13 @@ func _starter_egg() -> Dictionary:
 
 
 func _egg_iso(it: Dictionary) -> Vector2:
-	var at := _to_iso(Vector2(float(it.x), float(it.y)))
+	var at := cam_rig.to_iso(Vector2(float(it.x), float(it.y)))
 	at.y -= float(it.get("air", 0.0)) + 8.0
 	return at
 
 
 func _talk_iso() -> Vector2:
-	var at := _to_iso(_talk_world())
+	var at := cam_rig.to_iso(_talk_world())
 	at.y -= 14.0
 	return at
 
@@ -2865,7 +2762,7 @@ func _paint_focus(anchor: Vector2) -> void:
 
 
 func _focus_sees(world_pos: Vector2, lift: float) -> bool:
-	var at := _to_iso(world_pos)
+	var at := cam_rig.to_iso(world_pos)
 	at.y -= lift
 	var half := Vector2(focus_port.size) / focus_cam_node.zoom * 0.5 + Vector2(40.0, 48.0)
 	var delta := at - focus_cam_node.position
@@ -2927,7 +2824,7 @@ func _focus_draws() -> Array:
 				focus_frame = FLOWER_ANIM + int(time * 6.0) % FLOWER_ANIM_N
 			var focus_sort_y := NAN
 			if b_kind == Catalog.BLD_MINE or b_kind == Catalog.BLD_MINE2:
-				focus_sort_y = _to_iso(p3).y - 10000.0
+				focus_sort_y = cam_rig.to_iso(p3).y - 10000.0
 			_push_iso(draws, draw_at, focus_frame, Color.WHITE, 0.0, Catalog.building_sprite_scale(b_kind), focus_sort_y)
 	for i in sim.slot_count:
 		if sim.state[i] == Catalog.ST_VACANT:
@@ -3020,7 +2917,7 @@ func _tray_face(icon: int, pad: float = 8.0) -> TextureRect:
 	var glyph := TextureRect.new()
 	var hq := Catalog.menu_icon_path(icon)
 	if hq != "":
-		glyph.texture = _tex(hq)
+		glyph.texture = ui_assets.tex(hq)
 	else:
 		glyph.texture = _atlas_icon(icon)
 	glyph.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -3048,20 +2945,21 @@ func _tray_button() -> Button:
 
 
 const TRAY_FRAME := 5
+var _tray_tex_cache := {}
 
 
 func _tray_tex(path: String, src_frame: int) -> Texture2D:
 	var key := "%s#%d" % [path, src_frame]
-	if textures.has(key):
-		return textures[key]
+	if _tray_tex_cache.has(key):
+		return _tray_tex_cache[key]
 	var img := Image.load_from_file(ProjectSettings.globalize_path(path))
 	if img == null or img.is_empty():
-		return _tex(path)
+		return ui_assets.tex(path)
 	var width := maxi(img.get_width() * TRAY_FRAME / src_frame, TRAY_FRAME * 2 + 1)
 	var height := maxi(img.get_height() * TRAY_FRAME / src_frame, TRAY_FRAME * 2 + 1)
 	img.resize(width, height, Image.INTERPOLATE_NEAREST)
 	var tex := ImageTexture.create_from_image(img)
-	textures[key] = tex
+	_tray_tex_cache[key] = tex
 	return tex
 
 
@@ -3142,7 +3040,7 @@ func _rebuild_bars() -> void:
 			var tab: Dictionary = tabs[i]
 			var tab_i := int(i)
 			var tab_kind := "on" if tab_i == kit_tab else "border"
-			var tab_button := _tray_cell(0, 44.0, 44.0, tab_kind, _tex(_tab_icon(str(tab.label))))
+			var tab_button := _tray_cell(0, 44.0, 44.0, tab_kind, ui_assets.tex(_tab_icon(str(tab.label))))
 			tab_button.pressed.connect(_set_kit_tab.bind(tab_i))
 			kit_tabs.add_child(tab_button.get_parent())
 	if kit_tabs.visible and tab_w > item_w:
@@ -3181,7 +3079,7 @@ func _set_kit_tab(index: int) -> void:
 func _begin_kit_drag(kind: String, id: int) -> void:
 	if ThrongletSimServer.frozen or ThrongletSimServer.paused:
 		return
-	_play("ui")
+	media.play("ui")
 	kit_drag = {"type": kind, "id": id}
 	if kind == "build":
 		placing = id
@@ -3195,7 +3093,7 @@ func _drop_scoop() -> void:
 	var sim: ThrongletSim = ThrongletSimServer
 	if not sim.has_scoop():
 		return
-	var at := _pointer()
+	var at := cam_rig.pointer_world()
 	sim.scoop_drop(at.x, at.y)
 	_clear_tool_charge()
 	tool = Catalog.TOOL_EYE
@@ -3232,7 +3130,7 @@ func _end_kit_drag() -> void:
 		tool = Catalog.TOOL_EYE
 		return
 	var place := id == Catalog.TOOL_TNT or kind == "build"
-	var at := _grid_pointer() if place else _pointer()
+	var at := cam_rig.grid_pointer_world() if place else cam_rig.pointer_world()
 	if kind == "build":
 		ThrongletSimServer.place_building(id, at.x, at.y)
 	elif kind == "tool":
@@ -3304,7 +3202,7 @@ func _drop_on_island() -> bool:
 
 
 func _toggle_kit() -> void:
-	_play("ui")
+	media.play("ui")
 	kit_open = not kit_open
 	if kit_open:
 		_rebuild_bars()
@@ -3353,7 +3251,7 @@ func _hotkey(code: int) -> void:
 			tools.append(int(entry.tool))
 	for i in order.size():
 		if code == order[i] and i < tools.size():
-			_play("ui")
+			media.play("ui")
 			_cancel_kit_drag()
 			tool = int(tools[i])
 
@@ -3366,7 +3264,7 @@ func _build_marks() -> void:
 		panel.z_index = 8
 		panel.clip_contents = true
 		panel.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		panel.add_theme_stylebox_override("panel", _speech_bubble_style())
+		panel.add_theme_stylebox_override("panel", ui_assets.speech_bubble_style())
 		var hold := CenterContainer.new()
 		hold.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		hold.clip_contents = true
@@ -3438,7 +3336,7 @@ func _hide_marks() -> void:
 
 func _sync_marks() -> void:
 	var sim: ThrongletSim = ThrongletSimServer
-	var view := _world_view()
+	var view := cam_rig.world_view()
 	for i in bubble_panels.size():
 		var panel: PanelContainer = bubble_panels[i]
 		var glyph: TextureRect = bubble_icons[i]
@@ -3473,7 +3371,7 @@ func _sync_marks() -> void:
 		glyph.texture = _bark_icon(icon)
 		glyph.visible = true
 		var frame := int(Time.get_ticks_msec() / 160 + int(bark.get("id", 0))) % 5
-		_apply_bubble_frame(panel, frame)
+		ui_assets.apply_bubble_frame(panel, frame)
 		panel.reset_size()
 		var size := panel.get_combined_minimum_size()
 		# Keep near native Unity frame size so the hooked pico is not 9-slice-stretched.
@@ -3481,7 +3379,7 @@ func _sync_marks() -> void:
 		size.y = maxf(size.y, 40.0)
 		panel.size = size
 		# tip = bottom of pico (points at thronglet head).
-		var tip := _to_iso(at) + Vector2(0, -14)
+		var tip := cam_rig.to_iso(at) + Vector2(0, -14)
 		panel.position = Vector2(tip.x - size.x * 0.5, tip.y - size.y)
 		panel.visible = true
 	var full_n := 0
@@ -3501,7 +3399,7 @@ func _sync_marks() -> void:
 		var label: Label = full_labels[full_n]
 		label.visible = true
 		label.text = cap_text
-		label.position = _to_iso(at) + Vector2(-12, -28)
+		label.position = cam_rig.to_iso(at) + Vector2(-12, -28)
 		full_n += 1
 	for i in range(full_n, full_labels.size()):
 		full_labels[i].visible = false
@@ -3524,7 +3422,7 @@ func _sync_marks() -> void:
 
 
 func _build_factory_slices() -> void:
-	var src := _tex("res://resources/ui/factory_slice.png")
+	var src := ui_assets.tex("res://resources/ui/factory_slice.png")
 	if src == null:
 		return
 	var img := src.get_image()
@@ -3588,7 +3486,7 @@ func _sync_factory_mark(sim: ThrongletSim) -> void:
 		factory_slices[i].visible = show and i < filled
 	if not show:
 		return
-	var at := _to_iso(Vector2(float(b.x), float(b.y))) + Vector2(0, -28)
+	var at := cam_rig.to_iso(Vector2(float(b.x), float(b.y))) + Vector2(0, -28)
 	factory_frame.position = at
 	for slice in factory_slices:
 		slice.position = at
@@ -3603,7 +3501,7 @@ func _sync_building_alert(sim: ThrongletSim) -> void:
 			continue
 		if sim._tile_at(float(b.x), float(b.y)) != Catalog.TILE_GOO:
 			continue
-		pollution_bld.position = _to_iso(Vector2(float(b.x), float(b.y))) + Vector2(0, -36)
+		pollution_bld.position = cam_rig.to_iso(Vector2(float(b.x), float(b.y))) + Vector2(0, -36)
 		pollution_bld.visible = true
 		found = true
 		break
@@ -3636,7 +3534,7 @@ func _sync_need_bars() -> void:
 		return
 	var origin := get_global_mouse_position()
 	if not (sim.held_kind == "thronglet" and sim.held_ref == selected):
-		origin = _to_iso(Vector2(sim.pos_x[selected], sim.pos_y[selected]))
+		origin = cam_rig.to_iso(Vector2(sim.pos_x[selected], sim.pos_y[selected]))
 	var at := origin + Vector2(-14, -42)
 	var amounts := [sim.fed[selected], sim.amused[selected], sim.clean[selected]]
 	var colors := [Color(0.86, 0.22, 0.24), Color(0.95, 0.72, 0.22), Color(0.32, 0.62, 0.9)]
@@ -3663,7 +3561,7 @@ func _sync_need_bars() -> void:
 
 func _atlas_icon(icon: int) -> AtlasTexture:
 	var atlas := AtlasTexture.new()
-	atlas.atlas = _tex("res://resources/structures/structures_tileset.png")
+	atlas.atlas = ui_assets.tex("res://resources/structures/structures_tileset.png")
 	var col := icon % Catalog.ATLAS_COLUMNS
 	var row := int(icon / Catalog.ATLAS_COLUMNS)
 	atlas.region = Rect2(col * 16, row * 16, 16, 16)
@@ -3678,7 +3576,7 @@ func _bark_icon(icon: int) -> Texture2D:
 	var src := Image.load_from_file(path)
 	if src == null or src.is_empty():
 		var atlas := AtlasTexture.new()
-		atlas.atlas = _tex(Catalog.BARK_ICON_ATLAS)
+		atlas.atlas = ui_assets.tex(Catalog.BARK_ICON_ATLAS)
 		atlas.region = Catalog.BARK_ICON_RECT[icon]
 		return atlas
 	var region: Rect2 = Catalog.BARK_ICON_RECT[icon]
@@ -3713,11 +3611,11 @@ func _sync_market_sign(sim: ThrongletSim) -> void:
 			else:
 				sprite = Sprite2D.new()
 				sprite.centered = true
-				sprite.texture = _tex("res://resources/ui/new_item.png")
+				sprite.texture = ui_assets.tex("res://resources/ui/new_item.png")
 				sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 				sprite.scale = Vector2(0.45, 0.45)
 				market_signs.add_child(sprite)
-			sprite.position = _to_iso(Vector2(float(b.x), float(b.y))) + Vector2(8, -46)
+			sprite.position = cam_rig.to_iso(Vector2(float(b.x), float(b.y))) + Vector2(8, -46)
 			sprite.visible = true
 			n += 1
 	for i in range(n, market_signs.get_child_count()):
@@ -3730,7 +3628,7 @@ func _build_sky() -> void:
 	add_child(sky)
 	var stars := TextureRect.new()
 	stars.set_anchors_preset(Control.PRESET_FULL_RECT)
-	stars.texture = _tex("res://resources/tiles/space.png")
+	stars.texture = ui_assets.tex("res://resources/tiles/space.png")
 	stars.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	stars.stretch_mode = TextureRect.STRETCH_SCALE
 	stars.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -3754,7 +3652,7 @@ func _build_world() -> void:
 	market_signs.z_index = 8
 	add_child(market_signs)
 	factory_frame = Sprite2D.new()
-	factory_frame.texture = _tex("res://resources/ui/factory_frame.png")
+	factory_frame.texture = ui_assets.tex("res://resources/ui/factory_frame.png")
 	factory_frame.visible = false
 	factory_frame.z_index = 6
 	factory_frame.scale = Vector2(0.55, 0.55)
@@ -3762,13 +3660,13 @@ func _build_world() -> void:
 	add_child(factory_frame)
 	_build_factory_slices()
 	pollution_mark = Sprite2D.new()
-	pollution_mark.texture = _tex("res://resources/ui/pollution_throng.png")
+	pollution_mark.texture = ui_assets.tex("res://resources/ui/pollution_throng.png")
 	pollution_mark.visible = false
 	pollution_mark.z_index = 7
 	pollution_mark.scale = Vector2(0.28, 0.28)
 	add_child(pollution_mark)
 	pollution_bld = Sprite2D.new()
-	pollution_bld.texture = _tex("res://resources/ui/pollution_building.png")
+	pollution_bld.texture = ui_assets.tex("res://resources/ui/pollution_building.png")
 	pollution_bld.visible = false
 	pollution_bld.z_index = 7
 	pollution_bld.scale = Vector2(0.35, 0.35)
@@ -3797,7 +3695,7 @@ func _build_world() -> void:
 	add_child(world_layer)
 	world = MultiMeshInstance2D.new()
 	world.material = _material(16, ThrongClips.SHEET_ROWS)
-	world.texture = _tex("res://resources/sprites/world_iso.png")
+	world.texture = ui_assets.tex("res://resources/sprites/world_iso.png")
 	world_mesh = _mesh(true, Vector2(WORLD_CELL, WORLD_CELL))
 	world.multimesh = world_mesh
 	world_layer.add_child(world)
@@ -3809,7 +3707,7 @@ func _build_world() -> void:
 	]
 	for i in 3:
 		var back := Sprite2D.new()
-		back.texture = _tex("res://resources/ui/need_gauge.png")
+		back.texture = ui_assets.tex("res://resources/ui/need_gauge.png")
 		back.centered = false
 		back.scale = Vector2(0.5, 0.5)
 		back.z_index = 6
@@ -3833,7 +3731,7 @@ func _make_tileset() -> TileSet:
 	tileset.tile_layout = TileSet.TILE_LAYOUT_DIAMOND_DOWN
 	tileset.tile_size = Vector2i(32, 16)
 	var atlas := TileSetAtlasSource.new()
-	var terrain := _tex("res://resources/tiles/terrain_tileset.png")
+	var terrain := ui_assets.tex("res://resources/tiles/terrain_tileset.png")
 	atlas.texture = terrain
 	atlas.texture_region_size = Vector2i(32, 32)
 	tileset.add_source(atlas, 0)
@@ -3881,7 +3779,7 @@ func _make_path_tileset() -> TileSet:
 	tileset.tile_layout = TileSet.TILE_LAYOUT_DIAMOND_DOWN
 	tileset.tile_size = Vector2i(32, 16)
 	var atlas := TileSetAtlasSource.new()
-	var path_tex := _tex("res://resources/tiles/path_overlay.png")
+	var path_tex := ui_assets.tex("res://resources/tiles/path_overlay.png")
 	atlas.texture = path_tex
 	atlas.texture_region_size = Vector2i(32, 32)
 	tileset.add_source(atlas, 0)
@@ -3895,7 +3793,7 @@ func _material(h_frames: int, v_frames: int) -> ShaderMaterial:
 	mat.shader = load("res://scripts/shaders/thronglet_shader.gdshader")
 	mat.set_shader_parameter("h_frames", h_frames)
 	mat.set_shader_parameter("v_frames", v_frames)
-	mat.set_shader_parameter("dirt_tex", _tex("res://resources/sprites/world_iso_dirt.png"))
+	mat.set_shader_parameter("dirt_tex", ui_assets.tex("res://resources/sprites/world_iso_dirt.png"))
 	return mat
 
 
@@ -3912,22 +3810,6 @@ func _mesh(colored: bool, size: Vector2) -> MultiMesh:
 	return mesh
 
 
-func _ui_font() -> FontFile:
-	var font := FontFile.new()
-	font.antialiasing = TextServer.FONT_ANTIALIASING_NONE
-	font.hinting = TextServer.HINTING_NONE
-	font.subpixel_positioning = TextServer.SUBPIXEL_POSITIONING_DISABLED
-	font.oversampling = 1.0
-	font.allow_system_fallback = false
-	if font.load_dynamic_font("res://resources/ui/VT323-Regular.ttf") == OK:
-		return font
-	font.antialiasing = TextServer.FONT_ANTIALIASING_GRAY
-	font.allow_system_fallback = true
-	if font.load_dynamic_font("res://resources/ui/aline_font.ttf") == OK:
-		return font
-	return null
-
-
 func _build_ui() -> void:
 	ui = CanvasLayer.new()
 	add_child(ui)
@@ -3936,12 +3818,12 @@ func _build_ui() -> void:
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui.add_child(root)
 	var theme := Theme.new()
-	var font := _ui_font()
+	var font := ui_assets.ui_font()
 	if font != null:
 		theme.default_font = font
 		theme.default_font_size = 16
-	var panel := _panel_style()
-	var slot := _slot_style()
+	var panel := ui_assets.panel_style()
+	var slot := ui_assets.slot_style()
 	theme.set_stylebox("panel", "PanelContainer", panel)
 	theme.set_stylebox("normal", "Button", slot)
 	theme.set_stylebox("hover", "Button", slot)
@@ -3965,7 +3847,7 @@ func _build_ui() -> void:
 	badge.custom_minimum_size = Vector2(60, 60)
 	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var ring := TextureRect.new()
-	ring.texture = _tex("res://resources/ui/thronglet_counter.png")
+	ring.texture = ui_assets.tex("res://resources/ui/thronglet_counter.png")
 	# Atlas Sprites-ThrongletCounter ships FilterMode bilinear; nearest makes the
 	# cream ring look thin and the face eyes read as white plates.
 	ring.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
@@ -3976,7 +3858,7 @@ func _build_ui() -> void:
 	ring.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	badge.add_child(ring)
 	pop_face = TextureRect.new()
-	pop_face.texture = _tex(POP_FACES["base"])
+	pop_face.texture = ui_assets.tex(POP_FACES["base"])
 	pop_face_key = "base"
 	pop_face.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	pop_face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -4002,7 +3884,7 @@ func _build_ui() -> void:
 	badge.add_child(pop_label)
 	top_row.add_child(badge)
 	gem_panel = PanelContainer.new()
-	gem_panel.add_theme_stylebox_override("panel", _slot_style())
+	gem_panel.add_theme_stylebox_override("panel", ui_assets.slot_style())
 	gem_panel.visible = false
 	var gem_row := HBoxContainer.new()
 	gem_row.add_theme_constant_override("separation", 4)
@@ -4025,31 +3907,31 @@ func _build_ui() -> void:
 	var goal_panel := PanelContainer.new()
 	task_panel = goal_wrap
 	goal_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	goal_panel.add_theme_stylebox_override("panel", _goal_outer_style())
+	goal_panel.add_theme_stylebox_override("panel", ui_assets.goal_outer_style())
 	goal_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var cyan_panel := PanelContainer.new()
-	cyan_panel.add_theme_stylebox_override("panel", _goal_cyan_style())
+	cyan_panel.add_theme_stylebox_override("panel", ui_assets.goal_cyan_style())
 	cyan_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var goal_row := HBoxContainer.new()
 	goal_row.add_theme_constant_override("separation", 0)
 	goal_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var tag_panel := PanelContainer.new()
 	tag_panel.custom_minimum_size = Vector2(56, 0)
-	tag_panel.add_theme_stylebox_override("panel", _goal_tag_style())
+	tag_panel.add_theme_stylebox_override("panel", ui_assets.goal_tag_style())
 	tag_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var tag_label := Label.new()
 	tag_label.text = "TAREA"
 	tag_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	tag_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	tag_label.add_theme_font_size_override("font_size", 13)
-	tag_label.add_theme_color_override("font_color", _goal_ink())
+	tag_label.add_theme_color_override("font_color", ui_assets.goal_ink())
 	tag_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tag_panel.add_child(tag_label)
 	goal_row.add_child(tag_panel)
 	var body_panel := PanelContainer.new()
 	body_panel.custom_minimum_size = Vector2(280, 0)
 	body_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	body_panel.add_theme_stylebox_override("panel", _goal_body_style())
+	body_panel.add_theme_stylebox_override("panel", ui_assets.goal_body_style())
 	body_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	goal_label = Label.new()
 	goal_label.text = ""
@@ -4058,7 +3940,7 @@ func _build_ui() -> void:
 	goal_label.autowrap_mode = TextServer.AUTOWRAP_OFF
 	goal_label.text_overrun_behavior = TextServer.OVERRUN_NO_TRIMMING
 	goal_label.add_theme_font_size_override("font_size", 13)
-	goal_label.add_theme_color_override("font_color", _goal_ink())
+	goal_label.add_theme_color_override("font_color", ui_assets.goal_ink())
 	goal_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	body_panel.add_child(goal_label)
 	goal_row.add_child(body_panel)
@@ -4136,7 +4018,7 @@ func _build_ui() -> void:
 	kit_button.ignore_texture_size = true
 	kit_button.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 	kit_button.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	kit_button.texture_normal = _tex("res://resources/ui/toolbar_button.png")
+	kit_button.texture_normal = ui_assets.tex("res://resources/ui/toolbar_button.png")
 	kit_button.pressed.connect(_toggle_kit)
 	root.add_child(kit_button)
 
@@ -4183,7 +4065,7 @@ func _build_ui() -> void:
 	focus_port.add_child(focus_sky)
 	var focus_stars := TextureRect.new()
 	focus_stars.set_anchors_preset(Control.PRESET_FULL_RECT)
-	focus_stars.texture = _tex("res://resources/tiles/space.png")
+	focus_stars.texture = ui_assets.tex("res://resources/tiles/space.png")
 	focus_stars.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	focus_stars.stretch_mode = TextureRect.STRETCH_SCALE
 	focus_stars.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -4213,7 +4095,7 @@ func _build_ui() -> void:
 	focus_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	focus_frame.visible = false
 	focus_frame.z_index = 32
-	var border := _box_style("res://resources/ui/dialogue_frame.png", 22, 0)
+	var border := ui_assets.box_style("res://resources/ui/dialogue_frame.png", 22, 0)
 	border.draw_center = false
 	focus_frame.add_theme_stylebox_override("panel", border)
 	root.add_child(focus_frame)
@@ -4229,7 +4111,7 @@ func _build_ui() -> void:
 		"UI_ConsoleUI_FrameGlyph6_Animation_SpriteSheet_0.png",
 	]
 	for sheet in glyph_sheets:
-		var glyph_tex := _tex(glyph_atlas + sheet)
+		var glyph_tex := ui_assets.tex(glyph_atlas + sheet)
 		if glyph_tex != null:
 			console_glyphs.append(glyph_tex)
 	gaze_panel = Control.new()
@@ -4270,7 +4152,7 @@ func _build_ui() -> void:
 	name_edit.caret_blink = true
 	name_edit.custom_minimum_size = Vector2(0, 22)
 	name_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	name_edit.add_theme_font_override("font", _ui_font())
+	name_edit.add_theme_font_override("font", ui_assets.ui_font())
 	name_edit.add_theme_font_size_override("font_size", 16)
 	name_edit.add_theme_color_override("font_color", Color(0.22, 0.86, 0.28))
 	name_edit.add_theme_color_override("font_placeholder_color", Color(0.22, 0.86, 0.28, 0.45))
@@ -4323,7 +4205,7 @@ func _build_ui() -> void:
 	menu_button.add_theme_stylebox_override("hover_pressed", empty)
 	var menu_icon := TextureRect.new()
 	menu_icon.set_anchors_preset(Control.PRESET_FULL_RECT)
-	menu_icon.texture = _tex("res://resources/ui/menu_bars.png")
+	menu_icon.texture = ui_assets.tex("res://resources/ui/menu_bars.png")
 	menu_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	menu_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	menu_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -4337,7 +4219,7 @@ func _build_ui() -> void:
 	save_icon.offset_right = -32
 	save_icon.offset_bottom = 28
 	save_icon.z_index = 42
-	save_icon.texture = _tex("res://resources/ui/save_disk.png")
+	save_icon.texture = ui_assets.tex("res://resources/ui/save_disk.png")
 	save_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	save_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	save_icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -4412,12 +4294,12 @@ func _build_opening(root: Control) -> void:
 	dos_label.offset_right = -72
 	dos_label.offset_bottom = -28
 	dos_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
-	dos_label.add_theme_font_override("font", _dos_font())
+	dos_label.add_theme_font_override("font", ui_assets.dos_font())
 	dos_label.add_theme_font_size_override("font_size", 16)
 	dos_label.add_theme_color_override("font_color", Color(0.35, 1.0, 0.4))
 	dos_root.add_child(dos_label)
 	var dos_face := TextureRect.new()
-	dos_face.texture = _tex("res://resources/ui/face_base.png")
+	dos_face.texture = ui_assets.tex("res://resources/ui/face_base.png")
 	dos_face.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	dos_face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	dos_face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -4437,20 +4319,20 @@ func _build_opening(root: Control) -> void:
 	sign_button.z_index = 34
 	sign_button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	sign_button.alignment = HORIZONTAL_ALIGNMENT_CENTER
-	sign_button.add_theme_font_override("font", _ui_font())
+	sign_button.add_theme_font_override("font", ui_assets.ui_font())
 	sign_button.add_theme_font_size_override("font_size", 14)
 	var ink := Color(0.1, 0.07, 0.04)
 	sign_button.add_theme_color_override("font_color", ink)
 	sign_button.add_theme_color_override("font_hover_color", ink)
 	sign_button.add_theme_color_override("font_pressed_color", ink)
 	sign_button.add_theme_color_override("font_focus_color", ink)
-	var wood := _box_style("res://resources/ui/sign_plank.png", 8, 6)
+	var wood := ui_assets.box_style("res://resources/ui/sign_plank.png", 8, 6)
 	sign_button.add_theme_stylebox_override("normal", wood)
 	sign_button.add_theme_stylebox_override("hover", wood)
 	sign_button.add_theme_stylebox_override("pressed", wood)
 	sign_button.add_theme_stylebox_override("focus", wood)
 	var arrow := TextureRect.new()
-	arrow.texture = _tex("res://resources/ui/sign_arrow.png")
+	arrow.texture = ui_assets.tex("res://resources/ui/sign_arrow.png")
 	arrow.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	arrow.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	arrow.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -4468,21 +4350,11 @@ func _build_opening(root: Control) -> void:
 	root.add_child(sign_button)
 
 
-func _dos_font() -> FontFile:
-	var font := FontFile.new()
-	font.antialiasing = TextServer.FONT_ANTIALIASING_NONE
-	font.hinting = TextServer.HINTING_NONE
-	font.subpixel_positioning = TextServer.SUBPIXEL_POSITIONING_DISABLED
-	if font.load_dynamic_font("res://resources/ui/PerfectDOSVGA437.ttf") == OK:
-		return font
-	return _ui_font()
-
-
 func _begin_logo() -> void:
 	boot = "logo"
 	logo_started = false
 	logo_wait = 0.0
-	logo_video_playing = true
+	media.logo_video_playing = true
 	in_title = true
 	ThrongletSimServer.paused = true
 	if title_root != null:
@@ -4490,26 +4362,26 @@ func _begin_logo() -> void:
 	if dos_root != null:
 		dos_root.visible = false
 	# Do not start title music during the logo video;
-	# _sync_music() is blocked by logo_video_playing.
-	if not _play_video("tuckersoft_logo_30fps_1MB", true):
+	# media.sync_music(in_title, _camera_biome()) is blocked by media.logo_video_playing.
+	if not media.play_video("tuckersoft_logo_30fps_1MB", true):
 		_begin_dos()
 	else:
 		# Raise the Tuckersoft video audio volume so it can be heard more clearly.
-		video_player.volume_db = 6.0
+		media.video_player.volume_db = 6.0
 
 
 func _tick_logo(delta: float) -> void:
-	if boot != "logo" or video_player == null:
+	if boot != "logo" or media.video_player == null:
 		return
 	logo_wait += delta
-	if video_player.is_playing():
+	if media.video_player.is_playing():
 		logo_started = true
 		return
 	if logo_started:
 		_begin_dos()
 		return
-	if logo_wait > 1.0 and video_player.stream != null:
-		video_player.play()
+	if logo_wait > 1.0 and media.video_player.stream != null:
+		media.video_player.play()
 	if logo_wait > 2.0:
 		_begin_dos()
 
@@ -4518,11 +4390,12 @@ func _begin_dos() -> void:
 	if boot != "logo":
 		return
 	boot = "dos"
-	video_from_title = false
-	if video_player != null:
-		video_player.stop()
-		video_player.visible = false
-		var plate: ColorRect = video_player.get_meta("plate") as ColorRect
+	if media != null:
+		media.video_from_title = false
+	if media != null and media.video_player != null:
+		media.video_player.stop()
+		media.video_player.visible = false
+		var plate: ColorRect = media.video_player.get_meta("plate") as ColorRect
 		if plate != null:
 			plate.visible = false
 	_show_dos()
@@ -4565,7 +4438,7 @@ func _finish_dos() -> void:
 	if ThrongletSimServer.testing:
 		return
 	# MOV_01 plays once after the DOS boot, then the title.
-	if _play_video("SEQ_1.5", true):
+	if media.play_video("SEQ_1.5", true):
 		return
 	_show_title()
 
@@ -4573,11 +4446,11 @@ func _finish_dos() -> void:
 func _load_prefs() -> void:
 	var cfg := ConfigFile.new()
 	cfg.load("user://opening.cfg")
-	captions_on = bool(cfg.get_value("opening", "captions", true))
+	media.captions_on = bool(cfg.get_value("opening", "captions", true))
 	crt_on = bool(cfg.get_value("opening", "crt", true))
 	show_fps = bool(cfg.get_value("opening", "show_fps", false))
-	sfx_vol = clampf(float(cfg.get_value("opening", "sfx", 1.0)), 0.0, 1.0)
-	music_vol = clampf(float(cfg.get_value("opening", "music", 1.0)), 0.0, 1.0)
+	media.sfx_vol = clampf(float(cfg.get_value("opening", "sfx", 1.0)), 0.0, 1.0)
+	media.music_vol = clampf(float(cfg.get_value("opening", "music", 1.0)), 0.0, 1.0)
 	var lang := str(cfg.get_value("opening", "lang", settings_lang))
 	if lang in SETTINGS_LANGS:
 		settings_lang = lang
@@ -4585,11 +4458,11 @@ func _load_prefs() -> void:
 
 func _save_prefs() -> void:
 	var cfg := ConfigFile.new()
-	cfg.set_value("opening", "captions", captions_on)
+	cfg.set_value("opening", "captions", media.captions_on)
 	cfg.set_value("opening", "crt", crt_on)
 	cfg.set_value("opening", "show_fps", show_fps)
-	cfg.set_value("opening", "sfx", sfx_vol)
-	cfg.set_value("opening", "music", music_vol)
+	cfg.set_value("opening", "sfx", media.sfx_vol)
+	cfg.set_value("opening", "music", media.music_vol)
 	cfg.set_value("opening", "lang", settings_lang)
 	cfg.save("user://opening.cfg")
 
@@ -4606,17 +4479,8 @@ func _apply_all_prefs() -> void:
 
 
 func _apply_volumes() -> void:
-	if music != null:
-		music.volume_db = -80.0 if music_vol <= 0.001 else linear_to_db(music_vol) - 6.0
-	if amb != null:
-		amb.volume_db = -80.0 if music_vol <= 0.001 else linear_to_db(music_vol) - 16.0
-	if sting != null:
-		sting.volume_db = -80.0 if sfx_vol <= 0.001 else linear_to_db(sfx_vol) - 4.0
-	for raw in sfx_pool:
-		var player := raw as AudioStreamPlayer
-		if player != null:
-			player.volume_db = -80.0 if sfx_vol <= 0.001 else linear_to_db(sfx_vol)
-
+	if media != null:
+		media.apply_volumes()
 
 func _build_settings_menu(root: Control) -> void:
 	title_menu = Control.new()
@@ -4675,7 +4539,7 @@ func _build_settings_menu(root: Control) -> void:
 	panel.add_child(settings_body)
 
 	var logo := TextureRect.new()
-	logo.texture = _tex_rgba("res://resources/ui/settings/tuckersoft.png")
+	logo.texture = ui_assets.tex_rgba("res://resources/ui/settings/tuckersoft.png")
 	logo.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -4685,7 +4549,7 @@ func _build_settings_menu(root: Control) -> void:
 	panel_wrap.add_child(logo)
 
 	var close := TextureButton.new()
-	close.texture_normal = _tex_rgba("res://resources/ui/settings/close.png")
+	close.texture_normal = ui_assets.tex_rgba("res://resources/ui/settings/close.png")
 	close.ignore_texture_size = true
 	close.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 	close.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -4696,7 +4560,7 @@ func _build_settings_menu(root: Control) -> void:
 	close.offset_top = -12
 	close.offset_bottom = 16
 	close.pressed.connect(func() -> void:
-		_play("ui")
+		media.play("ui")
 		_fill_title()
 	)
 	panel_wrap.add_child(close)
@@ -4721,7 +4585,7 @@ func _build_settings_menu(root: Control) -> void:
 		tab.custom_minimum_size = Vector2(36, 38)
 		tab.pressed.connect(_settings_set_tab.bind(i))
 		var icon := TextureRect.new()
-		icon.texture = _tex_rgba(icons[i])
+		icon.texture = ui_assets.tex_rgba(icons[i])
 		icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -4740,7 +4604,7 @@ func _build_settings_menu(root: Control) -> void:
 	ver.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	ver.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	ver.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	ver.add_theme_font_override("font", _dos_font())
+	ver.add_theme_font_override("font", ui_assets.dos_font())
 	ver.add_theme_font_size_override("font_size", 12)
 	ver.add_theme_color_override("font_color", Color(1, 1, 1, 1))
 	foot.add_child(ver)
@@ -4803,7 +4667,7 @@ func _build_video_library(root: Control) -> void:
 	var title := Label.new()
 	title.name = "Title"
 	title.text = "C:\\BIN\\.SHELL\\"
-	title.add_theme_font_override("font", _dos_font())
+	title.add_theme_font_override("font", ui_assets.dos_font())
 	title.add_theme_font_size_override("font_size", 13)
 	title.add_theme_color_override("font_color", VIDEO_SHELL_INK)
 	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -4910,7 +4774,7 @@ func _layout_video_library_shell() -> void:
 
 
 func _open_video_library() -> void:
-	_play("ui")
+	media.play("ui")
 	if title_menu != null:
 		title_menu.visible = false
 	_fill_video_library()
@@ -4920,13 +4784,13 @@ func _open_video_library() -> void:
 
 
 func _close_video_library() -> void:
-	_play("ui")
+	media.play("ui")
 	if video_library != null:
 		video_library.visible = false
 
 
 func _video_unlocked(clip_id: String) -> bool:
-	return bool(video_played.get(clip_id, false))
+	return bool(media.video_played.get(clip_id, false))
 
 
 func _fill_video_library() -> void:
@@ -4949,21 +4813,21 @@ func _fill_video_library() -> void:
 	exit_btn.custom_minimum_size = Vector2(96, 64)
 	exit_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	exit_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	exit_btn.add_theme_font_override("font", _dos_font())
+	exit_btn.add_theme_font_override("font", ui_assets.dos_font())
 	exit_btn.add_theme_font_size_override("font_size", 18)
 	exit_btn.add_theme_color_override("font_color", VIDEO_SHELL_INK)
 	exit_btn.add_theme_color_override("font_hover_color", VIDEO_SHELL_INK)
 	exit_btn.add_theme_color_override("font_pressed_color", VIDEO_SHELL_INK)
 	exit_btn.add_theme_color_override("font_focus_color", VIDEO_SHELL_INK)
 	var exit_style := StyleBoxTexture.new()
-	exit_style.texture = _tex_rgba("res://resources/ui/video/exit.png")
+	exit_style.texture = ui_assets.tex_rgba("res://resources/ui/video/exit.png")
 	exit_style.texture_margin_left = 20
 	exit_style.texture_margin_top = 20
 	exit_style.texture_margin_right = 17
 	exit_style.texture_margin_bottom = 18
 	exit_style.set_content_margin_all(4)
 	var exit_pressed := exit_style.duplicate()
-	exit_pressed.texture = _tex_rgba("res://resources/ui/video/exit_pressed.png")
+	exit_pressed.texture = ui_assets.tex_rgba("res://resources/ui/video/exit_pressed.png")
 	exit_btn.add_theme_stylebox_override("normal", exit_style)
 	exit_btn.add_theme_stylebox_override("hover", exit_style)
 	exit_btn.add_theme_stylebox_override("pressed", exit_pressed)
@@ -4972,7 +4836,7 @@ func _fill_video_library() -> void:
 	exit_wrap.add_child(exit_btn)
 	var exit_pad := Label.new()
 	exit_pad.text = " "
-	exit_pad.add_theme_font_override("font", _dos_font())
+	exit_pad.add_theme_font_override("font", ui_assets.dos_font())
 	exit_pad.add_theme_font_size_override("font_size", 10)
 	exit_pad.modulate = Color(1, 1, 1, 0)
 	exit_wrap.add_child(exit_pad)
@@ -4993,7 +4857,7 @@ func _video_library_cell(entry: Dictionary) -> VBoxContainer:
 	cell.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	cell.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	var btn := TextureButton.new()
-	btn.texture_normal = _tex_rgba(thumb_path)
+	btn.texture_normal = ui_assets.tex_rgba(thumb_path)
 	btn.ignore_texture_size = true
 	btn.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 	btn.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -5005,7 +4869,7 @@ func _video_library_cell(entry: Dictionary) -> VBoxContainer:
 	var label := Label.new()
 	label.text = str(entry.label)
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.add_theme_font_override("font", _dos_font())
+	label.add_theme_font_override("font", ui_assets.dos_font())
 	label.add_theme_font_size_override("font_size", 10)
 	label.add_theme_color_override("font_color", VIDEO_SHELL_INK)
 	cell.add_child(label)
@@ -5013,19 +4877,19 @@ func _video_library_cell(entry: Dictionary) -> VBoxContainer:
 
 
 func _video_library_pick(clip_id: String, unlocked: bool) -> void:
-	_play("ui")
+	media.play("ui")
 	if not unlocked:
 		return
 	if video_library != null:
 		video_library.visible = false
-	video_from_library = true
-	if not _play_video(clip_id, true):
-		video_from_library = false
+	media.video_from_library = true
+	if not media.play_video(clip_id, true):
+		media.video_from_library = false
 		_open_video_library()
 
 
 func _settings_set_tab(index: int) -> void:
-	_play("ui")
+	media.play("ui")
 	settings_tab = index
 	_fill_settings()
 
@@ -5034,7 +4898,7 @@ func _settings_sync_tabs() -> void:
 	for i in settings_tabs.size():
 		var tab: TextureButton = settings_tabs[i]
 		var path := "res://resources/ui/settings/tab_selected.png" if i == settings_tab else "res://resources/ui/settings/tab_unselected.png"
-		tab.texture_normal = _tex_rgba(path)
+		tab.texture_normal = ui_assets.tex_rgba(path)
 
 
 func _game_version() -> String:
@@ -5061,7 +4925,7 @@ func _git_tag_version() -> String:
 
 func _settings_blue_style() -> StyleBoxTexture:
 	var style := StyleBoxTexture.new()
-	style.texture = _tex_rgba("res://resources/ui/settings/button.png")
+	style.texture = ui_assets.tex_rgba("res://resources/ui/settings/button.png")
 	# 2px blue rim + 1px white frame; keep the fill stretchable
 	style.texture_margin_left = 5
 	style.texture_margin_top = 5
@@ -5084,14 +4948,14 @@ func _settings_blue_button(text: String, call: Callable, min_w: float = 150.0) -
 	button.add_theme_stylebox_override("hover", style)
 	button.add_theme_stylebox_override("pressed", style)
 	button.add_theme_stylebox_override("focus", style)
-	button.add_theme_font_override("font", _dos_font())
+	button.add_theme_font_override("font", ui_assets.dos_font())
 	button.add_theme_font_size_override("font_size", 14)
 	button.add_theme_color_override("font_color", Color.WHITE)
 	button.add_theme_color_override("font_hover_color", Color.WHITE)
 	button.add_theme_color_override("font_pressed_color", Color(0.9, 0.9, 1.0))
 	button.add_theme_color_override("font_focus_color", Color.WHITE)
 	button.pressed.connect(func() -> void:
-		_play("ui")
+		media.play("ui")
 		call.call()
 	)
 	return button
@@ -5100,7 +4964,7 @@ func _settings_blue_button(text: String, call: Callable, min_w: float = 150.0) -
 func _settings_label(text: String) -> Label:
 	var label := Label.new()
 	label.text = text
-	label.add_theme_font_override("font", _dos_font())
+	label.add_theme_font_override("font", ui_assets.dos_font())
 	label.add_theme_font_size_override("font_size", 14)
 	label.add_theme_color_override("font_color", Color.WHITE)
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -5121,11 +4985,11 @@ func _settings_check_row(text: String, on: bool, call: Callable) -> HBoxContaine
 	box.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	box.ignore_texture_size = true
 	box.stretch_mode = TextureButton.STRETCH_SCALE
-	box.texture_normal = _tex_rgba(
+	box.texture_normal = ui_assets.tex_rgba(
 		"res://resources/ui/settings/checkbox_on.png" if on else "res://resources/ui/settings/checkbox.png"
 	)
 	box.pressed.connect(func() -> void:
-		_play("ui")
+		media.play("ui")
 		call.call()
 	)
 	row.add_child(box)
@@ -5140,13 +5004,13 @@ func _settings_slider_row(text: String, value: float, call: Callable) -> HBoxCon
 	label.custom_minimum_size = Vector2(150, 0)
 	row.add_child(label)
 	var minus := TextureButton.new()
-	minus.texture_normal = _tex_rgba("res://resources/ui/settings/slider_minus.png")
+	minus.texture_normal = ui_assets.tex_rgba("res://resources/ui/settings/slider_minus.png")
 	minus.ignore_texture_size = true
 	minus.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 	minus.custom_minimum_size = Vector2(14, 14)
 	minus.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	minus.pressed.connect(func() -> void:
-		_play("ui")
+		media.play("ui")
 		call.call(clampf(value - 0.1, 0.0, 1.0))
 		_fill_settings()
 	)
@@ -5161,20 +5025,20 @@ func _settings_slider_row(text: String, value: float, call: Callable) -> HBoxCon
 	slider.add_theme_stylebox_override("slider", _settings_slider_track())
 	slider.add_theme_stylebox_override("grabber_area", StyleBoxEmpty.new())
 	slider.add_theme_stylebox_override("grabber_area_highlight", StyleBoxEmpty.new())
-	slider.add_theme_icon_override("grabber", _tex_rgba("res://resources/ui/settings/slider_thumb.png"))
-	slider.add_theme_icon_override("grabber_highlight", _tex_rgba("res://resources/ui/settings/slider_thumb.png"))
+	slider.add_theme_icon_override("grabber", ui_assets.tex_rgba("res://resources/ui/settings/slider_thumb.png"))
+	slider.add_theme_icon_override("grabber_highlight", ui_assets.tex_rgba("res://resources/ui/settings/slider_thumb.png"))
 	slider.value_changed.connect(func(v: float) -> void:
 		call.call(v)
 	)
 	row.add_child(slider)
 	var plus := TextureButton.new()
-	plus.texture_normal = _tex_rgba("res://resources/ui/settings/slider_plus.png")
+	plus.texture_normal = ui_assets.tex_rgba("res://resources/ui/settings/slider_plus.png")
 	plus.ignore_texture_size = true
 	plus.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 	plus.custom_minimum_size = Vector2(14, 14)
 	plus.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	plus.pressed.connect(func() -> void:
-		_play("ui")
+		media.play("ui")
 		call.call(clampf(value + 0.1, 0.0, 1.0))
 		_fill_settings()
 	)
@@ -5243,12 +5107,12 @@ func _fill_settings_cog() -> void:
 
 
 func _fill_settings_sound() -> void:
-	settings_body.add_child(_settings_slider_row(LineBook.row("SYS.SETTINGS", 2), sfx_vol, _set_sfx_vol))
-	settings_body.add_child(_settings_slider_row(LineBook.row("SYS.SETTINGS", 1), music_vol, _set_music_vol))
+	settings_body.add_child(_settings_slider_row(LineBook.row("SYS.SETTINGS", 2), media.sfx_vol, _set_sfx_vol))
+	settings_body.add_child(_settings_slider_row(LineBook.row("SYS.SETTINGS", 1), media.music_vol, _set_music_vol))
 
 
 func _fill_settings_edit() -> void:
-	settings_body.add_child(_settings_check_row(LineBook.row("SYS.SETTINGS", 13), captions_on, _toggle_captions))
+	settings_body.add_child(_settings_check_row(LineBook.row("SYS.SETTINGS", 13), media.captions_on, _toggle_captions))
 	settings_body.add_child(_settings_check_row(LineBook.row("SYS.SETTINGS", 14), crt_on, _toggle_crt))
 	settings_body.add_child(_settings_check_row("FPS", show_fps, _toggle_show_fps))
 	var lang := HBoxContainer.new()
@@ -5271,7 +5135,7 @@ func _settings_languages() -> void:
 		row.add_child(_settings_blue_button(name, _settings_pick_lang.bind(name), 160))
 		if name == settings_lang:
 			var mark := TextureRect.new()
-			mark.texture = _tex_rgba("res://resources/ui/settings/checkbox_on.png")
+			mark.texture = ui_assets.tex_rgba("res://resources/ui/settings/checkbox_on.png")
 			mark.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 			mark.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 			mark.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -5290,13 +5154,13 @@ func _settings_pick_lang(name: String) -> void:
 
 
 func _set_sfx_vol(value: float) -> void:
-	sfx_vol = clampf(value, 0.0, 1.0)
+	media.sfx_vol = clampf(value, 0.0, 1.0)
 	_apply_volumes()
 	_save_prefs()
 
 
 func _set_music_vol(value: float) -> void:
-	music_vol = clampf(value, 0.0, 1.0)
+	media.music_vol = clampf(value, 0.0, 1.0)
 	_apply_volumes()
 	_save_prefs()
 
@@ -5337,12 +5201,12 @@ func _settings_ask_reset() -> void:
 func _settings_reset() -> void:
 	# Reset progress: delete all saved games and return to the title. A new game is not started
 	# automatically; the user chooses to start one from the main menu.
-	ThrongletSimServer.clear_saves()
+	ThrongletSimServer.save_system.clear_saves()
 	_show_title()
 
 
 func _toggle_captions() -> void:
-	captions_on = not captions_on
+	media.captions_on = not media.captions_on
 	_save_prefs()
 	_fill_settings()
 
@@ -5410,11 +5274,11 @@ func _show_title() -> void:
 		menu_dim.visible = false
 	title_root.visible = true
 	title_layout_size = Vector2.ZERO
-	logo_video_playing = false
+	media.logo_video_playing = false
 	_fill_title()
-	if music != null:
+	if media != null and media.music != null:
 		var tween: Tween = create_tween()
-		tween.tween_property(music, "volume_db", -6.0, 1.0)
+		tween.tween_property(media.music, "volume_db", -6.0, 1.0)
 
 
 func _build_title_backdrop(root: Control) -> void:
@@ -5507,7 +5371,7 @@ func _build_title_hud(root: Control) -> void:
 	title_video = _title_icon_button("res://resources/ui/menu/video.png", _title_press_video, false)
 	title_video.flat = false
 	# Same OldOS cyan 9-slice used by the task banner (UI_OldOS_Button).
-	var video_plate := _oldos_plate_style(4)
+	var video_plate := ui_assets.oldos_plate_style(4)
 	title_video.add_theme_stylebox_override("normal", video_plate)
 	title_video.add_theme_stylebox_override("hover", video_plate)
 	title_video.add_theme_stylebox_override("pressed", video_plate)
@@ -5523,7 +5387,7 @@ func _title_wood_button(call: Callable) -> Button:
 	button.text = "Comenzar"
 	button.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	button.mouse_filter = Control.MOUSE_FILTER_STOP
-	button.add_theme_font_override("font", _ui_font())
+	button.add_theme_font_override("font", ui_assets.ui_font())
 	button.add_theme_font_size_override("font_size", 22)
 	var ink := Color(1.0, 1.0, 0.96)
 	button.add_theme_color_override("font_color", ink)
@@ -5532,7 +5396,7 @@ func _title_wood_button(call: Callable) -> Button:
 	button.add_theme_color_override("font_focus_color", ink)
 	button.add_theme_constant_override("outline_size", 2)
 	button.add_theme_color_override("font_outline_color", Color(0.14, 0.08, 0.04))
-	var wood := _box_style("res://resources/ui/menu/start.png", 8, 0)
+	var wood := ui_assets.box_style("res://resources/ui/menu/start.png", 8, 0)
 	button.add_theme_stylebox_override("normal", wood)
 	button.add_theme_stylebox_override("hover", wood)
 	button.add_theme_stylebox_override("pressed", wood)
@@ -5540,7 +5404,7 @@ func _title_wood_button(call: Callable) -> Button:
 	button.add_theme_stylebox_override("hover_pressed", wood)
 	if call.is_valid():
 		button.pressed.connect(func() -> void:
-			_play_sfx_then("ui_game_continue", call)
+			media.play_sfx_then("ui_game_continue", call)
 		)
 	return button
 
@@ -5557,7 +5421,7 @@ func _title_icon_button(path: String, call: Callable, fill: bool = false) -> But
 	button.mouse_filter = Control.MOUSE_FILTER_STOP
 	var icon := TextureRect.new()
 	icon.set_anchors_preset(Control.PRESET_FULL_RECT)
-	icon.texture = _tex_rgba(path)
+	icon.texture = ui_assets.tex_rgba(path)
 	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	icon.stretch_mode = TextureRect.STRETCH_SCALE if fill else TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -5566,7 +5430,7 @@ func _title_icon_button(path: String, call: Callable, fill: bool = false) -> But
 	button.set_meta("icon", icon)
 	if call.is_valid():
 		button.pressed.connect(func() -> void:
-			_play("ui")
+			media.play("ui")
 			call.call()
 		)
 	return button
@@ -5584,7 +5448,7 @@ func _title_press_video() -> void:
 
 func _title_sprite(path: String, keep_alpha: bool = false) -> TextureRect:
 	var node := TextureRect.new()
-	node.texture = _tex_rgba(path) if keep_alpha else _tex(path)
+	node.texture = ui_assets.tex_rgba(path) if keep_alpha else ui_assets.tex(path)
 	node.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	node.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	node.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -5677,13 +5541,11 @@ func _enter_game() -> void:
 
 
 func _reset_camera() -> void:
-	zoom_level = 2.0
-	dragging = false
-	if camera == null:
+	if camera == null or cam_rig == null:
 		return
-	camera.position = _to_iso(Vector2(256, 256))
-	camera.zoom = Vector2(zoom_level, zoom_level)
-	cam_from = camera.position
+	cam_rig.end_drag()
+	cam_rig.set_zoom(2.0)
+	cam_rig.focus_world(Vector2(256, 256))
 
 
 func _start_new_game() -> void:
@@ -5808,16 +5670,16 @@ func _has_continue() -> bool:
 	var sim: ThrongletSim = ThrongletSimServer
 	if sim.session_live and not sim.game_over:
 		return true
-	return sim.has_checkpoint()
+	return ThrongletSimServer.save_system.has_checkpoint()
 
 
 func _continue_game() -> bool:
 	if not _has_continue():
 		return false
-	if ThrongletSimServer.resume_last():
+	if ThrongletSimServer.save_system.resume_last():
 		_enter_game()
 		return true
-	if ThrongletSimServer.load_checkpoint():
+	if ThrongletSimServer.save_system.load_checkpoint():
 		_enter_game()
 		return true
 	return false
@@ -5826,7 +5688,7 @@ func _continue_game() -> bool:
 func _toggle_slots() -> void:
 	if ThrongletSimServer.game_over:
 		return
-	_play("ui")
+	media.play("ui")
 	if slots_panel.visible:
 		_close_slots()
 	else:
@@ -5871,7 +5733,7 @@ func _menu_label(list: VBoxContainer, text: String) -> void:
 	title.text = text
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	title.add_theme_color_override("font_color", _menu_ink())
+	title.add_theme_color_override("font_color", ui_assets.menu_ink())
 	list.add_child(title)
 
 
@@ -5881,15 +5743,15 @@ func _menu_button(list: VBoxContainer, text: String, call: Callable, disabled: b
 	button.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	button.custom_minimum_size = Vector2(180, 0)
 	button.disabled = disabled
-	var hover := _slot_style()
+	var hover := ui_assets.slot_style()
 	hover.modulate_color = Color(1.0, 0.82, 0.45)
-	var pressed := _slot_style()
+	var pressed := ui_assets.slot_style()
 	pressed.modulate_color = Color(0.55, 0.34, 0.18)
 	button.add_theme_stylebox_override("hover", hover)
 	button.add_theme_stylebox_override("focus", hover)
 	button.add_theme_stylebox_override("pressed", pressed)
 	button.add_theme_stylebox_override("hover_pressed", pressed)
-	var ink := _menu_ink()
+	var ink := ui_assets.menu_ink()
 	button.add_theme_color_override("font_color", ink)
 	button.add_theme_color_override("font_hover_color", ink)
 	button.add_theme_color_override("font_focus_color", ink)
@@ -5897,7 +5759,7 @@ func _menu_button(list: VBoxContainer, text: String, call: Callable, disabled: b
 	button.add_theme_color_override("font_pressed_color", Color(1.0, 0.94, 0.82))
 	button.add_theme_color_override("font_hover_pressed_color", Color(1.0, 0.94, 0.82))
 	button.pressed.connect(func() -> void:
-		_play("ui")
+		media.play("ui")
 		call.call()
 	)
 	list.add_child(button)
@@ -5913,7 +5775,7 @@ func _sync_game_over() -> void:
 	over_panel.visible = show
 	if not show:
 		return
-	_play("gameover")
+	media.play("gameover")
 	gaze_panel.visible = false
 	kit_open = false
 	_set_kit_shown(false)
@@ -5931,7 +5793,7 @@ func _fill_game_over() -> void:
 	_menu_label(over_list, "GAME OVER")
 	_menu_label(over_list, "EL ULTIMO MULTI HA MUERTO")
 	_menu_button(over_list, "EMPEZAR DE NUEVO", _game_over_restart)
-	var rows: Array = ThrongletSimServer.list_checkpoints()
+	var rows: Array = ThrongletSimServer.save_system.list_checkpoints()
 	if rows.is_empty():
 		_menu_label(over_list, "NO HAY GUARDADOS")
 		return
@@ -5954,7 +5816,7 @@ func _game_over_restart() -> void:
 
 
 func _game_over_load_slot(index: int) -> void:
-	if not ThrongletSimServer.load_slot(index):
+	if not ThrongletSimServer.save_system.load_slot(index):
 		return
 	over_panel.visible = false
 	_enter_game()
@@ -5963,1645 +5825,24 @@ func _game_over_load_slot(index: int) -> void:
 func _leave_to_title() -> void:
 	var sim: ThrongletSim = ThrongletSimServer
 	if sim.session_live and not sim.game_over:
-		sim.save_progress()
+		sim.save_system.save_progress()
 	_show_title()
 
 
 func _quit_game() -> void:
 	var sim: ThrongletSim = ThrongletSimServer
 	if sim.session_live and not sim.game_over:
-		sim.save_progress()
+		sim.save_system.save_progress()
 	get_tree().quit()
 
 
 func _save_current() -> void:
-	ThrongletSimServer.save_progress()
-
-
-func _tex(path: String) -> Texture2D:
-	if textures.has(path):
-		return textures[path]
-	var tex: Texture2D = load(path)
-	if tex == null or tex.get_width() < 1:
-		var img := Image.load_from_file(ProjectSettings.globalize_path(path))
-		if img != null and not img.is_empty():
-			tex = ImageTexture.create_from_image(img)
-	textures[path] = tex
-	return tex
-
-
-func _tex_rgba(path: String) -> Texture2D:
-	var key := path + "::rgba"
-	if textures.has(key):
-		return textures[key]
-	var img := Image.load_from_file(ProjectSettings.globalize_path(path))
-	if img == null or img.is_empty():
-		return _tex(path)
-	if img.get_format() != Image.FORMAT_RGBA8:
-		img.convert(Image.FORMAT_RGBA8)
-	var tex := ImageTexture.create_from_image(img)
-	textures[key] = tex
-	return tex
-
-
-func _menu_ink() -> Color:
-	return Color(0.28, 0.14, 0.05)
-
-
-func _panel_style() -> StyleBoxTexture:
-	var style := _box_style("res://resources/ui/ui_frame_9patch.png", 8, 8)
-	style.content_margin_top = 14
-	return style
-
-
-func _slot_style() -> StyleBoxTexture:
-	return _box_style("res://resources/ui/ui_slot.png", 4, 3)
-
-
-func _choice_box(fill: Color, edge: Color) -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.bg_color = fill
-	style.border_color = edge
-	style.set_border_width_all(1)
-	style.set_content_margin_all(3)
-	return style
-
-
-func _goal_ink() -> Color:
-	return Color(0.188, 0.322, 0.416)
-
-
-func _oldos_plate_style(pad: int = 3) -> StyleBoxTexture:
-	# Unity UI_OldOS_Button borders: L=20 B=18 R=17 T=20
-	var style := StyleBoxTexture.new()
-	style.texture = _tex_rgba("res://resources/ui/ui_oldos_button.png")
-	style.texture_margin_left = 20
-	style.texture_margin_right = 17
-	style.texture_margin_top = 20
-	style.texture_margin_bottom = 18
-	style.set_content_margin_all(pad)
-	return style
-
-
-func _goal_outer_style() -> StyleBoxFlat:
-	# Original GOAL banner: thick white plate + drop shadow.
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0, 0, 0, 0)
-	style.border_color = Color(1, 1, 1, 1)
-	style.set_border_width_all(3)
-	style.shadow_color = Color(0.22, 0.22, 0.2, 0.7)
-	style.shadow_size = 2
-	style.shadow_offset = Vector2(3, 3)
-	style.set_content_margin_all(3)
-	return style
-
-
-func _goal_cyan_style() -> StyleBoxFlat:
-	# Thin cyan ring inside the white plate (original inner stroke).
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0, 0, 0, 0)
-	style.border_color = Color(88.0 / 255.0, 192.0 / 255.0, 216.0 / 255.0, 1)
-	style.set_border_width_all(2)
-	style.set_content_margin_all(2)
-	return style
-
-
-func _goal_tag_style() -> StyleBoxTexture:
-	return _box_style("res://resources/ui/ui_goal_tag.png", 0, 3)
-
-
-func _goal_body_style() -> StyleBoxTexture:
-	return _box_style("res://resources/ui/ui_goal_body.png", 0, 3)
-
-
-func _box_style(path: String, edge: int, pad: int) -> StyleBoxTexture:
-	var style := StyleBoxTexture.new()
-	style.texture = _tex(path)
-	style.texture_margin_left = edge
-	style.texture_margin_right = edge
-	style.texture_margin_top = edge
-	style.texture_margin_bottom = edge
-	style.set_content_margin_all(pad)
-	return style
-
-
-func _speech_bubble_style() -> StyleBoxTexture:
-	var style := _box_style("res://resources/ui/speech_bubble_0.png", 6, 6)
-	_bubble_margins(style, 0)
-	return style
-
-
-func _bubble_margins(style: StyleBoxTexture, frame: int) -> void:
-	# Unity speech bubble: hooked pico lives in the bottom strip (~10px).
-	# Keep panel near native size so that strip is not stretched flat.
-	var _frame := frame
-	style.texture_margin_left = 8
-	style.texture_margin_right = 8
-	style.texture_margin_top = 8
-	style.texture_margin_bottom = 12
-	style.content_margin_left = 6
-	style.content_margin_right = 6
-	style.content_margin_top = 6
-	style.content_margin_bottom = 10
-
-
-
-func _apply_bubble_frame(panel: PanelContainer, frame: int) -> void:
-	var style := panel.get_theme_stylebox("panel") as StyleBoxTexture
-	if style == null:
-		return
-	style.texture = _tex("res://resources/ui/speech_bubble_%d.png" % frame)
-	_bubble_margins(style, frame)
-
-
-func _tick_shot() -> void:
-	var sim: ThrongletSim = ThrongletSimServer
-	if sim.shot_fx:
-		_tick_shot_fx()
-		return
-	if sim.shot_round:
-		_tick_shot_round()
-		return
-	if sim.shot_carry:
-		_tick_shot_carry()
-		return
-	if shot_board == null:
-		if sim.shot_throng >= 0:
-			selected = sim.shot_throng
-		if sim.shot_factory >= 0:
-			selected_bld = sim.shot_factory
-		var reach := sim.shot_span
-		var half_w := reach * sqrt(2.0)
-		var half_h := reach * 0.70710678
-		var view := get_viewport_rect().size
-		var zoom := minf(view.x / (half_w * 2.0 + 64.0), view.y / (half_h * 2.0 + 96.0))
-		if shot_path_saved:
-			zoom_level = 4.0
-			camera.zoom = Vector2(4.0, 4.0)
-			camera.position = _to_iso(sim.shot_path)
-		else:
-			zoom_level = zoom
-			camera.zoom = Vector2(zoom, zoom)
-			camera.position = _to_iso(sim.shot_focus)
-		shot_frames += 1
-		if not shot_dos_saved:
-			if ui != null:
-				ui.visible = true
-			_open_dos()
-			dos_shown = dos_full.length()
-			dos_label.text = dos_full
-			if shot_frames < 4:
-				return
-			if not _save_shot(get_viewport(), "res://shots/dos.png"):
-				get_tree().quit(1)
-				return
-			_finish_dos()
-			shot_dos_saved = true
-			shot_frames = 0
-			return
-		if not shot_title_saved:
-			in_title = true
-			if ui != null:
-				ui.visible = true
-			title_root.visible = true
-			crt_on = true
-			_apply_crt()
-			_fill_title()
-			title_layout_size = Vector2.ZERO
-			_tick_title(0.0)
-			if shot_frames < 8:
-				return
-			if not _save_shot(get_viewport(), "res://shots/title.png"):
-				get_tree().quit(1)
-				return
-			shot_title_saved = true
-			shot_frames = 0
-			return
-		if not shot_settings_saved:
-			in_title = true
-			title_root.visible = true
-			crt_on = true
-			_apply_crt()
-			var settings_shots := [
-				{"tab": 0, "path": "res://shots/settings_mail.png"},
-				{"tab": 1, "path": "res://shots/settings_cog.png"},
-				{"tab": 2, "path": "res://shots/settings_sound.png"},
-				{"tab": 3, "path": "res://shots/settings.png"},
-			]
-			var shot_i := mini(shot_frames / 4, settings_shots.size() - 1)
-			var spec: Dictionary = settings_shots[shot_i]
-			settings_tab = int(spec.tab)
-			crt_on = true
-			_apply_crt()
-			_fill_settings()
-			if shot_frames % 4 != 3:
-				return
-			if not _save_shot(get_viewport(), str(spec.path)):
-				get_tree().quit(1)
-				return
-			if shot_i < settings_shots.size() - 1:
-				return
-			crt_on = false
-			_apply_crt()
-			title_root.visible = false
-			in_title = false
-			shot_settings_saved = true
-			shot_frames = 0
-			return
-		if not shot_video_saved:
-			in_title = true
-			title_root.visible = true
-			crt_on = true
-			_apply_crt()
-			_fill_title()
-			if title_menu != null:
-				title_menu.visible = false
-			if title_hud != null:
-				title_hud.visible = true
-			if video_library_grid == null or video_library_grid.get_child_count() == 0:
-				video_played["SEQ_1.5"] = true
-				_fill_video_library()
-			if video_library != null:
-				video_library.visible = true
-				_layout_video_library_shell()
-			if shot_frames < 8:
-				return
-			if not _save_shot(get_viewport(), "res://shots/video_library.png"):
-				get_tree().quit(1)
-				return
-			if video_library != null:
-				video_library.visible = false
-			title_root.visible = false
-			in_title = false
-			shot_video_saved = true
-			shot_frames = 0
-			return
-		if not shot_sign_saved:
-			sim.tutorial_i = 2
-			_set_hud_shown(false)
-			_sync_focus(0.0)
-			if shot_frames < 4:
-				return
-			if not _save_shot(get_viewport(), "res://shots/sign.png"):
-				get_tree().quit(1)
-				return
-			sim.tutorial_i = -1
-			if sign_button != null:
-				sign_button.visible = false
-			_set_hud_shown(true)
-			_sync_focus(0.0)
-			shot_sign_saved = true
-			shot_frames = 0
-			return
-		if not shot_hud_saved:
-			# After egg fall finishes, capture task HUD with dialogue glitch cleared.
-			sim.glitch_t = 0.0
-			if glitch_overlay != null:
-				glitch_overlay.visible = false
-			sim.modal = {}
-			sim.talk_pending = {}
-			sim.frozen = false
-			sim.tutorial_i = -1
-			if sign_button != null:
-				sign_button.visible = false
-			if not shot_egg_done:
-				var egg := _starter_egg()
-				if egg.is_empty():
-					sim._spawn_starter_egg()
-					egg = _starter_egg()
-				if float(egg.get("air", 0.0)) <= 0.0 and focus_hold <= 0.0 and shot_frames == 1:
-					egg.air = 140.0
-					egg.x = 256.0
-					egg.y = 256.0
-				var egg_air := float(egg.get("air", 0.0))
-				if egg_air > 0.0:
-					egg.air = maxf(0.0, egg_air - 6.0)
-					focus_hold = 0.45
-					if ui != null:
-						ui.visible = true
-					_set_hud_shown(true)
-					_sync_focus(0.016)
-					return
-				if focus_hold > 0.0:
-					focus_hold = maxf(0.0, focus_hold - 0.016)
-					_sync_focus(0.016)
-					return
-				shot_egg_done = true
-				shot_frames = 0
-				return
-			focus_on = false
-			if focus_dim != null:
-				focus_dim.visible = false
-			if focus_frame != null:
-				focus_frame.visible = false
-			if focus_box != null:
-				focus_box.visible = false
-			if sim.barks.is_empty() and sim.shot_throng >= 0:
-				sim.barks.append({
-					"id": sim.shot_throng,
-					"icon": Catalog.ICON_APPLE,
-					"t": 30.0,
-					"x": sim.pos_x[sim.shot_throng],
-					"y": sim.pos_y[sim.shot_throng],
-				})
-			if ui != null:
-				ui.visible = true
-			_set_hud_shown(true)
-			kit_open = true
-			kit_tab = 0
-			_set_kit_shown(true)
-			_sync_hud(0.0)
-			_sync_focus(0.0)
-			if task_panel != null:
-				task_panel.visible = true
-			if shot_frames < 12:
-				return
-			if not _save_shot(get_viewport(), "res://shots/hud_task.png"):
-				get_tree().quit(1)
-				return
-			shot_hud_saved = true
-			shot_frames = 0
-			return
-		if not shot_bubbles_saved:
-			# Close zoom on the forced bark for size/position compare.
-			if ui != null:
-				ui.visible = false
-			kit_open = false
-			_set_kit_shown(false)
-			if task_panel != null:
-				task_panel.visible = false
-			if sim.barks.is_empty() and sim.shot_throng >= 0:
-				sim.barks.append({
-					"id": sim.shot_throng,
-					"icon": Catalog.ICON_APPLE,
-					"t": 30.0,
-					"x": sim.pos_x[sim.shot_throng],
-					"y": sim.pos_y[sim.shot_throng],
-				})
-			if sim.shot_throng >= 0:
-				camera.position = _to_iso(Vector2(sim.pos_x[sim.shot_throng], sim.pos_y[sim.shot_throng]))
-			zoom_level = 3.0
-			camera.zoom = Vector2(3.0, 3.0)
-			_sync_marks()
-			if shot_frames < 8:
-				return
-			if not _save_shot(get_viewport(), "res://shots/bubbles_now.png"):
-				get_tree().quit(1)
-				return
-			shot_bubbles_saved = true
-			sim.barks.clear()
-			shot_frames = 0
-			return
-		if not shot_console_saved:
-			if ui != null:
-				ui.visible = true
-			kit_open = false
-			_set_kit_shown(false)
-			if sim.modal.is_empty():
-				sim._queue_talk("first_born", {})
-				shot_frames = 0
-				return
-			_sync_gaze()
-			_sync_focus(0.0)
-			# Wait out dialogue-open glitch before capture.
-			if sim.glitch_t > 0.0 or shot_frames < 24:
-				return
-			if not _save_shot(get_viewport(), "res://shots/console.png"):
-				get_tree().quit(1)
-				return
-			sim.modal = {}
-			sim.frozen = false
-			sim._restore_gaze()
-			if ui != null:
-				ui.visible = false
-			shot_console_saved = true
-			shot_frames = 0
-			return
-		if not shot_name_saved:
-			if ui != null:
-				ui.visible = true
-			if sim.modal.is_empty():
-				sim._open_name_ask()
-				sim.glitch_t = 0.0
-				sim.modal["draft"] = "Ana"
-				shot_frames = 0
-				return
-			_sync_gaze()
-			_sync_focus(0.0)
-			if shot_frames < 24:
-				return
-			if not _save_shot(get_viewport(), "res://shots/name.png"):
-				get_tree().quit(1)
-				return
-			sim.modal = {}
-			sim.frozen = false
-			sim._restore_gaze()
-			if name_edit != null:
-				name_edit.visible = false
-			if ui != null:
-				ui.visible = false
-			shot_name_saved = true
-			shot_frames = 0
-			return
-		if not shot_path_saved:
-			if shot_frames < 12:
-				return
-			if not _save_shot(get_viewport(), "res://shots/island_all.png"):
-				get_tree().quit(1)
-				return
-			camera.position = _to_iso(sim.shot_path)
-			camera.zoom = Vector2(4.0, 4.0)
-			zoom_level = 4.0
-			shot_path_saved = true
-			shot_frames = 0
-			return
-		if shot_frames < 6:
-			return
-		if not _save_shot(get_viewport(), "res://shots/path_zoom.png"):
-			get_tree().quit(1)
-			return
-		_build_asset_shot()
-		shot_frames = 0
-		return
-	shot_frames += 1
-	if shot_frames < 4:
-		return
-	shot_done = true
-	var ok := _save_shot(shot_board, "res://shots/wired_assets.png")
-	get_tree().quit(0 if ok else 1)
-
-
-func _tick_shot_carry() -> void:
-	var sim: ThrongletSim = ThrongletSimServer
-	if ui != null:
-		ui.visible = false
-	kit_open = false
-	_set_kit_shown(false)
-	if task_panel != null:
-		task_panel.visible = false
-	crt_on = false
-	_apply_crt()
-	camera.position = _to_iso(sim.shot_focus)
-	var view := get_viewport_rect().size
-	var reach := sim.shot_span
-	var half_w := reach * sqrt(2.0)
-	var half_h := reach * 0.70710678
-	var zoom := minf(view.x / (half_w * 2.0 + 48.0), view.y / (half_h * 2.0 + 64.0))
-	zoom_level = clampf(zoom, 3.0, 6.0)
-	camera.zoom = Vector2(zoom_level, zoom_level)
-	shot_frames += 1
-	if shot_frames < 8:
-		return
-	var wood_f := _prop_frame(Catalog.ICON_WOOD)
-	var bone_f := _prop_frame(Catalog.ICON_BONE)
-	var ore_f := _prop_frame(Catalog.ICON_ORE)
-	var carry_fs: Array = []
-	var carriers := 0
-	for i in sim.slot_count:
-		if sim.state[i] != Catalog.ST_LIVING:
-			continue
-		if int(sim.carry[i]) == Catalog.CARRY_NONE:
-			continue
-		carriers += 1
-		carry_fs.append(_prop_frame(_carry_icon(int(sim.carry[i]))))
-	var wood_s := Catalog.item_sprite_scale(Catalog.ITEM_WOOD)
-	var bone_s := Catalog.item_sprite_scale(Catalog.ITEM_BONE)
-	var ore_s := Catalog.item_sprite_scale(Catalog.ITEM_ORE)
-	print("SHOT CARRY frames ground=%s/%s/%s held=%s carriers=%d scale=%s/%s/%s" % [
-		wood_f, bone_f, ore_f, str(carry_fs), carriers, wood_s, bone_s, ore_s,
-	])
-	if carriers < 3:
-		print("SHOT CARRY FAIL carriers=%d" % carriers)
-		get_tree().quit(1)
-		return
-	if int(carry_fs[0]) != wood_f or int(carry_fs[1]) != bone_f or int(carry_fs[2]) != ore_f:
-		print("SHOT CARRY FAIL held frames mismatch %s vs %s/%s/%s" % [
-			str(carry_fs), wood_f, bone_f, ore_f,
-		])
-		get_tree().quit(1)
-		return
-	if wood_s >= 0.99 or bone_s >= 0.99 or ore_s >= 0.99:
-		print("SHOT CARRY FAIL item scales still full-size %s/%s/%s" % [wood_s, bone_s, ore_s])
-		get_tree().quit(1)
-		return
-	if not _save_shot(get_viewport(), "res://shots/carry_held.png"):
-		get_tree().quit(1)
-		return
-	# Second beat: drop loads, walk-pickup matching ground items, reshoot.
-	var pairs: Array = []
-	for i in sim.slot_count:
-		if sim.state[i] != Catalog.ST_LIVING:
-			continue
-		var want := Catalog.ITEM_WOOD
-		var carry_kind := Catalog.CARRY_WOOD
-		var gx := float(sim.pos_x[i])
-		if absf(gx - 256.0) < absf(gx - 220.0) and absf(gx - 256.0) <= absf(gx - 292.0):
-			want = Catalog.ITEM_BONE
-			carry_kind = Catalog.CARRY_BONE
-		elif absf(gx - 292.0) < absf(gx - 220.0):
-			want = Catalog.ITEM_ORE
-			carry_kind = Catalog.CARRY_ORE
-		sim.carry[i] = Catalog.CARRY_NONE
-		sim.carry_value[i] = 0
-		pairs.append({"id": i, "item": want, "carry": carry_kind})
-	for it in sim.items:
-		if it.dead:
-			continue
-		it.claimer = -1
-		it.held = false
-		it.dead = false
-	var picked := 0
-	for step in 160:
-		sim.frame_i += 1
-		picked = 0
-		for row in pairs:
-			var id := int(row.id)
-			if int(sim.carry[id]) != Catalog.CARRY_NONE:
-				picked += 1
-				continue
-			var item: Dictionary = sim._nearest_free_item(id, int(row.item), 2800.0)
-			if item.is_empty():
-				continue
-			sim._walk_pickup(id, item, int(row.carry), 26.0, 0.25)
-			if int(sim.carry[id]) != Catalog.CARRY_NONE:
-				picked += 1
-		if picked >= pairs.size():
-			break
-	var pickup_fs: Array = []
-	for row2 in pairs:
-		pickup_fs.append(_prop_frame(_carry_icon(int(sim.carry[int(row2.id)]))))
-	print("SHOT CARRY pickup carriers=%d/%d frames=%s" % [picked, pairs.size(), str(pickup_fs)])
-	if picked < pairs.size():
-		print("SHOT CARRY FAIL pickup carriers=%d" % picked)
-		get_tree().quit(1)
-		return
-	if int(pickup_fs[0]) != wood_f or int(pickup_fs[1]) != bone_f or int(pickup_fs[2]) != ore_f:
-		print("SHOT CARRY FAIL pickup frames %s" % str(pickup_fs))
-		get_tree().quit(1)
-		return
-	_sync_actors()
-	if not _save_shot(get_viewport(), "res://shots/carry_pickup.png"):
-		get_tree().quit(1)
-		return
-	shot_done = true
-	get_tree().quit(0)
-
-
-func _tick_shot_round() -> void:
-	var sim: ThrongletSim = ThrongletSimServer
-	if ui != null:
-		ui.visible = false
-	kit_open = false
-	_set_kit_shown(false)
-	if task_panel != null:
-		task_panel.visible = false
-	crt_on = false
-	_apply_crt()
-	camera.position = _to_iso(sim.shot_focus)
-	zoom_level = 5.0
-	camera.zoom = Vector2(5.0, 5.0)
-	var round_b := {}
-	for b in sim.buildings:
-		if not b.dead and int(b.kind) == Catalog.BLD_ROUND:
-			round_b = b
-			break
-	if round_b.is_empty():
-		print("SHOT ROUND FAIL no building")
-		get_tree().quit(1)
-		return
-	var marks := [0.0, 0.25, 0.5, 0.75, 1.0]
-	# Phase -1: idle settle + seat. Then one mark per step with a hold frame.
-	if shot_round_mark < 0:
-		shot_frames += 1
-		if shot_frames < 10:
-			return
-		if bool(round_b.get("active", false)):
-			print("SHOT ROUND FAIL idle still active")
-			get_tree().quit(1)
-			return
-		if not _save_shot(get_viewport(), "res://shots/round_idle.png"):
-			get_tree().quit(1)
-			return
-		print("SHOT ROUND idle active=%s" % round_b.get("active", false))
-		shot_round_ids.clear()
-		round_b.spin = 0.0
-		for n in 2:
-			var slot := n * 2
-			var seat: Vector2 = sim._ride_slot_pos(round_b, slot)
-			var id := sim._push_slot(seat.x, seat.y, 95.0, 35.0 + float(n) * 5.0, 95.0, 0.0, n)
-			if id < 0:
-				continue
-			sim.amused[id] = 35.0 + float(n) * 5.0
-			sim.act[id] = ThrongletSimServer.ACT_PLAY
-			sim.act_t[id] = 0.55
-			sim._set_ride_slot(round_b, id, slot)
-			sim._set_rider(round_b, id, true)
-			sim._set_ride_age(round_b, id, 0.0)
-			sim._place_on_ride_slot(id, round_b, slot)
-			shot_round_ids.append(id)
-		round_b.active = true
-		sim._rebuild_hash()
-		print("SHOT ROUND seated ids=%s slots=%s" % [str(shot_round_ids), str(round_b.get("ride_slot", {}))])
-		shot_round_mark = 0
-		shot_round_hold = 0
-		return
-	if shot_round_mark >= marks.size():
-		shot_done = true
-		get_tree().quit(0)
-		return
-	var target := float(marks[shot_round_mark]) * TAU
-	round_b.spin = target
-	round_b.active = true
-	for id in shot_round_ids:
-		if id < 0 or id >= sim.slot_count or sim.state[id] != Catalog.ST_LIVING:
-			continue
-		var slot := sim._ride_slot_of(round_b, id)
-		sim._place_on_ride_slot(id, round_b, slot)
-		sim.act[id] = ThrongletSimServer.ACT_PLAY
-		sim.act_t[id] = 0.55
-	shot_round_hold += 1
-	if shot_round_hold < 2:
-		return
-	if shot_round_ids.size() < 2:
-		print("SHOT ROUND FAIL seated=%s" % str(shot_round_ids))
-		get_tree().quit(1)
-		return
-	var a := int(shot_round_ids[0])
-	var b_id := int(shot_round_ids[1])
-	var mid := Vector2(float(round_b.x), float(round_b.y)) + Catalog.ROUND_RIDE_OFF
-	var ang_a := atan2(sim.pos_y[a] - mid.y, sim.pos_x[a] - mid.x)
-	var ang_b := atan2(sim.pos_y[b_id] - mid.y, sim.pos_x[b_id] - mid.x)
-	var sep := absf(fposmod(ang_a - ang_b + PI, TAU) - PI)
-	var gap := Vector2(sim.pos_x[a] - sim.pos_x[b_id], sim.pos_y[a] - sim.pos_y[b_id]).length()
-	var deg := int(round(float(marks[shot_round_mark]) * 360.0))
-	print("SHOT ROUND spin=%d deg sep=%.2f gap=%.1f a=(%.1f,%.1f) b=(%.1f,%.1f) frame=%d" % [
-		deg, sep, gap, sim.pos_x[a], sim.pos_y[a], sim.pos_x[b_id], sim.pos_y[b_id],
-		ROUND_ANIM + posmod(int(floor(target / (TAU / 8.0))), 8)
-	])
-	if absf(sep - PI) > 0.12:
-		print("SHOT ROUND FAIL unsynced sep=%.2f at %d" % [sep, deg])
-		get_tree().quit(1)
-		return
-	if gap < Catalog.ROUND_RIDE_RADIUS * 1.5:
-		print("SHOT ROUND FAIL clumped gap=%.1f at %d" % [gap, deg])
-		get_tree().quit(1)
-		return
-	if not _save_shot(get_viewport(), "res://shots/round_spin_%03d.png" % deg):
-		get_tree().quit(1)
-		return
-	shot_round_mark += 1
-	shot_round_hold = 0
-
-
-func _tick_shot_fx() -> void:
-	var cases := [
-		{"id": "aura:flower", "wait": 24, "path": "res://shots/fx_aura_flower.png"},
-		{"id": "act:bath", "wait": 24, "path": "res://shots/fx_act_bath.png"},
-		{"id": "act:sponge", "wait": 24, "path": "res://shots/fx_act_sponge.png"},
-		{"id": "visit:dwell", "wait": 24, "path": "res://shots/fx_visit_dwell.png"},
-		{"id": "feat:fire", "wait": 24, "path": "res://shots/fx_feat_fire.png"},
-	]
-	if not shot_fx_saved:
-		if not dev_on:
-			_enter_dev()
-			shot_frames = 0
-			return
-		if dev_bench == null:
-			print("SHOT FAIL no dev_bench")
-			get_tree().quit(1)
-			return
-		if not bool(dev_bench.effect_mode):
-			dev_bench._show_effects()
-			shot_frames = 0
-			return
-		var spec: Dictionary = cases[mini(shot_fx_i, cases.size() - 1)]
-		if str(dev_bench.effect_id) != str(spec.id):
-			dev_bench._select_effect(str(spec.id))
-			dev_bench.effect_playing = true
-			dev_bench._sync_effect_play_button()
-			# Jump the preview so bars/VFX are mid-effect.
-			for _i in 40:
-				dev_bench._tick_effect(0.05)
-			dev_bench.effect_t = 2.5
-			shot_frames = 0
-			return
-		shot_frames += 1
-		if shot_frames < int(spec.wait):
-			return
-		print("SHOT FX id=%s fed=%.1f fun=%.1f clean=%.1f clip=%s gauge=%s ring=%s ui=%s" % [
-			spec.id,
-			dev_bench.effect_fed,
-			dev_bench.effect_fun,
-			dev_bench.effect_clean,
-			dev_bench.effect_clip,
-			dev_bench.effect_gauge.visible if dev_bench.effect_gauge != null else false,
-			dev_bench.effect_ring.visible if dev_bench.effect_ring != null else false,
-			ui.visible if ui != null else false,
-		])
-		if not _save_shot(get_viewport(), str(spec.path)):
-			get_tree().quit(1)
-			return
-		shot_fx_i += 1
-		shot_frames = 0
-		if shot_fx_i < cases.size():
-			return
-		shot_fx_saved = true
-		shot_done = true
-		get_tree().quit(0)
-		return
-	shot_done = true
-	get_tree().quit(0)
-
-
-func _save_shot(source: Viewport, path: String) -> bool:
-	var image := source.get_texture().get_image()
-	if image == null or image.get_width() < 2:
-		print("SHOT FAIL no image %s" % path)
-		return false
-	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://shots"))
-	var err := image.save_png(path)
-	print("SHOT %s path=%s size=%sx%s" % ["OK" if err == OK else "FAIL", path, image.get_width(), image.get_height()])
-	return err == OK
-
-
-func _build_asset_shot() -> void:
-	var board := SubViewport.new()
-	board.size = Vector2i(960, 980)
-	board.disable_3d = true
-	board.transparent_bg = false
-	board.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-	add_child(board)
-	shot_board = board
-	var sheet := MultiMeshInstance2D.new()
-	sheet.texture = world.texture
-	sheet.material = world.material
-	sheet.multimesh = _mesh(true, Vector2(WORLD_CELL, WORLD_CELL))
-	board.add_child(sheet)
-	var samples: Array = [
-		["idle", ThrongClips.frame_at("ThrongA_Default", 0), 0.0],
-		["talk", ThrongClips.frame_at("ThrongA_Talk", 2), 0.0],
-		["dead", ThrongClips.frame_at("ThrongA_Dead_001", 0), 0.0],
-		["bones", ThrongClips.frame_at("ThrongA_Bones", 0), 0.0],
-		["sing", ThrongClips.frame_at("Throng_Sing_Spritesheet", 2), 0.0],
-		["kick", ThrongClips.frame_at("ThrongA_Bored_KickRock", 6), 0.0],
-		["ghost", ThrongClips.frame_at("ThrongA_Default_Ghost", 0), 0.0],
-		["outline", ThrongClips.frame_at("Thronglet_Outline", 0), 0.0],
-		["celebrate", ThrongClips.frame_at("ThrongA_Celebrate_Spritesheet", 4), 0.0],
-		["shrug", ThrongClips.frame_at("ThrongA_Shrug", 1), 0.0],
-		["think", ThrongClips.frame_at("ThrongA_DeepThought_Spritesheet", 1), 0.0],
-		["jump", ThrongClips.frame_at("ThrongA_Jump", 0), 0.0],
-		["dirty", ThrongClips.frame_at("ThrongA_Default", 0), 1.0],
-		["bubble", AssetFrames.frame(AssetFrames.BUBBLE, AssetFrames.BUBBLE_N, 0), 0.0],
-		["foam", AssetFrames.frame(AssetFrames.BUBBLE_LIGHT, AssetFrames.BUBBLE_LIGHT_N, 1), 0.0],
-		["clean", AssetFrames.frame(AssetFrames.CLEAN, AssetFrames.CLEAN_N, 1), 0.0],
-		["splash", AssetFrames.frame(AssetFrames.SPLASH, AssetFrames.SPLASH_N, 1), 0.0],
-		["smoke", AssetFrames.frame(AssetFrames.SMOKE, AssetFrames.SMOKE_N, 1), 0.0],
-		["aura", AssetFrames.frame(AssetFrames.AURA, AssetFrames.AURA_N, 1), 0.0],
-		["spark", AssetFrames.frame(AssetFrames.SPARK, AssetFrames.SPARK_N, 1), 0.0],
-		["glitch", AssetFrames.frame(AssetFrames.GLITCH, AssetFrames.GLITCH_N, 3), 0.0],
-		["tile", AssetFrames.frame(AssetFrames.TILE_GLITCH, AssetFrames.TILE_GLITCH_N, 1), 0.0],
-		["hand", AssetFrames.frame(AssetFrames.HAND, AssetFrames.HAND_N, 1), 0.0],
-		["fire", AssetFrames.FIRE, 0.0],
-		["blob", AssetFrames.FIRE_BLOB, 0.0],
-		["house", AssetFrames.GLITCH_HOUSE, 0.0],
-		["gtree", AssetFrames.GLITCH_TREE, 0.0],
-		["treec", AssetFrames.GLITCH_TREE_C, 0.0],
-		["treed", AssetFrames.GLITCH_TREE_D, 0.0],
-		["waste", AssetFrames.WASTE_TREE, 0.0],
-		["wasteb", AssetFrames.WASTE_TREE_B, 0.0],
-		["anomaly", AssetFrames.ANOMALY, 0.0],
-		["ray", AssetFrames.ANOMALY_RAY, 0.0],
-		["epilogue", AssetFrames.EPILOGUE, 0.0],
-		["rotten", AssetFrames.ROTTEN_APPLE, 0.0],
-		["mount", AssetFrames.MOUNT_BIG, 0.0],
-		["fumes", AssetFrames.FUMES, 0.0],
-		["grass", AssetFrames.GRASS_PATCH, 0.0],
-		["suds", AssetFrames.SUDS, 0.0],
-	]
-	var draws: Array = []
-	var labels := CanvasLayer.new()
-	board.add_child(labels)
-	var root := Control.new()
-	root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	labels.add_child(root)
-	var theme := Theme.new()
-	var font := _ui_font()
-	if font != null:
-		theme.default_font = font
-		theme.default_font_size = 16
-	root.theme = theme
-	var scale := 0.55
-	var cols := 8
-	for i in samples.size():
-		var sample: Array = samples[i]
-		var col := i % cols
-		var row := int(i / cols)
-		var center := Vector2(56 + col * 116, 58 + row * 108)
-		var frame := int(sample[1])
-		if frame < 0:
-			continue
-		draws.append({
-			"p": center + Vector2(0, WORLD_CELL * 0.5 * scale),
-			"icon": frame,
-			"tint": Color.WHITE,
-			"scale": scale,
-			"dirty": float(sample[2]),
-		})
-		var tag := Label.new()
-		tag.text = str(sample[0])
-		tag.position = center + Vector2(-40, 34)
-		tag.size = Vector2(80, 12)
-		tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		root.add_child(tag)
-	_write_mesh(sheet.multimesh, draws)
-	var panel := PanelContainer.new()
-	panel.position = Vector2(16, 820)
-	panel.custom_minimum_size = Vector2(620, 120)
-	if ResourceLoader.exists("res://resources/ui/wood_panel.png"):
-		panel.add_theme_stylebox_override("panel", _box_style("res://resources/ui/wood_panel.png", 24, 24))
-	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 28)
-	margin.add_theme_constant_override("margin_right", 28)
-	margin.add_theme_constant_override("margin_top", 22)
-	margin.add_theme_constant_override("margin_bottom", 18)
-	panel.add_child(margin)
-	var quote := Label.new()
-	quote.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	quote.custom_minimum_size = Vector2(540, 70)
-	quote.add_theme_font_size_override("font_size", 16)
-	var line := LineBook.line_for("shot_check")
-	quote.text = line if line != "" else "SIN LINEA"
-	margin.add_child(quote)
-	root.add_child(panel)
-	var faces := ["epilogue_angry", "epilogue_bewildered", "epilogue_caretaker", "epilogue_birthday", "epilogue_capitalist"]
-	for i in faces.size():
-		var face := TextureRect.new()
-		face.texture = _tex(POP_FACES[faces[i]])
-		face.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		face.position = Vector2(660 + (i % 3) * 96, 820 + int(i / 3) * 70)
-		face.size = Vector2(88, 64)
-		root.add_child(face)
-	var plates: PackedStringArray = _biome_plate_paths("epilogue")
-	plates.append_array(_biome_plate_paths("anomaly"))
-	for i in plates.size():
-		var plate := TextureRect.new()
-		plate.texture = _tex(plates[i])
-		plate.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		plate.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		plate.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		plate.position = Vector2(16 + i * 100, 760)
-		plate.size = Vector2(92, 28)
-		root.add_child(plate)
-
-
-func _build_audio() -> void:
-	for _i in 8:
-		var player := AudioStreamPlayer.new()
-		add_child(player)
-		sfx_pool.append(player)
-	music = AudioStreamPlayer.new()
-	music.volume_db = -6.0
-	add_child(music)
-	amb = AudioStreamPlayer.new()
-	amb.volume_db = -16.0
-	add_child(amb)
-	sting = AudioStreamPlayer.new()
-	sting.volume_db = -4.0
-	add_child(sting)
-	_fill_bank()
-	_build_video()
-
-
-func _fill_bank() -> void:
-	sfx_bank["chop"] = _clips(PackedStringArray(["tree_chop.wav", "tree_chop__01.wav", "tree_chop__02.wav"]))
-	sfx_bank["saw"] = _clips(_seq("sfx_chainsaw_cut_", 1, 4))
-	sfx_bank["hammer"] = _clips(_seq("sfx_hammer_hit_", 1, 4))
-	sfx_bank["pick"] = _clips(_seq("sfx_pickaxe_hit_", 1, 6))
-	sfx_bank["rock_break"] = _clips(PackedStringArray([
-		"sfx_rock_break_01.wav", "sfx_rock_break_02.wav", "sfx_rock_break_04.wav",
-		"sfx_rock_break_05.wav", "sfx_rock_break_06.wav",
-	]))
-	sfx_bank["rock_crack"] = _clips(_seq("sfx_rock_crack_", 1, 6))
-	sfx_bank["stump"] = _clips(_seq("sfx_tree_stump_destroy_", 1, 4))
-	sfx_bank["mop"] = _clips(_seq("sfx_mop_use_", 1, 6))
-	sfx_bank["scrub"] = _clips(PackedStringArray(["thronglet_scrub_a.wav"]))
-	sfx_bank["egg_fall"] = _clips(PackedStringArray(["sfx_egg_fall_01.wav"]))
-	sfx_bank["egg_land"] = _clips(PackedStringArray(["sfx_egg_impact_grass_01.wav"]))
-	sfx_bank["egg_crack"] = _clips(PackedStringArray(["egg_crack.wav"]))
-	sfx_bank["egg_hatch"] = _clips(PackedStringArray(["egg_hatch.wav"]))
-	sfx_bank["hatch"] = _clips(PackedStringArray(["hatch_success_stinger.wav"]))
-	sfx_bank["mitosis"] = _clips(PackedStringArray(["mitosis_small_pop.wav"]))
-	sfx_bank["apple"] = _clips(PackedStringArray(["apple_chomps.wav"]))
-	sfx_bank["ball"] = _clips(PackedStringArray(["ball_kick_a.wav"]))
-	sfx_bank["grab"] = _clips(PackedStringArray(["sfx_grabber_pickUp.wav"]))
-	sfx_bank["release"] = _clips(PackedStringArray(["sfx_grabber_release.wav"]))
-	sfx_bank["wood_grab"] = _clips(_seq("sfx_thronglet_lumber_grab_", 1, 6))
-	sfx_bank["wood_drop"] = _clips(_seq("sfx_thronglet_lumber_drop_", 1, 6))
-	sfx_bank["bone_grab"] = _clips(_seq("sfx_thronglet_bones_grab_", 1, 6))
-	sfx_bank["bone_drop"] = _clips(_seq("sfx_thronglet_bones_drop_", 1, 6))
-	sfx_bank["bridge_wood"] = _clips(_seq("sfx_bridge_wood_segment_complete_", 1, 4))
-	sfx_bank["bridge_bone"] = _clips(_seq("sfx_bridge_bones_segment_complete_", 1, 4))
-	sfx_bank["place_house"] = _clips(_seq("sfx_house_place_", 1, 3))
-	sfx_bank["place_tub"] = _clips(_seq("sfx_bathtub_place_", 1, 5))
-	sfx_bank["place_round"] = _clips(_seq("sfx_roundabout_place_", 1, 3))
-	sfx_bank["place_factory"] = _clips(_seq("sfx_factory_place_", 1, 3))
-	sfx_bank["place_mine"] = _clips(_seq("sfx_mine_place_", 1, 3))
-	sfx_bank["place_theatre"] = _clips(_seq("sfx_theatre_place_", 1, 3))
-	sfx_bank["place_statue"] = _clips(PackedStringArray(["sfx_sculpture_place.wav"]))
-	sfx_bank["place_apple"] = _clips(_seq("sfx_tree_apple_plant_", 1, 4))
-	sfx_bank["place"] = _clips(PackedStringArray(["sfx_general_tool_use.wav"]))
-	sfx_bank["tub_in"] = _clips(_seq("sfx_bathtub_enter_", 1, 6))
-	sfx_bank["tub_out"] = _clips(_seq("sfx_bathtub_exit_", 1, 6))
-	sfx_bank["round_start"] = _clips(_seq("sfx_roundabout_start_", 1, 4))
-	sfx_bank["tnt_place"] = _clips(PackedStringArray(["sfx_dynamite_place.wav"]))
-	sfx_bank["tnt_arm"] = _clips(PackedStringArray(["sfx_dynamite_activate.wav"]))
-	sfx_bank["explode"] = _clips(PackedStringArray(["sfx_dynamite_explode_st.wav"]))
-	sfx_bank["nuke"] = _clips(PackedStringArray(["sfx_nuke_explode.wav"]))
-	sfx_bank["bones"] = _clips(_seq("sfx_thronglet_bones_drop_", 1, 6))
-	sfx_bank["deflesh"] = _clips(PackedStringArray(["deflesh_a.wav"]))
-	sfx_bank["crush"] = _clips(PackedStringArray(["thronglet_crush.wav"]))
-	sfx_bank["fire_start"] = _clips(_seq("sfx_fire_start_", 1, 5))
-	sfx_bank["fire_out"] = _clips(_seq("sfx_fire_extinguish_", 1, 5))
-	sfx_bank["heal"] = _clips(_seq("sfx_healerHeart_activate_", 1, 6))
-	sfx_bank["monolith_in"] = _clips(PackedStringArray(["sfx_monolith_appear.wav"]))
-	sfx_bank["monolith"] = _clips(PackedStringArray(["sfx_monolith_interact.wav"]))
-	sfx_bank["unlock"] = _clips(PackedStringArray(["sfx_general_unlock.wav"]))
-	sfx_bank["unlock_axe"] = _clips(PackedStringArray(["sfx_axe_unlock.wav"]))
-	sfx_bank["unlock_hammer"] = _clips(PackedStringArray(["sfx_hammer_unlock.wav"]))
-	sfx_bank["unlock_pickaxe"] = _clips(PackedStringArray(["sfx_pickaxe_unlock.wav"]))
-	sfx_bank["unlock_mop"] = _clips(PackedStringArray(["sfx_mop_unlock.wav"]))
-	sfx_bank["unlock_chainsaw"] = _clips(PackedStringArray(["sfx_chainsaw_unlock.wav"]))
-	sfx_bank["unlock_grabber"] = _clips(PackedStringArray(["sfx_grabber_unlock.wav"]))
-	sfx_bank["unlock_nuke"] = _clips(PackedStringArray(["sfx_nuke_unlock.wav"]))
-	sfx_bank["unlock_tnt"] = _clips(PackedStringArray(["sfx_dynamite_unlock.wav"]))
-	sfx_bank["unlock_bathtub"] = _clips(PackedStringArray(["sfx_bathtub_unlock.wav"]))
-	sfx_bank["unlock_roundabout"] = _clips(PackedStringArray(["sfx_roundabout_unlock.wav"]))
-	sfx_bank["unlock_apple_tree"] = _clips(PackedStringArray(["sfx_tree_apple_unlock.wav"]))
-	sfx_bank["unlock_fire"] = _clips(PackedStringArray(["sfx_fire_unlock.wav"]))
-	sfx_bank["unlock_bug"] = _clips(PackedStringArray(["sfx_ladybug_unlock.wav"]))
-	sfx_bank["ui"] = _clips(PackedStringArray(["ui_click_messy.wav"]))
-	sfx_bank["locked"] = _clips(PackedStringArray(["ui_tool_unavailable.wav"]))
-	sfx_bank["error"] = _clips(PackedStringArray(["ui_error.wav"]))
-	sfx_bank["talk"] = _clips(PackedStringArray(["sfx_text_bubble_open.wav"]))
-	sfx_bank["bird"] = _clips(_seq("ambScatter_act1n2_bird_", 1, 8))
-	sfx_bank["voice_prrr"] = _clips(_seq("vo_thronglet_prrr_", 1, 13))
-	sfx_bank["voice_sing"] = _clips(_seq("vo_thronglet_sing_", 1, 6))
-	sfx_bank["voice_sing"].append_array(_clips(_seq("vo_throng_sing_group_small_", 1, 13)))
-	sfx_bank["dialogue_in"] = _clips(_seq("ui_dialogue_frame_in_", 1, 7))
-	sfx_bank["dialogue_out"] = _clips(_seq("ui_dialogue_frame_out_", 1, 8))
-	sfx_bank["console"] = _clips(_seq("ui_console_new_line_", 1, 4))
-	sfx_bank["console_select"] = _clips(PackedStringArray(["ui_console_select.wav", "ui_console_prompt.wav"]))
-	sfx_bank["speed"] = _clips(_seq("sfx_thronglet_speed_run_", 1, 6))
-	sfx_bank["superore"] = _clips(_seq("sfx_superOre_lift_", 1, 6))
-	sfx_bank["superore"].append_array(_clips(_seq("sfx_superOre_drop_", 1, 4)))
-	sfx_bank["splash"] = _clips(_seq("sfx_water_splash_", 1, 4))
-	sfx_bank["uplink"] = _clips(_seq("sfx_uplink_add_negative_", 1, 3))
-	sfx_bank["uplink"].append_array(_clips(_seq("sfx_uplink_add_positive_", 1, 3)))
-	sfx_bank["uplink"].append_array(_clips(_seq("sfx_uplink_add_thronglet_single_", 1, 3)))
-	sfx_bank["gameover"] = _clips(PackedStringArray([
-		"sfx_data_overload_gameOver_1stPopUp_head.wav",
-		"sfx_data_overload_gameOver_1stPopUp_lp.wav",
-	]))
-	sfx_bank["gameover"].append_array(_clips(_seq("sfx_data_overload_gameOver_popUp_other_", 1, 6)))
-	sfx_bank["monolith_reveal"] = _clips(PackedStringArray(["monolith_reveal_nobeat_nobar.ogg"]))
-	sfx_bank["nuked"] = _clips(PackedStringArray(["thronglets_nuked_nobpm_nobar.ogg"]))
-	sfx_bank["artifact_finale"] = _clips(PackedStringArray(["artifact_finale_140bpm_44bar.ogg"]))
-	sfx_bank["finale_outro"] = _clips(PackedStringArray(["finale_outro.ogg"]))
-	sfx_bank["code_layer"] = _clips(PackedStringArray([
-		"code_layer_in_a.ogg",
-		"code_layer_loop_120bpm_23bar.ogg",
-		"code_layer_out_a.ogg",
-	]))
-	# --- Ambiences ---
-	sfx_bank["amb_spot_market_lp"] = _clips(PackedStringArray(["amb_spot_market_lp.ogg"]))
-	sfx_bank["amb_spot_mine_lp"] = _clips(PackedStringArray(["amb_spot_mine_lp.wav"]))
-	sfx_bank["amb_spot_mountainVoidOpening_lp"] = _clips(PackedStringArray(["amb_spot_mountainVoidOpening_lp.wav"]))
-	sfx_bank["amb_spot_pollution"] = _clips(PackedStringArray(["amb_spot_pollution.ogg"]))
-	sfx_bank["ambBed_act1n2_barrenWind"] = _clips(PackedStringArray(["ambBed_act1n2_barrenWind.ogg"]))
-	sfx_bank["ambBed_act1n2_softWindBirds_lp"] = _clips(PackedStringArray(["ambBed_act1n2_softWindBirds_lp.ogg"]))
-	sfx_bank["ambBed_act3_lp"] = _clips(PackedStringArray(["ambBed_act3_lp.ogg"]))
-	sfx_bank["throngletville_amb_st"] = _clips(PackedStringArray(["throngletville_amb_st.ogg"]))
-	sfx_bank["venice_three_84dot5bpm_58bar"] = _clips(PackedStringArray(["venice_three_84dot5bpm_58bar.ogg"]))
-
-	# --- Music and stingers ---
-	sfx_bank["music_title"] = _clips(PackedStringArray(["thronglets_title_theme_180bpm_24bar.ogg"]))
-	sfx_bank["music_megafm_a"] = _clips(PackedStringArray(["thronglets_megafm_a_140bpm_72bar.ogg"]))
-	sfx_bank["music_megafm_b"] = _clips(PackedStringArray(["thronglets_megafm_b_140bpm_88bar.ogg"]))
-	sfx_bank["music_fieldwork"] = _clips(PackedStringArray(["fieldwork_140bpm_108bar.ogg"]))
-	sfx_bank["music_wasteland_one"] = _clips(PackedStringArray(["wasteland_one_160bpm_134bar.ogg"]))
-	sfx_bank["music_wasteland_two"] = _clips(PackedStringArray(["wasteland_part_two_160bpm_156bar.ogg"]))
-	sfx_bank["music_toward_artifact"] = _clips(PackedStringArray(["toward_the_artifact_140bpm_208bar.ogg"]))
-	sfx_bank["music_finale"] = _clips(PackedStringArray(["thronglets_finale_76bpm_74bar.ogg"]))
-	sfx_bank["music_artifact_finale"] = _clips(PackedStringArray(["artifact_finale_140bpm_44bar.ogg"]))
-	sfx_bank["music_actIII_millions_A"] = _clips(PackedStringArray(["actIII_millions_oneshot_A.ogg"]))
-	sfx_bank["music_actIII_millions_B"] = _clips(PackedStringArray(["actIII_millions_oneshot_B.ogg"]))
-	sfx_bank["music_actIII_millions_C"] = _clips(PackedStringArray(["actIII_millions_oneshot_C.ogg"]))
-	sfx_bank["music_artifact_reveal"] = _clips(PackedStringArray(["artifact_reveal_140bpm_10bar.ogg"]))
-	sfx_bank["music_artifact_hum"] = _clips(PackedStringArray(["artifact_hum_loop.ogg"]))
-	sfx_bank["music_nuked"] = _clips(PackedStringArray(["thronglets_nuked_nobpm_nobar.ogg"]))
-	sfx_bank["music_actii_intro"] = _clips(PackedStringArray(["act_ii_intro_welcome_progress_nobpm_nobar.ogg"]))
-	sfx_bank["music_wasteland_intro"] = _clips(PackedStringArray(["wasteland_intro_oneshot.ogg"]))
-	sfx_bank["music_code_layer_in"] = _clips(PackedStringArray(["code_layer_in_a.ogg"]))
-	sfx_bank["music_code_layer_loop"] = _clips(PackedStringArray(["code_layer_loop_120bpm_23bar.ogg"]))
-	sfx_bank["music_code_layer_out"] = _clips(PackedStringArray(["code_layer_out_a.ogg"]))
-	sfx_bank["music_tnt_multmel"] = _clips(PackedStringArray(["tnt_multmel_108bbpm_88bar.ogg"]))
-	sfx_bank["music_finale_outro"] = _clips(PackedStringArray(["finale_outro.ogg"]))
-
-	# --- UI ---
-	sfx_bank["ui_button_click"] = _clips(PackedStringArray(["code_layer_in_a.ogg"]))
-	sfx_bank["ui_game_continue"] = _clips(PackedStringArray(["ui_game_continue.wav"]))
-	sfx_bank["ui_game_continue_broken"] = _clips(PackedStringArray(["ui_game_continue_broken.wav"]))
-	sfx_bank["ui_click_messy_0"] = _clips(PackedStringArray(["ui_click_messy_0.wav"]))
-	sfx_bank["ui_click_messy"] = _clips(PackedStringArray(["ui_click_messy.wav"]))
-	sfx_bank["ui_console_prompt"] = _clips(PackedStringArray(["ui_console_prompt.wav"]))
-	sfx_bank["ui_dialogue_frame_in"] = _clips(_seq("ui_dialogue_frame_in_", 1, 7))
-	sfx_bank["ui_dialogue_frame_out"] = _clips(_seq("ui_dialogue_frame_out_", 1, 8))
-	sfx_bank["ui_droplet_up"] = _clips(PackedStringArray(["ui_droplet_up.wav"]))
-	sfx_bank["ui_error"] = _clips(PackedStringArray(["ui_error.wav"]))
-	sfx_bank["ui_fm_bump"] = _clips(PackedStringArray(["ui_fm_bump.wav"]))
-	sfx_bank["ui_slide_a"] = _clips(PackedStringArray(["ui_slide_a.wav"]))
-	sfx_bank["ui_tool_unavailable"] = _clips(PackedStringArray(["ui_tool_unavailable.wav"]))
-	sfx_bank["ui_act2_tutorial_window_open"] = _clips(PackedStringArray(["ui_act2_tutorial_window_open.wav"]))
-	sfx_bank["ui_act2_tutorial_window_close"] = _clips(PackedStringArray(["ui_act2_tutorial_window_close.wav"]))
-	sfx_bank["ui_act2_tutorial_window_lp"] = _clips(PackedStringArray(["ui_act2_tutorial_window_lp.wav"]))
-
-	# --- Tools and constructions ---
-	sfx_bank["sfx_axe_unlock"] = _clips(PackedStringArray(["sfx_axe_unlock.wav"]))
-	sfx_bank["sfx_bathtub_enter"] = _clips(_seq("sfx_bathtub_enter_", 1, 6))
-	sfx_bank["sfx_bathtub_exit"] = _clips(_seq("sfx_bathtub_exit_", 1, 6))
-	sfx_bank["sfx_bathtub_place"] = _clips(_seq("sfx_bathtub_place_", 1, 5))
-	sfx_bank["sfx_bathtub_unlock"] = _clips(PackedStringArray(["sfx_bathtub_unlock.wav"]))
-	sfx_bank["sfx_bridge_bones_segment_complete"] = _clips(_seq("sfx_bridge_bones_segment_complete_", 1, 4))
-	sfx_bank["sfx_bridge_wood_segment_complete"] = _clips(_seq("sfx_bridge_wood_segment_complete_", 1, 4))
-	sfx_bank["sfx_camera_move_lp"] = _clips(PackedStringArray(["sfx_camera_move_lp.wav"]))
-	sfx_bank["sfx_cannon_place"] = _clips(PackedStringArray(["sfx_cannon_place.wav"]))
-	sfx_bank["sfx_cannon_shot"] = _clips(_seq("sfx_cannon_shot_", 1, 6))
-	sfx_bank["sfx_cannon_unlock"] = _clips(PackedStringArray(["sfx_cannon_unlock.wav"]))
-	sfx_bank["sfx_chainsaw_cut"] = _clips(_seq("sfx_chainsaw_cut_", 1, 4))
-	sfx_bank["sfx_chainsaw_unlock"] = _clips(PackedStringArray(["sfx_chainsaw_unlock.wav"]))
-	sfx_bank["sfx_computer_loading_windows_appear_lp"] = _clips(PackedStringArray(["sfx_computer_loading_windows_appear_lp.wav"]))
-	sfx_bank["sfx_computer_skipButton_click"] = _clips(PackedStringArray(["sfx_computer_skipButton_click.wav"]))
-	sfx_bank["sfx_cutscene_nuke_result_lp_st"] = _clips(PackedStringArray(["sfx_cutscene_nuke_result_lp_st.wav"]))
-	sfx_bank["sfx_dynamite_activate"] = _clips(PackedStringArray(["sfx_dynamite_activate.wav"]))
-	sfx_bank["sfx_dynamite_explode_st"] = _clips(PackedStringArray(["sfx_dynamite_explode_st.wav"]))
-	sfx_bank["sfx_dynamite_place"] = _clips(PackedStringArray(["sfx_dynamite_place.wav"]))
-	sfx_bank["sfx_dynamite_select"] = _clips(PackedStringArray(["sfx_dynamite_select.wav"]))
-	sfx_bank["sfx_dynamite_unlock"] = _clips(PackedStringArray(["sfx_dynamite_unlock.wav"]))
-	sfx_bank["sfx_eden_artifact_presence_lp"] = _clips(PackedStringArray(["sfx_eden_artifact_presence_lp.wav"]))
-	sfx_bank["sfx_eden_artifact_reach_st"] = _clips(PackedStringArray(["sfx_eden_artifact_reach_st.wav"]))
-	sfx_bank["sfx_eden_artifact_thronglets_eyesGlow_st"] = _clips(PackedStringArray(["sfx_eden_artifact_thronglets_eyesGlow_st.wav"]))
-	sfx_bank["sfx_eden_artifact_thronglets_glow_st"] = _clips(PackedStringArray(["sfx_eden_artifact_thronglets_glow_st.wav"]))
-	sfx_bank["sfx_egg_fall_01"] = _clips(PackedStringArray(["sfx_egg_fall_01.wav"]))
-	sfx_bank["sfx_egg_impact_grass_01"] = _clips(PackedStringArray(["sfx_egg_impact_grass_01.wav"]))
-	sfx_bank["sfx_factory_place"] = _clips(_seq("sfx_factory_place_", 1, 3))
-	sfx_bank["sfx_fire_extinguish"] = _clips(_seq("sfx_fire_extinguish_", 1, 5))
-	sfx_bank["sfx_fire_lp_01"] = _clips(PackedStringArray(["sfx_fire_lp_01.wav"]))
-	sfx_bank["sfx_fire_start"] = _clips(_seq("sfx_fire_start_", 1, 5))
-	sfx_bank["sfx_fire_unlock"] = _clips(PackedStringArray(["sfx_fire_unlock.wav"]))
-	sfx_bank["sfx_general_tool_grab"] = _clips(PackedStringArray(["sfx_general_tool_grab.wav"]))
-	sfx_bank["sfx_general_tool_use"] = _clips(PackedStringArray(["sfx_general_tool_use.wav"]))
-	sfx_bank["sfx_general_unlock"] = _clips(PackedStringArray(["sfx_general_unlock.wav"]))
-	sfx_bank["sfx_glitch_special_dialUp"] = _clips(PackedStringArray(["sfx_glitch_special_dialUp.wav"]))
-	sfx_bank["sfx_grabber_pickUp"] = _clips(PackedStringArray(["sfx_grabber_pickUp.wav"]))
-	sfx_bank["sfx_grabber_release"] = _clips(PackedStringArray(["sfx_grabber_release.wav"]))
-	sfx_bank["sfx_grabber_unlock"] = _clips(PackedStringArray(["sfx_grabber_unlock.wav"]))
-	sfx_bank["sfx_hammer_hit"] = _clips(_seq("sfx_hammer_hit_", 1, 4))
-	sfx_bank["sfx_hammer_unlock"] = _clips(PackedStringArray(["sfx_hammer_unlock.wav"]))
-	sfx_bank["sfx_healerHeart_activate"] = _clips(_seq("sfx_healerHeart_activate_", 1, 6))
-	sfx_bank["sfx_healerHeart_grab"] = _clips(PackedStringArray(["sfx_healerHeart_grab.wav"]))
-	sfx_bank["sfx_healerHeart_place"] = _clips(PackedStringArray(["sfx_healerHeart_place.wav"]))
-	sfx_bank["sfx_healerHeart_unlock"] = _clips(PackedStringArray(["sfx_healerHeart_unlock.wav"]))
-	sfx_bank["sfx_house_place"] = _clips(_seq("sfx_house_place_", 1, 3))
-	sfx_bank["sfx_intro_linear01_console_st"] = _clips(PackedStringArray(["sfx_intro_linear01_console_st.wav"]))
-	sfx_bank["sfx_item_buy"] = _clips(PackedStringArray(["sfx_item_buy.wav"]))
-	sfx_bank["sfx_item_unlock_glitch_layer"] = _clips(PackedStringArray(["sfx_item_unlock_glitch_layer.wav"]))
-	sfx_bank["sfx_ladybug_grab"] = _clips(PackedStringArray(["sfx_ladybug_grab.wav"]))
-	sfx_bank["sfx_ladybug_unlock"] = _clips(PackedStringArray(["sfx_ladybug_unlock.wav"]))
-	sfx_bank["sfx_levelStart_eden_st"] = _clips(PackedStringArray(["sfx_levelStart_eden_st.wav"]))
-	sfx_bank["sfx_mine_place"] = _clips(_seq("sfx_mine_place_", 1, 3))
-	sfx_bank["sfx_monolith_appear"] = _clips(PackedStringArray(["sfx_monolith_appear.wav"]))
-	sfx_bank["sfx_monolith_interact"] = _clips(PackedStringArray(["sfx_monolith_interact.wav"]))
-	sfx_bank["sfx_mop_grab_01"] = _clips(PackedStringArray(["sfx_mop_grab_01.wav"]))
-	sfx_bank["sfx_mop_unlock"] = _clips(PackedStringArray(["sfx_mop_unlock.wav"]))
-	sfx_bank["sfx_mop_use"] = _clips(_seq("sfx_mop_use_", 1, 6))
-	sfx_bank["sfx_mountain_explode_st"] = _clips(PackedStringArray(["sfx_mountain_explode_st.wav"]))
-	sfx_bank["sfx_nuke_countdown_lp"] = _clips(PackedStringArray(["sfx_nuke_countdown_lp.wav"]))
-	sfx_bank["sfx_nuke_explode"] = _clips(PackedStringArray(["sfx_nuke_explode.wav"]))
-	sfx_bank["sfx_nuke_place"] = _clips(PackedStringArray(["sfx_nuke_place.wav"]))
-	sfx_bank["sfx_nuke_select"] = _clips(PackedStringArray(["sfx_nuke_select.wav"]))
-	sfx_bank["sfx_nuke_unlock"] = _clips(PackedStringArray(["sfx_nuke_unlock.wav"]))
-	sfx_bank["sfx_pickaxe_hit"] = _clips(_seq("sfx_pickaxe_hit_", 1, 6))
-	sfx_bank["sfx_pickaxe_unlock"] = _clips(PackedStringArray(["sfx_pickaxe_unlock.wav"]))
-	sfx_bank["sfx_quietPopUp_musicGlitch"] = _clips(PackedStringArray(["sfx_quietPopUp_musicGlitch.wav"]))
-	sfx_bank["sfx_rock_break"] = _clips(PackedStringArray([
-		"sfx_rock_break_01.wav", "sfx_rock_break_02.wav", "sfx_rock_break_04.wav",
-		"sfx_rock_break_05.wav", "sfx_rock_break_06.wav",
-	]))
-	sfx_bank["sfx_rock_crack"] = _clips(_seq("sfx_rock_crack_", 1, 6))
-	sfx_bank["sfx_roundabout_place"] = _clips(_seq("sfx_roundabout_place_", 1, 3))
-	sfx_bank["sfx_roundabout_start"] = _clips(_seq("sfx_roundabout_start_", 1, 4))
-	sfx_bank["sfx_roundabout_unlock"] = _clips(PackedStringArray(["sfx_roundabout_unlock.wav"]))
-	sfx_bank["sfx_sculpture_place"] = _clips(PackedStringArray(["sfx_sculpture_place.wav"]))
-	sfx_bank["sfx_sculpture_select"] = _clips(PackedStringArray(["sfx_sculpture_select.wav"]))
-	sfx_bank["sfx_superOre_drop"] = _clips(_seq("sfx_superOre_drop_", 1, 4))
-	sfx_bank["sfx_superOre_lift"] = _clips(_seq("sfx_superOre_lift_", 1, 6))
-	sfx_bank["sfx_teleport_appear"] = _clips(PackedStringArray(["sfx_teleport_appear.wav"]))
-	sfx_bank["sfx_teleport_doorAppear"] = _clips(PackedStringArray(["sfx_teleport_doorAppear.wav"]))
-	sfx_bank["sfx_teleport_doorClose"] = _clips(PackedStringArray(["sfx_teleport_doorClose.wav"]))
-	sfx_bank["sfx_teleport_galaxy_presence_lp"] = _clips(PackedStringArray(["sfx_teleport_galaxy_presence_lp.wav"]))
-	sfx_bank["sfx_teleport_lp"] = _clips(PackedStringArray(["sfx_teleport_lp.wav"]))
-	sfx_bank["sfx_teleport_thronglet_disappear"] = _clips(PackedStringArray(["sfx_teleport_thronglet_disappear.wav"]))
-	sfx_bank["sfx_text_bubble_close"] = _clips(PackedStringArray(["sfx_text_bubble_close.wav"]))
-	sfx_bank["sfx_text_bubble_next"] = _clips(PackedStringArray(["sfx_text_bubble_next.wav"]))
-	sfx_bank["sfx_text_bubble_open"] = _clips(PackedStringArray(["sfx_text_bubble_open.wav"]))
-	sfx_bank["sfx_theatre_place"] = _clips(_seq("sfx_theatre_place_", 1, 3))
-	sfx_bank["sfx_thonglePackage_close"] = _clips(PackedStringArray(["sfx_thonglePackage_close.wav"]))
-	sfx_bank["sfx_thonglePackage_loading_lp"] = _clips(PackedStringArray(["sfx_thonglePackage_loading_lp.wav"]))
-	sfx_bank["sfx_thonglePackage_open"] = _clips(PackedStringArray(["sfx_thonglePackage_open.wav"]))
-	sfx_bank["sfx_thronglet_bones_drop"] = _clips(_seq("sfx_thronglet_bones_drop_", 1, 6))
-	sfx_bank["sfx_thronglet_bones_grab"] = _clips(_seq("sfx_thronglet_bones_grab_", 1, 6))
-	sfx_bank["sfx_thronglet_emoji_01"] = _clips(PackedStringArray(["sfx_thronglet_emoji_01.wav"]))
-	sfx_bank["sfx_thronglet_eyeGlow"] = _clips(PackedStringArray(["sfx_thronglet_eyeGlow.wav"]))
-	sfx_bank["sfx_thronglet_lumber_drop"] = _clips(_seq("sfx_thronglet_lumber_drop_", 1, 6))
-	sfx_bank["sfx_thronglet_lumber_grab"] = _clips(_seq("sfx_thronglet_lumber_grab_", 1, 6))
-	sfx_bank["sfx_thronglet_speed_run"] = _clips(_seq("sfx_thronglet_speed_run_", 1, 6))
-	sfx_bank["sfx_tree_apple_plant"] = _clips(_seq("sfx_tree_apple_plant_", 1, 4))
-	sfx_bank["sfx_tree_apple_unlock"] = _clips(PackedStringArray(["sfx_tree_apple_unlock.wav"]))
-	sfx_bank["sfx_tree_stump_destroy"] = _clips(_seq("sfx_tree_stump_destroy_", 1, 4))
-	sfx_bank["sfx_uplink_add_bomb"] = _clips(PackedStringArray(["sfx_uplink_add_bomb.wav"]))
-	sfx_bank["sfx_uplink_add_negative"] = _clips(_seq("sfx_uplink_add_negative_", 1, 3))
-	sfx_bank["sfx_uplink_add_positive"] = _clips(_seq("sfx_uplink_add_positive_", 1, 3))
-	sfx_bank["sfx_uplink_add_thronglet_multiple_lp_noHearts"] = _clips(PackedStringArray(["sfx_uplink_add_thronglet_multiple_lp_noHearts.wav"]))
-	sfx_bank["sfx_uplink_add_thronglet_single"] = _clips(_seq("sfx_uplink_add_thronglet_single_", 1, 3))
-	sfx_bank["sfx_uplink_googlyEyes_appear"] = _clips(PackedStringArray(["sfx_uplink_googlyEyes_appear.wav"]))
-	sfx_bank["sfx_uplink_grab"] = _clips(PackedStringArray(["sfx_uplink_grab.wav"]))
-	sfx_bank["sfx_uplink_place"] = _clips(PackedStringArray(["sfx_uplink_place.wav"]))
-	sfx_bank["sfx_uplink_unlock"] = _clips(PackedStringArray(["sfx_uplink_unlock.wav"]))
-	sfx_bank["sfx_water_splash"] = _clips(_seq("sfx_water_splash_", 1, 4))
-
-	# --- Thronglets (voices and sounds) ---
-	sfx_bank["thronglet_crush"] = _clips(PackedStringArray(["thronglet_crush.wav"]))
-	sfx_bank["thronglet_glitch_a"] = _clips(PackedStringArray(["thronglet_glitch_a.wav"]))
-	sfx_bank["thronglet_glitch_b"] = _clips(PackedStringArray(["thronglet_glitch_b.wav"]))
-	sfx_bank["thronglet_glitch_c"] = _clips(PackedStringArray(["thronglet_glitch_c.wav"]))
-	sfx_bank["thronglet_glitch_d"] = _clips(PackedStringArray(["thronglet_glitch_d.wav"]))
-	sfx_bank["thronglet_glitch_e"] = _clips(PackedStringArray(["thronglet_glitch_e.wav"]))
-	sfx_bank["thronglet_jump_megafm"] = _clips(PackedStringArray(["thronglet_jump_megafm.wav"]))
-	sfx_bank["thronglet_scrub_a"] = _clips(PackedStringArray(["thronglet_scrub_a.wav"]))
-	sfx_bank["WaterSplashBeep"] = _clips(PackedStringArray(["WaterSplashBeep.wav"]))
-	sfx_bank["artifact_hum_loop"] = _clips(PackedStringArray(["artifact_hum_loop.ogg"]))
-	sfx_bank["hatch_success_stinger"] = _clips(PackedStringArray(["hatch_success_stinger.wav"]))
-	sfx_bank["monolith_reveal_nobeat_nobar"] = _clips(PackedStringArray(["monolith_reveal_nobeat_nobar.ogg"]))
-
-	# --- Thronglet voices ---
-	sfx_bank["vo_throng_sing_group_small"] = _clips(_seq("vo_throng_sing_group_small_", 1, 13))
-	sfx_bank["vo_thronglet_prrr"] = _clips(_seq("vo_thronglet_prrr_", 1, 13))
-	sfx_bank["vo_thronglet_sing"] = _clips(_seq("vo_thronglet_sing_", 1, 6))
-	sfx_bank["vo_thronglet_upset_04"] = _clips(PackedStringArray(["vo_thronglet_upset_04.wav"]))
-	sfx_bank["vo_thronglet_upset_06"] = _clips(PackedStringArray(["vo_thronglet_upset_06.wav"]))
-	sfx_bank["vo_thronglet_upset_09"] = _clips(PackedStringArray(["vo_thronglet_upset_09.wav"]))
-	sfx_bank["vo_thronglet_upset_11"] = _clips(PackedStringArray(["vo_thronglet_upset_11.wav"]))
-	sfx_bank["vo_thronglet_upset_12"] = _clips(PackedStringArray(["vo_thronglet_upset_12.wav"]))
-
-	_fill_loose_clips()
-	sfx_bank["voice_upset"] = _clips(PackedStringArray([
-		"vo_thronglet_upset_04.wav", "vo_thronglet_upset_06.wav", "vo_thronglet_upset_09.wav",
-		"vo_thronglet_upset_11.wav", "vo_thronglet_upset_12.wav",
-	]))
-
-
-func _seq(prefix: String, first: int, last: int) -> PackedStringArray:
-	var names := PackedStringArray()
-	for i in range(first, last + 1):
-		names.append("%s%02d.wav" % [prefix, i])
-	return names
-
-
-func _fill_loose_clips() -> void:
-	var packed := {}
-	for key in sfx_bank.keys():
-		for stream in sfx_bank[key]:
-			packed[stream] = true
-	var dir := DirAccess.open("res://resources/audio")
-	if dir == null:
-		return
-	dir.list_dir_begin()
-	var file_name := dir.get_next()
-	while file_name != "":
-		if not dir.current_is_dir() and (file_name.ends_with(".wav") or file_name.ends_with(".ogg")):
-			var stream := _load_stream(file_name)
-			if stream != null and not packed.has(stream):
-				sfx_bank[file_name.get_basename()] = [stream]
-				packed[stream] = true
-		file_name = dir.get_next()
-
-
-func _build_video() -> void:
-	video_player = VideoStreamPlayer.new()
-	video_player.visible = false
-	video_player.z_index = 80
-	video_player.set_anchors_preset(Control.PRESET_FULL_RECT)
-	video_player.expand = true
-	video_player.finished.connect(_on_video_finished)
-	var layer := CanvasLayer.new()
-	layer.layer = 1000
-	add_child(layer)
-	captions_layer = layer
-	var plate := ColorRect.new()
-	plate.set_anchors_preset(Control.PRESET_FULL_RECT)
-	plate.color = Color(0, 0, 0, 1)
-	plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	plate.visible = false
-	video_player.set_meta("plate", plate)
-	layer.add_child(plate)
-	layer.add_child(video_player)
-	captions_label = _make_captions_label()
-	layer.add_child(captions_label)
-
-
-func _make_captions_label() -> Label:
-	var label := Label.new()
-	# Bottom-wide with negative offsets keeps text above the screen edge.
-	# z_index must beat video_player (80) or the full-rect video covers the text.
-	label.z_index = 90
-	label.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	label.offset_left = 80
-	label.offset_right = -80
-	label.offset_top = -160
-	label.offset_bottom = -48
-	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	label.add_theme_font_override("font", _ui_font())
-	label.add_theme_font_size_override("font_size", 28)
-	label.add_theme_color_override("font_color", Color(1, 1, 1))
-	label.add_theme_color_override("font_outline_color", Color(0, 0, 0))
-	label.add_theme_constant_override("outline_size", 6)
-	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	label.visible = false
-	return label
-
-
-func _ensure_captions_label() -> void:
-	if captions_label != null and is_instance_valid(captions_label):
-		return
-	if captions_layer == null:
-		var new_layer := CanvasLayer.new()
-		new_layer.layer = 1000
-		add_child(new_layer)
-		captions_layer = new_layer
-	captions_label = _make_captions_label()
-	captions_layer.add_child(captions_label)
-
-
-func _caption_table_for(base: String) -> String:
-	# MOV_01..MOV_08 map to SEQ_1.5..SEQ_8.3 and localization tables SUB_SEQ_1..8.
-	if not base.begins_with("SEQ_"):
-		return ""
-	var seq_n := int(base.substr(4).get_slice(".", 0))
-	if seq_n < 1:
-		return ""
-	return "SUB_SEQ_%d" % seq_n
-
-
-func _caption_display_text(raw: String) -> String:
-	return str(raw).strip_edges().replace("\\n", "\n")
-
-
-func _clear_captions() -> void:
-	captions_lines.clear()
-	captions_ends.clear()
-	captions_index = -1
-	if captions_label != null:
-		captions_label.visible = false
-		captions_label.text = ""
-
-
-func _show_captions_for(base: String) -> void:
-	_ensure_captions_label()
-	_clear_captions()
-	if captions_label == null or not captions_on:
-		return
-	var table := _caption_table_for(base)
-	if table == "":
-		return
-	var weights: Array = []
-	var total_weight := 0.0
-	var i := 0
-	while true:
-		var raw := LineBook.row(table, i)
-		if raw == "":
-			break
-		var text := _caption_display_text(raw)
-		i += 1
-		if text == "":
-			continue
-		captions_lines.append(text)
-		var weight := maxf(24.0, float(text.length()))
-		weights.append(weight)
-		total_weight += weight
-	if captions_lines.is_empty() or total_weight <= 0.0:
-		return
-	var duration := 0.0
-	if video_player != null:
-		duration = video_player.get_stream_length()
-	if duration <= 0.05:
-		duration = total_weight * 0.08
-	var cursor := 0.0
-	for weight in weights:
-		cursor += duration * (float(weight) / total_weight)
-		captions_ends.append(cursor)
-	_apply_caption_at(0.0)
-
-
-func _apply_caption_at(pos: float) -> void:
-	if captions_label == null or captions_lines.is_empty():
-		return
-	var idx := 0
-	while idx < captions_ends.size() and pos >= float(captions_ends[idx]):
-		idx += 1
-	if idx >= captions_lines.size():
-		idx = captions_lines.size() - 1
-	if idx == captions_index:
-		return
-	captions_index = idx
-	captions_label.text = str(captions_lines[idx])
-	captions_label.visible = true
-	captions_label.move_to_front()
-
-
-func _tick_captions() -> void:
-	if not captions_on or captions_lines.is_empty():
-		return
-	if video_player == null or not video_player.visible or not video_player.is_playing():
-		return
-	_apply_caption_at(video_player.stream_position)
-
-
-func _play_video(base: String, from_title: bool) -> bool:
-	var path := "res://resources/video/" + base + ".ogv"
-	if not ResourceLoader.exists(path):
-		return false
-	var stream: VideoStream = load(path)
-	if stream == null:
-		return false
-	video_player.stream = stream
-	video_player.visible = true
-	var plate: ColorRect = video_player.get_meta("plate") as ColorRect
-	if plate != null:
-		plate.visible = false
-	if music != null:
-		var tween: Tween = create_tween()
-		tween.tween_property(music, "volume_db", -80.0, 0.5)
-	if sting != null:
-		var tween2: Tween = create_tween()
-		tween2.tween_property(sting, "volume_db", -80.0, 0.5)
-	video_player.play()
-	video_played[base] = true
-	video_from_title = from_title
-	_show_captions_for(base)
-	return true
-
-
-func _on_video_finished() -> void:
-	# Always clear the video and plate when finished
-	if video_player != null:
-		video_player.visible = false
-		var plate: ColorRect = video_player.get_meta("plate") as ColorRect
-		if plate != null:
-			plate.visible = false
-	_clear_captions()
-	# If the logo video has not started yet, exit without advancing
-	if boot == "logo" and not logo_started:
-		return
-	# Restore music after the video (only if it is not the logo intro)
-	if boot != "logo":
-		if music != null:
-			var tween: Tween = create_tween()
-			tween.tween_property(music, "volume_db", -6.0, 1.0)
-		if sting != null:
-			var tween2: Tween = create_tween()
-			tween2.tween_property(sting, "volume_db", -4.0, 1.0)
-	if boot == "logo":
-		video_player.volume_db = 0.0
-		_begin_dos()
-		return
-	if video_from_library:
-		video_from_library = false
-		_show_title()
-		_open_video_library()
-		return
-	if video_from_title:
-		video_from_title = false
-		_show_title()
-
-
-func _maybe_play_sequence(mode: String) -> void:
-	var clips := {
-		"mountain": "SEQ_2.1",
-		"glitch": "ConsoleText",
-		"anomaly": "SEQ_7.3",
-		"epilogue": "SEQ_8.3",
-	}
-	if not clips.has(mode) or video_played.has(mode):
-		return
-	if _play_video(str(clips[mode]), false):
-		video_played[mode] = true
-		if mode == "glitch":
-			_play_file("code_layer_in_a.ogg", false)
-		elif mode == "epilogue":
-			_play("artifact_finale")
-			_play("finale_outro")
-
-
-func _clips(names: PackedStringArray) -> Array:
-	var out: Array = []
-	for clip_name in names:
-		var stream := _load_stream(clip_name)
-		if stream != null:
-			out.append(stream)
-	return out
-
-
-func _load_stream(clip_name: String) -> AudioStream:
-	var path := "res://resources/audio/" + clip_name
-	if ResourceLoader.exists(path):
-		var stream: AudioStream = load(path)
-		if stream != null:
-			return stream
-	if clip_name.ends_with(".wav"):
-		return _load_wav(path)
-	return null
-
-
-# Load WAVs without .import (Unity dumps with broken headers or not yet reimported).
-func _load_wav(path: String) -> AudioStream:
-	var file := FileAccess.open(path, FileAccess.READ)
-	if file == null:
-		return null
-	var raw := file.get_buffer(file.get_length())
-	file.close()
-	if raw.size() < 44:
-		return null
-	var data_offset := -1
-	var data_size := 0
-	var cursor := 12
-	while cursor + 8 <= raw.size():
-		var chunk_id := String(raw.slice(cursor, cursor + 4).get_string_from_ascii())
-		var chunk_size := int(raw.decode_u32(cursor + 4))
-		if chunk_id == "data":
-			data_offset = cursor + 8
-			data_size = chunk_size if chunk_size > 0 else raw.size() - data_offset
-			break
-		cursor += 8 + chunk_size + (chunk_size & 1)
-	if data_offset < 0:
-		return null
-	var channels := int(raw.decode_u16(22))
-	var mix_rate := int(raw.decode_u32(24))
-	var bits := int(raw.decode_u16(34))
-	var wav := AudioStreamWAV.new()
-	wav.format = AudioStreamWAV.FORMAT_16_BITS if bits == 16 else AudioStreamWAV.FORMAT_8_BITS
-	wav.mix_rate = mix_rate if mix_rate > 0 else 44100
-	wav.stereo = channels > 1
-	wav.data = raw.slice(data_offset, mini(data_offset + data_size, raw.size()))
-	return wav
-
-
-func _play(name: String) -> void:
-	if name.begins_with("unlock_") and not _has_clip(name):
-		name = "unlock"
-	if not _has_clip(name):
-		return
-	var clips: Array = sfx_bank[name]
-	var stream: AudioStream = clips[randi() % clips.size()]
-	var player := _free_sfx()
-	player.stream = stream
-	player.play()
-
-
-# Play an SFX and run `callback` when it finishes. Fades out the menu music.
-func _play_sfx_then(name: String, callback: Callable) -> void:
-	if music != null:
-		var music_tween := create_tween()
-		music_tween.tween_property(music, "volume_db", -80.0, 0.5)
-
-	var wait_time := 0.35
-	if _has_clip(name):
-		_play(name)
-		var stream: AudioStream = sfx_bank[name][0]
-		if stream != null:
-			wait_time = maxf(stream.get_length(), 0.1)
-	else:
-		_play("ui")
-
-	var timer := Timer.new()
-	timer.one_shot = true
-	timer.wait_time = wait_time
-	add_child(timer)
-	timer.timeout.connect(func() -> void:
-		timer.queue_free()
-		if callback.is_valid():
-			callback.call()
-	)
-	timer.start()
-
-
-func _has_clip(name: String) -> bool:
-	if not sfx_bank.has(name):
-		return false
-	var clips: Array = sfx_bank[name]
-	return not clips.is_empty()
-
-
-func _free_sfx() -> AudioStreamPlayer:
-	for raw in sfx_pool:
-		var player := raw as AudioStreamPlayer
-		if player != null and not player.playing:
-			return player
-	return sfx_pool[0] as AudioStreamPlayer
-
-
-func _sync_music() -> void:
-	if logo_video_playing:
-		return
-	var mode := "title"
-	if not in_title:
-		mode = _camera_biome()
-		if mode == "":
-			mode = "meadow"
-	if mode == music_mode:
-		_sync_spot_amb()
-		return
-	var previous := music_mode
-	music_mode = mode
-	_play_biome_bed(mode)
-	_play_biome_stinger(mode, previous)
-	_sync_spot_amb()
-	_maybe_play_sequence(mode)
-
-
-func _play_biome_bed(mode: String) -> void:
-	if mode == "title":
-		_loop_bed(music, "thronglets_title_theme_180bpm_24bar.ogg")
-		amb.stop()
-	elif mode == "mountain":
-		_loop_bed(music, "thronglets_megafm_b_140bpm_88bar.ogg")
-		_loop_bed(amb, "amb_spot_mountainVoidOpening_lp.wav")
-	elif mode == "glitch":
-		_loop_bed(music, "wasteland_one_160bpm_134bar.ogg")
-		_loop_bed(amb, "ambBed_act3_lp.ogg")
-	elif mode == "anomaly":
-		_loop_bed(music, "wasteland_part_two_160bpm_156bar.ogg")
-		_loop_bed(amb, "amb_spot_pollution.ogg")
-	elif mode == "epilogue":
-		_loop_bed(music, "toward_the_artifact_140bpm_208bar.ogg")
-		_loop_bed(amb, "artifact_hum_loop.ogg")
-	elif mode == "waste":
-		_loop_bed(music, "wasteland_one_160bpm_134bar.ogg")
-		_loop_bed(amb, "ambBed_act1n2_barrenWind.ogg")
-	else:
-		_loop_bed(music, "fieldwork_140bpm_108bar.ogg")
-		_loop_bed(amb, "ambBed_act1n2_softWindBirds_lp.ogg")
-
-
-func _play_biome_stinger(mode: String, previous: String) -> void:
-	if previous == "":
-		return
-	var once := {
-		"mountain": "thronglets_megafm_a_140bpm_72bar.ogg",
-		"glitch": "actIII_millions_oneshot_A.ogg",
-		"anomaly": "artifact_reveal_140bpm_10bar.ogg",
-		"epilogue": "thronglets_finale_76bpm_74bar.ogg",
-	}
-	if once.has(mode):
-		_play_file(str(once[mode]), false)
-
-
-func _sync_spot_amb() -> void:
-	if in_title or music_mode == "mountain" or music_mode == "glitch" or music_mode == "anomaly" or music_mode == "epilogue":
-		return
-	var spot := _near_spot()
-	if spot == spot_mode:
-		return
-	spot_mode = spot
-	if spot == "mine":
-		_loop_bed(amb, "amb_spot_mine_lp.wav")
-	elif spot == "market":
-		_loop_bed(amb, "amb_spot_market_lp.ogg")
-	elif spot == "pollution":
-		_loop_bed(amb, "amb_spot_pollution.ogg")
-	elif music_mode == "waste":
-		_loop_bed(amb, "ambBed_act1n2_barrenWind.ogg")
-	else:
-		_loop_bed(amb, "ambBed_act1n2_softWindBirds_lp.ogg")
+	ThrongletSimServer.save_system.save_progress()
 
 
 func _near_spot() -> String:
 	var sim: ThrongletSim = ThrongletSimServer
-	var at := _from_iso(camera.position)
+	var at := cam_rig.from_iso(camera.position)
 	var mine := false
 	var market := false
 	for building in sim.buildings:
@@ -7621,42 +5862,3 @@ func _near_spot() -> String:
 		return "market"
 	return ""
 
-
-func _play_file(file_name: String, looped: bool) -> void:
-	var loaded: AudioStream = load("res://resources/audio/" + file_name)
-	if loaded == null:
-		return
-	var stream := loaded
-	if loaded is AudioStreamOggVorbis:
-		var ogg := loaded.duplicate() as AudioStreamOggVorbis
-		if ogg != null:
-			ogg.loop = looped
-			stream = ogg
-	if sting == null:
-		return
-	sting.stream = stream
-	sting.play()
-
-
-func _loop_bed(player: AudioStreamPlayer, file_name: String) -> void:
-	var loaded: AudioStream = load("res://resources/audio/" + file_name)
-	if loaded == null:
-		return
-	var stream := loaded
-	if loaded is AudioStreamOggVorbis:
-		var ogg := loaded.duplicate() as AudioStreamOggVorbis
-		if ogg != null:
-			ogg.loop = true
-			stream = ogg
-	player.stream = stream
-	player.play()
-
-
-func _tick_birds(delta: float) -> void:
-	if music_mode != "field":
-		return
-	bird_wait -= delta
-	if bird_wait > 0.0:
-		return
-	bird_wait = randf_range(7.0, 14.0)
-	_play("bird")

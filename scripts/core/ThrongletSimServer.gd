@@ -3,9 +3,10 @@ extends Node
 # Colony simulation.
 
 const DialogueBook := preload("res://scripts/data/dialogue/dialogue_book.gd")
-const TiovivoLabTune := preload("res://scripts/data/tune/tiovivo_lab_tune.gd")
 const ProgressionManager := preload("res://scripts/core/progression_manager.gd")
 const ProgressionCatalog := preload("res://scripts/data/progression_catalog.gd")
+const TiovivoLabTune := preload("res://scripts/data/tune/tiovivo_lab_tune.gd")
+const SaveSystemScript := preload("res://scripts/core/save_system.gd")
 
 const DECAY_FED := 0.24
 const DECAY_FUN := 0.14
@@ -49,7 +50,7 @@ const SPAWN_CLEAR := 110.0
 
 var testing := false
 var smoke_hold := false
-var save_path := "user://thronglets_infinite.save"
+var save_path := ""
 var world_seed := 1
 var biomes: Array = []
 var biome_by_id := {}
@@ -57,6 +58,7 @@ var biome_by_id := {}
 var unlocks := {}
 var unlock_serial := 0
 var ethics: Array = []
+var save_system: SaveSystem
 var notes: Array = []
 var sfx_queue: Array = []
 var voice_wait := 0.0
@@ -197,6 +199,8 @@ var _rng := RandomNumberGenerator.new()
 
 
 func _ready() -> void:
+	save_system = SaveSystemScript.new(self)
+	save_path = save_system.slot_path(SaveSystem.LIVE_SLOT)
 	var args := OS.get_cmdline_user_args()
 	shot_mode = args.has("--shot") or args.has("--shot-fx") or args.has("--shot-carry") or args.has("--shot-round")
 	testing = args.has("--smoke") or shot_mode
@@ -232,7 +236,7 @@ func _process(delta: float) -> void:
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST and not testing and session_live and not game_over:
-		save_progress()
+		save_system.save_progress()
 
 
 func _begin_smoke() -> void:
@@ -275,7 +279,7 @@ func _step(delta: float) -> void:
 	_check_milestones()
 	_tick_voice(delta)
 	_rebuild_hash()
-	_tick_autosave(delta)
+	save_system.tick_autosave(delta)
 
 
 func _tick_slice(delta: float) -> void:
@@ -2884,8 +2888,9 @@ func _mop(x: float, y: float) -> void:
 	goo_count = _count_goo()
 	var ids := query_radius(x, y, radius)
 	for id in ids:
-		if state[int(id)] == Catalog.ST_LIVING:
-			clean[int(id)] = 100.0
+		var tid := int(id)
+		if state[tid] == Catalog.ST_LIVING and mito_t[tid] <= 0.0:
+			clean[tid] = 100.0
 	sfx_queue.append("mop")
 
 
@@ -2906,7 +2911,7 @@ func scrub(x: float, y: float, stroke: float, rubbing: bool = false) -> void:
 		var id := int(raw)
 		if state[id] != Catalog.ST_LIVING:
 			continue
-		if mito_t[id] > 0.0 or mito_charge[id] > 0.0:
+		if mito_t[id] > 0.0:
 			continue
 		if clean[id] >= 100.0:
 			_stop_wash(id)
@@ -3050,6 +3055,8 @@ func grab_thronglet(id: int) -> bool:
 		return false
 	if id < 0 or id >= slot_count or state[id] != Catalog.ST_LIVING:
 		return false
+	if mito_t[id] > 0.0:
+		return false
 	held_kind = "thronglet"
 	held_ref = id
 	held_x = pos_x[id]
@@ -3082,6 +3089,18 @@ func grab_at(x: float, y: float) -> bool:
 	return take_hand(x, y)
 
 
+func _find_safe_thronglet_spot(x: float, y: float) -> Vector2:
+	for ring in 32:
+		var rays := 1 if ring == 0 else 12
+		for i in rays:
+			var ang := float(i) * TAU / float(maxi(rays, 1))
+			var r := float(ring) * 10.0
+			var at := Vector2(x + cos(ang) * r, y + sin(ang) * r)
+			if _can_drop(at.x, at.y) and _land_inland(at.x, at.y):
+				return at
+	return Vector2(INF, INF)
+
+
 func release_at(x: float, y: float, short_click: bool, _allow_use: bool = true) -> Dictionary:
 	if hand_id != -1:
 		var it = item_by_id.get(hand_id, {})
@@ -3107,14 +3126,39 @@ func release_at(x: float, y: float, short_click: bool, _allow_use: bool = true) 
 		px = snapped.x
 		py = snapped.y
 	if kind == "thronglet" and id >= 0 and id < slot_count and state[id] == Catalog.ST_LIVING:
-		if not short_click and (_tile_at(px, py) == Catalog.TILE_VOID or not _land_inland(px, py)):
-			pos_x[id] = px
-			pos_y[id] = py
-			_fall_void(px, py)
-			_vacate(id)
-		elif short_click or (_can_drop(px, py) and _land_inland(px, py)):
-			pos_x[id] = px
-			pos_y[id] = py
+		if short_click:
+			if _can_drop(px, py) and _land_inland(px, py):
+				pos_x[id] = px
+				pos_y[id] = py
+		else:
+			var drop_tile := _tile_at(px, py)
+			if drop_tile == Catalog.TILE_VOID or drop_tile == Catalog.TILE_FOG:
+				pos_x[id] = px
+				pos_y[id] = py
+				_fall_void(px, py)
+				_vacate(id)
+			elif drop_tile == Catalog.TILE_WATER or not _land_inland(px, py) or not _can_drop(px, py):
+				var safe := _find_safe_thronglet_spot(px, py)
+				if is_inf(safe.x):
+					safe = _find_safe_thronglet_spot(held_x, held_y)
+				if not is_inf(safe.x):
+					pos_x[id] = safe.x
+					pos_y[id] = safe.y
+				elif drop_tile == Catalog.TILE_VOID or drop_tile == Catalog.TILE_FOG:
+					pos_x[id] = px
+					pos_y[id] = py
+					_fall_void(px, py)
+					_vacate(id)
+				else:
+					if _can_drop(held_x, held_y) and _land_inland(held_x, held_y):
+						pos_x[id] = held_x
+						pos_y[id] = held_y
+					else:
+						pos_x[id] = px
+						pos_y[id] = py
+			else:
+				pos_x[id] = px
+				pos_y[id] = py
 	elif kind == "rock":
 		var feat = feature_by_id.get(id, {})
 		if not feat.is_empty() and not feat.dead:
@@ -3925,9 +3969,6 @@ const ACT_PLAY := 2
 const ACT_WASH := 3
 const ACT_BATH := 4
 const ACT_WORK := 5
-# Slot 0 is the live run. Slots 1..n keep older autosaves for game-over recovery.
-const SLOT_COUNT := 4
-const LIVE_SLOT := 0
 
 
 func _pop(x: float, y: float, icon: int, sprite_scale: float = 1.0) -> void:
@@ -3945,22 +3986,16 @@ func _tick_pops(dt: float) -> void:
 
 
 func _boot_game() -> void:
-	var last := _last_slot()
-	if last >= 0 and load_slot(last):
+	var last := save_system.last_slot()
+	if last >= 0 and save_system.load_slot(last):
 		return
-	var legacy := "user://thronglets_infinite.save"
-	if FileAccess.file_exists(legacy):
-		save_path = legacy
-		if load_game():
-			save_progress()
-			return
 	_bootstrap_new()
 
 
 func new_game() -> void:
 	# One run only: wipe the live save and its autosave history.
-	clear_saves()
-	current_slot = LIVE_SLOT
+	save_system.clear_saves()
+	current_slot = SaveSystem.LIVE_SLOT
 	ethics = []
 	_init_unlocks()
 	unlock_serial += 1
@@ -3971,365 +4006,6 @@ func new_game() -> void:
 	tutorial_i = 0
 	count_unknown = true
 	notes.append("PARTIDA NUEVA.")
-
-
-func clear_saves() -> void:
-	var dir := DirAccess.open("user://")
-	for i in SLOT_COUNT:
-		var path := _slot_path(i)
-		if dir != null and FileAccess.file_exists(path):
-			dir.remove(path.get_file())
-	# Also delete the legacy save from previous versions, if it exists,
-	# so a reset truly removes any saved game.
-	var legacy := "user://thronglets_infinite.save"
-	if dir != null and FileAccess.file_exists(legacy):
-		dir.remove(legacy.get_file())
-	_write_meta({})
-	current_slot = -1
-	session_live = false
-	game_over = false
-
-
-func save_slot(index: int) -> bool:
-	if index < 0 or index >= SLOT_COUNT:
-		return false
-	current_slot = index
-	save_path = _slot_path(index)
-	if not save_game():
-		return false
-	var meta := _read_meta()
-	meta["last"] = index
-	meta[str(index)] = {"living": living, "peak": peak, "t": Time.get_unix_time_from_system()}
-	_write_meta(meta)
-	autosave_t = 0.0
-	return true
-
-
-func save_progress() -> bool:
-	# One live run: always write slot 0.
-	return save_slot(LIVE_SLOT)
-
-
-func _tick_autosave(delta: float) -> void:
-	if testing or game_over or not session_live or autosave_interval <= 0.0:
-		return
-	autosave_t += delta
-	if autosave_t < autosave_interval:
-		return
-	autosave_t = 0.0
-	_rotate_autosave_history()
-	save_progress()
-
-
-func _rotate_autosave_history() -> void:
-	# Keep older copies of the live save for game-over recovery.
-	if not FileAccess.file_exists(_slot_path(LIVE_SLOT)):
-		return
-	var dir := DirAccess.open("user://")
-	if dir == null:
-		return
-	var meta := _read_meta()
-	for i in range(SLOT_COUNT - 1, LIVE_SLOT, -1):
-		var src := _slot_path(i - 1)
-		var dst := _slot_path(i)
-		if FileAccess.file_exists(dst):
-			dir.remove(dst.get_file())
-		if FileAccess.file_exists(src):
-			dir.rename(src.get_file(), dst.get_file())
-		if meta.has(str(i - 1)):
-			meta[str(i)] = meta[str(i - 1)]
-		else:
-			meta.erase(str(i))
-	meta.erase(str(LIVE_SLOT))
-	_write_meta(meta)
-
-
-func list_checkpoints() -> Array:
-	# Newest first: live autosave, then older rotations.
-	var meta := _read_meta()
-	var out: Array = []
-	for i in SLOT_COUNT:
-		if not FileAccess.file_exists(_slot_path(i)):
-			continue
-		var row: Dictionary = meta.get(str(i), {})
-		out.append({
-			"i": i,
-			"living": int(row.get("living", 0)),
-			"peak": int(row.get("peak", 0)),
-			"t": float(row.get("t", 0.0)),
-		})
-	return out
-
-
-func has_checkpoint() -> bool:
-	return list_checkpoints().size() > 0
-
-
-func load_checkpoint() -> bool:
-	var rows := list_checkpoints()
-	if rows.is_empty():
-		return false
-	return load_slot(int(rows[0].i))
-
-
-func load_slot(index: int) -> bool:
-	if index < 0 or index >= SLOT_COUNT:
-		return false
-	save_path = _slot_path(index)
-	if not load_game():
-		return false
-	current_slot = index
-	var meta := _read_meta()
-	meta["last"] = index
-	_write_meta(meta)
-	unlock_serial += 1
-	return true
-
-
-func _slot_path(index: int) -> String:
-	return "user://thronglets_slot_%d.save" % index
-
-
-func resume_last() -> bool:
-	if session_live:
-		return true
-	var last := _last_slot()
-	if last < 0:
-		return false
-	return load_slot(last)
-
-
-func _last_slot() -> int:
-	var meta := _read_meta()
-	return int(meta.get("last", -1))
-
-
-func _read_meta() -> Dictionary:
-	if not FileAccess.file_exists("user://thronglets_slots.meta"):
-		return {}
-	var file := FileAccess.open("user://thronglets_slots.meta", FileAccess.READ)
-	if file == null:
-		return {}
-	var data = file.get_var(true)
-	if typeof(data) != TYPE_DICTIONARY:
-		return {}
-	return data
-
-
-func _write_meta(meta: Dictionary) -> void:
-	var file := FileAccess.open("user://thronglets_slots.meta", FileAccess.WRITE)
-	if file != null:
-		file.store_var(meta, true)
-
-
-func save_game() -> bool:
-	cancel_hold()
-	var gazing := frozen and not gaze_home.is_empty()
-	_restore_gaze()
-	_compact(items)
-	_compact(features)
-	_compact(buildings)
-	var data := {
-		"v": 1,
-		"seed": world_seed,
-		"peak": peak,
-		"gems": gems,
-		"gems_peak": gems_peak,
-		"total_gems_earned": total_gems_earned,
-		"deaths_total": deaths_total,
-		"land_tier": land_tier,
-		"bridge_open": bridge_open,
-		"glitch_seen": glitch_seen,
-		"unlocks": unlocks.duplicate(true),
-		"ethics": ethics.duplicate(true),
-		"moral": moral,
-		"mutations": mutations.duplicate(true),
-		"talked_trees": talked_trees.duplicate(true),
-		"learn_talked": learn_talked,
-		"part_two": part_two,
-		"mountain_seen": mountain_seen,
-		"trees_chopped": trees_chopped,
-		"stumps_cleared": stumps_cleared,
-		"bug_uses": bug_uses,
-		"tnt_used": tnt_used,
-		"goo_count": goo_count,
-		"cap_told": cap_told,
-		"monoliths": monolith_tier_spawned.duplicate(true),
-		"pos_x": pos_x,
-		"pos_y": pos_y,
-		"dir_x": dir_x,
-		"dir_y": dir_y,
-		"fed": fed,
-		"amused": amused,
-		"clean": clean,
-		"cool": cool,
-		"starve": starve,
-		"hungry_t": hungry_t,
-		"wander_t": wander_t,
-		"mito_t": mito_t,
-		"mito_charge": mito_charge,
-		"shake_t": shake_t,
-		"buff_t": buff_t,
-		"state": state,
-		"carry": carry,
-		"carry_value": carry_value,
-		"tint": tint,
-		"claim": claim,
-		"act": act,
-		"act_t": act_t,
-		"items": items.duplicate(true),
-		"buildings": buildings.duplicate(true),
-		"features": features.duplicate(true),
-		"tree_seeds": tree_seeds.duplicate(true),
-		"bridges": bridges.duplicate(true),
-		"chunks": chunks.duplicate(true),
-		"wear": wear.duplicate(),
-		"bridge_done": bridge_done.duplicate(true),
-		"revealed": revealed.duplicate(true),
-		"sister_cx": sister_cx,
-		"sister_cy": sister_cy,
-		"sister_ready": sister_ready,
-		"player_name": player_name,
-		"tutorial_i": tutorial_i,
-		"count_unknown": count_unknown,
-	}
-	var file := FileAccess.open(save_path, FileAccess.WRITE)
-	if file == null:
-		notes.append("NO SE PUDO GUARDAR.")
-		if gazing:
-			_line_up_gaze()
-		return false
-	file.store_var(data, true)
-	save_pulse += 1
-	if gazing:
-		_line_up_gaze()
-	return true
-
-
-func load_game() -> bool:
-	if not FileAccess.file_exists(save_path):
-		notes.append("NO HAY PARTIDA.")
-		return false
-	var file := FileAccess.open(save_path, FileAccess.READ)
-	if file == null:
-		return false
-	var data = file.get_var(true)
-	if typeof(data) != TYPE_DICTIONARY or int(data.get("v", 0)) != 1 or not data.has("pos_x"):
-		notes.append("PARTIDA ILEGIBLE.")
-		return false
-	_reset_world()
-	world_seed = int(data.get("seed", 1))
-	peak = int(data.get("peak", 0))
-	gems = int(data.get("gems", 0))
-	gems_peak = maxi(int(data.get("gems_peak", gems)), gems)
-	total_gems_earned = maxi(int(data.get("total_gems_earned", gems_peak)), gems_peak)
-	deaths_total = int(data.get("deaths_total", 0))
-	land_tier = int(data.get("land_tier", 0))
-	bridge_open = bool(data.get("bridge_open", false))
-	unlocks = data.get("unlocks", unlocks)
-	glitch_seen = bool(data.get("glitch_seen", false))
-	ethics = data.get("ethics", [])
-	moral = int(data.get("moral", 0))
-	mutations = data.get("mutations", {})
-	if typeof(mutations) != TYPE_DICTIONARY:
-		mutations = {}
-	talked_trees = data.get("talked_trees", {})
-	if typeof(talked_trees) != TYPE_DICTIONARY:
-		talked_trees = {}
-	learn_talked = bool(data.get("learn_talked", false))
-	part_two = bool(data.get("part_two", false))
-	mountain_seen = bool(data.get("mountain_seen", false))
-	trees_chopped = int(data.get("trees_chopped", 0))
-	stumps_cleared = int(data.get("stumps_cleared", 0))
-	bug_uses = int(data.get("bug_uses", 0))
-	tnt_used = int(data.get("tnt_used", 0))
-	goo_count = int(data.get("goo_count", 0))
-	cap_told = bool(data.get("cap_told", false))
-	monolith_tier_spawned = data.get("monoliths", {})
-	talk_pending = {}
-	gaze_queue.clear()
-	pos_x = _as_f32(data.pos_x)
-	pos_y = _as_f32(data.pos_y)
-	dir_x = _as_f32(data.dir_x)
-	dir_y = _as_f32(data.dir_y)
-	fed = _as_f32(data.fed)
-	amused = _as_f32(data.amused)
-	clean = _as_f32(data.clean)
-	cool = _as_f32(data.cool)
-	starve = _as_f32(data.starve)
-	hungry_t = _as_f32(data.get("hungry_t", []))
-	wander_t = _as_f32(data.wander_t)
-	mito_t = _as_f32(data.mito_t)
-	mito_charge = _as_f32(data.get("mito_charge", []))
-	shake_t = _as_f32(data.shake_t)
-	buff_t = _as_f32(data.buff_t)
-	state = _as_i32(data.state)
-	carry = _as_i32(data.carry)
-	carry_value = _as_i32(data.carry_value)
-	tint = _as_i32(data.tint)
-	claim = _as_i32(data.claim)
-	slot_count = pos_x.size()
-	mine_job = PackedInt32Array()
-	mine_job.resize(slot_count)
-	mine_job.fill(-1)
-	act = _as_i32(data.get("act", []))
-	act_t = _as_f32(data.get("act_t", []))
-	while act.size() < slot_count:
-		act.append(0)
-	while act_t.size() < slot_count:
-		act_t.append(0.0)
-	while mito_charge.size() < slot_count:
-		mito_charge.append(0.0)
-	while hungry_t.size() < slot_count:
-		hungry_t.append(0.0)
-	items = data.get("items", [])
-	buildings = data.get("buildings", [])
-	features = data.get("features", [])
-	tree_seeds = data.get("tree_seeds", [])
-	bridges = data.get("bridges", [])
-	chunks = data.get("chunks", {})
-	wear = data.get("wear", {})
-	if typeof(wear) != TYPE_DICTIONARY:
-		wear = {}
-	wear_from.clear()
-	bridge_done = data.get("bridge_done", {})
-	revealed = data.get("revealed", {})
-	sister_cx = int(data.get("sister_cx", 1))
-	sister_cy = int(data.get("sister_cy", 0))
-	sister_ready = bool(data.get("sister_ready", false))
-	player_name = str(data.get("player_name", ""))
-	tutorial_i = int(data.get("tutorial_i", -1))
-	count_unknown = bool(data.get("count_unknown", false))
-	_recount()
-	_reindex()
-	if not bridge_open and (part_two or land_tier >= 2):
-		bridge_open = true
-	_refresh_pop_gates(false)
-	_shape_island()
-	_hide_closed_world()
-	if bridge_open and not part_two and _ethics_choice("need_bridge") == -1:
-		_queue_talk("need_bridge", {})
-	_repair_done_bridges()
-	_ensure_island_mines()
-	_rebuild_hash()
-	paint_epoch += 1
-	dirty_chunks.clear()
-	for key in revealed.keys():
-		dirty_chunks.append(str(key))
-	frozen = false
-	game_over = false
-	paused = false
-	modal = {}
-	hand_id = -1
-	_clear_held()
-	sponge_id = -1
-	sponge_hold = 0.0
-	notes.append("PARTIDA CARGADA.")
-	session_live = true
-	_open_special_biomes()
-	if living <= 0 and peak > 0:
-		_enter_game_over()
-	return true
 
 
 func _repair_done_bridges() -> void:
@@ -8274,10 +7950,10 @@ func _run_checks() -> void:
 		errors.append("frozen after choice")
 	var live_now := living
 	var gems_now := gems
-	if not save_game():
+	if not save_system.save_game():
 		errors.append("save failed")
 	gems = 999
-	if not load_game():
+	if not save_system.load_game():
 		errors.append("load failed")
 	elif living != live_now or gems != gems_now:
 		errors.append("load mismatch living %s/%s gems %s/%s" % [living, live_now, gems, gems_now])

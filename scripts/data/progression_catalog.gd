@@ -30,7 +30,7 @@ static func entry(id: String, name: String, category: String, unlock_conditions:
 		e["replaces"] = replaces
 	return e
 
-const CATALOG: Array = [
+static var CATALOG: Array = [
 	# Fase 1
 	entry("apple", "Manzana", "tool", [], 0, 1.0, 0),
 	entry("ball", "Pelota", "tool", [], 0, 1.0, 0),
