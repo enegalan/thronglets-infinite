@@ -4,6 +4,9 @@
 
 ### 2026-11-16
 
+- Infinite progression is now driven by a decoupled catalog and manager: tool/building unlocks evaluate live metrics (population, total gems earned, pollution, deaths, trees cut) with systemic conditions instead of one-off narrative triggers.
+- Improved tools replace their base versions in the HUD and active selection (hammer→pickaxe, axe→chainsaw, sponge→mop, bug→swarm), and repeatable buildings use exponentially scaled placement costs.
+- Simulation telemetry tracks cumulative gems earned, deaths, and pollution state for progression; catalog-driven unlocks and progression hooks (narrative/world side effects) are centralized in the progression manager.
 - The development bench includes a tiovivo lab for trying carousel layouts and ride timing. Its saved tuning is shared with the game so ride spacing, spin, and fun rates stay in step.
 - Mines act as walkable pads. When a factory exists, miners take ore into their hands for delivery instead of dropping it on the ground, and mines no longer block movement.
 - Clicking a thronglet selects it and keeps the camera following until you click elsewhere. Sponge scrubbing responds to movement over dirty thronglets, and expired ground items and some chop feedback no longer spawn extra poofs.
