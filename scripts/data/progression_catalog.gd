@@ -38,8 +38,8 @@ static var CATALOG: Array = [
 	entry("bathtub", "Bañera", "building", [cond_population(6)], 0, 1.4, 1),
 	entry("apple_tree", "Manzano", "building", [cond_population(10)], 0, 1.5, 2),
 	entry("roundabout", "Carrusel", "building", [cond_population(15)], 0, 1.5, 2),
-	entry("hammer", "Martillo", "tool", [cond_population(20)], 0, 1.0, 0),
-	entry("axe", "Hacha", "tool", [cond_population(25)], 0, 1.0, 0),
+	entry("hammer", "Martillo", "tool", [cond_metric("trees_cut", 1)], 0, 1.0, 0),
+	entry("axe", "Hacha", "tool", [cond_population(6)], 0, 1.0, 0),
 	entry("bug", "El Bug", "tool", [cond_unlocked("axe")], 0, 1.0, 0),
 	# Fase 2
 	entry("pickaxe", "Pico", "tool", [cond_unlocked("hammer"), cond_gems(15)], 15, 1.0, 2, "hammer"),

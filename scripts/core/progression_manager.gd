@@ -115,6 +115,9 @@ static func evaluate_unlocks(sim, announce: bool = true) -> Array[String]:
 
 static func apply_progression_hooks(sim, announce: bool = true) -> void:
 	# Narrative/world side effects not modeled in the progression catalog.
+	# Tutorial gate: axe unlocks once the colony has reached 6 (peak), even if pop later drops.
+	if sim.peak >= 6 and not bool(sim.unlocks.get("axe", false)):
+		sim._grant("axe", "", announce)
 	if sim.peak >= 25:
 		sim._ensure_monolith(1)
 	if sim._has_building(Catalog.BLD_ROUND) and sim.peak >= 12:

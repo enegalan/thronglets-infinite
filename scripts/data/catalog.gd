@@ -62,6 +62,8 @@ const PICK_RADIUS := 42.0
 const HAMMER_ORE_RADIUS := 48.0
 const GRAB_RADIUS := 48.0
 const MOP_RADIUS := 48.0
+const SPONGE_RADIUS := 30.0
+const SWARM_RADIUS := 36.0
 const TOOL_REACH_COLOR := Color(0.28, 0.92, 0.32, 0.95)
 const TOOL_CHARGE_COLOR := Color(1.0, 1.0, 1.0, 0.95)
 
