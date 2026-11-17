@@ -23,6 +23,11 @@ const FRAME_SCALE := {
 	"suds": {
 		"0": 0.4,
 	},
+	"splash": {
+		"0": 0.6,
+		"1": 0.6,
+		"2": 0.6,
+	},
 }
 const FRAME_OFF := {
 	"egg": {

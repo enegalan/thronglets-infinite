@@ -197,9 +197,11 @@ var hash_head := PackedInt32Array()
 var hash_next := PackedInt32Array()
 
 var _rng := RandomNumberGenerator.new()
+var item_physics: ItemPhysics
 
 
 func _ready() -> void:
+	item_physics = ItemPhysics.new(self)
 	save_system = SaveSystemScript.new(self)
 	save_path = save_system.slot_path(SaveSystem.LIVE_SLOT)
 	var args := OS.get_cmdline_user_args()
@@ -264,7 +266,7 @@ func _step(delta: float) -> void:
 	_tick_talk_wait(delta)
 	if not frozen:
 		_ensure_bridge_site()
-		_tick_items(delta)
+		item_physics.tick_items(delta)
 		_tick_trees(delta)
 		_tick_props(delta)
 		_tick_buildings(delta)
@@ -361,6 +363,19 @@ func _tick_one(i: int, dt: float) -> void:
 		mito_t[i] = maxf(0.0, mito_t[i] - dt)
 		if mito_t[i] <= 0.0:
 			_finish_mitosis(i)
+		return
+	if mito_charge[i] > 0.0:
+		# The mitosis sheet already plays while charging, so stay put for the
+		# whole buildup + split instead of walking through the animation.
+		mito_charge[i] = minf(MITOSIS_CHARGE, mito_charge[i] + dt)
+		if mito_charge[i] >= MITOSIS_CHARGE:
+			mito_charge[i] = 0.0
+			_start_mitosis(i)
+		dir_x[i] = 0.0
+		dir_y[i] = 0.0
+		act[i] = 0
+		act_t[i] = 0.0
+		shake_t[i] = 0.0
 		return
 	var decay := _decay_scale()
 	fed[i] = maxf(0.0, fed[i] - DECAY_FED * decay * dt)
@@ -674,6 +689,8 @@ func _nearest_free_item(i: int, kind: int, max_dist: float) -> Dictionary:
 	var best_d := max_dist
 	for it in items:
 		if it.dead or it.held or int(it.kind) != kind:
+			continue
+		if bool(it.get("falling_void", false)) or float(it.get("air", 0.0)) > 4.0:
 			continue
 		var who := int(it.get("claimer", -1))
 		if who >= 0 and who != i:
@@ -1181,6 +1198,8 @@ func _seek_fun(i: int, speed: float, dt: float) -> bool:
 					kl = 1.0
 				ball.vx = kx / kl * 96.0
 				ball.vy = ky / kl * 78.0
+				ball.vz = maxf(float(ball.get("vz", 0.0)), 105.0)
+				ball.air = maxf(float(ball.get("air", 0.0)), 1.0)
 				ball.rest = 0.7
 				ball.life = BALL_LIFE
 				amused[i] = minf(100.0, amused[i] + BALL_KICK_FUN)
@@ -2126,14 +2145,9 @@ func _tick_apple_tree(b: Dictionary, dt: float) -> void:
 	var lift: float = Catalog.APPLE_LIFTS[fruit_slot]
 	var start := Vector2(float(b.x) + spot.x, float(b.y) + spot.y)
 	var dest := _apple_land_spot(float(b.x), float(b.y))
-	var fall_t := Catalog.APPLE_FALL_T
+	var fall_t := sqrt(2.0 * maxf(lift, 1.0) / item_physics.ITEM_GRAVITY)
 	var dropped := _add_item(Catalog.ITEM_APPLE, start.x, start.y, 1)
-	dropped.air = lift
-	dropped.fall = lift / fall_t
-	dropped.tx = dest.x
-	dropped.ty = dest.y
-	dropped.vx = (dest.x - start.x) / fall_t
-	dropped.vy = (dest.y - start.y) / fall_t
+	item_physics.launch_item(dropped, lift, 0.0, (dest.x - start.x) / fall_t, (dest.y - start.y) / fall_t)
 
 
 func structure_full(b: Dictionary) -> bool:
@@ -2240,10 +2254,6 @@ func _tick_trees(dt: float) -> void:
 	tree_seeds = kept
 
 
-func _queue_tree_seed(x: float, y: float, wait: float) -> void:
-	tree_seeds.append({"x": x, "y": y, "t": wait})
-
-
 func _try_plant_tree(x: float, y: float) -> void:
 	if _blocked(x, y) or _on_bridge(x, y):
 		return
@@ -2252,77 +2262,6 @@ func _try_plant_tree(x: float, y: float) -> void:
 	if not _building_at(x, y, 10.0).is_empty():
 		return
 	_add_feature(Catalog.FEAT_TREE, x, y, 1, 0, true)
-
-
-func _tick_items(dt: float) -> void:
-	for it in items:
-		if it.dead or it.held:
-			continue
-		if int(it.kind) == Catalog.ITEM_EGG:
-			_tick_egg(it, dt)
-			continue
-		# Only true void/water — shore grass is a valid place for apples and loot.
-		if int(it.kind) != Catalog.ITEM_EGG and float(it.get("air", 0.0)) <= 0.0:
-			var ground := _tile_at(float(it.x), float(it.y))
-			if ground == Catalog.TILE_VOID or ground == Catalog.TILE_WATER:
-				it.dead = true
-				_fall_void(float(it.x), float(it.y))
-				continue
-		if int(it.kind) == Catalog.ITEM_APPLE and float(it.get("air", 0.0)) > 0.0:
-			var rate := float(it.get("fall", 20.0))
-			var air := maxf(0.0, float(it.air) - rate * dt)
-			it.air = air
-			var nx := float(it.x) + float(it.get("vx", 0.0)) * dt
-			var ny := float(it.y) + float(it.get("vy", 0.0)) * dt
-			if not _blocked(nx, float(it.y)):
-				it.x = nx
-			if not _blocked(float(it.x), ny):
-				it.y = ny
-			if air <= 0.0:
-				it.air = 0.0
-				it.vx = 0.0
-				it.vy = 0.0
-				it.fall = 0.0
-				if it.has("tx") and it.has("ty"):
-					var landed := Catalog.snap_world(float(it.tx), float(it.ty))
-					if not _blocked(landed.x, landed.y) and _tile_holds(landed.x, landed.y):
-						it.x = landed.x
-						it.y = landed.y
-					it.erase("tx")
-					it.erase("ty")
-				else:
-					var parked := Catalog.snap_world(float(it.x), float(it.y))
-					it.x = parked.x
-					it.y = parked.y
-				var land := _tile_at(float(it.x), float(it.y))
-				if land == Catalog.TILE_VOID or land == Catalog.TILE_WATER or not _tile_holds(float(it.x), float(it.y)):
-					it.dead = true
-					_fall_void(float(it.x), float(it.y))
-			continue
-		if int(it.kind) != Catalog.ITEM_BALL:
-			continue
-		it.rest = maxf(0.0, float(it.get("rest", 0.0)) - dt)
-		it.life = maxf(0.0, float(it.get("life", BALL_LIFE)) - dt)
-		if float(it.life) <= 0.0:
-			it.claimer = -1
-			it.dead = true
-			continue
-		var vx := float(it.get("vx", 0.0))
-		var vy := float(it.get("vy", 0.0))
-		if absf(vx) + absf(vy) > 2.0:
-			var nx := float(it.x) + vx * dt
-			var ny := float(it.y) + vy * dt
-			if _move_blocked(nx, float(it.y)):
-				vx = -vx * 0.55
-			else:
-				it.x = nx
-			if _move_blocked(float(it.x), ny):
-				vy = -vy * 0.55
-			else:
-				it.y = ny
-			it.vx = vx * 0.9
-			it.vy = vy * 0.9
-		_boost(float(it.x), float(it.y), 28.0, 2, 0.0, 0.0, 20.0 * dt, 0.0)
 
 
 func _tick_egg(it: Dictionary, dt: float) -> void:
@@ -2507,19 +2446,24 @@ func _drop_loose(kind: int, x: float, y: float, value: int) -> void:
 	if Catalog.item_snaps_grid(kind):
 		at = Catalog.snap_world(x, y)
 	var ground := _tile_at(at.x, at.y)
-	if ground == Catalog.TILE_WATER or ground == Catalog.TILE_VOID or ground == Catalog.TILE_FOG:
-		notes.append("AHI NO.")
-		sfx_queue.append("error")
-		return
-	if not _can_drop(at.x, at.y) or not _item_spot_free(at.x, at.y) or int(building_cell.get(_cell_vec(at.x, at.y), -1)) >= 0:
+	var physics_drop := kind != Catalog.ITEM_EGG
+	# Physics items can be dropped onto water/void and will fall/splash or fall away.
+	var terrain_blocked := Catalog.tile_blocks(ground)
+	if physics_drop and (ground == Catalog.TILE_WATER or ground == Catalog.TILE_VOID):
+		terrain_blocked = false
+	var bad_ground := not revealed.has(_ck_of(at.x, at.y)) or _on_bridge(at.x, at.y) or terrain_blocked
+	if physics_drop:
+		bad_ground = bad_ground or ground == Catalog.TILE_FOG
+	else:
+		bad_ground = bad_ground or ground == Catalog.TILE_WATER or ground == Catalog.TILE_VOID or ground == Catalog.TILE_FOG
+	if bad_ground or (not physics_drop and (not _can_drop(at.x, at.y) or item_physics.obstacle_blocked(at.x, at.y))):
 		notes.append("AHI NO.")
 		sfx_queue.append("error")
 		return
 	var it := _add_item(kind, at.x, at.y, value)
+	item_physics.launch_item(it, item_physics.ITEM_DROP_HEIGHT, 0.0, 0.0, 0.0)
 	if kind == Catalog.ITEM_BALL:
 		it.life = BALL_LIFE
-		it.vx = 0.0
-		it.vy = 0.0
 		it.rest = 0.0
 		notes.append("LOS MULTIS JUEGAN SI LES FALTA DIVERSION.")
 	sfx_queue.append("ball" if kind == Catalog.ITEM_BALL else "place")
@@ -2546,7 +2490,8 @@ func _tool_axe(x: float, y: float) -> void:
 func _chop(feat: Dictionary) -> void:
 	feat.kind = Catalog.FEAT_STUMP
 	feat.grow = Catalog.TREE_REGROW
-	_add_item(Catalog.ITEM_WOOD, float(feat.x) + 8.0, float(feat.y), 1)
+	var wood_it := _add_item(Catalog.ITEM_WOOD, float(feat.x) + 8.0, float(feat.y), 1)
+	item_physics.launch_item(wood_it, 6.0, randf_range(85.0, 115.0), randf_range(-34.0, 34.0), randf_range(-34.0, 34.0))
 	_pop(float(feat.x), float(feat.y), Catalog.ICON_FX_CHOP)
 	trees_chopped += 1
 	cap_told = false
@@ -2607,7 +2552,7 @@ func _hammer_feature(feat: Dictionary) -> void:
 		if kind == Catalog.FEAT_STUMP or kind == Catalog.FEAT_MSTUMP:
 			if kind == Catalog.FEAT_STUMP:
 				stumps_cleared += 1
-				_queue_tree_seed(float(feat.x), float(feat.y), Catalog.TREE_REPLANT)
+				tree_seeds.append({"x": float(feat.x), "y": float(feat.y), "t": Catalog.TREE_REPLANT})
 				_refresh_pop_gates()
 			sfx_queue.append("stump")
 		elif kind == Catalog.FEAT_FIRE:
@@ -2632,12 +2577,17 @@ func _hammer_feature(feat: Dictionary) -> void:
 		if int(feat.hp) <= 0:
 			var ore_n := int(feat.ore)
 			if ore_n > 0:
-				_add_item(Catalog.ITEM_ORE, float(feat.x), float(feat.y), ore_n if kind == Catalog.FEAT_BIGROCK else maxi(3, ore_n))
+				var ore_it := _add_item(Catalog.ITEM_ORE, float(feat.x), float(feat.y), ore_n if kind == Catalog.FEAT_BIGROCK else maxi(3, ore_n))
+				item_physics.launch_item(ore_it, 6.0, randf_range(85.0, 115.0), randf_range(-34.0, 34.0), randf_range(-34.0, 34.0))
 			_kill_feature(feat)
 		return
 
 
 func _tool_pick(x: float, y: float) -> void:
+	# Ore piles: let the pick collect energy too (hammer replacement path).
+	if part_two and _smash_ore_near(x, y) > 0:
+		sfx_queue.append("pick")
+		return
 	var hit := false
 	for feat in features:
 		if feat.dead or not _is_rock(int(feat.kind)):
@@ -2695,6 +2645,16 @@ func charge_tool_target(tool: int, x: float, y: float) -> Dictionary:
 			return {"key": "bld:%d" % int(b.id), "x": float(b.x), "y": float(b.y), "n": 1}
 		return {}
 	if tool == Catalog.TOOL_PICK:
+		if part_two:
+			var ore_n := _count_items_near(Catalog.ITEM_ORE, x, y, Catalog.HAMMER_ORE_RADIUS)
+			if ore_n > 0:
+				return {
+					"key": "ore:%d:%d" % [int(floor(x / 8.0)), int(floor(y / 8.0))],
+					"x": x,
+					"y": y,
+					"n": ore_n,
+					"radius": Catalog.HAMMER_ORE_RADIUS,
+				}
 		var rocks := _count_features_near(Catalog.FEAT_ROCK, x, y, Catalog.PICK_RADIUS) + _count_features_near(Catalog.FEAT_BIGROCK, x, y, Catalog.PICK_RADIUS)
 		if rocks <= 0:
 			return {}
@@ -2731,17 +2691,37 @@ func charge_tool_target(tool: int, x: float, y: float) -> Dictionary:
 			"n": n,
 			"radius": Catalog.GRAB_RADIUS,
 		}
+	if tool == Catalog.TOOL_SWARM:
+		var n := query_radius(x, y, Catalog.SWARM_RADIUS).size()
+		return {
+			"key": "swarm:%d:%d" % [int(floor(x / 8.0)), int(floor(y / 8.0))],
+			"x": x,
+			"y": y,
+			"n": n,
+			"radius": Catalog.SWARM_RADIUS,
+		}
 	return {}
 
 
 func area_tool_hits(tool: int, x: float, y: float) -> Array:
 	var hits: Array = []
 	if tool == Catalog.TOOL_PICK:
+		if part_two:
+			for it in items:
+				if it.dead or it.held or int(it.kind) != Catalog.ITEM_ORE:
+					continue
+				if _dist_point(x, y, float(it.x), float(it.y)) > Catalog.HAMMER_ORE_RADIUS:
+					continue
+				hits.append({"what": "item", "id": int(it.id), "x": float(it.x), "y": float(it.y)})
+			if not hits.is_empty():
+				return hits
 		for feat in features:
 			if feat.dead or not _is_rock(int(feat.kind)):
 				continue
 			if _dist_point(x, y, float(feat.x), float(feat.y)) <= Catalog.PICK_RADIUS:
 				hits.append({"what": "feat", "id": int(feat.id), "x": float(feat.x), "y": float(feat.y)})
+		if hits.is_empty() and _tile_at(x, y) == Catalog.TILE_MOUNTAIN:
+			hits.append({"what": "mountain"})
 		return hits
 	if tool == Catalog.TOOL_SAW:
 		for feat in features:
@@ -2753,9 +2733,36 @@ func area_tool_hits(tool: int, x: float, y: float) -> Array:
 	if tool == Catalog.TOOL_MOP:
 		for id in query_radius(x, y, Catalog.MOP_RADIUS):
 			var i := int(id)
-			if state[i] != Catalog.ST_LIVING:
+			if state[i] == Catalog.ST_LIVING and clean[i] < 100.0:
+				hits.append({"what": "throng", "id": i, "x": pos_x[i], "y": pos_y[i]})
+		if _count_goo_near(x, y, Catalog.MOP_RADIUS) > 0:
+			hits.append({"what": "goo"})
+		return hits
+	if tool == Catalog.TOOL_SPONGE:
+		for id in query_radius(x, y, Catalog.SPONGE_RADIUS):
+			var i := int(id)
+			if state[i] == Catalog.ST_LIVING and mito_t[i] <= 0.0 and clean[i] < 100.0:
+				hits.append({"what": "throng", "id": i, "x": pos_x[i], "y": pos_y[i]})
+		return hits
+	if tool == Catalog.TOOL_SWARM:
+		for id in query_radius(x, y, Catalog.SWARM_RADIUS):
+			if state[int(id)] != Catalog.ST_VACANT:
+				hits.append({"what": "throng", "id": int(id)})
+		return hits
+	if tool == Catalog.TOOL_GRAB:
+		for it in items:
+			if it.dead or it.held:
 				continue
-			hits.append({"what": "throng", "id": i, "x": pos_x[i], "y": pos_y[i]})
+			var kind := int(it.kind)
+			if kind != Catalog.ITEM_WOOD and kind != Catalog.ITEM_BONE and kind != Catalog.ITEM_ORE:
+				continue
+			if _dist_point(x, y, float(it.x), float(it.y)) <= Catalog.GRAB_RADIUS:
+				hits.append({"what": "item", "id": int(it.id), "x": float(it.x), "y": float(it.y)})
+		for i in slot_count:
+			if state[i] != Catalog.ST_DEAD:
+				continue
+			if _dist_i(i, x, y) <= Catalog.GRAB_RADIUS:
+				hits.append({"what": "throng", "id": i, "x": pos_x[i], "y": pos_y[i]})
 		return hits
 	if tool == Catalog.TOOL_AXE:
 		var tree := _axe_feature_at(x, y)
@@ -2897,7 +2904,10 @@ func scoop_drop(x: float, y: float) -> void:
 				var snapped := Catalog.snap_world(px, py)
 				px = snapped.x
 				py = snapped.y
-			if _blocked(px, py) or not _item_spot_free(px, py, int(it.id)):
+			var s_ground := _tile_at(px, py)
+			var scoop_physics := int(it.kind) != Catalog.ITEM_EGG
+			var s_bad := s_ground == Catalog.TILE_WATER or s_ground == Catalog.TILE_VOID or s_ground == Catalog.TILE_FOG or _on_bridge(px, py) or Catalog.tile_blocks(s_ground)
+			if s_bad or (not scoop_physics and item_physics.obstacle_blocked(px, py)):
 				continue
 			it.x = px
 			it.y = py
@@ -2906,6 +2916,9 @@ func scoop_drop(x: float, y: float) -> void:
 		if not dropped:
 			it.x = x + randf_range(-12.0, 12.0)
 			it.y = y + randf_range(-12.0, 12.0)
+		var sang := randf() * TAU
+		var sspd := randf_range(24.0, 58.0)
+		item_physics.launch_item(it, randf_range(18.0, 30.0), randf_range(25.0, 65.0), cos(sang) * sspd, sin(sang) * sspd)
 	for raw2 in scoop_dead_ids:
 		var id := int(raw2)
 		if id < 0 or id >= slot_count or state[id] != Catalog.ST_DEAD:
@@ -2952,7 +2965,8 @@ func _tool_tnt(x: float, y: float) -> void:
 		notes.append("AHI NO.")
 		sfx_queue.append("error")
 		return
-	_add_item(Catalog.ITEM_TNT, x, y, 1)
+	var tnt_it := _add_item(Catalog.ITEM_TNT, x, y, 1)
+	item_physics.launch_item(tnt_it, 18.0, 0.0, 0.0, 0.0)
 	notes.append("CARGA COLOCADA. PULSALA PARA DETONARLA.")
 	sfx_queue.append("tnt_place")
 
@@ -3022,7 +3036,7 @@ func _mop(x: float, y: float) -> void:
 func scrub(x: float, y: float, stroke: float, rubbing: bool = false) -> void:
 	if frozen:
 		return
-	var ids := query_radius(x, y, 30.0)
+	var ids := query_radius(x, y, Catalog.SPONGE_RADIUS)
 	if ids.is_empty():
 		return
 	sponge_hold = 0.45
@@ -3135,18 +3149,19 @@ func take_hand(x: float, y: float) -> bool:
 	return true
 
 
-func drop_hand(x: float, y: float) -> void:
+func drop_hand(x: float, y: float, throw_vx: float = 0.0, throw_vy: float = 0.0) -> void:
 	if hand_id == -1:
 		return
 	var it = item_by_id.get(hand_id, {})
-	var drop_id := hand_id
-	hand_id = -1
 	if it.is_empty() or it.dead:
+		hand_id = -1
 		return
-	it.held = false
 	var at := Vector2(x, y)
-	if Catalog.item_snaps_grid(int(it.kind)):
-		at = Catalog.snap_world(x, y)
+	# Fix (1): don't clear hand/held state if egg can't be dropped onto obstacle.
+	if int(it.kind) == Catalog.ITEM_EGG and item_physics.obstacle_blocked(at.x, at.y):
+		return
+	hand_id = -1
+	it.held = false
 	if int(it.kind) == Catalog.ITEM_WOOD or int(it.kind) == Catalog.ITEM_BONE:
 		var bridge := _nearest_open_bridge(at.x, at.y, 90.0)
 		if not bridge.is_empty():
@@ -3155,20 +3170,20 @@ func drop_hand(x: float, y: float) -> void:
 			_drop_on_bridge(float(bridge.x), float(bridge.y), kind)
 			return
 	var drop_tile := _tile_at(at.x, at.y)
-	if drop_tile == Catalog.TILE_VOID or drop_tile == Catalog.TILE_WATER:
-		it.dead = true
-		_fall_void(at.x, at.y)
-		return
-	if not _can_drop(at.x, at.y) or not _item_spot_free(at.x, at.y, drop_id):
+	if drop_tile == Catalog.TILE_VOID or drop_tile == Catalog.TILE_FOG or drop_tile == Catalog.TILE_WATER:
+		it.x = at.x
+		it.y = at.y
+		item_physics.launch_item(it, 14.0, 0.0, clampf(throw_vx, -180.0, 180.0), clampf(throw_vy, -180.0, 180.0))
 		return
 	it.x = at.x
 	it.y = at.y
+	item_physics.launch_item(it, 16.0, 20.0, clampf(throw_vx, -180.0, 180.0), clampf(throw_vy, -180.0, 180.0))
 	if int(it.kind) == Catalog.ITEM_WOOD:
 		sfx_queue.append("wood_drop")
 	elif int(it.kind) == Catalog.ITEM_BONE:
 		sfx_queue.append("bone_drop")
-	if int(it.kind) == Catalog.ITEM_EGG:
-		_help_egg(it)
+	else:
+		sfx_queue.append("place")
 
 
 func is_holding() -> bool:
@@ -3215,6 +3230,15 @@ func grab_at(x: float, y: float) -> bool:
 	return take_hand(x, y)
 
 
+func _thronglet_ground_ok(px: float, py: float) -> bool:
+	# Mine zones are walkable ground pads: allow dropping/standing on them.
+	if _on_mine_pad(px, py):
+		return revealed.has(_ck_of(px, py)) and _tile_holds(px, py) and not _on_bridge(px, py) and not Catalog.tile_blocks(_tile_at(px, py))
+	if not _can_drop(px, py):
+		return false
+	return _land_inland(px, py)
+
+
 func _find_safe_thronglet_spot(x: float, y: float) -> Vector2:
 	for ring in 32:
 		var rays := 1 if ring == 0 else 12
@@ -3222,24 +3246,22 @@ func _find_safe_thronglet_spot(x: float, y: float) -> Vector2:
 			var ang := float(i) * TAU / float(maxi(rays, 1))
 			var r := float(ring) * 10.0
 			var at := Vector2(x + cos(ang) * r, y + sin(ang) * r)
-			if _can_drop(at.x, at.y) and _land_inland(at.x, at.y):
+			if _thronglet_ground_ok(at.x, at.y):
 				return at
 	return Vector2(INF, INF)
 
 
-func release_at(x: float, y: float, short_click: bool, _allow_use: bool = true) -> Dictionary:
+func release_at(x: float, y: float, short_click: bool, _allow_use: bool = true, throw_vx: float = 0.0, throw_vy: float = 0.0) -> Dictionary:
 	if hand_id != -1:
 		var it = item_by_id.get(hand_id, {})
 		var ix := x
 		var iy := y
+		var tvx := 0.0 if short_click else throw_vx
+		var tvy := 0.0 if short_click else throw_vy
 		if short_click and not it.is_empty():
 			ix = float(it.x)
 			iy = float(it.y)
-		elif not it.is_empty() and Catalog.item_snaps_grid(int(it.kind)):
-			var snapped := Catalog.snap_world(ix, iy)
-			ix = snapped.x
-			iy = snapped.y
-		drop_hand(ix, iy)
+		drop_hand(ix, iy, tvx, tvy)
 		return {}
 	if held_kind == "":
 		return {}
@@ -3253,7 +3275,7 @@ func release_at(x: float, y: float, short_click: bool, _allow_use: bool = true) 
 		py = snapped.y
 	if kind == "thronglet" and id >= 0 and id < slot_count and state[id] == Catalog.ST_LIVING:
 		if short_click:
-			if _can_drop(px, py) and _land_inland(px, py):
+			if _thronglet_ground_ok(px, py):
 				pos_x[id] = px
 				pos_y[id] = py
 		else:
@@ -3263,7 +3285,7 @@ func release_at(x: float, y: float, short_click: bool, _allow_use: bool = true) 
 				pos_y[id] = py
 				_fall_void(px, py)
 				_vacate(id)
-			elif drop_tile == Catalog.TILE_WATER or not _land_inland(px, py) or not _can_drop(px, py):
+			elif drop_tile == Catalog.TILE_WATER or not _thronglet_ground_ok(px, py):
 				var safe := _find_safe_thronglet_spot(px, py)
 				if is_inf(safe.x):
 					safe = _find_safe_thronglet_spot(held_x, held_y)
@@ -3276,7 +3298,7 @@ func release_at(x: float, y: float, short_click: bool, _allow_use: bool = true) 
 					_fall_void(px, py)
 					_vacate(id)
 				else:
-					if _can_drop(held_x, held_y) and _land_inland(held_x, held_y):
+					if _thronglet_ground_ok(held_x, held_y):
 						pos_x[id] = held_x
 						pos_y[id] = held_y
 					else:
@@ -4172,7 +4194,8 @@ func _drop_carried(i: int) -> void:
 		kind = Catalog.ITEM_BONE
 	elif carry[i] == Catalog.CARRY_ORE:
 		kind = Catalog.ITEM_ORE
-	_add_item(kind, pos_x[i], pos_y[i], maxi(1, carry_value[i]))
+	var dropped_carry := _add_item(kind, pos_x[i], pos_y[i], maxi(1, carry_value[i]))
+	item_physics.launch_item(dropped_carry, 6.0, randf_range(70.0, 100.0), randf_range(-28.0, 28.0), randf_range(-28.0, 28.0))
 	carry[i] = Catalog.CARRY_NONE
 	carry_value[i] = 0
 
@@ -4207,7 +4230,8 @@ func _deflesh(id: int, count_use: bool) -> void:
 		living -= 1
 		deaths_total += 1
 	state[id] = Catalog.ST_VACANT
-	_add_item(Catalog.ITEM_BONE, x, y, 1)
+	var bone_it := _add_item(Catalog.ITEM_BONE, x, y, 1)
+	item_physics.launch_item(bone_it, 6.0, randf_range(80.0, 110.0), randf_range(-30.0, 30.0), randf_range(-30.0, 30.0))
 	_pop(x, y, ThrongClips.frame_at("ThrongA_Bones", 0))
 	if count_use and part_two:
 		bug_uses += 1
@@ -4219,7 +4243,7 @@ func _deflesh(id: int, count_use: bool) -> void:
 
 
 func _swarm(x: float, y: float) -> void:
-	var ids := query_radius(x, y, 36.0)
+	var ids := query_radius(x, y, Catalog.SWARM_RADIUS)
 	for id in ids:
 		if state[int(id)] != Catalog.ST_VACANT:
 			_deflesh(int(id), false)
@@ -6161,7 +6185,7 @@ func _kill_feature(feat: Dictionary) -> void:
 func _add_item(kind: int, x: float, y: float, value: int) -> Dictionary:
 	var id := next_item_id
 	next_item_id += 1
-	var it := {"id": id, "kind": kind, "x": x, "y": y, "value": value, "held": false, "dead": false, "fixed": false}
+	var it := {"id": id, "kind": kind, "x": x, "y": y, "value": value, "held": false, "dead": false, "fixed": false, "air": 0.0, "vz": 0.0, "vx": 0.0, "vy": 0.0, "falling_void": false, "rest": 0.0}
 	if kind == Catalog.ITEM_BALL:
 		it.life = BALL_LIFE
 	items.append(it)
@@ -6609,7 +6633,8 @@ func _blocked(px: float, py: float, allow_ore: bool = false, allow_soft: bool = 
 	if feature_cell.has(cell):
 		var feat = feature_by_id.get(int(feature_cell[cell]), {})
 		if not feat.is_empty() and not feat.dead and Catalog.feature_blocks(int(feat.kind)):
-			if allow_ore and _ore_tier(int(feat.kind)) > 0:
+			# Mine zones (ore nodes) are ground zones: walkable surface exception.
+			if _ore_tier(int(feat.kind)) > 0:
 				return false
 			if allow_soft and _pad_feature_soft(int(feat.kind)):
 				return false
@@ -6621,7 +6646,24 @@ func _blocked(px: float, py: float, allow_ore: bool = false, allow_soft: bool = 
 	return false
 
 
+func _on_mine_pad(px: float, py: float) -> bool:
+	# Mine footprints are walkable ground pads above terrain.
+	var cell := _cell_vec(px, py)
+	if not building_cell.has(cell):
+		return false
+	var b = building_by_id.get(int(building_cell[cell]), {})
+	if b.is_empty() or b.dead:
+		return false
+	var kind := int(b.kind)
+	return kind == Catalog.BLD_MINE or kind == Catalog.BLD_MINE2
+
+
 func _move_blocked(px: float, py: float) -> bool:
+	# Mine zones are walkable ground pads (exception): treat as passable ground
+	# above terrain, ignoring pad footprint/feature hitboxes. Without a mine,
+	# the ore/node feature remains and blocks in _blocked as usual.
+	if _on_mine_pad(px, py):
+		return Catalog.tile_blocks(_tile_at(px, py))
 	# 6px probes stay inside a 16px cell; cliff walk needs a full neighbor-tile pad.
 	if _blocked(px, py):
 		return true
