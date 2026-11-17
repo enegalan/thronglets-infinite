@@ -2,6 +2,14 @@
 
 ## [Unreleased](https://github.com/enegalan/thronglets-infinite/compare/7851ab6...HEAD)
 
+### 2026-11-18
+
+- Dropped and thrown items now use a physics system: they arc, bounce, collide with obstacles and each other, can be thrown from the hand, and react to terrain edges and water instead of stopping instantly.
+- Tool use shows an area-of-effect preview with dashed reach, target outlines, and clearer feedback for affected items, features, buildings, and thronglets.
+- Mine footprints act as walkable ground pads, and item/thronglet drop handling is safer around blocked tiles, water, fog, and void edges.
+- The axe tutorial unlock is gated on reaching a peak colony of six thronglets, and the hammer unlocks from cutting trees; sponge, mop, and swarm use consistent tuned interaction radii.
+- Splash effects use tuned frame scales for the new item/water interactions.
+
 ### 2026-11-17
 
 - Thronglet pathing avoids getting stuck on building corners and blocked goals: they peel sideways around convex obstacles, stop camping at occupied tubs or full buildings, and resume seeking elsewhere until a spot is free.
@@ -10,6 +18,7 @@
 - Save data remains compatible with the new pathing state.
 - Water tiles animate by cycling frames over game time, and several visual timers (eggs, bubbles, plates, gaze glyphs) now follow paused game time instead of the real clock.
 - Thronglet draw sorting uses their ground position so large animations such as mitosis no longer sort too far forward.
+- Thronglets stay still while the mitosis animation plays (including the charge-up), so they no longer walk through the split.
 - The development bench releases lab drags correctly on mouse release, and the FPS overlay applies when entering play or the bench.
 
 
