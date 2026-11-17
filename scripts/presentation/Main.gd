@@ -27,13 +27,24 @@ var focus_pathmap: TileMapLayer
 var world: MultiMeshInstance2D
 var world_mesh: MultiMesh
 var world_layer: Node2D
+var void_back: MultiMeshInstance2D
+var void_back_mesh: MultiMesh
+var hand_last_world := Vector2.ZERO
+var hand_vel := Vector2.ZERO
+var hand_vel_init := false
 var _prop_bands: Array = []
 var _monoliths := {}
 var place_marks: Node2D
 var place_fills: Array[Polygon2D] = []
 var place_edges: Array[Line2D] = []
 var charge_ring: Line2D
-var charge_area: Line2D
+var charge_area: Node2D
+var charge_area_anim := 1.0
+var charge_area_key := ""
+var outlined_feat_ids := {}
+var outlined_item_ids := {}
+var outlined_throng_ids := {}
+var outlined_bld_ids := {}
 
 var tool := Catalog.TOOL_EYE
 var placing := -1
@@ -431,13 +442,25 @@ func _process(delta: float) -> void:
 		sim.scrub(at.x, at.y, stroke, stroke >= 0.5)
 	else:
 		sponge_tracking = false
+	if sim.hand_id != -1:
+		var cur_w := cam_rig.pointer_world()
+		if hand_vel_init:
+			var inst_v := (cur_w - hand_last_world) / maxf(delta, 0.001)
+			hand_vel = hand_vel.lerp(inst_v, 0.45)
+		else:
+			hand_vel = Vector2.ZERO
+			hand_vel_init = true
+		hand_last_world = cur_w
+	else:
+		hand_vel = Vector2.ZERO
+		hand_vel_init = false
 	_tick_tool_charge(delta)
 	_tick_hand_hold(delta)
 	_sync_world()
 	_sync_actors()
 	_sync_biome_plates()
 	_sync_place_mark()
-	_sync_charge_mark()
+	_sync_charge_mark(delta)
 	if not sim.shot_mode:
 		_sync_hud(delta)
 	_sync_need_bars()
@@ -627,7 +650,8 @@ func _hand_release() -> void:
 			at = cam_rig.grid_pointer_world()
 	var held_thronglet: bool = sim.held_kind == "thronglet"
 	var held_id: int = sim.held_ref
-	var hit: Dictionary = sim.release_at(at.x, at.y, short_click)
+	var throw_v := Vector2.ZERO if short_click else hand_vel
+	var hit: Dictionary = sim.release_at(at.x, at.y, short_click, true, throw_v.x, throw_v.y)
 	var kind := str(hit.get("type", ""))
 	if kind == "thronglet":
 		selected = int(hit.id)
@@ -1016,6 +1040,7 @@ func _sync_actors() -> void:
 	var view := cam_rig.world_view().grow(64.0)
 	var draws: Array = []
 	var egg_front: Array = []
+	var void_back_draws: Array = []
 	var time_pre := anim_time
 	for feat in sim.features:
 		if feat.dead or bool(feat.get("lifted", false)):
@@ -1033,35 +1058,50 @@ func _sync_actors() -> void:
 				feat_frame = _prop_frame(Catalog.icon_for_feature(int(feat.kind), int(feat.ore)))
 			if int(feat.kind) == Catalog.FEAT_FIRE and feat_frame < 0:
 				feat_frame = FIRE_ANIM + int(time_pre * 8.0) % 4
-			_push_iso(draws, feat_at, feat_frame, Color.WHITE, 0.0, Catalog.feature_sprite_scale(int(feat.kind), int(feat.ore)))
+			var feat_outline := Color.TRANSPARENT
+			var fid := int(feat.id)
+			if outlined_feat_ids.has(fid):
+				feat_outline = Color(0.35, 1.0, 0.45, 1.0)
+			elif tool_charge > 0.02 and str(tool_charge_key).begins_with("feat:") and int(str(tool_charge_key).substr(5)) == fid:
+				# Axe and hammer both charge on a single feature (tree / stump).
+				feat_outline = Color(0.35, 1.0, 0.45, 1.0)
+			var feat_sort_y := NAN
+			if sim._ore_tier(int(feat.kind)) > 0:
+				# Mine zones (ore nodes) are ground zones: above ground, below sprites on top.
+				feat_sort_y = -1000000.0
+			_push_iso(draws, feat_at, feat_frame, Color.WHITE, 0.0, Catalog.feature_sprite_scale(int(feat.kind), int(feat.ore)), feat_sort_y, feat_outline)
 			_push_glitch_fumes(draws, int(feat.kind), feat_at, time_pre)
 			_push_anomaly_ray(draws, int(feat.kind), feat_at)
 	for it in sim.items:
 		if it.dead or it.held:
 			continue
-		if not sim.chunk_shown(sim.chunk_key_at(float(it.x), float(it.y))):
+		var falling_void := bool(it.get("falling_void", false))
+		if not falling_void and not sim.chunk_shown(sim.chunk_key_at(float(it.x), float(it.y))):
 			continue
-		var p2 := _item_draw_at(int(it.kind), Vector2(float(it.x), float(it.y)))
+		var world_pos := Vector2(float(it.x), float(it.y))
+		var p2 := _item_draw_at(int(it.kind), world_pos)
 		if view.has_point(p2):
-			var egg_lift := float(it.get("air", 0.0))
+			var lift := float(it.get("air", 0.0))
 			var item_frame := _prop_frame(Catalog.icon_for_item(int(it.kind)))
+			var item_scale := Catalog.item_sprite_scale(int(it.kind))
+			var item_outline := Color(0.35, 1.0, 0.45, 1.0) if outlined_item_ids.has(int(it.id)) else Color.TRANSPARENT
 			if int(it.kind) == Catalog.ITEM_EGG:
 				item_frame = _egg_frame(it)
 				if float(it.get("shake", 0.0)) > 0.0:
 					p2 += Vector2(randf_range(-1.5, 1.5), randf_range(-1.0, 1.0))
-				if egg_lift > 0.0:
-					_push_iso(egg_front, p2, item_frame, Color.WHITE, egg_lift, Catalog.item_sprite_scale(int(it.kind)))
+				if lift > 0.0:
+					_push_iso(egg_front, p2, item_frame, Color.WHITE, lift, item_scale, NAN, item_outline)
 					continue
-			elif int(it.kind) == Catalog.ITEM_APPLE and egg_lift > 0.0:
-				_push_iso(egg_front, p2, item_frame, Color.WHITE, egg_lift, Catalog.item_sprite_scale(int(it.kind)))
+			elif falling_void:
+				if _void_behind_cliff(world_pos):
+					_push_iso(void_back_draws, p2, item_frame, Color.WHITE, lift, item_scale, NAN, item_outline)
+				else:
+					_push_iso(draws, p2, item_frame, Color.WHITE, lift, item_scale, cam_rig.to_iso(world_pos).y + 120.0, item_outline)
 				continue
-			elif int(it.kind) == Catalog.ITEM_BALL:
-				var spd := absf(float(it.get("vx", 0.0))) + absf(float(it.get("vy", 0.0)))
-				if spd > 2.0:
-					egg_lift = absf(sin(time_pre * 14.0 + float(it.id))) * (3.0 if spd > 8.0 else 1.2)
-					if spd > 8.0:
-						p2 += Vector2(sin(time_pre * 20.0) * 1.0, cos(time_pre * 18.0) * 0.6)
-			_push_iso(draws, p2, item_frame, Color.WHITE, egg_lift, Catalog.item_sprite_scale(int(it.kind)))
+			elif int(it.kind) == Catalog.ITEM_APPLE and lift > 14.0:
+				_push_iso(egg_front, p2, item_frame, Color.WHITE, lift, item_scale, NAN, item_outline)
+				continue
+			_push_iso(draws, p2, item_frame, Color.WHITE, lift, item_scale, NAN, item_outline)
 	for b in sim.buildings:
 		if b.dead or bool(b.get("lifted", false)):
 			continue
@@ -1094,9 +1134,10 @@ func _sync_actors() -> void:
 			var b_scale := Catalog.building_sprite_scale(b_kind)
 			var b_sort_y := NAN
 			if b_kind == Catalog.BLD_MINE or b_kind == Catalog.BLD_MINE2:
-				# Mines are walkable ground pads: render below items/constructions on top.
-				b_sort_y = cam_rig.to_iso(p3).y - 10000.0
-			_push_iso(draws, draw_at, b_frame, b_tint, b_lift, b_scale, b_sort_y)
+				# Mines are walkable ground pads: render above ground but below entities on top.
+				b_sort_y = -1000000.0
+			var b_outline := Color(0.35, 1.0, 0.45, 1.0) if outlined_bld_ids.has(int(b.id)) else Color.TRANSPARENT
+			_push_iso(draws, draw_at, b_frame, b_tint, b_lift, b_scale, b_sort_y, b_outline)
 			if b_kind == Catalog.BLD_FACTORY or b_kind == Catalog.BLD_FACTORY2:
 				_push_factory_pile(draws, b, draw_at)
 			if b_kind == Catalog.BLD_APPLE:
@@ -1176,7 +1217,7 @@ func _sync_actors() -> void:
 			if _drop_on_island():
 				var carried_sort_y := NAN
 				if carried_kind == Catalog.BLD_MINE or carried_kind == Catalog.BLD_MINE2:
-					carried_sort_y = cam_rig.to_iso(grid_at).y - 10000.0
+					carried_sort_y = -1000000.0
 				_push_iso(draws, _building_draw_at(carried_kind, grid_at), _prop_frame(Catalog.icon_for_building(carried_kind)), Color(1, 1, 1, 0.9), 10.0, carried_scale, carried_sort_y)
 			else:
 				draws.append({
@@ -1195,7 +1236,7 @@ func _sync_actors() -> void:
 				var ghost_scale := Catalog.building_sprite_scale(ghost_kind)
 				var ghost_sort_y := NAN
 				if ghost_kind == Catalog.BLD_MINE or ghost_kind == Catalog.BLD_MINE2:
-					ghost_sort_y = cam_rig.to_iso(grid_at).y - 10000.0
+					ghost_sort_y = -1000000.0
 				_push_iso(drag_front, _building_draw_at(ghost_kind, grid_at), _prop_frame(drag_icon), ghost, 10.0, ghost_scale, ghost_sort_y)
 			else:
 				var drag_scale := 1.0
@@ -1296,7 +1337,8 @@ func _sync_actors() -> void:
 		var throng_at := pos if riding else pos + _throng_sprite_off(throng_frame)
 		# Sort by ground position, not sprite draw offset (large anims like mitosis would sort too far forward).
 		var throng_sort_y := sort_y if not is_nan(sort_y) else cam_rig.to_iso(pos).y
-		_push_iso(draws, throng_at, throng_frame, tint, lift, throng_scale, throng_sort_y)
+		var throng_outline := Color(0.35, 1.0, 0.45, 1.0) if outlined_throng_ids.has(i) else Color.TRANSPARENT
+		_push_iso(draws, throng_at, throng_frame, tint, lift, throng_scale, throng_sort_y, throng_outline)
 		draws[draws.size() - 1]["flip"] = _throng_flip(i)
 		draws[draws.size() - 1]["dirty"] = _throng_dirty(sim.clean[i])
 		if sim.carry[i] != Catalog.CARRY_NONE:
@@ -1317,6 +1359,7 @@ func _sync_actors() -> void:
 		var htint: Color = Catalog.TINTS[int(sim.tint[hi]) % Catalog.TINTS.size()]
 		draws.append({
 			"p": get_global_mouse_position(),
+			"sy": 1000000.0,
 			"icon": _frame(hi, time),
 			"tint": htint,
 			"flip": _throng_flip(hi),
@@ -1327,6 +1370,7 @@ func _sync_actors() -> void:
 		if hand_frame >= 0:
 			draws.append({
 				"p": get_global_mouse_position() + Vector2(10, 6),
+				"sy": 1000001.0,
 				"icon": hand_frame,
 				"tint": Color.WHITE,
 				"flip": 1.0,
@@ -1334,11 +1378,21 @@ func _sync_actors() -> void:
 			})
 	for pop in sim.pops:
 		var fade := clampf(float(pop.t) / 0.55, 0.0, 1.0)
-		_push_iso(draws, Vector2(float(pop.x), float(pop.y)), _pop_frame(int(pop.icon)), Color(1, 1, 1, fade), float(pop.lift), float(pop.get("scale", 1.0)))
+		var picon := int(pop.icon)
+		var frame := _pop_frame(picon)
+		var pop_scale := float(pop.get("scale", 1.0))
+		if picon == AssetFrames.SPLASH:
+			var elapsed := 0.55 - float(pop.t)
+			frame = AssetFrames.frame(AssetFrames.SPLASH, AssetFrames.SPLASH_N, int(elapsed * 10.0))
+			if frame >= AssetFrames.SPLASH and frame < AssetFrames.SPLASH + AssetFrames.SPLASH_N:
+				pop_scale = 0.6
+		_push_iso(draws, Vector2(float(pop.x), float(pop.y)), frame, Color(1, 1, 1, fade), float(pop.lift), pop_scale)
 	draws.sort_custom(func(a, b): return float(a.get("sy", a.p.y)) < float(b.get("sy", b.p.y)))
 	draws.append_array(egg_front)
 	draws.append_array(drag_front)
 	_paint_props(draws)
+	if void_back_mesh != null:
+		_write_mesh(void_back_mesh, void_back_draws)
 
 
 func _frame(i: int, time: float) -> int:
@@ -1648,47 +1702,105 @@ func _sync_place_mark() -> void:
 		place_edges[i].visible = true
 
 
-func _sync_charge_mark() -> void:
+func _sync_charge_mark(delta: float = 0.0) -> void:
 	if charge_ring == null or charge_area == null:
 		return
 	var sim: ThrongletSim = ThrongletSimServer
 	var at := cam_rig.pointer_world()
 	if sim.has_scoop():
-		charge_area.points = _iso_circle_points(at, Catalog.GRAB_RADIUS * 0.35, 20)
-		charge_area.default_color = Color(0.95, 0.9, 0.45, 0.7)
-		charge_area.visible = true
+		charge_area.visible = false
+		charge_area_key = ""
 		charge_ring.visible = false
+		outlined_feat_ids.clear()
+		outlined_item_ids.clear()
+		outlined_throng_ids.clear()
+		outlined_bld_ids.clear()
 		return
 	var used := _charge_tool_id()
-	if used < 0:
-		charge_ring.visible = false
-		charge_area.visible = false
-		return
-	var target: Dictionary = sim.charge_tool_target(used, at.x, at.y)
-	if target.is_empty() and used != Catalog.TOOL_GRAB:
-		charge_ring.visible = false
-		charge_area.visible = false
-		return
+	var preview_tool := used if used >= 0 else tool
+	var target: Dictionary = {}
+	if used >= 0 or preview_tool >= 0:
+		target = sim.charge_tool_target(preview_tool, at.x, at.y)
 	var tx := float(target.get("x", at.x)) if not target.is_empty() else at.x
 	var ty := float(target.get("y", at.y)) if not target.is_empty() else at.y
 	var area_r := float(target.get("radius", 0.0)) if not target.is_empty() else 0.0
-	if used == Catalog.TOOL_GRAB:
-		area_r = Catalog.GRAB_RADIUS
-		tx = at.x
-		ty = at.y
+	# Always show area preview for tools that act in an area.
+	match preview_tool:
+		Catalog.TOOL_PICK:
+			area_r = Catalog.PICK_RADIUS
+			tx = at.x
+			ty = at.y
+		Catalog.TOOL_SAW:
+			area_r = Catalog.SAW_RADIUS
+			tx = at.x
+			ty = at.y
+		Catalog.TOOL_MOP:
+			area_r = Catalog.MOP_RADIUS
+			tx = at.x
+			ty = at.y
+		Catalog.TOOL_GRAB:
+			area_r = Catalog.GRAB_RADIUS
+			tx = at.x
+			ty = at.y
+		Catalog.TOOL_SWARM:
+			area_r = Catalog.SWARM_RADIUS
+			tx = at.x
+			ty = at.y
+		Catalog.TOOL_HAMMER:
+			# Hammer shows area when smashing ore piles or generally in part_two.
+			if area_r <= 0.0 and sim.part_two:
+				area_r = Catalog.HAMMER_ORE_RADIUS
+				tx = at.x
+				ty = at.y
 	var center := cam_rig.to_iso(Vector2(tx, ty))
-	if area_r > 0.0:
-		charge_area.points = _iso_circle_points(Vector2(tx, ty), area_r, 28)
-		if used == Catalog.TOOL_SAW:
-			charge_area.default_color = Color(1.0, 0.55, 0.2, 0.85)
-		elif used == Catalog.TOOL_GRAB:
-			charge_area.default_color = Color(0.95, 0.9, 0.45, 0.8)
-		else:
-			charge_area.default_color = Color(0.55, 0.85, 1.0, 0.8)
-		charge_area.visible = true
-	else:
+	var show_area := preview_tool != Catalog.TOOL_SPONGE and preview_tool >= 0 and area_r > 0.0
+	if not show_area:
 		charge_area.visible = false
-	if tool_charge > 0.02 and (used != Catalog.TOOL_GRAB or int(target.get("n", 0)) > 0):
+		charge_area_key = ""
+		# Keep outlines/affectables only when we have an actual area preview.
+		if used < 0:
+			outlined_feat_ids.clear()
+			outlined_item_ids.clear()
+			outlined_throng_ids.clear()
+			outlined_bld_ids.clear()
+	else:
+		var key := "tool:%d" % preview_tool
+		if charge_area_key != key:
+			charge_area_key = key
+			charge_area_anim = 0.0
+		charge_area_anim = minf(1.0, charge_area_anim + delta / 0.16)
+		var anim_scale := lerpf(0.9, 1.0, smoothstep(0.0, 1.0, charge_area_anim))
+		var hits: Array = sim.area_tool_hits(preview_tool, tx, ty)
+		outlined_feat_ids.clear()
+		outlined_item_ids.clear()
+		outlined_throng_ids.clear()
+		outlined_bld_ids.clear()
+		for h in hits:
+			var what := str(h.get("what", ""))
+			if what == "feat" and h.has("id"):
+				outlined_feat_ids[int(h.id)] = true
+			elif what == "item" and h.has("id"):
+				outlined_item_ids[int(h.id)] = true
+			elif what == "throng" and h.has("id"):
+				outlined_throng_ids[int(h.id)] = true
+			elif what == "bld" and h.has("id"):
+				outlined_bld_ids[int(h.id)] = true
+		var affectable := not hits.is_empty()
+		var area_color := Color(0.35, 1.0, 0.45, 1.0) if affectable else Color.WHITE
+		# Elliptical dashed area preview in world space.
+		charge_area.visible = true
+		var zoom_scale := 1.0
+		if cam_rig != null and cam_rig.has_method("zoom_value"):
+			zoom_scale = float(cam_rig.zoom_value())
+		elif camera != null:
+			zoom_scale = float(camera.zoom.x)
+		charge_area.call("set_area", _iso_ellipse_points(Vector2(tx, ty), area_r * anim_scale, area_r * 0.82 * anim_scale, 48), area_color, true, zoom_scale)
+	# Single-target hover highlight for bug tool.
+	if tool == Catalog.TOOL_BUG and not sim.has_scoop() and kit_drag.is_empty():
+		var bug_id := sim.find_thronglet(at.x, at.y, 14.0, false)
+		if bug_id >= 0:
+			outlined_throng_ids[bug_id] = true
+	if used >= 0 and tool_charge > 0.02 and (used != Catalog.TOOL_GRAB or int(target.get("n", 0)) > 0):
 		charge_ring.points = _charge_arc_points(center, 18.0, tool_charge)
 		charge_ring.default_color = Color(1.0, 0.92, 0.35, 0.95)
 		charge_ring.visible = true
@@ -1750,11 +1862,14 @@ func _push_factory_pile(draws: Array, b: Dictionary, at: Vector2) -> void:
 		_push_iso(draws, ore_at, frame, Color.WHITE, float(layer) * 6.0, Catalog.ORE_CLUSTER_SPRITE_SCALE, ore_sy + float(drawn - layer) * 0.05)
 
 
-func _push_iso(draws: Array, world_pos: Vector2, frame: int, tint: Color, lift: float = 0.0, sprite_scale: float = 1.0, sort_y: float = NAN) -> void:
+func _push_iso(draws: Array, world_pos: Vector2, frame: int, tint: Color, lift: float = 0.0, sprite_scale: float = 1.0, sort_y: float = NAN, outline: Color = Color.TRANSPARENT) -> void:
 	var at := cam_rig.to_iso(world_pos)
 	var draw_p := Vector2(at.x, at.y - lift)
 	var sy := at.y if is_nan(sort_y) else sort_y
-	draws.append({"p": draw_p, "sy": sy, "icon": frame, "tint": tint, "scale": sprite_scale})
+	var d := {"p": draw_p, "sy": sy, "icon": frame, "tint": tint, "scale": sprite_scale}
+	if outline.a > 0.0:
+		d["outline"] = outline
+	draws.append(d)
 
 
 func _paint_suds(draws: Array, pos: Vector2, sort_y: float, time: float, s: float = 1.0) -> void:
@@ -2039,6 +2154,17 @@ func _sync_monolith(id: int, world_pos: Vector2) -> void:
 	node.set_meta("seen", true)
 
 
+func _void_behind_cliff(world_pos: Vector2) -> bool:
+	var sim: ThrongletSim = ThrongletSimServer
+	var cell := sim._cell_vec(world_pos.x, world_pos.y)
+	for off in [Vector2i(1, 0), Vector2i(0, 1), Vector2i(1, 1)]:
+		var at := Catalog.cell_world(cell + off)
+		var tile := sim._tile_at(at.x, at.y)
+		if tile != Catalog.TILE_VOID and tile != Catalog.TILE_FOG:
+			return true
+	return false
+
+
 func _paint_props(draws: Array) -> void:
 	var live: Array = []
 	for id in _monoliths.keys():
@@ -2089,20 +2215,38 @@ func _prop_band(index: int) -> MultiMeshInstance2D:
 
 
 func _write_mesh(mesh: MultiMesh, draws: Array) -> void:
-	var n := draws.size()
+	var expanded: Array = []
+	for d in draws:
+		if d.has("outline"):
+			var oc: Color = d["outline"]
+			var os := float(d.get("scale", 1.0))
+			var off := 1.0
+			# 1px outline surrounding sprite silhouette.
+			for o in [
+				Vector2(-off, 0), Vector2(off, 0), Vector2(0, -off), Vector2(0, off),
+				Vector2(-off, -off), Vector2(off, -off), Vector2(-off, off), Vector2(off, off),
+			]:
+				expanded.append({
+					"p": d.p + o, "sy": d.get("sy", d.p.y), "icon": d.icon,
+					"tint": oc, "scale": os, "flip": float(d.get("flip", 1.0)),
+					"rot": float(d.get("rot", 0.0)), "dirty": 0.0, "ol": 1.0,
+				})
+		expanded.append(d)
+	var n := expanded.size()
 	if mesh.instance_count < n:
 		mesh.instance_count = maxi(16, n)
 	mesh.visible_instance_count = n
 	var xf := Transform2D()
 	for i in n:
-		var sprite_scale := float(draws[i].get("scale", 1.0))
-		var flip := float(draws[i].get("flip", 1.0))
-		var rot := deg_to_rad(float(draws[i].get("rot", 0.0)))
+		var e: Dictionary = expanded[i]
+		var sprite_scale := float(e.get("scale", 1.0))
+		var flip := float(e.get("flip", 1.0))
+		var rot := deg_to_rad(float(e.get("rot", 0.0)))
 		var center := Vector2(0, -WORLD_CELL * 0.5 * sprite_scale).rotated(rot)
-		xf = Transform2D(rot, Vector2(sprite_scale * flip, sprite_scale), 0.0, draws[i].p + center)
+		xf = Transform2D(rot, Vector2(sprite_scale * flip, sprite_scale), 0.0, e.p + center)
 		mesh.set_instance_transform_2d(i, xf)
-		mesh.set_instance_custom_data(i, Color(float(draws[i].icon), float(draws[i].get("dirty", 0.0)), 0, 0))
-		mesh.set_instance_color(i, draws[i].tint)
+		mesh.set_instance_custom_data(i, Color(float(e.icon), float(e.get("dirty", 0.0)), float(e.get("ol", 0.0)), 0))
+		mesh.set_instance_color(i, e.tint)
 
 
 func _sync_hud(delta: float) -> void:
@@ -2814,7 +2958,10 @@ func _focus_draws() -> Array:
 			feat_frame = _prop_frame(Catalog.icon_for_feature(int(feat.kind), int(feat.ore)))
 		if int(feat.kind) == Catalog.FEAT_FIRE and feat_frame < 0:
 			feat_frame = FIRE_ANIM + int(time * 8.0) % 4
-		_push_iso(draws, feat_at, feat_frame, Color.WHITE, 0.0, Catalog.feature_sprite_scale(int(feat.kind), int(feat.ore)))
+		var feat_sort_y := NAN
+		if sim._ore_tier(int(feat.kind)) > 0:
+			feat_sort_y = -1000000.0
+		_push_iso(draws, feat_at, feat_frame, Color.WHITE, 0.0, Catalog.feature_sprite_scale(int(feat.kind), int(feat.ore)), feat_sort_y)
 		_push_glitch_fumes(draws, int(feat.kind), feat_at, time)
 		_push_anomaly_ray(draws, int(feat.kind), feat_at)
 	for it in sim.items:
@@ -2831,7 +2978,7 @@ func _focus_draws() -> Array:
 			if lift > 0.0:
 				_push_iso(egg_front, p2, item_frame, Color.WHITE, lift, item_scale)
 				continue
-		elif int(it.kind) == Catalog.ITEM_APPLE and lift > 0.0:
+		elif int(it.kind) == Catalog.ITEM_APPLE and lift > 14.0:
 			_push_iso(egg_front, p2, item_frame, Color.WHITE, lift, item_scale)
 			continue
 		_push_iso(draws, p2, item_frame, Color.WHITE, lift, item_scale)
@@ -2847,7 +2994,7 @@ func _focus_draws() -> Array:
 				focus_frame = FLOWER_ANIM + int(time * 6.0) % FLOWER_ANIM_N
 			var focus_sort_y := NAN
 			if b_kind == Catalog.BLD_MINE or b_kind == Catalog.BLD_MINE2:
-				focus_sort_y = cam_rig.to_iso(p3).y - 10000.0
+				focus_sort_y = -1000000.0
 			_push_iso(draws, draw_at, focus_frame, Color.WHITE, 0.0, Catalog.building_sprite_scale(b_kind), focus_sort_y)
 	for i in sim.slot_count:
 		if sim.state[i] == Catalog.ST_VACANT:
@@ -3698,12 +3845,8 @@ func _build_world() -> void:
 	place_marks = Node2D.new()
 	place_marks.z_index = 1
 	add_child(place_marks)
-	charge_area = Line2D.new()
+	charge_area = _DashArea.new()
 	charge_area.z_index = 3
-	charge_area.width = 2.5
-	charge_area.joint_mode = Line2D.LINE_JOINT_ROUND
-	charge_area.begin_cap_mode = Line2D.LINE_CAP_ROUND
-	charge_area.end_cap_mode = Line2D.LINE_CAP_ROUND
 	charge_area.visible = false
 	add_child(charge_area)
 	charge_ring = Line2D.new()
@@ -3724,6 +3867,13 @@ func _build_world() -> void:
 	world.multimesh = world_mesh
 	world_layer.add_child(world)
 	_prop_bands = [world]
+	void_back = MultiMeshInstance2D.new()
+	void_back.z_index = -1
+	void_back.material = world.material
+	void_back.texture = world.texture
+	void_back_mesh = _mesh(true, Vector2(WORLD_CELL, WORLD_CELL))
+	void_back.multimesh = void_back_mesh
+	add_child(void_back)
 	var bar_colors := [
 		Color(0.86, 0.22, 0.24),
 		Color(0.95, 0.72, 0.22),
@@ -5866,3 +6016,60 @@ func _near_spot() -> String:
 		return "market"
 	return ""
 
+
+
+class _DashArea extends Node2D:
+	var pts: PackedVector2Array = PackedVector2Array()
+	var color: Color = Color.WHITE
+	var dashed: bool = true
+	var zoom_scale: float = 1.0
+
+	func set_area(p: PackedVector2Array, c: Color, d: bool = true, z: float = 1.0) -> void:
+		pts = p
+		color = c
+		dashed = d
+		zoom_scale = maxf(z, 0.001)
+		queue_redraw()
+
+	func _draw() -> void:
+		if pts.size() < 2:
+			return
+		var w: float = maxf(1.0, 2.0 / zoom_scale)
+		if not dashed:
+			draw_polyline(pts, color, w, true)
+			return
+		var dash_len: float = 10.0 / zoom_scale
+		var gap_len: float = 7.0 / zoom_scale
+		var cycle: float = dash_len + gap_len
+		var total := 0.0
+		var seg_lens: PackedFloat32Array = PackedFloat32Array()
+		seg_lens.resize(pts.size() - 1)
+		for i in range(pts.size() - 1):
+			var l := pts[i].distance_to(pts[i + 1])
+			seg_lens[i] = l
+			total += l
+		if total <= 0.001:
+			return
+		var dist := 0.0
+		var i := 0
+		var seg_pos := 0.0
+		while dist < total and i < seg_lens.size():
+			var in_cycle := fmod(dist, cycle)
+			if in_cycle < dash_len:
+				var remain_dash := dash_len - in_cycle
+				var seg_remain := seg_lens[i] - seg_pos
+				var step := minf(remain_dash, seg_remain)
+				var a := pts[i].lerp(pts[i + 1], seg_pos / seg_lens[i])
+				var b := pts[i].lerp(pts[i + 1], (seg_pos + step) / seg_lens[i])
+				draw_line(a, b, color, w, true)
+				dist += step
+				seg_pos += step
+			else:
+				var remain_gap := cycle - in_cycle
+				var seg_remain := seg_lens[i] - seg_pos
+				var step := minf(remain_gap, seg_remain)
+				dist += step
+				seg_pos += step
+			if seg_pos >= seg_lens[i] - 0.001:
+				i += 1
+				seg_pos = 0.0
