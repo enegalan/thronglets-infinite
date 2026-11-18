@@ -9,6 +9,8 @@
 - Mine footprints act as walkable ground pads, and item/thronglet drop handling is safer around blocked tiles, water, fog, and void edges.
 - The axe tutorial unlock is gated on reaching a peak colony of six thronglets, and the hammer unlocks from cutting trees; sponge, mop, and swarm use consistent tuned interaction radii.
 - Splash effects use tuned frame scales for the new item/water interactions.
+- Thronglets leaving the bathtub sparkle on exit, monoliths rise vertically with an appearance cinematic (without the ground glitch portal), and occupied theatre, dwelling, and fancy-house windows switch to their active sprites.
+- Bridge construction and bridge-driven island progression were removed. The starting island now grows into a larger single landmass over time, with progression, saves, and world logic updated for the bridge-free flow.
 
 ### 2026-11-17
 
