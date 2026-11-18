@@ -267,12 +267,12 @@ func _step(delta: float) -> void:
 		_tick_auras(delta)
 		_tick_visible(delta)
 		_tick_slice(delta)
-		_tick_pops(delta)
 		_compact(items)
 		_compact(features)
 		_compact(buildings)
-	# Keep bark anchors on live thronglet positions even during gaze teleport.
+	# Keep bark and anchored pop positions on live thronglets even during gaze teleport.
 	_tick_barks(delta, not frozen)
+	_tick_pops(delta, not frozen)
 	_check_milestones()
 	_tick_voice(delta)
 	_rebuild_hash()
@@ -815,17 +815,7 @@ func _finish_bath(i: int, b: Dictionary) -> void:
 	pos_y[i] = float(rim.y)
 	act[i] = ACT_BATH
 	act_t[i] = 0.35
-	# TODO: Adjust sparkle scale in laboratory, and then uncomment this.
-	# Sparkle effects around the thronglet on bath exit.
-	# for n in 8:
-	# 	var ox := randf_range(-10.0, 10.0)
-	# 	var oy := randf_range(-10.0, 10.0)
-	# 	_pop(
-	# 		pos_x[i] + ox,
-	# 		pos_y[i] + oy,
-	# 		AssetFrames.frame(AssetFrames.CLEAN, AssetFrames.CLEAN_N, n),
-	# 		0.7
-	# 	)
+	_pop(pos_x[i], pos_y[i], AssetFrames.CLEAN, 1.0, i)
 
 
 func _nearest_roundabout(i: int, max_dist: float) -> Dictionary:
@@ -4079,17 +4069,31 @@ const ACT_BATH := 4
 const ACT_WORK := 5
 
 
-func _pop(x: float, y: float, icon: int, sprite_scale: float = 1.0) -> void:
-	pops.append({"x": x, "y": y, "t": 0.55, "icon": icon, "lift": 0.0, "scale": sprite_scale})
+func _pop(x: float, y: float, icon: int, sprite_scale: float = 1.0, throng_id: int = -1) -> void:
+	pops.append({
+		"x": x,
+		"y": y,
+		"t": 0.55,
+		"icon": icon,
+		"lift": 0.0,
+		"scale": sprite_scale,
+		"throng_id": throng_id,
+	})
 
 
-func _tick_pops(dt: float) -> void:
+func _tick_pops(dt: float, age: bool = true) -> void:
 	var kept: Array = []
 	for pop in pops:
-		pop.t = float(pop.t) - dt
-		pop.lift = float(pop.lift) + 22.0 * dt
-		if float(pop.t) > 0.0:
-			kept.append(pop)
+		if age:
+			pop.t = float(pop.t) - dt
+			pop.lift = float(pop.lift) + 22.0 * dt
+		var throng_id := int(pop.get("throng_id", -1))
+		if float(pop.t) <= 0.0 or (throng_id >= 0 and (throng_id >= slot_count or state[throng_id] != Catalog.ST_LIVING)):
+			continue
+		if throng_id >= 0:
+			pop.x = pos_x[throng_id]
+			pop.y = pos_y[throng_id]
+		kept.append(pop)
 	pops = kept
 
 

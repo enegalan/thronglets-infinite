@@ -1371,17 +1371,25 @@ func _sync_actors() -> void:
 				"flip": 1.0,
 				"dirty": 0.0,
 			})
+	var bath_exit_tune: Dictionary = EffectTune.get_tune("act:bath_exit")
+	var bath_exit_scale := float(bath_exit_tune.get("scale", 1.0))
+	var bath_exit_off := Vector2(float(bath_exit_tune.get("fx_x", 0.0)), float(bath_exit_tune.get("fx_y", 0.0)))
 	for pop in sim.pops:
 		var fade := clampf(float(pop.t) / 0.55, 0.0, 1.0)
 		var picon := int(pop.icon)
 		var frame := _pop_frame(picon)
 		var pop_scale := float(pop.get("scale", 1.0))
+		var pop_off := Vector2.ZERO
+		var pop_elapsed := 0.55 - float(pop.t)
 		if picon == AssetFrames.SPLASH:
-			var elapsed := 0.55 - float(pop.t)
-			frame = AssetFrames.frame(AssetFrames.SPLASH, AssetFrames.SPLASH_N, int(elapsed * 10.0))
+			frame = AssetFrames.frame(AssetFrames.SPLASH, AssetFrames.SPLASH_N, int(pop_elapsed * 10.0))
 			if frame >= AssetFrames.SPLASH and frame < AssetFrames.SPLASH + AssetFrames.SPLASH_N:
 				pop_scale = 0.6
-		_push_iso(draws, Vector2(float(pop.x), float(pop.y)), frame, Color(1, 1, 1, fade), float(pop.lift), pop_scale)
+		elif picon == AssetFrames.CLEAN:
+			frame = AssetFrames.frame(AssetFrames.CLEAN, AssetFrames.CLEAN_N, int(pop_elapsed * 10.0))
+			pop_scale = bath_exit_scale
+			pop_off = bath_exit_off
+		_push_iso(draws, Vector2(float(pop.x), float(pop.y)) + pop_off, frame, Color(1, 1, 1, fade), float(pop.lift), pop_scale)
 	draws.sort_custom(func(a, b): return float(a.get("sy", a.p.y)) < float(b.get("sy", b.p.y)))
 	draws.append_array(egg_front)
 	draws.append_array(drag_front)
