@@ -34,6 +34,8 @@ var hand_vel := Vector2.ZERO
 var hand_vel_init := false
 var _prop_bands: Array = []
 var _monoliths := {}
+var _building_active_sprites := {}
+var _active_structure_tex := {}
 var place_marks: Node2D
 var place_fills: Array[Polygon2D] = []
 var place_edges: Array[Line2D] = []
@@ -421,8 +423,13 @@ func _process(delta: float) -> void:
 	var _focus := get_viewport().gui_get_focus_owner()
 	var _typing := _focus is LineEdit or _focus is TextEdit
 	cam_rig.move(delta, _typing, dev_on)
+	# TODO: Condition looks hacky: str(sim.modal.get("event", "")) == "monolith_appear"
+	# Cinematic focus (e.g. monolith appearance)
+	if not sim.modal.is_empty() and str(sim.modal.get("event", "")) == "monolith_appear" and sim.modal.has("focus_x"):
+		var focus_at := cam_rig.to_iso(Vector2(float(sim.modal.get("focus_x", 256.0)), float(sim.modal.get("focus_y", 256.0))))
+		camera.position = camera.position.lerp(focus_at, 0.15)
 	# Follow selected thronglet continuously until clicked elsewhere
-	if selected >= 0:
+	elif selected >= 0:
 		if selected < sim.slot_count and sim.state[selected] != Catalog.ST_VACANT:
 			if sim.held_kind != "thronglet" and not hand_pending:
 				camera.position = camera.position.lerp(cam_rig.to_iso(Vector2(sim.pos_x[selected], sim.pos_y[selected])), 0.12)
@@ -1049,7 +1056,7 @@ func _sync_actors() -> void:
 			continue
 		var p := Vector2(float(feat.x), float(feat.y))
 		if int(feat.kind) == Catalog.FEAT_MONOLITH:
-			_sync_monolith(int(feat.id), p + Catalog.feature_draw_off(Catalog.FEAT_MONOLITH))
+			_sync_monolith(int(feat.id), p + Catalog.feature_draw_off(Catalog.FEAT_MONOLITH), feat, time_pre)
 			continue
 		var feat_at := _feature_draw_at(int(feat.kind), p, int(feat.ore))
 		if view.has_point(p) or view.has_point(feat_at):
@@ -1136,8 +1143,17 @@ func _sync_actors() -> void:
 			if b_kind == Catalog.BLD_MINE or b_kind == Catalog.BLD_MINE2:
 				# Mines are walkable ground pads: render above ground but below entities on top.
 				b_sort_y = -1000000.0
-			var b_outline := Color(0.35, 1.0, 0.45, 1.0) if outlined_bld_ids.has(int(b.id)) else Color.TRANSPARENT
-			_push_iso(draws, draw_at, b_frame, b_tint, b_lift, b_scale, b_sort_y, b_outline)
+			var occupied_home := (
+				(b_kind == Catalog.BLD_DWELL or b_kind == Catalog.BLD_FANCY or b_kind == Catalog.BLD_THEATRE)
+				and sim.has_method("_live_guests")
+				and int(sim._live_guests(b)) > 0
+			)
+			if occupied_home and _has_active_structure_sprite(b_kind):
+				_sync_active_building_sprite(int(b.id), b_kind, draw_at, b_scale, b_sort_y)
+			else:
+				_hide_active_building_sprite(int(b.id))
+				var b_outline := Color(0.35, 1.0, 0.45, 1.0) if outlined_bld_ids.has(int(b.id)) else Color.TRANSPARENT
+				_push_iso(draws, draw_at, b_frame, b_tint, b_lift, b_scale, b_sort_y, b_outline)
 			if b_kind == Catalog.BLD_FACTORY or b_kind == Catalog.BLD_FACTORY2:
 				_push_factory_pile(draws, b, draw_at)
 			if b_kind == Catalog.BLD_APPLE:
@@ -1156,27 +1172,6 @@ func _sync_actors() -> void:
 					)
 			if bool(b.get("active", false)) and b_kind == Catalog.BLD_TUB:
 				var seat := p3 + Catalog.TUB_SEAT_OFF
-	var bridge: Dictionary = sim.bridge_marker()
-	if not sim.shot_mode and not bridge.is_empty() and sim.chunk_shown(str(bridge.ck)):
-		var site := Vector2(float(bridge.x), float(bridge.y))
-		var drop := Vector2(float(bridge.drop_x), float(bridge.drop_y))
-		var pulse := 0.55 + 0.45 * absf(sin(anim_time * 1000.0 / 280.0))
-		var mark := Color(1.0, 0.85, 0.2, pulse)
-		var site_draw := _bridge_view_point(site, view)
-		var drop_draw := _bridge_view_point(drop, view)
-		var on_site := view.has_point(site)
-		_push_iso(draws, site_draw, _prop_frame(Catalog.ICON_MONOLITH), mark, 28.0 if on_site else 22.0)
-		_push_iso(draws, drop_draw, _prop_frame(Catalog.ICON_WOOD), Color(1.0, 1.0, 1.0, pulse), 16.0)
-		if on_site or view.has_point(drop):
-			var filled := mini(int(bridge.progress), int(bridge.need))
-			for n in filled:
-				var ox := float((n % 3) - 1) * 10.0
-				var oy := float(n / 3) * -8.0
-				_push_iso(draws, drop + Vector2(ox, oy), _prop_frame(Catalog.ICON_WOOD), Color(0.95, 0.82, 0.4, 0.9), 14.0)
-			for n in range(filled, int(bridge.need)):
-				var gx := float((n % 3) - 1) * 10.0
-				var gy := float(n / 3) * -8.0
-				_push_iso(draws, drop + Vector2(gx, gy), _prop_frame(Catalog.ICON_WOOD), Color(1.0, 1.0, 1.0, 0.22 * pulse), 10.0)
 	var grid_at := cam_rig.grid_pointer_world()
 	var free_at := cam_rig.pointer_world()
 	var hand: Dictionary = sim.hand_item()
@@ -1832,20 +1827,6 @@ func _charge_arc_points(center_iso: Vector2, radius: float, progress: float) -> 
 	return pts
 
 
-func _bridge_view_point(world_pos: Vector2, view: Rect2) -> Vector2:
-	if view.has_point(world_pos):
-		return world_pos
-	var center := view.get_center()
-	var delta := world_pos - center
-	var half := view.size * 0.38
-	var scale_x := absf(delta.x) / maxf(half.x, 1.0)
-	var scale_y := absf(delta.y) / maxf(half.y, 1.0)
-	var scale := maxf(scale_x, scale_y)
-	if scale <= 1.0:
-		return world_pos
-	return center + delta / scale
-
-
 func _push_factory_pile(draws: Array, b: Dictionary, at: Vector2) -> void:
 	var stacked := int(b.get("buffer", 0))
 	if b.has("pile") and b.get("pile") is Array:
@@ -2143,7 +2124,7 @@ func _throng_sprite_off(frame: int) -> Vector2:
 	return Vector2.ZERO
 
 
-func _sync_monolith(id: int, world_pos: Vector2) -> void:
+func _sync_monolith(id: int, world_pos: Vector2, feat: Dictionary, t: float) -> void:
 	var node: Node2D = _monoliths.get(id)
 	if node == null:
 		node = (load("res://scripts/presentation/props/monolith_prop.gd") as GDScript).new()
@@ -2152,6 +2133,65 @@ func _sync_monolith(id: int, world_pos: Vector2) -> void:
 	node.position = cam_rig.to_iso(world_pos)
 	node.visible = true
 	node.set_meta("seen", true)
+	if node.has_method("sync_state"):
+		node.sync_state(feat, t)
+
+
+func _active_structure_sprite_path(kind: int) -> String:
+	match kind:
+		Catalog.BLD_DWELL:
+			return "res://resources/structures/buildings/dwell_active.png"
+		Catalog.BLD_FANCY:
+			return "res://resources/structures/buildings/fancy_active.png"
+		Catalog.BLD_THEATRE:
+			return "res://resources/structures/buildings/theatre_active.png"
+	return ""
+
+
+func _has_active_structure_sprite(kind: int) -> bool:
+	return _active_structure_sprite_path(kind) != ""
+
+
+func _active_structure_texture(kind: int) -> Texture2D:
+	if _active_structure_tex.has(kind):
+		return _active_structure_tex[kind]
+	var path := _active_structure_sprite_path(kind)
+	if path == "":
+		return null
+	var tex: Texture2D = load(path)
+	_active_structure_tex[kind] = tex
+	return tex
+
+
+func _sync_active_building_sprite(id: int, kind: int, draw_at: Vector2, sprite_scale: float, sort_y: float) -> void:
+	var tex := _active_structure_texture(kind)
+	if tex == null:
+		_hide_active_building_sprite(id)
+		return
+	var node: Sprite2D = _building_active_sprites.get(id)
+	if node == null:
+		node = Sprite2D.new()
+		node.centered = true
+		node.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		world_layer.add_child(node)
+		_building_active_sprites[id] = node
+	node.texture = tex
+	node.scale = Vector2(sprite_scale, sprite_scale)
+	var screen_p := cam_rig.to_iso(draw_at)
+	node.position = screen_p + Vector2(0, -WORLD_CELL * 0.5 * sprite_scale)
+	var sy := sort_y if not is_nan(sort_y) else screen_p.y
+	node.set_meta("sy", sy)
+	node.visible = true
+	node.set_meta("seen", true)
+
+
+func _hide_active_building_sprite(id: int) -> void:
+	if not _building_active_sprites.has(id):
+		return
+	var node: Sprite2D = _building_active_sprites[id]
+	if is_instance_valid(node):
+		node.visible = false
+		node.set_meta("seen", false)
 
 
 func _void_behind_cliff(world_pos: Vector2) -> bool:
@@ -2174,6 +2214,16 @@ func _paint_props(draws: Array) -> void:
 			continue
 		node.set_meta("seen", false)
 		live.append({"sy": node.position.y, "node": node})
+	for id in _building_active_sprites.keys():
+		var bnode: Sprite2D = _building_active_sprites[id]
+		if bnode == null or not is_instance_valid(bnode):
+			continue
+		if not bool(bnode.get_meta("seen", false)):
+			bnode.visible = false
+			continue
+		bnode.set_meta("seen", false)
+		var bsy := float(bnode.get_meta("sy", bnode.position.y))
+		live.append({"sy": bsy, "node": bnode})
 	live.sort_custom(func(a, b): return float(a.sy) < float(b.sy))
 	var cursor := 0
 	var order: Array = []
