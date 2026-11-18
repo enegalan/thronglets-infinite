@@ -329,10 +329,6 @@ func load_game() -> bool:
 	sim.count_unknown = bool(data.get("count_unknown", false))
 	sim._recount()
 	sim._reindex()
-	# TODO: Check if this is still needed.
-	# Migration: old saves reached part_two via bridge completion.
-	if bool(data.get("part_two", false)) or bool(data.get("bridge_open", false)):
-		sim.part_two = true
 	sim._refresh_pop_gates(false)
 	sim._shape_island()
 	sim._seed_mine_nodes(0, 0)
