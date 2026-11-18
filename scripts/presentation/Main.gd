@@ -486,6 +486,9 @@ func _world_click() -> void:
 	var sim: ThrongletSim = ThrongletSimServer
 	var aim := _aim_thronglet(false)
 	selected = sim.find_thronglet(aim.x, aim.y, 14.0, false)
+	if selected >= 0:
+		if sim.mito_t[selected] > 0.0 or sim.mito_charge[selected] > 0.0:
+			selected = -1
 	selected_bld = -1
 	if selected >= 0 and selected < sim.slot_count and sim.state[selected] != Catalog.ST_VACANT:
 		camera.position = cam_rig.to_iso(Vector2(sim.pos_x[selected], sim.pos_y[selected]))
@@ -698,6 +701,8 @@ func _throng_under_cursor(living_only: bool) -> int:
 			continue
 		var live := st == Catalog.ST_LIVING
 		if living_only and not live:
+			continue
+		if live and (sim.mito_t[i] > 0.0 or sim.mito_charge[i] > 0.0):
 			continue
 		var feet := cam_rig.to_iso(Vector2(sim.pos_x[i], sim.pos_y[i]))
 		var delta := mouse - feet
@@ -1710,7 +1715,7 @@ func _sync_charge_mark(delta: float = 0.0) -> void:
 		return
 	var sim: ThrongletSim = ThrongletSimServer
 	var at := cam_rig.pointer_world()
-	if sim.has_scoop():
+	if sim.has_scoop() or not _drop_on_island():
 		charge_area.visible = false
 		charge_area_key = ""
 		charge_ring.visible = false
@@ -6112,22 +6117,30 @@ class _DashArea extends Node2D:
 		var i := 0
 		var seg_pos := 0.0
 		while dist < total and i < seg_lens.size():
+			var seg_len: float = seg_lens[i]
+			if seg_len <= 0.001:
+				i += 1
+				seg_pos = 0.0
+				continue
 			var in_cycle := fmod(dist, cycle)
 			if in_cycle < dash_len:
 				var remain_dash := dash_len - in_cycle
-				var seg_remain := seg_lens[i] - seg_pos
+				var seg_remain := seg_len - seg_pos
 				var step := minf(remain_dash, seg_remain)
-				var a := pts[i].lerp(pts[i + 1], seg_pos / seg_lens[i])
-				var b := pts[i].lerp(pts[i + 1], (seg_pos + step) / seg_lens[i])
-				draw_line(a, b, color, w, true)
-				dist += step
-				seg_pos += step
+				if step > 0.0:
+					var a := pts[i].lerp(pts[i + 1], seg_pos / seg_len)
+					var b := pts[i].lerp(pts[i + 1], (seg_pos + step) / seg_len)
+					draw_line(a, b, color, w, true)
+					dist += step
+					seg_pos += step
+				else:
+					dist += 0.001
 			else:
 				var remain_gap := cycle - in_cycle
-				var seg_remain := seg_lens[i] - seg_pos
+				var seg_remain := seg_len - seg_pos
 				var step := minf(remain_gap, seg_remain)
-				dist += step
-				seg_pos += step
-			if seg_pos >= seg_lens[i] - 0.001:
+				dist += maxf(step, 0.001)
+				seg_pos += maxf(step, 0.0)
+			if seg_pos >= seg_len - 0.001:
 				i += 1
 				seg_pos = 0.0

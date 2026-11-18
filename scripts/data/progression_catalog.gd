@@ -40,8 +40,8 @@ static var CATALOG: Array = [
 	entry("roundabout", "Carrusel", "building", [cond_population(15)], 0, 1.5, 2),
 	entry("hammer", "Martillo", "tool", [cond_metric("trees_cut", 1)], 0, 1.0, 0),
 	entry("axe", "Hacha", "tool", [cond_population(6)], 0, 1.0, 0),
-	entry("bug", "El Bug", "tool", [cond_unlocked("axe")], 0, 1.0, 0),
-	# Fase 2
+	entry("bug", "El Bug", "tool", [cond_unlocked("__monolith_tier1__")], 0, 1.0, 0),
+	# Phase 2
 	entry("pickaxe", "Pico", "tool", [cond_unlocked("hammer"), cond_gems(15)], 15, 1.0, 2, "hammer"),
 	entry("mine", "Mina", "building", [cond_unlocked("pickaxe")], 50, 1.6, 1),
 	entry("dwelling", "Vivienda", "building", [cond_gems(200)], 200, 1.65, 2),

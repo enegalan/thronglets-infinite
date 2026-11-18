@@ -2562,14 +2562,19 @@ func _tool_pick(x: float, y: float) -> void:
 		return
 	var hit := false
 	for feat in features:
-		if feat.dead or not _is_rock(int(feat.kind)):
+		if feat.dead:
 			continue
-		if _dist_point(x, y, float(feat.x), float(feat.y)) <= Catalog.PICK_RADIUS:
-			var kind := int(feat.kind)
+		var kind := int(feat.kind)
+		if _dist_point(x, y, float(feat.x), float(feat.y)) > Catalog.PICK_RADIUS:
+			continue
+		if _is_rock(kind):
 			_hammer_feature(feat)
 			hit = true
 			if kind == Catalog.FEAT_ORE_MEGA or kind == Catalog.FEAT_ORE_SUPER or kind == Catalog.FEAT_ORE_ULTRA:
 				sfx_queue.append("superore")
+		elif kind == Catalog.FEAT_STUMP or kind == Catalog.FEAT_MSTUMP:
+			_hammer_feature(feat)
+			hit = true
 	if not hit and _tile_at(x, y) == Catalog.TILE_MOUNTAIN:
 		var at := Catalog.snap_world(x, y)
 		if not _add_feature(Catalog.FEAT_MNODE, at.x, at.y, 3, 1, true).is_empty():
@@ -2627,10 +2632,18 @@ func charge_tool_target(tool: int, x: float, y: float) -> Dictionary:
 					"n": ore_n,
 					"radius": Catalog.HAMMER_ORE_RADIUS,
 				}
-		var rocks := _count_features_near(Catalog.FEAT_ROCK, x, y, Catalog.PICK_RADIUS) + _count_features_near(Catalog.FEAT_BIGROCK, x, y, Catalog.PICK_RADIUS)
-		if rocks <= 0:
+		var targets := 0
+		for feat in features:
+			if feat.dead:
+				continue
+			var kind := int(feat.kind)
+			if _dist_point(x, y, float(feat.x), float(feat.y)) > Catalog.PICK_RADIUS:
+				continue
+			if _is_rock(kind) or kind == Catalog.FEAT_STUMP or kind == Catalog.FEAT_MSTUMP:
+				targets += 1
+		if targets <= 0:
 			return {}
-		return {"key": "pick:%d:%d" % [int(floor(x / 8.0)), int(floor(y / 8.0))], "x": x, "y": y, "n": rocks, "radius": Catalog.PICK_RADIUS}
+		return {"key": "pick:%d:%d" % [int(floor(x / 8.0)), int(floor(y / 8.0))], "x": x, "y": y, "n": targets, "radius": Catalog.PICK_RADIUS}
 	if tool == Catalog.TOOL_SAW:
 		var trees := _count_features_near(Catalog.FEAT_TREE, x, y, Catalog.SAW_RADIUS)
 		if trees <= 0:
@@ -2688,7 +2701,10 @@ func area_tool_hits(tool: int, x: float, y: float) -> Array:
 			if not hits.is_empty():
 				return hits
 		for feat in features:
-			if feat.dead or not _is_rock(int(feat.kind)):
+			if feat.dead:
+				continue
+			var kind := int(feat.kind)
+			if not (_is_rock(kind) or kind == Catalog.FEAT_STUMP or kind == Catalog.FEAT_MSTUMP):
 				continue
 			if _dist_point(x, y, float(feat.x), float(feat.y)) <= Catalog.PICK_RADIUS:
 				hits.append({"what": "feat", "id": int(feat.id), "x": float(feat.x), "y": float(feat.y)})
@@ -3160,7 +3176,7 @@ func grab_thronglet(id: int) -> bool:
 		return false
 	if id < 0 or id >= slot_count or state[id] != Catalog.ST_LIVING:
 		return false
-	if mito_t[id] > 0.0:
+	if mito_t[id] > 0.0 or mito_charge[id] > 0.0:
 		return false
 	held_kind = "thronglet"
 	held_ref = id
@@ -4916,7 +4932,6 @@ func _ensure_monolith(tier: int) -> void:
 		return
 	if tier == 2 and bool(unlocks.get("nuke", false)):
 		return
-	monolith_tier_spawned[tier] = true
 	var x := 168.0 + float(tier) * 78.0
 	var y := 168.0
 	if _blocked(x, y):
@@ -4925,6 +4940,7 @@ func _ensure_monolith(tier: int) -> void:
 	var feat := _add_feature(Catalog.FEAT_MONOLITH, x, y, 4, tier)
 	if feat.is_empty():
 		return
+	monolith_tier_spawned[tier] = true
 	feat.spawn_progress = 0.0
 	feat.spawn_dur = 1.4
 	feat.age = 0.0
@@ -5141,6 +5157,16 @@ func _reset_world() -> void:
 
 
 func _push_slot(x: float, y: float, fed_v: float, fun_v: float, clean_v: float, cool_v: float, tint_i: int) -> int:
+	var id := _push_slot_quiet(x, y, fed_v, fun_v, clean_v, cool_v, tint_i)
+	if id < 0:
+		return -1
+	if living > peak:
+		peak = living
+		_refresh_pop_gates()
+	return id
+
+
+func _push_slot_quiet(x: float, y: float, fed_v: float, fun_v: float, clean_v: float, cool_v: float, tint_i: int) -> int:
 	if slot_count >= Catalog.MAX_SLOTS:
 		return -1
 	var ang := randf() * TAU
@@ -5173,9 +5199,6 @@ func _push_slot(x: float, y: float, fed_v: float, fun_v: float, clean_v: float, 
 	var id := slot_count
 	slot_count += 1
 	living += 1
-	if living > peak:
-		peak = living
-		_refresh_pop_gates()
 	return id
 
 
