@@ -546,38 +546,46 @@ func _tick_shot_apple() -> void:
 	main.crt_on = false
 	if main.has_method("_apply_crt"):
 		main._apply_crt()
-	sim.frozen = false
-	sim.paused = false
-	sim.smoke_hold = false
 	main.cam_rig.set_zoom(5.5)
 	main.camera.position = main.cam_rig.to_iso(sim.shot_focus)
 
 	if apple_phase == 0:
-		# find actors once
-		for it in sim.items:
-			if not it.dead and int(it.kind) == Catalog.ITEM_APPLE:
-				apple_id = int(it.id)
-				break
-		var ids: Array = []
-		for i in sim.slot_count:
-			if sim.state[i] == Catalog.ST_LIVING:
-				ids.append(i)
-		if ids.size() >= 2:
-			# A is hungrier/closer initially
-			if sim.fed[int(ids[0])] <= sim.fed[int(ids[1])]:
-				apple_a = int(ids[0]); apple_b = int(ids[1])
-			else:
-				apple_a = int(ids[1]); apple_b = int(ids[0])
+		# Keep simulation held while binding actors and capturing initial state.
+		sim.frozen = false
+		sim.paused = false
+		sim.smoke_hold = true
+		# bind actor IDs once
+		if apple_id < 0:
+			for it in sim.items:
+				if not it.dead and int(it.kind) == Catalog.ITEM_APPLE:
+					apple_id = int(it.id)
+					break
+		if apple_a < 0 or apple_b < 0:
+			var ids: Array = []
+			for i in sim.slot_count:
+				if sim.state[i] == Catalog.ST_LIVING:
+					ids.append(i)
+			if ids.size() >= 2:
+				# A is hungrier/closer initially
+				if sim.fed[int(ids[0])] <= sim.fed[int(ids[1])]:
+					apple_a = int(ids[0]); apple_b = int(ids[1])
+				else:
+					apple_a = int(ids[1]); apple_b = int(ids[0])
 		frames += 1
 		if frames < 12:
+			return
+		if not save_shot(main.get_viewport(), "res://shots/apple_bites_01_full.png"):
+			main.get_tree().quit(1)
 			return
 		apple_phase = 1
 		frames = 0
 		apple_wait = 0
-		if not save_shot(main.get_viewport(), "res://shots/apple_bites_01_full.png"):
-			main.get_tree().quit(1)
-			return
+		sim.smoke_hold = false
 		return
+
+	sim.frozen = false
+	sim.paused = false
+	sim.smoke_hold = false
 
 	if apple_phase == 1:
 		# wait for A to eat first bite
@@ -638,6 +646,7 @@ func _tick_shot_apple() -> void:
 				sim.hungry_t[apple_b] = 6.0
 				sim.amused[apple_b] = 90.0
 				sim.clean[apple_b] = 90.0
+				sim.mito_charge[apple_b] = 0.0
 				if not apple.is_empty():
 					sim.pos_x[apple_b] = float(apple.x) + 14.0
 					sim.pos_y[apple_b] = float(apple.y) + 2.0
