@@ -80,9 +80,66 @@ static func build_kind_for_id(id: String) -> int:
 		"factory2": return Catalog.BLD_FACTORY2
 		"mine2": return Catalog.BLD_MINE2
 		"fancy": return Catalog.BLD_FANCY
+		"flower": return Catalog.BLD_FLOWER
+		"sculpture": return Catalog.BLD_STATUE
 	return -1
 
+static func placement_cost(sim, id: String) -> Dictionary:
+	var kind := build_kind_for_id(id)
+	var count := 0 if kind < 0 else building_count(sim, kind)
+	match id:
+		"mine":
+			# 0, 56, 137, 272, 461, 703, ...
+			var wood := _mine_wood_cost(count)
+			return {"resource": "wood", "amount": wood}
+		"dwelling":
+			# 10, 13, 25, 45, 73, 109, 153, 205, 265, 333, ...
+			var gems := 10 if count <= 0 else 4 * count * count + 9
+			return {"resource": "gem", "amount": gems}
+		"factory":
+			# 20, 24, 39, 69, 96, 254, ...
+			var gems := _factory_gem_cost(count)
+			return {"resource": "gem", "amount": gems}
+		"theatre":
+			# 200, 207, 229, 266, 318, ...
+			var gems := (15 * count * count - count + 400) / 2
+			return {"resource": "gem", "amount": gems}
+		"flower", "sculpture":
+			return {"resource": "gem", "amount": 10}
+	var gems := _exponential_gem_cost(sim, id)
+	if gems > 0:
+		return {"resource": "gem", "amount": gems}
+	if kind >= 0 and Catalog.BUILD_INFO.has(kind):
+		var wood := int(Catalog.BUILD_INFO[kind].get("wood", 0))
+		if wood > 0:
+			return {"resource": "wood", "amount": wood}
+	return {"resource": "", "amount": 0}
+
 static func scaled_cost(sim, id: String) -> int:
+	var cost := placement_cost(sim, id)
+	if str(cost.get("resource", "")) == "gem":
+		return int(cost.get("amount", 0))
+	return 0
+
+static func _mine_wood_cost(count: int) -> int:
+	# 0, 56, 137, 272, 461, 703, ...
+	return _stepped_cost(count, [0, 56, 137, 272, 461, 703], 54)
+
+static func _factory_gem_cost(count: int) -> int:
+	# 20, 24, 39, 69, 96, 254, ...
+	return _stepped_cost(count, [20, 24, 39, 69, 96, 254], 15)
+
+static func _stepped_cost(count: int, steps: Array, delta_grow: int) -> int:
+	if count < steps.size():
+		return int(steps[count])
+	var amount := int(steps[steps.size() - 1])
+	var delta := amount - int(steps[steps.size() - 2]) + delta_grow
+	for _i in range(steps.size() - 1, count):
+		amount += delta
+		delta += delta_grow
+	return amount
+
+static func _exponential_gem_cost(sim, id: String) -> int:
 	var e := ProgressionCatalog.by_id(id)
 	if e.is_empty():
 		return 0
@@ -95,6 +152,19 @@ static func scaled_cost(sim, id: String) -> int:
 		return base
 	var count := building_count(sim, kind)
 	return int(round(float(base) * pow(mult, float(count))))
+
+static func kit_cost_signature(sim) -> String:
+	return "%d:%d:%d:%d:%d:%d:%d:%d:%d" % [
+		int(sim.unlock_serial),
+		building_count(sim, Catalog.BLD_DWELL),
+		building_count(sim, Catalog.BLD_MINE),
+		building_count(sim, Catalog.BLD_FACTORY),
+		building_count(sim, Catalog.BLD_THEATRE),
+		building_count(sim, Catalog.BLD_FLOWER),
+		building_count(sim, Catalog.BLD_STATUE),
+		building_count(sim, Catalog.BLD_FANCY),
+		building_count(sim, Catalog.BLD_FACTORY2) + building_count(sim, Catalog.BLD_MINE2),
+	]
 
 static func evaluate_unlocks(sim, announce: bool = true) -> Array[String]:
 	var granted: Array[String] = []

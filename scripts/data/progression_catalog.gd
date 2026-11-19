@@ -31,7 +31,6 @@ static func entry(id: String, name: String, category: String, unlock_conditions:
 	return e
 
 static var CATALOG: Array = [
-	# Fase 1
 	entry("apple", "Manzana", "tool", [], 0, 1.0, 0),
 	entry("ball", "Pelota", "tool", [], 0, 1.0, 0),
 	entry("sponge", "Esponja", "tool", [], 0, 1.0, 0),
@@ -41,15 +40,14 @@ static var CATALOG: Array = [
 	entry("hammer", "Martillo", "tool", [cond_metric("trees_cut", 1)], 0, 1.0, 0),
 	entry("axe", "Hacha", "tool", [cond_population(6)], 0, 1.0, 0),
 	entry("bug", "El Bug", "tool", [cond_unlocked("__monolith_tier1__")], 0, 1.0, 0),
-	# Phase 2
 	entry("pickaxe", "Pico", "tool", [cond_unlocked("hammer"), cond_gems(15)], 15, 1.0, 2, "hammer"),
-	entry("mine", "Mina", "building", [cond_unlocked("pickaxe")], 50, 1.6, 1),
-	entry("dwelling", "Vivienda", "building", [cond_gems(200)], 200, 1.65, 2),
-	entry("factory", "Fábrica", "building", [cond_gems(300)], 300, 1.7, 2),
+	entry("mine", "Mina", "building", [cond_unlocked("pickaxe")], 0, 1.0, 1),
+	entry("dwelling", "Vivienda", "building", [cond_gems(200)], 10, 1.0, 2),
+	entry("factory", "Fábrica", "building", [cond_gems(300)], 20, 1.0, 2),
 	entry("chainsaw", "Motosierra", "tool", [cond_unlocked("axe"), cond_gems(400)], 400, 1.0, 3, "axe"),
 	entry("grabber", "Mano", "tool", [cond_metric("trees_cut", 12)], 150, 1.0, 3),
 	entry("mop", "Fregona", "tool", [cond_metric("pollution", 25)], 250, 1.0, 3, "sponge"),
-	entry("theatre", "Teatro", "building", [cond_gems(1000)], 1000, 1.75, 3),
+	entry("theatre", "Teatro", "building", [cond_gems(1000)], 200, 1.0, 3),
 	entry("swarm", "Enjambre", "tool", [cond_unlocked("bug"), cond_gems(2500)], 2500, 1.0, 3, "bug"),
 	entry("factory2", "Fábrica Mark II", "building", [cond_gems(5000)], 5000, 1.85, 2),
 	entry("mine2", "Mina Mejorada", "building", [cond_gems(120000)], 120000, 1.9, 2),

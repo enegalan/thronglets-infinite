@@ -2561,8 +2561,9 @@ func _sync_hud(delta: float) -> void:
 		toast_t -= delta
 	toast.visible = toast_t > 0.0
 	toast.text = toast_msg
-	if bar_serial != sim.unlock_serial:
-		bar_serial = sim.unlock_serial
+	var kit_sig := hash(ProgressionManager.kit_cost_signature(sim))
+	if bar_serial != kit_sig:
+		bar_serial = kit_sig
 		_rebuild_bars()
 	_sync_market_sign(sim)
 	_mark_selected()
@@ -3303,8 +3304,9 @@ func _kit_tabs() -> Array:
 	return [
 		{"label": "CUIDA", "title": "CUIDADOS", "tools": [Catalog.TOOL_APPLE, Catalog.TOOL_BALL, Catalog.TOOL_SPONGE], "builds": []},
 		{"label": "UTIL", "title": "HERRAMIENTAS", "tools": [Catalog.TOOL_AXE, Catalog.TOOL_HAMMER, Catalog.TOOL_PICK, Catalog.TOOL_SAW, Catalog.TOOL_GRAB, Catalog.TOOL_MOP], "builds": []},
-		{"label": "OBRA", "title": "CONSTRUCCION", "tools": [], "builds": [Catalog.BLD_DWELL, Catalog.BLD_FANCY, Catalog.BLD_MINE, Catalog.BLD_MINE2, Catalog.BLD_FACTORY, Catalog.BLD_FACTORY2, Catalog.BLD_THEATRE, Catalog.BLD_MARKET, Catalog.BLD_FLOWER, Catalog.BLD_STATUE]},
 		{"label": "HOGAR", "title": "CUIDADOS EXTRA", "tools": [], "builds": [Catalog.BLD_TUB, Catalog.BLD_APPLE, Catalog.BLD_ROUND]},
+		{"label": "OBRA", "title": "CONSTRUCCION", "tools": [], "builds": [Catalog.BLD_DWELL, Catalog.BLD_FANCY, Catalog.BLD_MINE, Catalog.BLD_MINE2, Catalog.BLD_FACTORY, Catalog.BLD_FACTORY2, Catalog.BLD_THEATRE, Catalog.BLD_MARKET]},
+		{"label": "DECOR", "title": "DECORACION", "tools": [], "builds": [Catalog.BLD_FLOWER, Catalog.BLD_STATUE]},
 		{"label": "BUGS", "title": "ESPECIALES", "tools": [Catalog.TOOL_BUG, Catalog.TOOL_SWARM, Catalog.TOOL_TNT, Catalog.TOOL_NUKE], "builds": []},
 	]
 
@@ -3352,6 +3354,8 @@ func _tab_icon(label: String) -> String:
 			return "res://resources/ui/tab_build.png"
 		"HOGAR":
 			return "res://resources/ui/tab_home.png"
+		"DECOR":
+			return "res://resources/ui/tab_decor.png"
 		_:
 			return "res://resources/ui/tab_dev.png"
 
@@ -3437,6 +3441,38 @@ func _tray_cell(icon: int, wide: float, tall: float, kind: String, glyph: Textur
 	return button
 
 
+func _tray_price_row(cell: Panel, resource: String, amount: int) -> void:
+	var row := HBoxContainer.new()
+	row.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	row.offset_left = 4.0
+	row.offset_right = -4.0
+	row.offset_top = -16.0
+	row.offset_bottom = -2.0
+	row.add_theme_constant_override("separation", 2)
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var icon := TextureRect.new()
+	if resource == "wood":
+		icon.texture = _atlas_icon(Catalog.ICON_WOOD)
+	else:
+		icon.texture = _atlas_icon(Catalog.ICON_GEM)
+	icon.custom_minimum_size = Vector2(12, 12)
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(icon)
+	var label := Label.new()
+	label.text = str(amount)
+	label.add_theme_font_size_override("font_size", 11)
+	label.add_theme_color_override("font_color", Color.WHITE)
+	label.add_theme_color_override("font_outline_color", Color.BLACK)
+	label.add_theme_constant_override("outline_size", 2)
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(label)
+	cell.add_child(row)
+
+
 func _rebuild_bars() -> void:
 	var sim: ThrongletSim = ThrongletSimServer
 	for child in kit_tabs.get_children():
@@ -3495,6 +3531,7 @@ func _rebuild_bars() -> void:
 		item_w = tab_w
 	for item in pending:
 		var face := _tray_cell(int(item.icon), 54.0, 44.0, "all")
+		var cell: Panel = face.get_parent()
 		var item_id := int(item.id)
 		if str(item.kind) == "tool":
 			face.button_down.connect(_begin_kit_drag.bind("tool", item_id))
@@ -3502,7 +3539,14 @@ func _rebuild_bars() -> void:
 		else:
 			face.button_down.connect(_begin_kit_drag.bind("build", item_id))
 			build_buttons[item_id] = face
-		kit_icons.add_child(face.get_parent())
+			var info: Dictionary = Catalog.BUILD_INFO.get(item_id, {})
+			var pid := str(info.get("unlock", ""))
+			if pid != "":
+				var cost := ProgressionManager.placement_cost(sim, pid)
+				var resource := str(cost.get("resource", ""))
+				if resource == "gem" or resource == "wood":
+					_tray_price_row(cell, resource, int(cost.get("amount", 0)))
+		kit_icons.add_child(cell)
 	var edge := -60.0
 	var tab_h := 44.0
 	var bar_w := maxf(tab_w, item_w)
@@ -3602,10 +3646,17 @@ func _kit_drag_label() -> String:
 		return ""
 	if str(kit_drag.get("type", "")) == "build":
 		var info: Dictionary = Catalog.BUILD_INFO.get(int(kit_drag.id), {})
-		var wood_n := int(info.get("wood", 0))
-		if wood_n <= 0:
-			return "%s  (GRATIS)" % str(info.get("label", ""))
-		return "%s  (%d MADERA)" % [str(info.get("label", "")), wood_n]
+		var pid := str(info.get("unlock", ""))
+		var cost := ProgressionManager.placement_cost(ThrongletSimServer, pid)
+		var amount := int(cost.get("amount", 0))
+		var resource := str(cost.get("resource", ""))
+		if resource == "gem":
+			return "%s  (%d GEMAS)" % [str(info.get("label", "")), amount]
+		if resource == "wood":
+			if amount <= 0:
+				return "%s  (GRATIS)" % str(info.get("label", ""))
+			return "%s  (%d MADERA)" % [str(info.get("label", "")), amount]
+		return "%s  (GRATIS)" % str(info.get("label", ""))
 	var entry := _tool_entry(int(kit_drag.id))
 	return str(entry.get("label", ""))
 

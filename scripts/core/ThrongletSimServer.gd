@@ -3639,14 +3639,18 @@ func place_building(kind: int, x: float, y: float) -> bool:
 		sfx_queue.append("error")
 		return false
 	var pid := str(info.unlock)
+	var cost := ProgressionManager.placement_cost(self, pid)
 	var gem_cost := 0
-	if ProgressionCatalog.is_repeatable_building(pid):
-		gem_cost = ProgressionManager.scaled_cost(self, pid)
-		if gem_cost > 0 and gems < gem_cost:
-			notes.append("FALTAN GEMAS (%d)." % gem_cost)
-			sfx_queue.append("error")
-			return false
-	if not _consume_kind(Catalog.ITEM_WOOD, int(info.wood), at.x, at.y):
+	var wood_cost := int(info.wood)
+	if str(cost.get("resource", "")) == "gem":
+		gem_cost = int(cost.get("amount", 0))
+	elif str(cost.get("resource", "")) == "wood":
+		wood_cost = int(cost.get("amount", 0))
+	if gem_cost > 0 and gems < gem_cost:
+		notes.append("FALTAN GEMAS (%d)." % gem_cost)
+		sfx_queue.append("error")
+		return false
+	if not _consume_kind(Catalog.ITEM_WOOD, wood_cost, at.x, at.y):
 		notes.append("FALTA MADERA.")
 		sfx_queue.append("error")
 		return false
@@ -4789,7 +4793,7 @@ func _milestone_defs() -> Array:
 		{"kind": "expand", "n": 0},
 		{"kind": "gem", "n": 20},
 		{"kind": "pop", "n": 30},
-		{"kind": "gem", "n": 100},
+		{"kind": "gem", "n": 20},
 		{"kind": "pop", "n": 40},
 		{"kind": "gem", "n": 500},
 	]
@@ -5776,10 +5780,10 @@ func _scatter(cx: int, cy: int, biome: String) -> void:
 
 func _island_reach() -> float:
 	if land_tier <= 2:
-		return 170.0 + float(land_tier) * 24.0
+		return minf(252.0, 170.0 + float(land_tier) * 48.0)
 	if land_tier == 3:
-		return 240.0
-	return minf(252.0, 240.0 + float(land_tier - 3) * 4.0)
+		return 252.0
+	return 252.0
 
 
 func _shape_island() -> int:
