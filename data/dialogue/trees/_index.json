@@ -512,39 +512,11 @@
    "lines_used": 0
   },
   {
-   "id": "CH01_S04_020ABYSS",
-   "source": "CH01_S04_020ABYSS",
-   "status": "curated",
-   "lines_in": 0,
-   "lines_used": 0
-  },
-  {
    "id": "CH01_S04_030ARTIFAC",
    "source": "CH01_S04_030ARTIFAC",
    "status": "draft",
    "lines_in": 3,
    "lines_used": 3
-  },
-  {
-   "id": "CH01_S05_020HINT",
-   "source": "CH01_S05_020HINT",
-   "status": "draft",
-   "lines_in": 6,
-   "lines_used": 5
-  },
-  {
-   "id": "CH01_S05_030HINT2",
-   "source": "CH01_S05_030HINT2",
-   "status": "draft",
-   "lines_in": 8,
-   "lines_used": 6
-  },
-  {
-   "id": "CH01_S05_040THANN",
-   "source": "CH01_S05_040THANN",
-   "status": "draft",
-   "lines_in": 11,
-   "lines_used": 9
   },
   {
    "id": "CH01_S06_010MLTH1",
@@ -559,13 +531,6 @@
    "status": "draft",
    "lines_in": 8,
    "lines_used": 5
-  },
-  {
-   "id": "CH01_S06_030MLTH2",
-   "source": "CH01_S06_030MLTH2",
-   "status": "draft",
-   "lines_in": 16,
-   "lines_used": 12
   },
   {
    "id": "CH01_S06_WHATISLOVE",
@@ -608,13 +573,6 @@
    "status": "draft",
    "lines_in": 18,
    "lines_used": 29
-  },
-  {
-   "id": "CH01_S08_BRIDGEISCO",
-   "source": "CH01_S08_BRIDGEISCO",
-   "status": "draft",
-   "lines_in": 19,
-   "lines_used": 28
   },
   {
    "id": "CH02.RECAP",
@@ -881,20 +839,6 @@
    "status": "draft",
    "lines_in": 2,
    "lines_used": 5
-  },
-  {
-   "id": "CH02_SEE_110BRIDGE1",
-   "source": "CH02_SEE_110BRIDGE1",
-   "status": "draft",
-   "lines_in": 3,
-   "lines_used": 6
-  },
-  {
-   "id": "CH02_SEE_111BRIDGE2",
-   "source": "CH02_SEE_111BRIDGE2",
-   "status": "draft",
-   "lines_in": 2,
-   "lines_used": 3
   },
   {
    "id": "CH02_SEE_112THEATRE",
