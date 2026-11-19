@@ -22,9 +22,6 @@ func _run() -> void:
 	if not sim.chunks.has("0,0"):
 		sim._bootstrap_new()
 	sim.unlocks.mine = true
-	for bridge in sim.bridges:
-		bridge.done = true
-		bridge.progress = int(bridge.need)
 	sim.part_two = true
 	var ore := {}
 	for feat in sim.features:

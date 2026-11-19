@@ -23,7 +23,7 @@ To stay as close as possible to the official *Black Mirror: Thronglets*, the Pha
 ### 2.1 Real Tools
 * 🪓 **Axe:** Chops trees for wood.
 * ⛏️ **Pickaxe:** Extracts ore from rocks and removes stumps in a radius.
-* 🐛 **Bug:** Speeds construction (bridges, for example).
+* 🐛 **Bug:** Speeds construction.
 * 🧲 **Grabber:** Gathers and pulls resources and items in a radius.
 * 🪚 **Chainsaw:** Cuts several resources or objects at once in an area.
 * 🧹 **Mop:** Cleans factory pollution and purple goo off factories and thronglets.
@@ -41,7 +41,6 @@ To stay as close as possible to the official *Black Mirror: Thronglets*, the Pha
 * 🎭 **Theatre:** Mass entertainment for large groups of thronglets.
 * 🚀 **Orbital cannon:** Launches thronglets into outer space.
 * 🏪 **Market:** Unlock hub. Improvements are bought with gems.
-* 🌉 **Bridge:** Connects map sectors across rivers.
 
 ### 2.3 Resources, Items, and Ambient Objects
 * 🍎 **Apples:** Basic food.
@@ -66,7 +65,7 @@ To stay as close as possible to the official *Black Mirror: Thronglets*, the Pha
    * Dirt, grass, water, and mountain tiles with autotiling.
    * Sprites for apple trees, standard trees, ore rocks, exploration fog, and purple goo.
 3. **Real building and tool sprites:**
-   * Sprites for bathtub, roundabout, dwelling, fancy dwelling, mines I/II, factories I/II, theatre, orbital cannon, market, and bridge.
+   * Sprites for bathtub, roundabout, dwelling, fancy dwelling, mines I/II, factories I/II, theatre, orbital cannon, and market.
    * Icons for axe, pickaxe, bug, grabber, chainsaw, mop, TNT, and the thermonuclear device.
 4. **User interface assets:**
    * Icons for apple (hunger), bathtub (hygiene), roundabout (fun), and eye (moral).
@@ -85,7 +84,7 @@ To stay as close as possible to the official *Black Mirror: Thronglets*, the Pha
 
 ### Phase 4: Procedural Biomes, Cloning, and the Game Loop
 1. External biome loader (`biomes.json`) so new biomes can be added without breaking saved games.
-2. Procedural generation by chunks (32×32 tiles), with fog unlocked by building bridges.
+2. Procedural generation by chunks (32×32 tiles), with fog unlocked as the island grows.
 3. Need cycle (hunger, hygiene, fun) and mitosis once happiness passes 85%.
 
 ### Phase 5: Fourth-Wall Events (the Collective Gaze)

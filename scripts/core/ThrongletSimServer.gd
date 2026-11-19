@@ -480,7 +480,7 @@ func _tick_one(i: int, dt: float) -> void:
 			_release_item_claims(i)
 			_release_mine_job(i)
 			return
-	# Finish a load already in hand before topping fun — otherwise the bridge starves.
+	# Finish a load already in hand before topping fun — otherwise the haul starves.
 	if carry[i] != Catalog.CARRY_NONE and _try_haul(i, speed, dt):
 		_release_mine_job(i)
 		return
@@ -4777,7 +4777,7 @@ func _refresh_pop_gates(announce: bool = true) -> void:
 
 func _expand_super_island(announce: bool = true) -> void:
 	var first := not part_two
-	# Grow the main island instead of creating a separate island/bridge.
+	# Grow the main island.
 	land_tier = maxi(land_tier, 3)
 	var added := _shape_island()
 	if first:
@@ -4814,6 +4814,21 @@ func _check_milestones(announce: bool = true) -> void:
 	if gems > gems_peak:
 		gems_peak = gems
 	total_gems_earned = maxi(total_gems_earned, gems_peak)
+	if peak >= 25:
+		var mono1 := false
+		for feat in features:
+			if not feat.dead and int(feat.kind) == Catalog.FEAT_MONOLITH and int(feat.get("ore", 0)) == 1:
+				mono1 = true
+				break
+		var bug := bool(unlocks.get("bug", false))
+		var spawned1 := bool(monolith_tier_spawned.get(1, false))
+		# Migración/reparación: bug huérfano de progresión antigua o monolito marcado sin entidad.
+		if bug and not spawned1:
+			unlocks["bug"] = false
+			bug = false
+		if spawned1 and not bug and not mono1:
+			monolith_tier_spawned.erase(1)
+		_ensure_monolith(1)
 	var defs := _milestone_defs()
 	var grew := false
 	while land_tier < defs.size() and _milestone_met(defs[land_tier]):

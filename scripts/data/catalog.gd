@@ -73,8 +73,6 @@ const TILE_WATER := 2
 const TILE_MOUNTAIN := 3
 const TILE_RUBBLE := 4
 const TILE_GOO := 5
-const TILE_BRIDGE_WOOD := 6
-const TILE_BRIDGE_BONE := 7
 const TILE_FOG := 8
 const TILE_VOID := 255
 const TILE_BLOOM := 9
@@ -178,7 +176,6 @@ const ICON_MINE2 := 17
 const ICON_FACTORY := 18
 const ICON_FACTORY2 := 19
 const ICON_THEATRE := 20
-const ICON_CANNON := 21
 const ICON_MARKET := 22
 const ICON_FLOWER := 23
 const ICON_STATUE := 24
@@ -202,7 +199,6 @@ const ICON_FX_CHOP := 41
 const ICON_FX_HAMMER := 42
 const ICON_FX_SPARK := 43
 const ICON_FX_BOOM := 44
-const ICON_FX_POOF := 45
 const ICON_FX_BLOOD := 46
 const ICON_BIGROCK := 47
 const ICON_COSMETIC := 48
@@ -551,7 +547,7 @@ const MARKET := {
 # Talk events point at DialogueBook trees. allow gates confirm actions by final choice index.
 const GAZE := {
 	"first_born": {"kind": "reflect", "tree": "CH01_S03_010HELLO", "allow": [0, 1, 2]},
-	"unlock_axe": {"kind": "reflect", "tree": "CH01_S04_020ABYSS", "allow": [0, 1, 2]},
+	"unlock_axe": {"kind": "reflect", "tree": "", "allow": [0, 1, 2]},
 	"unlock_hammer": {"kind": "reflect", "tree": "CH02_SEE_101BREAK", "allow": [0, 1, 2]},
 	"ambient": {"kind": "reflect", "tree": "CH01.RECAP", "allow": [0, 1, 2]},
 	"unlock_bathtub": {"kind": "reflect", "tree": "CH02_SEE_117ENCOURA", "allow": [0, 1, 2]},

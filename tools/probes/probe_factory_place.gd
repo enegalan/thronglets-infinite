@@ -134,7 +134,6 @@ func _run() -> void:
 	var why_feat := 0
 	var why_bld := 0
 	var why_tile := 0
-	var why_bridge := 0
 	var why_reveal := 0
 	var feat_kinds := {}
 	for ly in range(2, Catalog.CHUNK - 2):
@@ -174,8 +173,8 @@ func _run() -> void:
 					break
 			if blocked_by == "":
 				pass
-	print("HOME why feat=%d bld=%d tile=%d bridge=%d reveal=%d feat_kinds=%s" % [
-		why_feat, why_bld, why_tile, why_bridge, why_reveal, str(feat_kinds),
+	print("HOME why feat=%d bld=%d tile=%d reveal=%d feat_kinds=%s" % [
+		why_feat, why_bld, why_tile, why_reveal, str(feat_kinds),
 	])
 	# Would a smaller pad fit on home?
 	for size in [Vector2i(5, 5), Vector2i(4, 4), Vector2i(3, 3), Vector2i(2, 2)]:
