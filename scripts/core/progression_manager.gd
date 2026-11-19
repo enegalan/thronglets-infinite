@@ -189,6 +189,19 @@ static func apply_progression_hooks(sim, announce: bool = true) -> void:
 	if sim.peak >= 6 and not bool(sim.unlocks.get("axe", false)):
 		sim._grant("axe", "", announce)
 	if sim.peak >= 25:
+		var mono1 := false
+		for feat in sim.features:
+			if not feat.dead and int(feat.kind) == Catalog.FEAT_MONOLITH and int(feat.get("ore", 0)) == 1:
+				mono1 = true
+				break
+		var bug := bool(sim.unlocks.get("bug", false))
+		var spawned1 := bool(sim.monolith_tier_spawned.get(1, false))
+		# Migración/reparación: bug huérfano de progresión antigua o monolito marcado sin entidad.
+		if bug and not spawned1:
+			sim.unlocks["bug"] = false
+			bug = false
+		if spawned1 and not bug and not mono1:
+			sim.monolith_tier_spawned.erase(1)
 		sim._ensure_monolith(1)
 	if sim._has_building(Catalog.BLD_ROUND) and sim.peak >= 12 and not sim.part_two:
 		sim._expand_super_island(announce)

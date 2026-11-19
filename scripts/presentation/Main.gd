@@ -2257,7 +2257,6 @@ const _BIG := {
 	Catalog.ICON_FACTORY: 12,
 	Catalog.ICON_FACTORY2: 13,
 	Catalog.ICON_THEATRE: 14,
-	Catalog.ICON_CANNON: 15,
 	Catalog.ICON_MARKET: 16,
 	Catalog.ICON_MONOLITH: 17,
 	Catalog.ICON_STATUE: 18,

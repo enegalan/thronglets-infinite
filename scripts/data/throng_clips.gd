@@ -238,7 +238,6 @@ static func pick(pool: Array, index: int, time: float, hold: float) -> int:
 	var local := time - float(int(time / hold)) * hold
 	return frame_at(name, int(local * 8.0))
 
-
 static func info_at(frame: int) -> Dictionary:
 	for clip in CLIPS.keys():
 		var box: Vector2i = CLIPS[clip]

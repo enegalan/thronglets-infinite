@@ -16,7 +16,6 @@ ATLASES = (
     "Sprites-Props",
     "Sprites-Icons",
     "Toolbar",
-    "Sprites-Maw",
     "Sprites-ConsoleUI",
     "Sprites-WoodPanel",
     "Sprites-Tooltip",

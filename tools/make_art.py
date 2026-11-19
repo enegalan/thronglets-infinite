@@ -1027,6 +1027,7 @@ def _world_sprites():
         42: _px(_ref("fx_hammer.png")),
         43: _px(_ref("fx_spark.png")),
         44: _px(_ref("fx_boom.png")),
+        45: _px(_ref("fx_suds.png")),
         46: _px(_ref("fx_blood.png")),
     }
     icons = {
@@ -1572,7 +1573,14 @@ def _write_throng_clips(entries, rows, talk, idle):
     body.append("\tvar local := time - float(int(time / hold)) * hold")
     body.append("\treturn frame_at(name, int(local * 8.0))")
     body.append("")
-    path = OUT("throng_clips.gd")
+    body.append("static func info_at(frame: int) -> Dictionary:")
+    body.append("\tfor clip in CLIPS.keys():")
+    body.append("\t\tvar box: Vector2i = CLIPS[clip]")
+    body.append("\t\tif frame >= box.x and frame < box.x + box.y:")
+    body.append('\t\t\treturn {"clip": str(clip), "index": frame - box.x}')
+    body.append("\treturn {}")
+    body.append("")
+    path = OUT("scripts", "data", "throng_clips.gd")
     with open(path, "w") as handle:
         handle.write("\n".join(body) + "\n")
 
