@@ -4,10 +4,9 @@
 
 ### 2026-11-19
 
+- New eating system for apples: Thronglets can now bite into apples up to 3 times.
 - The hand tool shows a single sprite in the kit and plays the pickup strip while dragging over something it can collect; idle drags stay on the first frame.
-- The grabber unlock is named "Mano", and the hidden eye tool no longer has an icon, label, hint, or unlock requirement. Tools without an unlock key stay available.
 - Runtime animations follow their `AnimTune` entries: per-clip fps, frame scale, offset, and rotation now drive the hand, egg, bubbles and foam, splash and clean pops, fire, fumes, anomaly rays, biome features, and the roundabout instead of hardcoded timings.
-- The bath-exit spark keeps its original size while its frame timing comes from the tune.
 
 ### 2026-11-18
 
