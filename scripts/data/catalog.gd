@@ -185,7 +185,7 @@ const ICON_STATUE := 24
 const ICON_MONOLITH := 25
 const ICON_TNT := 26
 const ICON_GOO := 27
-const ICON_EYE := 28
+# TODO: Update following icons positions in the atlas
 const ICON_AXE := 29
 const ICON_HAMMER := 30
 const ICON_SPONGE := 31
@@ -249,7 +249,6 @@ const MENU_ICON := {
 	ICON_PICK: "res://resources/ui/icons/pick.png",
 	ICON_BUG: "res://resources/ui/icons/bug.png",
 	ICON_SAW: "res://resources/ui/icons/saw.png",
-	ICON_EYE: "res://resources/ui/icons/eye.png",
 	ICON_GRAB: "res://resources/ui/icons/grab.png",
 	ICON_MOP: "res://resources/ui/icons/mop.png",
 	ICON_SWARM: "res://resources/ui/icons/swarm.png",
@@ -314,7 +313,7 @@ const UNLOCK_TALK := {
 }
 
 const TOOL_INFO := [
-	{"tool": TOOL_EYE, "unlock": "eye", "label": "MANO", "icon": ICON_EYE, "hint": "CLICK EN MULTI: ESTADO. MANTEN: COGERLO. TAMBIEN COGE PIEDRAS. MARTILLO PARA TIRAR ESTRUCTURAS."},
+	{"tool": TOOL_EYE, "label": "", "icon": -1, "hint": ""},
 	{"tool": TOOL_APPLE, "unlock": "apple", "label": "MANZANA", "icon": ICON_APPLE, "hint": "SUELTA UNA MANZANA. SE LA COMEN Y DESAPARECE."},
 	{"tool": TOOL_BALL, "unlock": "ball", "label": "BALON", "icon": ICON_BALL, "hint": "EL BALON ENTRETIENE A POCOS A LA VEZ."},
 	{"tool": TOOL_SPONGE, "unlock": "sponge", "label": "ESPONJA", "icon": ICON_SPONGE, "hint": "FROTA PARA LAVAR A VARIOS A LA VEZ. PARA AL 100%."},
