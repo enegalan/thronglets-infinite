@@ -47,7 +47,7 @@ static var CATALOG: Array = [
 	entry("dwelling", "Vivienda", "building", [cond_gems(200)], 200, 1.65, 2),
 	entry("factory", "Fábrica", "building", [cond_gems(300)], 300, 1.7, 2),
 	entry("chainsaw", "Motosierra", "tool", [cond_unlocked("axe"), cond_gems(400)], 400, 1.0, 3, "axe"),
-	entry("grabber", "El Recogedor", "tool", [cond_metric("trees_cut", 12)], 150, 1.0, 3),
+	entry("grabber", "Mano", "tool", [cond_metric("trees_cut", 12)], 150, 1.0, 3),
 	entry("mop", "Fregona", "tool", [cond_metric("pollution", 25)], 250, 1.0, 3, "sponge"),
 	entry("theatre", "Teatro", "building", [cond_gems(1000)], 1000, 1.75, 3),
 	entry("swarm", "Enjambre", "tool", [cond_unlocked("bug"), cond_gems(2500)], 2500, 1.0, 3, "bug"),

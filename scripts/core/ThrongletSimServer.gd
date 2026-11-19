@@ -3580,7 +3580,9 @@ func _tool_open(tool: int) -> bool:
 	for entry in Catalog.TOOL_INFO:
 		if int(entry.tool) != tool:
 			continue
-		var key := str(entry.unlock)
+		var key := str(entry.get("unlock", ""))
+		if key == "":
+			return true
 		if not bool(unlocks.get(key, false)):
 			return false
 		return not ProgressionManager.replaced_by_unlocked(self, key)
@@ -6524,7 +6526,6 @@ func _compact(list: Array) -> void:
 
 func _init_unlocks() -> void:
 	unlocks = {
-		"eye": true,
 		"apple": true,
 		"ball": true,
 		"sponge": true,

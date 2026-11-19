@@ -2,6 +2,7 @@ extends Node2D
 
 const ThrongletSim := preload("res://scripts/core/ThrongletSimServer.gd")
 const ThrongTune := preload("res://scripts/data/tune/throng_tune.gd")
+const AnimTune := preload("res://scripts/data/tune/anim_tune.gd")
 const DevBench := preload("res://scripts/dev/dev_bench.gd")
 const DialogueBook := preload("res://scripts/data/dialogue/dialogue_book.gd")
 const TiovivoLabTune := preload("res://scripts/data/tune/tiovivo_lab_tune.gd")
@@ -1084,11 +1085,19 @@ func _sync_actors() -> void:
 			continue
 		var feat_at := _feature_draw_at(int(feat.kind), p, int(feat.ore))
 		if view.has_point(p) or view.has_point(feat_at):
-			var feat_frame := _feature_frame(int(feat.kind), time_pre, int(feat.ore))
+			var feat_anim := _feature_anim(int(feat.kind), time_pre, int(feat.ore))
+			var feat_frame := int(feat_anim.get("frame", -1))
+			var feat_scale := Catalog.feature_sprite_scale(int(feat.kind), int(feat.ore))
+			var feat_off := Vector2.ZERO
+			var feat_rot := 0.0
 			if feat_frame < 0:
 				feat_frame = _prop_frame(Catalog.icon_for_feature(int(feat.kind), int(feat.ore)))
-			if int(feat.kind) == Catalog.FEAT_FIRE and feat_frame < 0:
-				feat_frame = FIRE_ANIM + int(time_pre * 8.0) % 4
+			elif not feat_anim.is_empty():
+				var feat_tune_id := str(feat_anim.get("id", ""))
+				var feat_idx := int(feat_anim.get("idx", 0))
+				feat_scale *= AnimTune.frame_scale(feat_tune_id, feat_idx)
+				feat_off = AnimTune.frame_offset(feat_tune_id, feat_idx)
+				feat_rot = AnimTune.frame_rot(feat_tune_id, feat_idx)
 			var feat_outline := Color.TRANSPARENT
 			var fid := int(feat.id)
 			if outlined_feat_ids.has(fid):
@@ -1100,9 +1109,9 @@ func _sync_actors() -> void:
 			if sim._ore_tier(int(feat.kind)) > 0:
 				# Mine zones (ore nodes) are ground zones: above ground, below sprites on top.
 				feat_sort_y = -1000000.0
-			_push_iso(draws, feat_at, feat_frame, Color.WHITE, 0.0, Catalog.feature_sprite_scale(int(feat.kind), int(feat.ore)), feat_sort_y, feat_outline)
+			_push_iso(draws, feat_at, feat_frame, Color.WHITE, 0.0, feat_scale, feat_sort_y, feat_outline, feat_off, feat_rot)
 			_push_glitch_fumes(draws, int(feat.kind), feat_at, time_pre)
-			_push_anomaly_ray(draws, int(feat.kind), feat_at)
+			_push_anomaly_ray(draws, int(feat.kind), feat_at, time_pre)
 	for it in sim.items:
 		if it.dead or it.held:
 			continue
@@ -1116,33 +1125,40 @@ func _sync_actors() -> void:
 			var item_frame := _prop_frame(Catalog.icon_for_item(int(it.kind)))
 			var item_scale := Catalog.item_sprite_scale(int(it.kind))
 			var item_outline := Color(0.35, 1.0, 0.45, 1.0) if outlined_item_ids.has(int(it.id)) else Color.TRANSPARENT
+			var item_off := Vector2.ZERO
+			var item_rot := 0.0
 			if int(it.kind) == Catalog.ITEM_EGG:
-				item_frame = _egg_frame(it)
+				var egg := _egg_anim(it)
+				var egg_idx := int(egg.get("idx", 0))
+				item_frame = int(egg.get("frame", EGG_ANIM))
+				item_scale = AnimTune.frame_scale("egg", egg_idx)
+				item_off = AnimTune.frame_offset("egg", egg_idx)
+				item_rot = AnimTune.frame_rot("egg", egg_idx)
 				if float(it.get("shake", 0.0)) > 0.0:
 					p2 += Vector2(randf_range(-1.5, 1.5), randf_range(-1.0, 1.0))
 				if lift > 0.0:
-					_push_iso(egg_front, p2, item_frame, Color.WHITE, lift, item_scale, NAN, item_outline)
+					_push_iso(egg_front, p2, item_frame, Color.WHITE, lift, item_scale, NAN, item_outline, item_off, item_rot)
 					continue
 			elif int(it.kind) == Catalog.ITEM_APPLE:
 				item_frame = _apple_frame(it)
 				if falling_void:
 					if _void_behind_cliff(world_pos):
-						_push_iso(void_back_draws, p2, item_frame, Color.WHITE, lift, item_scale, NAN, item_outline)
+						_push_iso(void_back_draws, p2, item_frame, Color.WHITE, lift, item_scale, NAN, item_outline, item_off, item_rot)
 					else:
-						_push_iso(draws, p2, item_frame, Color.WHITE, lift, item_scale, cam_rig.to_iso(world_pos).y + 120.0, item_outline)
+						_push_iso(draws, p2, item_frame, Color.WHITE, lift, item_scale, cam_rig.to_iso(world_pos).y + 120.0, item_outline, item_off, item_rot)
 					continue
 				if lift > 14.0:
-					_push_iso(egg_front, p2, item_frame, Color.WHITE, lift, item_scale, NAN, item_outline)
+					_push_iso(egg_front, p2, item_frame, Color.WHITE, lift, item_scale, NAN, item_outline, item_off, item_rot)
 					continue
-				_push_iso(draws, p2, item_frame, Color.WHITE, lift, item_scale, NAN, item_outline)
+				_push_iso(draws, p2, item_frame, Color.WHITE, lift, item_scale, NAN, item_outline, item_off, item_rot)
 				continue
 			elif falling_void:
 				if _void_behind_cliff(world_pos):
-					_push_iso(void_back_draws, p2, item_frame, Color.WHITE, lift, item_scale, NAN, item_outline)
+					_push_iso(void_back_draws, p2, item_frame, Color.WHITE, lift, item_scale, NAN, item_outline, item_off, item_rot)
 				else:
-					_push_iso(draws, p2, item_frame, Color.WHITE, lift, item_scale, cam_rig.to_iso(world_pos).y + 120.0, item_outline)
+					_push_iso(draws, p2, item_frame, Color.WHITE, lift, item_scale, cam_rig.to_iso(world_pos).y + 120.0, item_outline, item_off, item_rot)
 				continue
-			_push_iso(draws, p2, item_frame, Color.WHITE, lift, item_scale, NAN, item_outline)
+			_push_iso(draws, p2, item_frame, Color.WHITE, lift, item_scale, NAN, item_outline, item_off, item_rot)
 	for b in sim.buildings:
 		if b.dead or bool(b.get("lifted", false)):
 			continue
@@ -1155,12 +1171,18 @@ func _sync_actors() -> void:
 			var b_lift := 0.0
 			var b_tint := Color.WHITE
 			var b_frame := _prop_frame(Catalog.icon_for_building(b_kind))
+			var b_off := Vector2.ZERO
+			var b_rot := 0.0
+			var round_idx := 0
 			if b_kind == Catalog.BLD_FLOWER:
 				b_frame = FLOWER_ANIM + int(time_pre * 6.0) % FLOWER_ANIM_N
 			if b_kind == Catalog.BLD_ROUND and bool(b.get("active", false)):
 				# Disk wedges follow the same spin the riders orbit on.
 				var spin := float(b.get("spin", 0.0))
-				b_frame = ROUND_ANIM + posmod(int(floor(spin / (TAU / 8.0))), 8)
+				round_idx = posmod(int(floor(spin / (TAU / 8.0))), 8)
+				b_frame = ROUND_ANIM + round_idx
+				b_off = AnimTune.frame_offset("round", round_idx)
+				b_rot = AnimTune.frame_rot("round", round_idx)
 			if bool(b.get("active", false)) and b_kind != Catalog.BLD_APPLE:
 				if b_kind == Catalog.BLD_TUB:
 					b_tint = Color(0.85, 0.95, 1.0)
@@ -1173,6 +1195,8 @@ func _sync_actors() -> void:
 					elif mine_kind:
 						b_tint = Color(1.0, 0.95, 0.75)
 			var b_scale := Catalog.building_sprite_scale(b_kind)
+			if b_kind == Catalog.BLD_ROUND and bool(b.get("active", false)):
+				b_scale *= AnimTune.frame_scale("round", round_idx)
 			var b_sort_y := NAN
 			if b_kind == Catalog.BLD_MINE or b_kind == Catalog.BLD_MINE2:
 				# Mines are walkable ground pads: render above ground but below entities on top.
@@ -1187,7 +1211,7 @@ func _sync_actors() -> void:
 			else:
 				_hide_active_building_sprite(int(b.id))
 				var b_outline := Color(0.35, 1.0, 0.45, 1.0) if outlined_bld_ids.has(int(b.id)) else Color.TRANSPARENT
-				_push_iso(draws, draw_at, b_frame, b_tint, b_lift, b_scale, b_sort_y, b_outline)
+				_push_iso(draws, draw_at, b_frame, b_tint, b_lift, b_scale, b_sort_y, b_outline, b_off, b_rot)
 			if b_kind == Catalog.BLD_FACTORY or b_kind == Catalog.BLD_FACTORY2:
 				_push_factory_pile(draws, b, draw_at)
 			if b_kind == Catalog.BLD_APPLE:
@@ -1211,27 +1235,50 @@ func _sync_actors() -> void:
 	var hand: Dictionary = sim.hand_item()
 	if not hand.is_empty():
 		var hand_frame := _prop_frame(Catalog.icon_for_item(int(hand.kind)))
+		var hand_scale := Catalog.item_sprite_scale(int(hand.kind))
+		var hand_off := Vector2.ZERO
+		var hand_rot := 0.0
 		if int(hand.kind) == Catalog.ITEM_APPLE:
 			hand_frame = _apple_frame(hand)
+		elif int(hand.kind) == Catalog.ITEM_EGG:
+			var egg := _egg_anim(hand)
+			var egg_idx := int(egg.get("idx", 0))
+			hand_frame = int(egg.get("frame", EGG_ANIM))
+			hand_scale = AnimTune.frame_scale("egg", egg_idx)
+			hand_off = AnimTune.frame_offset("egg", egg_idx)
+			hand_rot = AnimTune.frame_rot("egg", egg_idx)
 		if _drop_on_island():
 			var hand_at := grid_at if Catalog.item_snaps_grid(int(hand.kind)) else free_at
-			_push_iso(draws, _item_draw_at(int(hand.kind), hand_at), hand_frame, Color(1, 1, 1, 0.9), 10.0, Catalog.item_sprite_scale(int(hand.kind)))
+			_push_iso(draws, _item_draw_at(int(hand.kind), hand_at), hand_frame, Color(1, 1, 1, 0.9), 10.0, hand_scale, NAN, Color.TRANSPARENT, hand_off, hand_rot)
 		else:
-			draws.append({
-				"p": get_global_mouse_position(),
+			var hand_draw := {
+				"p": get_global_mouse_position() + hand_off,
 				"icon": hand_frame,
 				"tint": Color.WHITE,
-				"scale": Catalog.item_sprite_scale(int(hand.kind)),
-			})
+				"scale": hand_scale,
+			}
+			if not is_zero_approx(hand_rot):
+				hand_draw["rot"] = hand_rot
+			draws.append(hand_draw)
 	if sim.has_scoop():
 		for raw in sim.scoop_item_ids:
 			var scooped = sim.item_by_id.get(int(raw), {})
 			if scooped.is_empty() or scooped.dead:
 				continue
 			var scooped_frame := _prop_frame(Catalog.icon_for_item(int(scooped.kind)))
+			var scooped_scale := Catalog.item_sprite_scale(int(scooped.kind))
+			var scooped_off := Vector2.ZERO
+			var scooped_rot := 0.0
 			if int(scooped.kind) == Catalog.ITEM_APPLE:
 				scooped_frame = _apple_frame(scooped)
-			_push_iso(draws, _item_draw_at(int(scooped.kind), Vector2(float(scooped.x), float(scooped.y))), scooped_frame, Color(1, 1, 1, 0.92), 12.0, Catalog.item_sprite_scale(int(scooped.kind)))
+			elif int(scooped.kind) == Catalog.ITEM_EGG:
+				var egg := _egg_anim(scooped)
+				var egg_idx := int(egg.get("idx", 0))
+				scooped_frame = int(egg.get("frame", EGG_ANIM))
+				scooped_scale = AnimTune.frame_scale("egg", egg_idx)
+				scooped_off = AnimTune.frame_offset("egg", egg_idx)
+				scooped_rot = AnimTune.frame_rot("egg", egg_idx)
+			_push_iso(draws, _item_draw_at(int(scooped.kind), Vector2(float(scooped.x), float(scooped.y))), scooped_frame, Color(1, 1, 1, 0.92), 12.0, scooped_scale, NAN, Color.TRANSPARENT, scooped_off, scooped_rot)
 	if sim.held_kind == "rock":
 		var rock = sim.feature_by_id.get(sim.held_ref, {})
 		if not rock.is_empty():
@@ -1265,7 +1312,8 @@ func _sync_actors() -> void:
 	if not kit_drag.is_empty():
 		var ghost := Color(1, 1, 1, 0.85)
 		var drag_icon := _kit_drag_icon()
-		if drag_icon >= 0:
+		var drag_tool_id := int(kit_drag.get("id", -1)) if str(kit_drag.get("type", "")) == "tool" else -1
+		if drag_icon >= 0 or drag_tool_id == Catalog.TOOL_GRAB:
 			if _want_place_grid() and _drop_on_island():
 				var ghost_kind := placing if str(kit_drag.get("type", "")) == "build" else -1
 				var ghost_scale := Catalog.building_sprite_scale(ghost_kind)
@@ -1275,6 +1323,9 @@ func _sync_actors() -> void:
 				_push_iso(drag_front, _building_draw_at(ghost_kind, grid_at), _prop_frame(drag_icon), ghost, 10.0, ghost_scale, ghost_sort_y)
 			else:
 				var drag_scale := 1.0
+				var drag_frame := _prop_frame(drag_icon) if drag_icon >= 0 else -1
+				var drag_rot := 0.0
+				var drag_off := Vector2.ZERO
 				if str(kit_drag.get("type", "")) == "tool":
 					var tid := int(kit_drag.id)
 					match tid:
@@ -1286,14 +1337,26 @@ func _sync_actors() -> void:
 							drag_scale = Catalog.SPONGE_SPRITE_SCALE
 						_:
 							drag_scale = Catalog.item_sprite_scale(tid)
+					if tid == Catalog.TOOL_GRAB:
+						var hand_anim := tid == _charge_tool_id() and tool_charge > 0.0
+						var hand_fps_drag := float(AnimTune.get_tune("hand").get("fps", 8.0))
+						var hand_idx := int(anim_time * hand_fps_drag) % AssetFrames.HAND_N if hand_anim else 0
+						drag_frame = AssetFrames.frame(AssetFrames.HAND, AssetFrames.HAND_N, hand_idx)
+						drag_scale = AnimTune.frame_scale("hand", hand_idx)
+						drag_off = AnimTune.frame_offset("hand", hand_idx)
+						drag_rot = AnimTune.frame_rot("hand", hand_idx)
 				elif str(kit_drag.get("type", "")) == "build":
 					drag_scale = Catalog.building_sprite_scale(int(kit_drag.id))
-				drag_front.append({
-					"p": get_global_mouse_position(),
-					"icon": _prop_frame(drag_icon),
-					"tint": ghost,
-					"scale": drag_scale,
-				})
+				if drag_frame >= 0:
+					var drag_draw := {
+						"p": get_global_mouse_position() + drag_off,
+						"icon": drag_frame,
+						"tint": ghost,
+						"scale": drag_scale,
+					}
+					if not is_zero_approx(drag_rot):
+						drag_draw["rot"] = drag_rot
+					drag_front.append(drag_draw)
 	var time := anim_time
 	for id in sim.query_rect(view):
 		var i := int(id)
@@ -1382,13 +1445,15 @@ func _sync_actors() -> void:
 			var carry_scale := Catalog.item_sprite_scale(_carry_item(carry_kind))
 			_push_iso(draws, pos, _prop_frame(carry_icon), Color.WHITE, 12.0, carry_scale, sort_y)
 		if not sim.frozen and doing == ThrongletSimServer.ACT_WASH:
-			var bubble := AssetFrames.frame(AssetFrames.BUBBLE, AssetFrames.BUBBLE_N, int(time * 10.0))
+			var bubble_fps := float(AnimTune.get_tune("bubble").get("fps", 8.0))
+			var bubble_idx := int(time * bubble_fps) % maxi(AssetFrames.BUBBLE_N, 1)
+			var bubble := AssetFrames.frame(AssetFrames.BUBBLE, AssetFrames.BUBBLE_N, bubble_idx)
 			if bubble < 0:
 				bubble = _prop_frame(Catalog.ICON_SPONGE)
 			var wash_tune: Dictionary = EffectTune.get_tune("act:sponge")
-			var bubble_scale := float(wash_tune.get("scale", 1.0))
-			var bubble_off := Vector2(float(wash_tune.get("fx_x", 0.0)), float(wash_tune.get("fx_y", 0.0)))
-			_push_iso(draws, pos + bubble_off, bubble, Color(1, 1, 1, 0.85), 8.0, bubble_scale, sort_y)
+			var bubble_scale := float(wash_tune.get("scale", 1.0)) * AnimTune.frame_scale("bubble", bubble_idx)
+			var bubble_off := Vector2(float(wash_tune.get("fx_x", 0.0)), float(wash_tune.get("fx_y", 0.0))) + AnimTune.frame_offset("bubble", bubble_idx)
+			_push_iso(draws, pos + bubble_off, bubble, Color(1, 1, 1, 0.85), 8.0, bubble_scale, sort_y, Color.TRANSPARENT, Vector2.ZERO, AnimTune.frame_rot("bubble", bubble_idx))
 	if sim.held_kind == "thronglet" and sim.held_ref >= 0 and sim.held_ref < sim.slot_count:
 		var hi: int = sim.held_ref
 		var htint: Color = Catalog.TINTS[int(sim.tint[hi]) % Catalog.TINTS.size()]
@@ -1401,15 +1466,21 @@ func _sync_actors() -> void:
 			"dirty": _throng_dirty(sim.clean[hi]),
 			"scale": THRONG_SPRITE_SCALE,
 		})
-		var hand_frame := AssetFrames.frame(AssetFrames.HAND, AssetFrames.HAND_N, int(time * 8.0))
+		var hand_tune := AnimTune.get_tune("hand")
+		var hand_fps := float(hand_tune.get("fps", 8.0))
+		var hand_idx_h := int(time * hand_fps) % AssetFrames.HAND_N
+		var hand_frame := AssetFrames.frame(AssetFrames.HAND, AssetFrames.HAND_N, hand_idx_h)
 		if hand_frame >= 0:
+			var hand_off_h := AnimTune.frame_offset("hand", hand_idx_h)
 			draws.append({
-				"p": get_global_mouse_position() + Vector2(10, 6),
+				"p": get_global_mouse_position() + Vector2(10, 6) + hand_off_h,
 				"sy": 1000001.0,
 				"icon": hand_frame,
 				"tint": Color.WHITE,
 				"flip": 1.0,
 				"dirty": 0.0,
+				"scale": AnimTune.frame_scale("hand", hand_idx_h),
+				"rot": AnimTune.frame_rot("hand", hand_idx_h),
 			})
 	var bath_exit_tune: Dictionary = EffectTune.get_tune("act:bath_exit")
 	var bath_exit_scale := float(bath_exit_tune.get("scale", 1.0))
@@ -1420,16 +1491,28 @@ func _sync_actors() -> void:
 		var frame := _pop_frame(picon)
 		var pop_scale := float(pop.get("scale", 1.0))
 		var pop_off := Vector2.ZERO
+		var pop_rot := 0.0
 		var pop_elapsed := 0.55 - float(pop.t)
 		if picon == AssetFrames.SPLASH:
-			frame = AssetFrames.frame(AssetFrames.SPLASH, AssetFrames.SPLASH_N, int(pop_elapsed * 10.0))
-			if frame >= AssetFrames.SPLASH and frame < AssetFrames.SPLASH + AssetFrames.SPLASH_N:
-				pop_scale = 0.6
+			var splash_fps := float(AnimTune.get_tune("splash").get("fps", 8.0))
+			var splash_idx := int(pop_elapsed * splash_fps) % maxi(AssetFrames.SPLASH_N, 1)
+			frame = AssetFrames.frame(AssetFrames.SPLASH, AssetFrames.SPLASH_N, splash_idx)
+			if frame >= 0:
+				pop_scale = AnimTune.frame_scale("splash", splash_idx)
+				pop_off = AnimTune.frame_offset("splash", splash_idx)
+				pop_rot = AnimTune.frame_rot("splash", splash_idx)
 		elif picon == AssetFrames.CLEAN:
-			frame = AssetFrames.frame(AssetFrames.CLEAN, AssetFrames.CLEAN_N, int(pop_elapsed * 10.0))
-			pop_scale = bath_exit_scale
-			pop_off = bath_exit_off
-		_push_iso(draws, Vector2(float(pop.x), float(pop.y)) + pop_off, frame, Color(1, 1, 1, fade), float(pop.lift), pop_scale)
+			var clean_fps := float(AnimTune.get_tune("clean").get("fps", 8.0))
+			var clean_idx := int(pop_elapsed * clean_fps) % maxi(AssetFrames.CLEAN_N, 1)
+			frame = AssetFrames.frame(AssetFrames.CLEAN, AssetFrames.CLEAN_N, clean_idx)
+			if frame >= 0:
+				pop_scale = bath_exit_scale * AnimTune.frame_scale("clean", clean_idx)
+				pop_off = bath_exit_off + AnimTune.frame_offset("clean", clean_idx)
+				pop_rot = AnimTune.frame_rot("clean", clean_idx)
+			else:
+				pop_scale = bath_exit_scale
+				pop_off = bath_exit_off
+		_push_iso(draws, Vector2(float(pop.x), float(pop.y)) + pop_off, frame, Color(1, 1, 1, fade), float(pop.lift), pop_scale, NAN, Color.TRANSPARENT, Vector2.ZERO, pop_rot)
 	draws.sort_custom(func(a, b): return float(a.get("sy", a.p.y)) < float(b.get("sy", b.p.y)))
 	draws.append_array(egg_front)
 	draws.append_array(drag_front)
@@ -1556,62 +1639,85 @@ func _camera_biome() -> String:
 	return ThrongletSimServer.biome_at(world_pos.x, world_pos.y)
 
 
-func _feature_frame(kind: int, time: float, ore: int = 0) -> int:
-	var tick := int(time * 8.0)
+func _anim_tick(tune_id: String, time: float) -> int:
+	return int(time * float(AnimTune.get_tune(tune_id).get("fps", 8.0)))
+
+
+func _feature_anim(kind: int, time: float, ore: int = 0) -> Dictionary:
 	if kind == Catalog.FEAT_GLITCH_TREE:
-		return _listed_frame(ore, [
-			[AssetFrames.GLITCH_TREE, AssetFrames.GLITCH_TREE_N],
-			[AssetFrames.WASTE_TREE, AssetFrames.WASTE_TREE_N],
-			[AssetFrames.GLITCH_TREE_C, AssetFrames.GLITCH_TREE_C_N],
-			[AssetFrames.GLITCH_TREE_D, AssetFrames.GLITCH_TREE_D_N],
-			[AssetFrames.WASTE_TREE_B, AssetFrames.WASTE_TREE_B_N],
-		], tick)
+		var rows := [
+			[AssetFrames.GLITCH_TREE, AssetFrames.GLITCH_TREE_N, "glitch_tree"],
+			[AssetFrames.WASTE_TREE, AssetFrames.WASTE_TREE_N, "waste_tree"],
+			[AssetFrames.GLITCH_TREE_C, AssetFrames.GLITCH_TREE_C_N, "glitch_tree_c"],
+			[AssetFrames.GLITCH_TREE_D, AssetFrames.GLITCH_TREE_D_N, "glitch_tree_d"],
+			[AssetFrames.WASTE_TREE_B, AssetFrames.WASTE_TREE_B_N, "waste_tree_b"],
+		]
+		var row: Array = rows[posmod(ore, rows.size())]
+		var tune_id := str(row[2])
+		var idx := posmod(_anim_tick(tune_id, time), maxi(int(row[1]), 1))
+		return {"frame": AssetFrames.frame(int(row[0]), int(row[1]), idx), "id": tune_id, "idx": idx}
 	if kind == Catalog.FEAT_GLITCH_HOUSE:
-		return AssetFrames.frame(AssetFrames.GLITCH_HOUSE, AssetFrames.GLITCH_HOUSE_N, tick)
+		var idx := posmod(_anim_tick("glitch_house", time), maxi(AssetFrames.GLITCH_HOUSE_N, 1))
+		return {"frame": AssetFrames.frame(AssetFrames.GLITCH_HOUSE, AssetFrames.GLITCH_HOUSE_N, idx), "id": "glitch_house", "idx": idx}
 	if kind == Catalog.FEAT_ANOMALY:
-		return AssetFrames.ANOMALY
+		var idx := posmod(_anim_tick("anomaly", time), maxi(AssetFrames.ANOMALY_N, 1))
+		return {"frame": AssetFrames.frame(AssetFrames.ANOMALY, AssetFrames.ANOMALY_N, idx), "id": "anomaly", "idx": idx}
 	if kind == Catalog.FEAT_FIRE:
 		if int(time) % 2 == 1:
-			var blob := AssetFrames.frame(AssetFrames.FIRE_BLOB, AssetFrames.FIRE_BLOB_N, tick)
+			var bidx := posmod(_anim_tick("fire_blob", time), maxi(AssetFrames.FIRE_BLOB_N, 1))
+			var blob := AssetFrames.frame(AssetFrames.FIRE_BLOB, AssetFrames.FIRE_BLOB_N, bidx)
 			if blob >= 0:
-				return blob
-		var flame := AssetFrames.frame(AssetFrames.FIRE, AssetFrames.FIRE_N, tick)
-		return flame if flame >= 0 else FIRE_ANIM + tick % 4
+				return {"frame": blob, "id": "fire_blob", "idx": bidx}
+		var fidx := posmod(_anim_tick("fire", time), maxi(AssetFrames.FIRE_N, 1))
+		var flame := AssetFrames.frame(AssetFrames.FIRE, AssetFrames.FIRE_N, fidx)
+		return {"frame": flame if flame >= 0 else FIRE_ANIM + fidx % 4, "id": "fire", "idx": fidx}
 	if kind == Catalog.FEAT_EPILOGUE:
-		return _listed_frame(ore, [
-			[AssetFrames.EPILOGUE, AssetFrames.EPILOGUE_N],
-			[AssetFrames.ROTTEN_APPLE, AssetFrames.ROTTEN_APPLE_N],
-		], tick)
+		var rows := [
+			[AssetFrames.EPILOGUE, AssetFrames.EPILOGUE_N, "epilogue"],
+			[AssetFrames.ROTTEN_APPLE, AssetFrames.ROTTEN_APPLE_N, "rotten_apple"],
+		]
+		var row: Array = rows[posmod(ore, rows.size())]
+		var tune_id := str(row[2])
+		var idx := posmod(_anim_tick(tune_id, time), maxi(int(row[1]), 1))
+		return {"frame": AssetFrames.frame(int(row[0]), int(row[1]), idx), "id": tune_id, "idx": idx}
 	if kind == Catalog.FEAT_MOUNTAIN:
-		return _listed_frame(ore, [
-			[AssetFrames.MOUNT_BIG, AssetFrames.MOUNT_BIG_N],
-			[AssetFrames.MOUNT_SMALL, AssetFrames.MOUNT_SMALL_N],
-			[AssetFrames.MOUNT_GLITCH, AssetFrames.MOUNT_GLITCH_N],
-			[AssetFrames.GRASS_PATCH, AssetFrames.GRASS_PATCH_N],
-		], tick)
-	return -1
+		var rows := [
+			[AssetFrames.MOUNT_BIG, AssetFrames.MOUNT_BIG_N, "mount_big"],
+			[AssetFrames.MOUNT_SMALL, AssetFrames.MOUNT_SMALL_N, "mount_small"],
+			[AssetFrames.MOUNT_GLITCH, AssetFrames.MOUNT_GLITCH_N, "mount_glitch"],
+			[AssetFrames.GRASS_PATCH, AssetFrames.GRASS_PATCH_N, "grass_patch"],
+		]
+		var row: Array = rows[posmod(ore, rows.size())]
+		var tune_id := str(row[2])
+		var idx := posmod(_anim_tick(tune_id, time), maxi(int(row[1]), 1))
+		return {"frame": AssetFrames.frame(int(row[0]), int(row[1]), idx), "id": tune_id, "idx": idx}
+	return {}
 
 
-func _listed_frame(pick: int, rows: Array, tick: int) -> int:
-	if rows.is_empty():
-		return -1
-	var row: Array = rows[posmod(pick, rows.size())]
-	return AssetFrames.frame(int(row[0]), int(row[1]), tick)
+func _feature_frame(kind: int, time: float, ore: int = 0) -> int:
+	var anim := _feature_anim(kind, time, ore)
+	return int(anim.get("frame", -1)) if not anim.is_empty() else -1
 
 
-func _push_anomaly_ray(draws: Array, kind: int, at: Vector2) -> void:
+
+
+
+func _push_anomaly_ray(draws: Array, kind: int, at: Vector2, time: float) -> void:
 	if kind != Catalog.FEAT_ANOMALY:
 		return
-	_push_iso(draws, at, AssetFrames.ANOMALY_RAY, Color.WHITE)
+	var idx := posmod(_anim_tick("anomaly_ray", time), maxi(AssetFrames.ANOMALY_RAY_N, 1))
+	var frame := AssetFrames.frame(AssetFrames.ANOMALY_RAY, AssetFrames.ANOMALY_RAY_N, idx)
+	_push_iso(draws, at, frame, Color.WHITE, 0.0, AnimTune.frame_scale("anomaly_ray", idx), NAN, Color.TRANSPARENT, AnimTune.frame_offset("anomaly_ray", idx), AnimTune.frame_rot("anomaly_ray", idx))
 	draws[draws.size() - 1]["sy"] = float(draws[draws.size() - 1].get("sy", 0.0)) + 0.5
 
 
 func _push_glitch_fumes(draws: Array, kind: int, at: Vector2, time: float) -> void:
 	if kind != Catalog.FEAT_GLITCH_HOUSE and kind != Catalog.FEAT_GLITCH_TREE:
 		return
-	var frame := AssetFrames.frame(AssetFrames.FUMES, AssetFrames.FUMES_N, int(time * 8.0))
+	var idx := posmod(_anim_tick("fumes", time), maxi(AssetFrames.FUMES_N, 1))
+	var frame := AssetFrames.frame(AssetFrames.FUMES, AssetFrames.FUMES_N, idx)
 	if frame >= 0:
-		_push_iso(draws, at + Vector2(0, -18), frame, Color.WHITE)
+		_push_iso(draws, at + Vector2(0, -18), frame, Color.WHITE, 0.0, AnimTune.frame_scale("fumes", idx), NAN, Color.TRANSPARENT, AnimTune.frame_offset("fumes", idx), AnimTune.frame_rot("fumes", idx))
 
 
 func _prop_frame(icon: int) -> int:
@@ -1643,15 +1749,17 @@ func _apple_frame(it: Dictionary) -> int:
 			return _prop_frame(Catalog.ICON_APPLE)
 
 
-func _egg_frame(it: Dictionary) -> int:
+func _egg_anim(it: Dictionary) -> Dictionary:
 	var stage := int(it.get("hatch", 0))
+	var idx := 0
 	if float(it.get("shake", 0.0)) > 0.0:
-		return EGG_ANIM + 1 + int(anim_time * 1000.0 / 90.0) % 2
-	if stage >= 3:
-		return EGG_ANIM + 4
-	if stage >= 1:
-		return EGG_ANIM + 3
-	return EGG_ANIM
+		var egg_fps := float(AnimTune.get_tune("egg").get("fps", 4.0))
+		idx = 1 + posmod(int(anim_time * egg_fps), 2)
+	elif stage >= 3:
+		idx = 4
+	elif stage >= 1:
+		idx = 3
+	return {"frame": EGG_ANIM + idx, "id": "egg", "idx": idx}
 
 
 func _carry_icon(kind: int) -> int:
@@ -1908,30 +2016,43 @@ func _push_factory_pile(draws: Array, b: Dictionary, at: Vector2) -> void:
 		_push_iso(draws, ore_at, frame, Color.WHITE, float(layer) * 6.0, Catalog.ORE_CLUSTER_SPRITE_SCALE, ore_sy + float(drawn - layer) * 0.05)
 
 
-func _push_iso(draws: Array, world_pos: Vector2, frame: int, tint: Color, lift: float = 0.0, sprite_scale: float = 1.0, sort_y: float = NAN, outline: Color = Color.TRANSPARENT) -> void:
-	var at := cam_rig.to_iso(world_pos)
+func _push_iso(draws: Array, world_pos: Vector2, frame: int, tint: Color, lift: float = 0.0, sprite_scale: float = 1.0, sort_y: float = NAN, outline: Color = Color.TRANSPARENT, offset: Vector2 = Vector2.ZERO, rot: float = 0.0) -> void:
+	var at := cam_rig.to_iso(world_pos + offset)
 	var draw_p := Vector2(at.x, at.y - lift)
 	var sy := at.y if is_nan(sort_y) else sort_y
 	var d := {"p": draw_p, "sy": sy, "icon": frame, "tint": tint, "scale": sprite_scale}
 	if outline.a > 0.0:
 		d["outline"] = outline
+	if not is_zero_approx(rot):
+		d["rot"] = rot
 	draws.append(d)
 
 
 func _paint_suds(draws: Array, pos: Vector2, sort_y: float, time: float, s: float = 1.0) -> void:
-	var base := AssetFrames.frame(AssetFrames.SUDS, AssetFrames.SUDS_N, 0)
+	var suds_idx := 0
+	var base := AssetFrames.frame(AssetFrames.SUDS, AssetFrames.SUDS_N, suds_idx)
+	var base_id := "suds"
 	if base < 0:
 		base = AssetFrames.frame(AssetFrames.BUBBLE, AssetFrames.BUBBLE_N, 0)
+		base_id = "bubble"
 	if base < 0:
 		return
+	var foam_fps := float(AnimTune.get_tune("foam").get("fps", 8.0))
 	for i in 3:
 		var phase := time * 3.0 + float(i) * TAU / 3.0
 		var wob := Vector2(cos(phase) * 5.0, sin(phase * 1.3) * 2.5 - 3.0)
-		var frame := AssetFrames.frame(AssetFrames.BUBBLE_LIGHT, AssetFrames.BUBBLE_LIGHT_N, int(time * 6.0) + i)
+		var foam_idx := posmod(int(time * foam_fps) + i, maxi(AssetFrames.BUBBLE_LIGHT_N, 1))
+		var frame := AssetFrames.frame(AssetFrames.BUBBLE_LIGHT, AssetFrames.BUBBLE_LIGHT_N, foam_idx)
+		var frame_id := "foam"
+		var frame_idx := foam_idx
 		if frame < 0:
 			frame = base
+			frame_id = base_id
+			frame_idx = 0
 		var alpha := 0.75 + 0.2 * sin(phase)
-		_push_iso(draws, pos + wob, frame, Color(1, 1, 1, alpha), 6.0 + float(i) * 2.0, (0.85 + 0.1 * float(i % 2)) * s, sort_y)
+		var scale := (0.85 + 0.1 * float(i % 2)) * s * AnimTune.frame_scale(frame_id, frame_idx)
+		var off := wob + AnimTune.frame_offset(frame_id, frame_idx)
+		_push_iso(draws, pos + off, frame, Color(1, 1, 1, alpha), 6.0 + float(i) * 2.0, scale, sort_y, Color.TRANSPARENT, Vector2.ZERO, AnimTune.frame_rot(frame_id, frame_idx))
 
 
 # World offset that puts the opaque middle of a frame on the anchor.
@@ -3081,17 +3202,25 @@ func _focus_draws() -> Array:
 		var feat_at := _feature_draw_at(int(feat.kind), p, int(feat.ore))
 		if not _focus_sees(p, 0.0) and not _focus_sees(feat_at, 0.0):
 			continue
-		var feat_frame := _feature_frame(int(feat.kind), time, int(feat.ore))
+		var feat_anim := _feature_anim(int(feat.kind), time, int(feat.ore))
+		var feat_frame := int(feat_anim.get("frame", -1))
+		var feat_scale := Catalog.feature_sprite_scale(int(feat.kind), int(feat.ore))
+		var feat_off := Vector2.ZERO
+		var feat_rot := 0.0
 		if feat_frame < 0:
 			feat_frame = _prop_frame(Catalog.icon_for_feature(int(feat.kind), int(feat.ore)))
-		if int(feat.kind) == Catalog.FEAT_FIRE and feat_frame < 0:
-			feat_frame = FIRE_ANIM + int(time * 8.0) % 4
+		elif not feat_anim.is_empty():
+			var feat_tune_id := str(feat_anim.get("id", ""))
+			var feat_idx := int(feat_anim.get("idx", 0))
+			feat_scale *= AnimTune.frame_scale(feat_tune_id, feat_idx)
+			feat_off = AnimTune.frame_offset(feat_tune_id, feat_idx)
+			feat_rot = AnimTune.frame_rot(feat_tune_id, feat_idx)
 		var feat_sort_y := NAN
 		if sim._ore_tier(int(feat.kind)) > 0:
 			feat_sort_y = -1000000.0
-		_push_iso(draws, feat_at, feat_frame, Color.WHITE, 0.0, Catalog.feature_sprite_scale(int(feat.kind), int(feat.ore)), feat_sort_y)
+		_push_iso(draws, feat_at, feat_frame, Color.WHITE, 0.0, feat_scale, feat_sort_y, Color.TRANSPARENT, feat_off, feat_rot)
 		_push_glitch_fumes(draws, int(feat.kind), feat_at, time)
-		_push_anomaly_ray(draws, int(feat.kind), feat_at)
+		_push_anomaly_ray(draws, int(feat.kind), feat_at, time)
 	for it in sim.items:
 		if it.dead or it.held:
 			continue
@@ -3101,12 +3230,19 @@ func _focus_draws() -> Array:
 			continue
 		var item_frame := _prop_frame(Catalog.icon_for_item(int(it.kind)))
 		var item_scale := Catalog.item_sprite_scale(int(it.kind))
+		var item_off := Vector2.ZERO
+		var item_rot := 0.0
 		if int(it.kind) == Catalog.ITEM_EGG:
-			item_frame = _egg_frame(it)
+			var egg := _egg_anim(it)
+			var egg_idx := int(egg.get("idx", 0))
+			item_frame = int(egg.get("frame", EGG_ANIM))
+			item_scale = AnimTune.frame_scale("egg", egg_idx)
+			item_off = AnimTune.frame_offset("egg", egg_idx)
+			item_rot = AnimTune.frame_rot("egg", egg_idx)
 			if lift > 0.0:
-				_push_iso(egg_front, p2, item_frame, Color.WHITE, lift, item_scale)
+				_push_iso(egg_front, p2, item_frame, Color.WHITE, lift, item_scale, NAN, Color.TRANSPARENT, item_off, item_rot)
 				continue
-			_push_iso(draws, p2, item_frame, Color.WHITE, lift, item_scale)
+			_push_iso(draws, p2, item_frame, Color.WHITE, lift, item_scale, NAN, Color.TRANSPARENT, item_off, item_rot)
 			continue
 		elif int(it.kind) == Catalog.ITEM_APPLE:
 			item_frame = _apple_frame(it)
@@ -3184,7 +3320,7 @@ func _tab_ready(tab: Dictionary) -> bool:
 	for id in tab.tools:
 		var entry := _tool_entry(int(id))
 		if not entry.is_empty():
-			var ukey := str(entry.unlock)
+			var ukey := str(entry.get("unlock", ""))
 			if bool(sim.unlocks.get(ukey, false)) and not ProgressionManager.replaced_by_unlocked(sim, ukey):
 				return true
 	for id in tab.builds:
@@ -3321,7 +3457,7 @@ func _rebuild_bars() -> void:
 		var entry := _tool_entry(int(id))
 		if entry.is_empty():
 			continue
-		var ukey := str(entry.unlock)
+		var ukey := str(entry.get("unlock", ""))
 		if not bool(sim.unlocks.get(ukey, false)) or ProgressionManager.replaced_by_unlocked(sim, ukey):
 			continue
 		pending.append({"kind": "tool", "id": int(entry.tool), "icon": int(entry.icon)})
@@ -3484,7 +3620,7 @@ func _replacement_tool_for(tool_id: int) -> int:
 	var key := ""
 	for entry in Catalog.TOOL_INFO:
 		if int(entry.tool) == tool_id:
-			key = str(entry.unlock)
+			key = str(entry.get("unlock", ""))
 			break
 	if key == "":
 		return -1
@@ -3492,7 +3628,7 @@ func _replacement_tool_for(tool_id: int) -> int:
 	if rep_key == "":
 		return -1
 	for entry in Catalog.TOOL_INFO:
-		if str(entry.unlock) == rep_key:
+		if str(entry.get("unlock", "")) == rep_key:
 			return int(entry.tool)
 	return -1
 
@@ -3551,7 +3687,7 @@ func _hotkey(code: int) -> void:
 	for entry in Catalog.TOOL_INFO:
 		if int(entry.tool) == Catalog.TOOL_EYE:
 			continue
-		if bool(ThrongletSimServer.unlocks.get(str(entry.unlock), false)):
+		if bool(ThrongletSimServer.unlocks.get(str(entry.get("unlock", "")), false)):
 			tools.append(int(entry.tool))
 	for i in order.size():
 		if code == order[i] and i < tools.size():
