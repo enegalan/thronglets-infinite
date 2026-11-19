@@ -34,6 +34,8 @@ var hand_vel := Vector2.ZERO
 var hand_vel_init := false
 var _prop_bands: Array = []
 var _monoliths := {}
+var _building_active_sprites := {}
+var _active_structure_tex := {}
 var place_marks: Node2D
 var place_fills: Array[Polygon2D] = []
 var place_edges: Array[Line2D] = []
@@ -421,8 +423,13 @@ func _process(delta: float) -> void:
 	var _focus := get_viewport().gui_get_focus_owner()
 	var _typing := _focus is LineEdit or _focus is TextEdit
 	cam_rig.move(delta, _typing, dev_on)
+	# TODO: Condition looks hacky: str(sim.modal.get("event", "")) == "monolith_appear"
+	# Cinematic focus (e.g. monolith appearance)
+	if not sim.modal.is_empty() and str(sim.modal.get("event", "")) == "monolith_appear" and sim.modal.has("focus_x"):
+		var focus_at := cam_rig.to_iso(Vector2(float(sim.modal.get("focus_x", 256.0)), float(sim.modal.get("focus_y", 256.0))))
+		camera.position = camera.position.lerp(focus_at, 0.15)
 	# Follow selected thronglet continuously until clicked elsewhere
-	if selected >= 0:
+	elif selected >= 0:
 		if selected < sim.slot_count and sim.state[selected] != Catalog.ST_VACANT:
 			if sim.held_kind != "thronglet" and not hand_pending:
 				camera.position = camera.position.lerp(cam_rig.to_iso(Vector2(sim.pos_x[selected], sim.pos_y[selected])), 0.12)
@@ -479,6 +486,9 @@ func _world_click() -> void:
 	var sim: ThrongletSim = ThrongletSimServer
 	var aim := _aim_thronglet(false)
 	selected = sim.find_thronglet(aim.x, aim.y, 14.0, false)
+	if selected >= 0:
+		if sim.mito_t[selected] > 0.0 or sim.mito_charge[selected] > 0.0:
+			selected = -1
 	selected_bld = -1
 	if selected >= 0 and selected < sim.slot_count and sim.state[selected] != Catalog.ST_VACANT:
 		camera.position = cam_rig.to_iso(Vector2(sim.pos_x[selected], sim.pos_y[selected]))
@@ -608,8 +618,13 @@ func _hand_press() -> void:
 	var hit: Dictionary = sim.eye_use(at.x, at.y)
 	var kind := str(hit.get("type", ""))
 	if kind == "thronglet":
-		selected = int(hit.id)
-		selected_bld = -1
+		var tid := int(hit.id)
+		if tid >= 0 and tid < sim.slot_count and sim.state[tid] == Catalog.ST_LIVING and (sim.mito_t[tid] > 0.0 or sim.mito_charge[tid] > 0.0):
+			selected = -1
+			selected_bld = -1
+		else:
+			selected = tid
+			selected_bld = -1
 	elif kind == "market":
 		market_open = true
 		selected = -1
@@ -692,6 +707,8 @@ func _throng_under_cursor(living_only: bool) -> int:
 		var live := st == Catalog.ST_LIVING
 		if living_only and not live:
 			continue
+		if live and (sim.mito_t[i] > 0.0 or sim.mito_charge[i] > 0.0):
+			continue
 		var feet := cam_rig.to_iso(Vector2(sim.pos_x[i], sim.pos_y[i]))
 		var delta := mouse - feet
 		if absf(delta.x) > 12.0 or delta.y > 4.0 or delta.y < -24.0:
@@ -750,6 +767,7 @@ func _sync_world() -> void:
 	var sim: ThrongletSim = ThrongletSimServer
 	if sim.paint_epoch != seen_epoch:
 		seen_epoch = sim.paint_epoch
+		_clear_world_sprite_registry()
 		painted.clear()
 		tilemap.clear()
 		water_cells.clear()
@@ -982,6 +1000,19 @@ func _clear_paths() -> void:
 	path_nodes.clear()
 
 
+func _clear_world_sprite_registry() -> void:
+	for id in _monoliths.keys():
+		var node: Node2D = _monoliths[id]
+		if node != null and is_instance_valid(node):
+			node.queue_free()
+	_monoliths.clear()
+	for id in _building_active_sprites.keys():
+		var node: Sprite2D = _building_active_sprites[id]
+		if node != null and is_instance_valid(node):
+			node.queue_free()
+	_building_active_sprites.clear()
+
+
 func _biome_plate_paths(biome: String) -> PackedStringArray:
 	if biome == "epilogue":
 		return PackedStringArray([
@@ -1049,7 +1080,7 @@ func _sync_actors() -> void:
 			continue
 		var p := Vector2(float(feat.x), float(feat.y))
 		if int(feat.kind) == Catalog.FEAT_MONOLITH:
-			_sync_monolith(int(feat.id), p + Catalog.feature_draw_off(Catalog.FEAT_MONOLITH))
+			_sync_monolith(int(feat.id), p + Catalog.feature_draw_off(Catalog.FEAT_MONOLITH), feat, time_pre)
 			continue
 		var feat_at := _feature_draw_at(int(feat.kind), p, int(feat.ore))
 		if view.has_point(p) or view.has_point(feat_at):
@@ -1136,8 +1167,17 @@ func _sync_actors() -> void:
 			if b_kind == Catalog.BLD_MINE or b_kind == Catalog.BLD_MINE2:
 				# Mines are walkable ground pads: render above ground but below entities on top.
 				b_sort_y = -1000000.0
-			var b_outline := Color(0.35, 1.0, 0.45, 1.0) if outlined_bld_ids.has(int(b.id)) else Color.TRANSPARENT
-			_push_iso(draws, draw_at, b_frame, b_tint, b_lift, b_scale, b_sort_y, b_outline)
+			var occupied_home := (
+				(b_kind == Catalog.BLD_DWELL or b_kind == Catalog.BLD_FANCY or b_kind == Catalog.BLD_THEATRE)
+				and sim.has_method("_live_guests")
+				and int(sim._live_guests(b)) > 0
+			)
+			if occupied_home and _active_structure_texture(b_kind) != null:
+				_sync_active_building_sprite(int(b.id), b_kind, draw_at, b_scale, b_sort_y)
+			else:
+				_hide_active_building_sprite(int(b.id))
+				var b_outline := Color(0.35, 1.0, 0.45, 1.0) if outlined_bld_ids.has(int(b.id)) else Color.TRANSPARENT
+				_push_iso(draws, draw_at, b_frame, b_tint, b_lift, b_scale, b_sort_y, b_outline)
 			if b_kind == Catalog.BLD_FACTORY or b_kind == Catalog.BLD_FACTORY2:
 				_push_factory_pile(draws, b, draw_at)
 			if b_kind == Catalog.BLD_APPLE:
@@ -1156,27 +1196,6 @@ func _sync_actors() -> void:
 					)
 			if bool(b.get("active", false)) and b_kind == Catalog.BLD_TUB:
 				var seat := p3 + Catalog.TUB_SEAT_OFF
-	var bridge: Dictionary = sim.bridge_marker()
-	if not sim.shot_mode and not bridge.is_empty() and sim.chunk_shown(str(bridge.ck)):
-		var site := Vector2(float(bridge.x), float(bridge.y))
-		var drop := Vector2(float(bridge.drop_x), float(bridge.drop_y))
-		var pulse := 0.55 + 0.45 * absf(sin(anim_time * 1000.0 / 280.0))
-		var mark := Color(1.0, 0.85, 0.2, pulse)
-		var site_draw := _bridge_view_point(site, view)
-		var drop_draw := _bridge_view_point(drop, view)
-		var on_site := view.has_point(site)
-		_push_iso(draws, site_draw, _prop_frame(Catalog.ICON_MONOLITH), mark, 28.0 if on_site else 22.0)
-		_push_iso(draws, drop_draw, _prop_frame(Catalog.ICON_WOOD), Color(1.0, 1.0, 1.0, pulse), 16.0)
-		if on_site or view.has_point(drop):
-			var filled := mini(int(bridge.progress), int(bridge.need))
-			for n in filled:
-				var ox := float((n % 3) - 1) * 10.0
-				var oy := float(n / 3) * -8.0
-				_push_iso(draws, drop + Vector2(ox, oy), _prop_frame(Catalog.ICON_WOOD), Color(0.95, 0.82, 0.4, 0.9), 14.0)
-			for n in range(filled, int(bridge.need)):
-				var gx := float((n % 3) - 1) * 10.0
-				var gy := float(n / 3) * -8.0
-				_push_iso(draws, drop + Vector2(gx, gy), _prop_frame(Catalog.ICON_WOOD), Color(1.0, 1.0, 1.0, 0.22 * pulse), 10.0)
 	var grid_at := cam_rig.grid_pointer_world()
 	var free_at := cam_rig.pointer_world()
 	var hand: Dictionary = sim.hand_item()
@@ -1376,17 +1395,25 @@ func _sync_actors() -> void:
 				"flip": 1.0,
 				"dirty": 0.0,
 			})
+	var bath_exit_tune: Dictionary = EffectTune.get_tune("act:bath_exit")
+	var bath_exit_scale := float(bath_exit_tune.get("scale", 1.0))
+	var bath_exit_off := Vector2(float(bath_exit_tune.get("fx_x", 0.0)), float(bath_exit_tune.get("fx_y", 0.0)))
 	for pop in sim.pops:
 		var fade := clampf(float(pop.t) / 0.55, 0.0, 1.0)
 		var picon := int(pop.icon)
 		var frame := _pop_frame(picon)
 		var pop_scale := float(pop.get("scale", 1.0))
+		var pop_off := Vector2.ZERO
+		var pop_elapsed := 0.55 - float(pop.t)
 		if picon == AssetFrames.SPLASH:
-			var elapsed := 0.55 - float(pop.t)
-			frame = AssetFrames.frame(AssetFrames.SPLASH, AssetFrames.SPLASH_N, int(elapsed * 10.0))
+			frame = AssetFrames.frame(AssetFrames.SPLASH, AssetFrames.SPLASH_N, int(pop_elapsed * 10.0))
 			if frame >= AssetFrames.SPLASH and frame < AssetFrames.SPLASH + AssetFrames.SPLASH_N:
 				pop_scale = 0.6
-		_push_iso(draws, Vector2(float(pop.x), float(pop.y)), frame, Color(1, 1, 1, fade), float(pop.lift), pop_scale)
+		elif picon == AssetFrames.CLEAN:
+			frame = AssetFrames.frame(AssetFrames.CLEAN, AssetFrames.CLEAN_N, int(pop_elapsed * 10.0))
+			pop_scale = bath_exit_scale
+			pop_off = bath_exit_off
+		_push_iso(draws, Vector2(float(pop.x), float(pop.y)) + pop_off, frame, Color(1, 1, 1, fade), float(pop.lift), pop_scale)
 	draws.sort_custom(func(a, b): return float(a.get("sy", a.p.y)) < float(b.get("sy", b.p.y)))
 	draws.append_array(egg_front)
 	draws.append_array(drag_front)
@@ -1707,7 +1734,7 @@ func _sync_charge_mark(delta: float = 0.0) -> void:
 		return
 	var sim: ThrongletSim = ThrongletSimServer
 	var at := cam_rig.pointer_world()
-	if sim.has_scoop():
+	if sim.has_scoop() or not _drop_on_island():
 		charge_area.visible = false
 		charge_area_key = ""
 		charge_ring.visible = false
@@ -1830,20 +1857,6 @@ func _charge_arc_points(center_iso: Vector2, radius: float, progress: float) -> 
 		var ang := -PI * 0.5 + TAU * filled * t
 		pts.append(center_iso + Vector2(cos(ang), sin(ang)) * radius)
 	return pts
-
-
-func _bridge_view_point(world_pos: Vector2, view: Rect2) -> Vector2:
-	if view.has_point(world_pos):
-		return world_pos
-	var center := view.get_center()
-	var delta := world_pos - center
-	var half := view.size * 0.38
-	var scale_x := absf(delta.x) / maxf(half.x, 1.0)
-	var scale_y := absf(delta.y) / maxf(half.y, 1.0)
-	var scale := maxf(scale_x, scale_y)
-	if scale <= 1.0:
-		return world_pos
-	return center + delta / scale
 
 
 func _push_factory_pile(draws: Array, b: Dictionary, at: Vector2) -> void:
@@ -2143,7 +2156,7 @@ func _throng_sprite_off(frame: int) -> Vector2:
 	return Vector2.ZERO
 
 
-func _sync_monolith(id: int, world_pos: Vector2) -> void:
+func _sync_monolith(id: int, world_pos: Vector2, feat: Dictionary, t: float) -> void:
 	var node: Node2D = _monoliths.get(id)
 	if node == null:
 		node = (load("res://scripts/presentation/props/monolith_prop.gd") as GDScript).new()
@@ -2152,6 +2165,61 @@ func _sync_monolith(id: int, world_pos: Vector2) -> void:
 	node.position = cam_rig.to_iso(world_pos)
 	node.visible = true
 	node.set_meta("seen", true)
+	if node.has_method("sync_state"):
+		node.sync_state(feat, t)
+
+
+func _active_structure_sprite_path(kind: int) -> String:
+	match kind:
+		Catalog.BLD_DWELL:
+			return "res://resources/structures/buildings/dwell_active.png"
+		Catalog.BLD_FANCY:
+			return "res://resources/structures/buildings/fancy_active.png"
+		Catalog.BLD_THEATRE:
+			return "res://resources/structures/buildings/theatre_active.png"
+	return ""
+
+
+func _active_structure_texture(kind: int) -> Texture2D:
+	if _active_structure_tex.has(kind):
+		return _active_structure_tex[kind]
+	var path := _active_structure_sprite_path(kind)
+	if path == "":
+		return null
+	var tex: Texture2D = load(path)
+	_active_structure_tex[kind] = tex
+	return tex
+
+
+func _sync_active_building_sprite(id: int, kind: int, draw_at: Vector2, sprite_scale: float, sort_y: float) -> void:
+	var tex := _active_structure_texture(kind)
+	if tex == null:
+		_hide_active_building_sprite(id)
+		return
+	var node: Sprite2D = _building_active_sprites.get(id)
+	if node == null:
+		node = Sprite2D.new()
+		node.centered = true
+		node.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		world_layer.add_child(node)
+		_building_active_sprites[id] = node
+	node.texture = tex
+	node.scale = Vector2(sprite_scale, sprite_scale)
+	var screen_p := cam_rig.to_iso(draw_at)
+	node.position = screen_p + Vector2(0, -WORLD_CELL * 0.5 * sprite_scale)
+	var sy := sort_y if not is_nan(sort_y) else screen_p.y
+	node.set_meta("sy", sy)
+	node.visible = true
+	node.set_meta("seen", true)
+
+
+func _hide_active_building_sprite(id: int) -> void:
+	if not _building_active_sprites.has(id):
+		return
+	var node: Sprite2D = _building_active_sprites[id]
+	if is_instance_valid(node):
+		node.visible = false
+		node.set_meta("seen", false)
 
 
 func _void_behind_cliff(world_pos: Vector2) -> bool:
@@ -2166,6 +2234,7 @@ func _void_behind_cliff(world_pos: Vector2) -> bool:
 
 
 func _paint_props(draws: Array) -> void:
+	var sim: ThrongletSim = ThrongletSimServer
 	var live: Array = []
 	for id in _monoliths.keys():
 		var node: Node2D = _monoliths[id]
@@ -2174,6 +2243,22 @@ func _paint_props(draws: Array) -> void:
 			continue
 		node.set_meta("seen", false)
 		live.append({"sy": node.position.y, "node": node})
+	for id in _building_active_sprites.keys():
+		var bnode: Sprite2D = _building_active_sprites[id]
+		if bnode == null or not is_instance_valid(bnode):
+			_building_active_sprites.erase(id)
+			continue
+		if not bool(bnode.get_meta("seen", false)):
+			var b = sim.building_by_id.get(id, {})
+			if b.is_empty() or b.dead:
+				bnode.queue_free()
+				_building_active_sprites.erase(id)
+				continue
+			bnode.visible = false
+			continue
+		bnode.set_meta("seen", false)
+		var bsy := float(bnode.get_meta("sy", bnode.position.y))
+		live.append({"sy": bsy, "node": bnode})
 	live.sort_custom(func(a, b): return float(a.sy) < float(b.sy))
 	var cursor := 0
 	var order: Array = []
@@ -2810,7 +2895,9 @@ func _sync_focus(delta: float) -> void:
 		focus_box.visible = false
 		task_panel.visible = false
 		return
-	var talk: bool = not sim.modal.is_empty() and Catalog.GAZE.has(str(sim.modal.event))
+	var event := str(sim.modal.get("event", "")) if not sim.modal.is_empty() else ""
+	var monolith_reveal := event == "monolith_appear"
+	var talk: bool = not sim.modal.is_empty() and Catalog.GAZE.has(event)
 	var egg := _starter_egg()
 	var falling := not egg.is_empty() and float(egg.get("air", 0.0)) > 0.0
 	if falling:
@@ -2819,20 +2906,28 @@ func _sync_focus(delta: float) -> void:
 		focus_hold = maxf(0.0, focus_hold - delta)
 	var show_egg: bool = not talk and not egg.is_empty() and (falling or focus_hold > 0.0)
 	var show: bool = talk or show_egg or sim.tutorial_i >= 0
+	var show_focus_overlay := show and not monolith_reveal
 	if show and not focus_on:
 		focus_on = true
 	if not show and focus_on:
 		focus_on = false
 		focus_hold = 0.0
-	focus_dim.visible = show
-	focus_frame.visible = show
-	focus_box.visible = show
+	focus_dim.visible = show_focus_overlay
+	focus_frame.visible = show_focus_overlay
+	focus_box.visible = show_focus_overlay
 	task_panel.visible = not talk and sim.tutorial_i < 0
-	if show:
+	if show_focus_overlay:
 		focus_port.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	else:
 		focus_port.render_target_update_mode = SubViewport.UPDATE_DISABLED
 	if not show:
+		return
+	if monolith_reveal:
+		var view := get_viewport_rect().size
+		var console_h := maxf(132.0, round(view.y * 0.34))
+		var text := Rect2(Vector2(8.0, view.y - console_h - 4.0), Vector2(view.x - 16.0, console_h))
+		_set_box(gaze_panel, text)
+		_layout_console()
 		return
 	var frame := _focus_frame_rect(talk)
 	_set_box(focus_frame, frame)
@@ -6054,22 +6149,30 @@ class _DashArea extends Node2D:
 		var i := 0
 		var seg_pos := 0.0
 		while dist < total and i < seg_lens.size():
+			var seg_len: float = seg_lens[i]
+			if seg_len <= 0.001:
+				i += 1
+				seg_pos = 0.0
+				continue
 			var in_cycle := fmod(dist, cycle)
 			if in_cycle < dash_len:
 				var remain_dash := dash_len - in_cycle
-				var seg_remain := seg_lens[i] - seg_pos
+				var seg_remain := seg_len - seg_pos
 				var step := minf(remain_dash, seg_remain)
-				var a := pts[i].lerp(pts[i + 1], seg_pos / seg_lens[i])
-				var b := pts[i].lerp(pts[i + 1], (seg_pos + step) / seg_lens[i])
-				draw_line(a, b, color, w, true)
-				dist += step
-				seg_pos += step
+				if step > 0.0:
+					var a := pts[i].lerp(pts[i + 1], seg_pos / seg_len)
+					var b := pts[i].lerp(pts[i + 1], (seg_pos + step) / seg_len)
+					draw_line(a, b, color, w, true)
+					dist += step
+					seg_pos += step
+				else:
+					dist += 0.001
 			else:
 				var remain_gap := cycle - in_cycle
-				var seg_remain := seg_lens[i] - seg_pos
+				var seg_remain := seg_len - seg_pos
 				var step := minf(remain_gap, seg_remain)
-				dist += step
-				seg_pos += step
-			if seg_pos >= seg_lens[i] - 0.001:
+				dist += maxf(step, 0.001)
+				seg_pos += maxf(step, 0.0)
+			if seg_pos >= seg_len - 0.001:
 				i += 1
 				seg_pos = 0.0

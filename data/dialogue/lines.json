@@ -4803,6 +4803,10 @@
    "Saltar a resultados",
    "Cerrar",
    "Saltar"
+  ],
+  "3S02_MONOLITH_APPEAR": [
+   "Un monolito emerge del suelo...",
+   "¡Un monolito ha aparecido!"
   ]
  }
 }

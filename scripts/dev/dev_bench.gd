@@ -1934,15 +1934,16 @@ func _paint_effect_fx(draws: Array, pos: Vector2, sort_y: float, tune: Dictionar
 	var fx := str(tune.get("fx", "none"))
 	if fx == "none" or fx == "":
 		return
+	var fx_scale := float(tune.get("scale", 1.0))
+	var fx_off := Vector2(float(tune.get("fx_x", 0.0)), float(tune.get("fx_y", 0.0)))
 	var time := effect_t
 	var orbit := float(tune.get("orbit", 0.0))
 	if fx == "suds":
 		var bubble := AssetFrames.frame(AssetFrames.BUBBLE, AssetFrames.BUBBLE_N, int(time * 10.0))
 		if bubble >= 0:
-			var off := Vector2(float(tune.get("fx_x", 0.0)), float(tune.get("fx_y", 0.0)))
-			main._push_iso(draws, pos + off, bubble, Color(1, 1, 1, 0.85), 8.0, float(tune.get("scale", 1.0)), sort_y)
+			main._push_iso(draws, pos + fx_off, bubble, Color(1, 1, 1, 0.85), 8.0, fx_scale, sort_y)
 		else:
-			main._paint_suds(draws, pos + Vector2(0, -6), sort_y + 0.4, time, float(tune.get("scale", 1.0)))
+			main._paint_suds(draws, pos + fx_off + Vector2(0, -6), sort_y + 0.4, time, fx_scale)
 		return
 	var frame := _effect_fx_frame(fx, time)
 	if frame < 0:
@@ -1951,21 +1952,24 @@ func _paint_effect_fx(draws: Array, pos: Vector2, sort_y: float, tune: Dictionar
 		for i in 3:
 			var ang := time * 4.0 + float(i) * TAU / 3.0
 			var wob := Vector2(cos(ang) * orbit, sin(ang) * orbit * 0.55 - 8.0)
-			main._push_iso(draws, pos + wob, frame, Color(1, 1, 1, 0.95), 10.0 + float(i), 1.0, sort_y + 0.4 + float(i) * 0.1)
+			main._push_iso(draws, pos + fx_off + wob, frame, Color(1, 1, 1, 0.95), 10.0 + float(i), fx_scale, sort_y + 0.4 + float(i) * 0.1)
 		return
 	if fx == "fire":
-		main._push_iso(draws, pos + Vector2(10, -4), frame, Color(1, 1, 1, 1.0), 6.0, 1.0, sort_y + 0.4)
+		main._push_iso(draws, pos + fx_off + Vector2(10, -4), frame, Color(1, 1, 1, 1.0), 6.0, 1.0, sort_y + 0.4)
 		var blob := AssetFrames.frame(AssetFrames.FIRE_BLOB, AssetFrames.FIRE_BLOB_N, int(time * 8.0))
 		if blob >= 0:
-			main._push_iso(draws, pos + Vector2(sin(time * 5.0) * 10.0, -12.0), blob, Color(1, 1, 1, 0.95), 10.0, 1.0, sort_y + 0.5)
+			main._push_iso(draws, pos + fx_off + Vector2(sin(time * 5.0) * 10.0, -12.0), blob, Color(1, 1, 1, 0.95), 10.0, 1.0, sort_y + 0.5)
 		return
 	if fx == "splash":
-		main._push_iso(draws, pos + Vector2(0, 2), frame, Color(1, 1, 1, 0.95), 4.0, 1.0, sort_y + 0.4)
-		main._paint_suds(draws, pos + Vector2(0, -2), sort_y + 0.5, time, float(tune.get("scale", 1.0)))
+		main._push_iso(draws, pos + fx_off + Vector2(0, 2), frame, Color(1, 1, 1, 0.95), 4.0, 1.0, sort_y + 0.4)
+		main._paint_suds(draws, pos + fx_off + Vector2(0, -2), sort_y + 0.5, time, fx_scale)
+		return
+	if fx == "clean":
+		main._push_iso(draws, pos + fx_off, frame, Color(1, 1, 1, 0.95), 10.0, fx_scale, sort_y + 0.4)
 		return
 	var bob := float(tune.get("bob", 0.0))
 	var hop := Vector2(0, -10.0 - absf(sin(time * maxf(bob, 4.0))) * 4.0)
-	main._push_iso(draws, pos + hop, frame, Color(1, 1, 1, 0.95), 10.0, 1.0, sort_y + 0.4)
+	main._push_iso(draws, pos + fx_off + hop, frame, Color(1, 1, 1, 0.95), 10.0, fx_scale, sort_y + 0.4)
 
 
 func _build_effect_gauge() -> void:

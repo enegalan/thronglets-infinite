@@ -46,6 +46,7 @@ const LOOK := {
 	"aura:ball": {"clip": "ThrongA_Jump_VariantA_Spritesheet", "fx": "none", "lift": 0.0, "bob": 2.0, "orbit": 14.0},
 	"act:eat": {"clip": "ThrongA_Eat", "fx": "none", "lift": 0.0, "bob": 5.0, "orbit": 0.0},
 	"act:bath": {"clip": "Throng_FallInBath_Spritesheet", "fx": "splash", "lift": 0.0, "bob": 0.0, "orbit": 0.0},
+	"act:bath_exit": {"clip": "ThrongA_Happy", "fx": "clean", "lift": 0.0, "bob": 0.0, "orbit": 0.0, "scale": 0.3, "fx_x": 3.0, "fx_y": 3.0},
 	"act:play": {"clip": "ThrongA_Jump_VariantA_Spritesheet", "fx": "none", "lift": 0.0, "bob": 3.0, "orbit": 10.0},
 	"act:ball": {"clip": "ThrongA_Jump_VariantA_Spritesheet", "fx": "none", "lift": 0.0, "bob": 0.0, "orbit": 14.0},
 	"act:round": {"clip": "ThrongA_Roundabout_SpriteSheet", "fx": "none", "lift": 1.5, "bob": 10.0, "orbit": 0.0},
@@ -246,6 +247,7 @@ static func _build() -> void:
 	_push("AURA", "aura:ball", "BALON AURA", ["radius", "limit", "fun"])
 	_push("ACTION", "act:eat", "COMER", ["bite", "fed"])
 	_push("ACTION", "act:bath", "BANERA", ["clean", "done", "min_stay", "enter"])
+	_push("ACTION", "act:bath_exit", "SALIDA BANERA", [])
 	_push("ACTION", "act:play", "JUGAR", ["fun"])
 	_push("ACTION", "act:ball", "PATADA BALON", ["fun"])
 	_push("ACTION", "act:round", "TIOVIVO", ["fun"])

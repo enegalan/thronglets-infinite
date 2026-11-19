@@ -9,6 +9,13 @@ const VIEW_H := 112
 const LOOK_Y := 1.5
 const GROUND_Y := 0.0
 
+var spawn_progress := 1.0
+var age := 0.0
+var seed_x := 0
+var seed_y := 0
+var _sprite: Sprite2D = null
+var _base_offset := Vector2.ZERO
+
 
 func _ready() -> void:
 	var built := _load_model()
@@ -49,13 +56,33 @@ func _ready() -> void:
 	cam.position = look + cam.transform.basis.z * 8.0
 	cam.current = true
 	view.add_child(cam)
-	var sprite := Sprite2D.new()
-	sprite.texture = view.get_texture()
-	sprite.centered = false
-	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_sprite = Sprite2D.new()
+	_sprite.texture = view.get_texture()
+	_sprite.centered = false
+	_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	var ground := float(VIEW_H) * 0.5 + (LOOK_Y - GROUND_Y) * PX_PER_UNIT
-	sprite.offset = Vector2(-float(VIEW_W) * 0.5, -ground)
-	add_child(sprite)
+	_base_offset = Vector2(-float(VIEW_W) * 0.5, -ground)
+	_sprite.offset = _base_offset
+	add_child(_sprite)
+	_update_emergence()
+
+
+func sync_state(feat: Dictionary, t: float) -> void:
+	spawn_progress = clampf(float(feat.get("spawn_progress", 1.0)), 0.0, 1.0)
+	age = float(feat.get("age", t))
+	seed_x = int(feat.get("x", 0.0))
+	seed_y = int(feat.get("y", 0.0))
+	_update_emergence()
+	queue_redraw()
+
+
+func _update_emergence() -> void:
+	if _sprite == null:
+		return
+	# Vertical emergence: rise up from below ground as spawn progresses.
+	var rise := lerpf(56.0, 0.0, spawn_progress)
+	_sprite.offset = _base_offset + Vector2(0, rise)
+	_sprite.modulate = Color(1, 1, 1, clampf(0.25 + spawn_progress * 0.75, 0.25, 1.0))
 
 
 func _load_model() -> Node3D:

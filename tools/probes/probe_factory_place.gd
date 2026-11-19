@@ -90,7 +90,7 @@ func _run() -> void:
 				var bld_hit := 0
 				for cell in cells:
 					var mid := sim._cell_world(cell)
-					if not sim.revealed.has(sim._ck_of(mid.x, mid.y)) or sim._on_bridge(mid.x, mid.y):
+					if not sim.revealed.has(sim._ck_of(mid.x, mid.y)):
 						hard_hit = true
 						break
 					if int(sim.building_cell.get(cell, -1)) >= 0:
@@ -154,9 +154,6 @@ func _run() -> void:
 					blocked_by = "reveal"
 					why_reveal += 1
 					break
-				if sim._on_bridge(mid2.x, mid2.y):
-					blocked_by = "bridge"
-					why_bridge += 1
 					break
 				if not sim._tile_holds(mid2.x, mid2.y):
 					blocked_by = "tile"
@@ -191,7 +188,7 @@ func _run() -> void:
 				var ok := true
 				for cell3 in sim._footprint_cells(at3.x, at3.y, size):
 					var mid3 := sim._cell_world(cell3)
-					if not sim.revealed.has(sim._ck_of(mid3.x, mid3.y)) or sim._on_bridge(mid3.x, mid3.y):
+					if not sim.revealed.has(sim._ck_of(mid3.x, mid3.y)):
 						ok = false
 						break
 					if not sim._tile_holds(mid3.x, mid3.y):

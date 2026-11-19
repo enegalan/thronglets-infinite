@@ -27,6 +27,7 @@ const POOL := {
 	"unlock_nuke": "3S02_NUKEOBJECT",
 	"nuke": "3S02_NUKEOBJECT",
 	"unlock_swarm": "3S02_SUPERBUG",
+	"monolith_appear": "3S02_MONOLITH_APPEAR",
 	"shot_check": "3S02_THRONGLET",
 }
 

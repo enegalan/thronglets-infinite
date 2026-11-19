@@ -43,7 +43,6 @@ func _run() -> void:
 	])
 	var mines := 0
 	var factories := 0
-	var open_bridges := 0
 	for b in sim.buildings:
 		if b.dead:
 			continue
@@ -56,12 +55,6 @@ func _run() -> void:
 		elif k == Catalog.BLD_FACTORY or k == Catalog.BLD_FACTORY2:
 			factories += 1
 			print("FACTORY id=%s at=(%.1f,%.1f) buffer=%s" % [str(b.id), float(b.x), float(b.y), str(b.get("buffer", 0))])
-	for bridge in sim.bridges:
-		if not bool(bridge.done):
-			open_bridges += 1
-			print("BRIDGE open progress=%s/%s at=(%.1f,%.1f)" % [
-				str(bridge.progress), str(bridge.need), float(bridge.x), float(bridge.y),
-			])
 	var wood := 0
 	var ore := 0
 	var bone := 0
@@ -75,8 +68,8 @@ func _run() -> void:
 				ore += 1
 			Catalog.ITEM_BONE:
 				bone += 1
-	print("ITEMS wood=%d ore=%d bone=%d open_bridges=%d mines=%d factories=%d" % [
-		wood, ore, bone, open_bridges, mines, factories,
+	print("ITEMS wood=%d ore=%d bone=%d mines=%d factories=%d" % [
+		wood, ore, bone, mines, factories,
 	])
 	var ready := 0
 	var hungry := 0
@@ -183,14 +176,6 @@ func _why_not_mine(sim, i: int) -> String:
 		return "bored"
 	if int(sim.carry[i]) != Catalog.CARRY_NONE:
 		return "carrying"
-	var bridge = sim._nearest_open_bridge(sim.pos_x[i], sim.pos_y[i], 8000.0)
-	if not bridge.is_empty():
-		var wood = sim._nearest_free_item(i, Catalog.ITEM_WOOD, 2800.0)
-		if not wood.is_empty():
-			return "haul_wood"
-		var bone = sim._nearest_free_item(i, Catalog.ITEM_BONE, 2800.0)
-		if not bone.is_empty():
-			return "haul_bone"
 	if sim._has_factory():
 		var ore_it = sim._nearest_free_item(i, Catalog.ITEM_ORE, 180.0)
 		if not ore_it.is_empty():

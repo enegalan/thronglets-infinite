@@ -321,7 +321,7 @@ const TOOL_INFO := [
 	{"tool": TOOL_AXE, "unlock": "axe", "label": "HACHA", "icon": ICON_AXE, "hint": "MANTEN SOBRE UN ARBOL. CARGA Y TALA. NO MATA MULTIS."},
 	{"tool": TOOL_HAMMER, "unlock": "hammer", "label": "MARTILLO", "icon": ICON_HAMMER, "hint": "MANTEN SOBRE TOCON, ROCA O ESTRUCTURA. CARGA Y PICA."},
 	{"tool": TOOL_BUG, "unlock": "bug", "label": "BICHO", "icon": ICON_BUG, "hint": "DESUELLA A UNO, VIVO O MUERTO, Y DEJA HUESO."},
-	{"tool": TOOL_PICK, "unlock": "pickaxe", "label": "PICO", "icon": ICON_PICK, "hint": "MANTEN: CARGA Y ROMPE ROCAS DEL ÁREA. NO MATA MULTIS."},
+	{"tool": TOOL_PICK, "unlock": "pickaxe", "label": "PICO", "icon": ICON_PICK, "hint": "MANTEN: CARGA Y ROMPE ROCAS Y TOCONES DEL ÁREA. NO MATA MULTIS."},
 	{"tool": TOOL_SAW, "unlock": "chainsaw", "label": "MOTOSIERRA", "icon": ICON_SAW, "hint": "MANTEN: VE EL ÁREA, CARGA Y TALA TODO. MATA MULTIS."},
 	{"tool": TOOL_GRAB, "unlock": "grabber", "label": "MANO", "icon": ICON_GRAB, "hint": "MANTEN: CARGA, JUNTA LO DEL SUELO Y MUEVELO. AL SOLTAR SE ESPARCE."},
 	{"tool": TOOL_MOP, "unlock": "mop", "label": "FREGONA", "icon": ICON_MOP, "hint": "LIMPIA SUELO MORADO Y THRONGLETS EN UN RADIO."},
@@ -558,7 +558,6 @@ const GAZE := {
 	"unlock_bathtub": {"kind": "reflect", "tree": "CH02_SEE_117ENCOURA", "allow": [0, 1, 2]},
 	"unlock_apple_tree": {"kind": "reflect", "tree": "CH02_SEE_201TREES", "allow": [0, 1, 2]},
 	"unlock_roundabout": {"kind": "reflect", "tree": "CH02_SEE_104RNDABT", "allow": [0, 1, 2]},
-	"need_bridge": {"kind": "reflect", "tree": "CH01_S04_020ABYSS", "allow": [0, 1, 2]},
 	"unlock_market": {"kind": "reflect", "tree": "CH02_SEE_103MARKET", "allow": [0, 1, 2]},
 	"unlock_pickaxe": {"kind": "reflect", "tree": "CH02_SEE_105PICKAXE", "allow": [0, 1, 2]},
 	"unlock_mine": {"kind": "reflect", "tree": "CH02_FTUE_ABOUTMINES", "allow": [0, 1, 2]},
@@ -584,7 +583,7 @@ const GAZE := {
 	"nuke": {"kind": "confirm", "tree": "confirm_nuke", "allow": [0, 1]},
 	"learn_self": {"kind": "reflect", "tree": "CH02_S03_010INT1", "allow": [0, 1, 2]},
 	"what_is_care": {"kind": "reflect", "tree": "CH01_S06_WHATISLOVE", "allow": [0, 1, 2]},
-	"bridge_done": {"kind": "reflect", "tree": "CH01_S08_BRIDGEISCO", "allow": [0, 1, 2]},
+	"monolith_appear": {"kind": "reflect", "tree": "", "allow": [0]},
 	"act3_maw": {"kind": "reflect", "tree": "ACT3_S020_GAPINGMAW", "allow": [0, 1, 2]},
 }
 

@@ -120,8 +120,8 @@ static func apply_progression_hooks(sim, announce: bool = true) -> void:
 		sim._grant("axe", "", announce)
 	if sim.peak >= 25:
 		sim._ensure_monolith(1)
-	if sim._has_building(Catalog.BLD_ROUND) and sim.peak >= 12:
-		sim._open_sister(announce)
+	if sim._has_building(Catalog.BLD_ROUND) and sim.peak >= 12 and not sim.part_two:
+		sim._expand_super_island(announce)
 	if announce and sim.peak >= 12 and sim._ethics_choice("what_is_care") == -1 and sim.living >= 3:
 		sim._queue_talk("what_is_care", {})
 	elif announce and sim.peak >= 8 and sim.living >= 2:

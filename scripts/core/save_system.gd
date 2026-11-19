@@ -174,7 +174,6 @@ func save_game() -> bool:
 		"total_gems_earned": sim.total_gems_earned,
 		"deaths_total": sim.deaths_total,
 		"land_tier": sim.land_tier,
-		"bridge_open": sim.bridge_open,
 		"glitch_seen": sim.glitch_seen,
 		"unlocks": sim.unlocks.duplicate(true),
 		"ethics": sim.ethics.duplicate(true),
@@ -217,14 +216,9 @@ func save_game() -> bool:
 		"buildings": sim.buildings.duplicate(true),
 		"features": sim.features.duplicate(true),
 		"tree_seeds": sim.tree_seeds.duplicate(true),
-		"bridges": sim.bridges.duplicate(true),
 		"chunks": sim.chunks.duplicate(true),
 		"wear": sim.wear.duplicate(),
-		"bridge_done": sim.bridge_done.duplicate(true),
 		"revealed": sim.revealed.duplicate(true),
-		"sister_cx": sim.sister_cx,
-		"sister_cy": sim.sister_cy,
-		"sister_ready": sim.sister_ready,
 		"player_name": sim.player_name,
 		"tutorial_i": sim.tutorial_i,
 		"count_unknown": sim.count_unknown,
@@ -262,7 +256,6 @@ func load_game() -> bool:
 	sim.total_gems_earned = maxi(int(data.get("total_gems_earned", sim.gems_peak)), sim.gems_peak)
 	sim.deaths_total = int(data.get("deaths_total", 0))
 	sim.land_tier = int(data.get("land_tier", 0))
-	sim.bridge_open = bool(data.get("bridge_open", false))
 	sim.unlocks = data.get("unlocks", sim.unlocks)
 	sim.glitch_seen = bool(data.get("glitch_seen", false))
 	sim.ethics = data.get("ethics", [])
@@ -325,31 +318,20 @@ func load_game() -> bool:
 	sim.buildings = data.get("buildings", [])
 	sim.features = data.get("features", [])
 	sim.tree_seeds = data.get("tree_seeds", [])
-	sim.bridges = data.get("bridges", [])
 	sim.chunks = data.get("chunks", {})
 	sim.wear = data.get("wear", {})
 	if typeof(sim.wear) != TYPE_DICTIONARY:
 		sim.wear = {}
 	sim.wear_from.clear()
-	sim.bridge_done = data.get("bridge_done", {})
 	sim.revealed = data.get("revealed", {})
-	sim.sister_cx = int(data.get("sister_cx", 1))
-	sim.sister_cy = int(data.get("sister_cy", 0))
-	sim.sister_ready = bool(data.get("sister_ready", false))
 	sim.player_name = str(data.get("player_name", ""))
 	sim.tutorial_i = int(data.get("tutorial_i", -1))
 	sim.count_unknown = bool(data.get("count_unknown", false))
 	sim._recount()
 	sim._reindex()
-	if not sim.bridge_open and (sim.part_two or sim.land_tier >= 2):
-		sim.bridge_open = true
 	sim._refresh_pop_gates(false)
 	sim._shape_island()
-	sim._hide_closed_world()
-	if sim.bridge_open and not sim.part_two and sim._ethics_choice("need_bridge") == -1:
-		sim._queue_talk("need_bridge", {})
-	sim._repair_done_bridges()
-	sim._ensure_island_mines()
+	sim._seed_mine_nodes(0, 0)
 	sim._rebuild_hash()
 	sim.paint_epoch += 1
 	sim.dirty_chunks.clear()
@@ -365,7 +347,6 @@ func load_game() -> bool:
 	sim.sponge_hold = 0.0
 	sim.notes.append("PARTIDA CARGADA.")
 	sim.session_live = true
-	sim._open_special_biomes()
 	if sim.living <= 0 and sim.peak > 0:
 		sim._enter_game_over()
 	return true
