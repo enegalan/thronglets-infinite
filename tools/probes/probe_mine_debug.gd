@@ -22,15 +22,18 @@ func _run() -> void:
 	if not sim.chunks.has("0,0"):
 		sim._bootstrap_new()
 	sim.unlocks.mine = true
-	for bridge in sim.bridges:
-		bridge.done = true
-		bridge.progress = int(bridge.need)
+	sim.unlocks.factory = true
+	sim.unlocks.pickaxe = true
 	sim.part_two = true
 	var ore := {}
 	for feat in sim.features:
 		if not feat.dead and int(feat.cx) == 0 and sim._ore_tier(int(feat.kind)) > 0:
 			ore = feat
 			break
+	if ore.is_empty():
+		print("PROBE FAIL no ore node")
+		quit(1)
+		return
 	var ore_at := Catalog.snap_world(float(ore.x), float(ore.y))
 	for feat in sim.features:
 		if feat.dead or int(feat.id) == int(ore.id):
@@ -46,6 +49,10 @@ func _run() -> void:
 		if not b.dead and int(b.kind) == Catalog.BLD_MINE:
 			mine = b
 			break
+	if mine.is_empty():
+		print("PROBE FAIL no mine")
+		quit(1)
+		return
 	for it in sim.items:
 		if int(it.kind) == Catalog.ITEM_WOOD or int(it.kind) == Catalog.ITEM_ORE or int(it.kind) == Catalog.ITEM_BONE:
 			it.dead = true

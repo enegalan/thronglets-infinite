@@ -270,6 +270,8 @@ func _step(delta: float) -> void:
 		_compact(items)
 		_compact(features)
 		_compact(buildings)
+	elif str(modal.get("event", "")) == "monolith_appear":
+		_tick_monoliths(delta, false)
 	# Keep bark and anchored pop positions on live thronglets even during gaze teleport.
 	_tick_barks(delta, not frozen)
 	_tick_pops(delta, not frozen)
@@ -4760,10 +4762,10 @@ func _expand_super_island(announce: bool = true) -> void:
 	var first := not part_two
 	# Grow the main island instead of creating a separate island/bridge.
 	land_tier = maxi(land_tier, 3)
-	_shape_island()
+	var added := _shape_island()
 	if first:
 		_enter_part_two("LA ISLA CRECE Y SE ABRE UN NUEVO CAMINO.", true)
-	elif announce:
+	elif announce and added > 0:
 		notes.append("LA ISLA CRECE.")
 
 
@@ -4775,7 +4777,7 @@ func _milestone_defs() -> Array:
 		{"kind": "gem", "n": 20},
 		{"kind": "pop", "n": 30},
 		{"kind": "gem", "n": 100},
-		{"kind": "pop", "n": 80},
+		{"kind": "pop", "n": 40},
 		{"kind": "gem", "n": 500},
 	]
 
@@ -4803,9 +4805,9 @@ func _check_milestones(announce: bool = true) -> void:
 	ProgressionManager.evaluate_unlocks(self, announce)
 	if not grew:
 		return
-	if announce:
+	var added := _shape_island()
+	if announce and added > 0:
 		notes.append("LA ISLA CRECE.")
-	_shape_island()
 
 
 func goal_line() -> String:
@@ -4921,8 +4923,9 @@ func _seed_early_ore(want: int = 12) -> void:
 			continue
 		if not _building_at(wx, wy, 14.0).is_empty():
 			continue
-		_add_feature(Catalog.FEAT_ROCK, wx, wy, 1, 3, true)
-		placed += 1
+		var feat := _add_feature(Catalog.FEAT_ROCK, wx, wy, 1, 3, true)
+		if not feat.is_empty():
+			placed += 1
 
 
 func _ensure_monolith(tier: int) -> void:
@@ -5423,7 +5426,7 @@ func _tick_props(dt: float) -> void:
 					sfx_queue.append("heal")
 
 
-func _tick_monoliths(dt: float) -> void:
+func _tick_monoliths(dt: float, allow_touch: bool = true) -> void:
 	var to_touch: Array = []
 	for feat in features:
 		if feat.dead or int(feat.kind) != Catalog.FEAT_MONOLITH:
@@ -5436,7 +5439,7 @@ func _tick_monoliths(dt: float) -> void:
 		var dur := maxf(0.01, float(feat.spawn_dur))
 		feat.spawn_progress = minf(1.0, float(feat.spawn_progress) + dt / dur)
 		feat.particle_t = maxf(0.0, float(feat.get("particle_t", 0.0)) - dt)
-		if bool(feat.get("triggered", false)):
+		if not allow_touch or bool(feat.get("triggered", false)):
 			continue
 		if float(feat.spawn_progress) < 1.0:
 			continue
@@ -5759,13 +5762,17 @@ func _scatter(cx: int, cy: int, biome: String) -> void:
 
 
 func _island_reach() -> float:
-	return minf(240.0, 170.0 + float(land_tier) * 24.0)
+	if land_tier <= 2:
+		return 170.0 + float(land_tier) * 24.0
+	if land_tier == 3:
+		return 240.0
+	return minf(252.0, 240.0 + float(land_tier - 3) * 4.0)
 
 
-func _shape_island() -> void:
+func _shape_island() -> int:
 	var ck := "0,0"
 	if not chunks.has(ck):
-		return
+		return 0
 	var tiles = chunks[ck].tiles
 	var keep := {}
 	for i in slot_count:
@@ -5795,7 +5802,7 @@ func _shape_island() -> void:
 				tiles[idx] = Catalog.TILE_VOID
 				changed = true
 	if not changed:
-		return
+		return 0
 	tiles = _paint_water(tiles, 0, 0)
 	chunks[ck].tiles = tiles
 	chunks[ck].base = tiles.duplicate()
@@ -5826,6 +5833,7 @@ func _shape_island() -> void:
 			_add_feature(Catalog.FEAT_ROCK, spot.x, spot.y, 1, 0, true)
 	_seed_mine_nodes(0, 0)
 	_mark_dirty(ck)
+	return fresh.size()
 
 
 func _keep_cell(keep: Dictionary, x: float, y: float) -> void:

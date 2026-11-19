@@ -618,8 +618,13 @@ func _hand_press() -> void:
 	var hit: Dictionary = sim.eye_use(at.x, at.y)
 	var kind := str(hit.get("type", ""))
 	if kind == "thronglet":
-		selected = int(hit.id)
-		selected_bld = -1
+		var tid := int(hit.id)
+		if tid >= 0 and tid < sim.slot_count and sim.state[tid] == Catalog.ST_LIVING and (sim.mito_t[tid] > 0.0 or sim.mito_charge[tid] > 0.0):
+			selected = -1
+			selected_bld = -1
+		else:
+			selected = tid
+			selected_bld = -1
 	elif kind == "market":
 		market_open = true
 		selected = -1
@@ -762,6 +767,7 @@ func _sync_world() -> void:
 	var sim: ThrongletSim = ThrongletSimServer
 	if sim.paint_epoch != seen_epoch:
 		seen_epoch = sim.paint_epoch
+		_clear_world_sprite_registry()
 		painted.clear()
 		tilemap.clear()
 		water_cells.clear()
@@ -994,6 +1000,19 @@ func _clear_paths() -> void:
 	path_nodes.clear()
 
 
+func _clear_world_sprite_registry() -> void:
+	for id in _monoliths.keys():
+		var node: Node2D = _monoliths[id]
+		if node != null and is_instance_valid(node):
+			node.queue_free()
+	_monoliths.clear()
+	for id in _building_active_sprites.keys():
+		var node: Sprite2D = _building_active_sprites[id]
+		if node != null and is_instance_valid(node):
+			node.queue_free()
+	_building_active_sprites.clear()
+
+
 func _biome_plate_paths(biome: String) -> PackedStringArray:
 	if biome == "epilogue":
 		return PackedStringArray([
@@ -1153,7 +1172,7 @@ func _sync_actors() -> void:
 				and sim.has_method("_live_guests")
 				and int(sim._live_guests(b)) > 0
 			)
-			if occupied_home and _has_active_structure_sprite(b_kind):
+			if occupied_home and _active_structure_texture(b_kind) != null:
 				_sync_active_building_sprite(int(b.id), b_kind, draw_at, b_scale, b_sort_y)
 			else:
 				_hide_active_building_sprite(int(b.id))
@@ -2161,10 +2180,6 @@ func _active_structure_sprite_path(kind: int) -> String:
 	return ""
 
 
-func _has_active_structure_sprite(kind: int) -> bool:
-	return _active_structure_sprite_path(kind) != ""
-
-
 func _active_structure_texture(kind: int) -> Texture2D:
 	if _active_structure_tex.has(kind):
 		return _active_structure_tex[kind]
@@ -2219,6 +2234,7 @@ func _void_behind_cliff(world_pos: Vector2) -> bool:
 
 
 func _paint_props(draws: Array) -> void:
+	var sim: ThrongletSim = ThrongletSimServer
 	var live: Array = []
 	for id in _monoliths.keys():
 		var node: Node2D = _monoliths[id]
@@ -2230,8 +2246,14 @@ func _paint_props(draws: Array) -> void:
 	for id in _building_active_sprites.keys():
 		var bnode: Sprite2D = _building_active_sprites[id]
 		if bnode == null or not is_instance_valid(bnode):
+			_building_active_sprites.erase(id)
 			continue
 		if not bool(bnode.get_meta("seen", false)):
+			var b = sim.building_by_id.get(id, {})
+			if b.is_empty() or b.dead:
+				bnode.queue_free()
+				_building_active_sprites.erase(id)
+				continue
 			bnode.visible = false
 			continue
 		bnode.set_meta("seen", false)
@@ -2873,7 +2895,9 @@ func _sync_focus(delta: float) -> void:
 		focus_box.visible = false
 		task_panel.visible = false
 		return
-	var talk: bool = not sim.modal.is_empty() and Catalog.GAZE.has(str(sim.modal.event))
+	var event := str(sim.modal.get("event", "")) if not sim.modal.is_empty() else ""
+	var monolith_reveal := event == "monolith_appear"
+	var talk: bool = not sim.modal.is_empty() and Catalog.GAZE.has(event)
 	var egg := _starter_egg()
 	var falling := not egg.is_empty() and float(egg.get("air", 0.0)) > 0.0
 	if falling:
@@ -2882,20 +2906,28 @@ func _sync_focus(delta: float) -> void:
 		focus_hold = maxf(0.0, focus_hold - delta)
 	var show_egg: bool = not talk and not egg.is_empty() and (falling or focus_hold > 0.0)
 	var show: bool = talk or show_egg or sim.tutorial_i >= 0
+	var show_focus_overlay := show and not monolith_reveal
 	if show and not focus_on:
 		focus_on = true
 	if not show and focus_on:
 		focus_on = false
 		focus_hold = 0.0
-	focus_dim.visible = show
-	focus_frame.visible = show
-	focus_box.visible = show
+	focus_dim.visible = show_focus_overlay
+	focus_frame.visible = show_focus_overlay
+	focus_box.visible = show_focus_overlay
 	task_panel.visible = not talk and sim.tutorial_i < 0
-	if show:
+	if show_focus_overlay:
 		focus_port.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	else:
 		focus_port.render_target_update_mode = SubViewport.UPDATE_DISABLED
 	if not show:
+		return
+	if monolith_reveal:
+		var view := get_viewport_rect().size
+		var console_h := maxf(132.0, round(view.y * 0.34))
+		var text := Rect2(Vector2(8.0, view.y - console_h - 4.0), Vector2(view.x - 16.0, console_h))
+		_set_box(gaze_panel, text)
+		_layout_console()
 		return
 	var frame := _focus_frame_rect(talk)
 	_set_box(focus_frame, frame)
