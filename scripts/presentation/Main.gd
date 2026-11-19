@@ -1123,14 +1123,24 @@ func _sync_actors() -> void:
 				if lift > 0.0:
 					_push_iso(egg_front, p2, item_frame, Color.WHITE, lift, item_scale, NAN, item_outline)
 					continue
+			elif int(it.kind) == Catalog.ITEM_APPLE:
+				item_frame = _apple_frame(it)
+				if falling_void:
+					if _void_behind_cliff(world_pos):
+						_push_iso(void_back_draws, p2, item_frame, Color.WHITE, lift, item_scale, NAN, item_outline)
+					else:
+						_push_iso(draws, p2, item_frame, Color.WHITE, lift, item_scale, cam_rig.to_iso(world_pos).y + 120.0, item_outline)
+					continue
+				if lift > 14.0:
+					_push_iso(egg_front, p2, item_frame, Color.WHITE, lift, item_scale, NAN, item_outline)
+					continue
+				_push_iso(draws, p2, item_frame, Color.WHITE, lift, item_scale, NAN, item_outline)
+				continue
 			elif falling_void:
 				if _void_behind_cliff(world_pos):
 					_push_iso(void_back_draws, p2, item_frame, Color.WHITE, lift, item_scale, NAN, item_outline)
 				else:
 					_push_iso(draws, p2, item_frame, Color.WHITE, lift, item_scale, cam_rig.to_iso(world_pos).y + 120.0, item_outline)
-				continue
-			elif int(it.kind) == Catalog.ITEM_APPLE and lift > 14.0:
-				_push_iso(egg_front, p2, item_frame, Color.WHITE, lift, item_scale, NAN, item_outline)
 				continue
 			_push_iso(draws, p2, item_frame, Color.WHITE, lift, item_scale, NAN, item_outline)
 	for b in sim.buildings:
@@ -1200,13 +1210,16 @@ func _sync_actors() -> void:
 	var free_at := cam_rig.pointer_world()
 	var hand: Dictionary = sim.hand_item()
 	if not hand.is_empty():
+		var hand_frame := _prop_frame(Catalog.icon_for_item(int(hand.kind)))
+		if int(hand.kind) == Catalog.ITEM_APPLE:
+			hand_frame = _apple_frame(hand)
 		if _drop_on_island():
 			var hand_at := grid_at if Catalog.item_snaps_grid(int(hand.kind)) else free_at
-			_push_iso(draws, _item_draw_at(int(hand.kind), hand_at), _prop_frame(Catalog.icon_for_item(int(hand.kind))), Color(1, 1, 1, 0.9), 10.0, Catalog.item_sprite_scale(int(hand.kind)))
+			_push_iso(draws, _item_draw_at(int(hand.kind), hand_at), hand_frame, Color(1, 1, 1, 0.9), 10.0, Catalog.item_sprite_scale(int(hand.kind)))
 		else:
 			draws.append({
 				"p": get_global_mouse_position(),
-				"icon": _prop_frame(Catalog.icon_for_item(int(hand.kind))),
+				"icon": hand_frame,
 				"tint": Color.WHITE,
 				"scale": Catalog.item_sprite_scale(int(hand.kind)),
 			})
@@ -1215,7 +1228,10 @@ func _sync_actors() -> void:
 			var scooped = sim.item_by_id.get(int(raw), {})
 			if scooped.is_empty() or scooped.dead:
 				continue
-			_push_iso(draws, _item_draw_at(int(scooped.kind), Vector2(float(scooped.x), float(scooped.y))), _prop_frame(Catalog.icon_for_item(int(scooped.kind))), Color(1, 1, 1, 0.92), 12.0, Catalog.item_sprite_scale(int(scooped.kind)))
+			var scooped_frame := _prop_frame(Catalog.icon_for_item(int(scooped.kind)))
+			if int(scooped.kind) == Catalog.ITEM_APPLE:
+				scooped_frame = _apple_frame(scooped)
+			_push_iso(draws, _item_draw_at(int(scooped.kind), Vector2(float(scooped.x), float(scooped.y))), scooped_frame, Color(1, 1, 1, 0.92), 12.0, Catalog.item_sprite_scale(int(scooped.kind)))
 	if sim.held_kind == "rock":
 		var rock = sim.feature_by_id.get(sim.held_ref, {})
 		if not rock.is_empty():
@@ -1608,6 +1624,23 @@ func _pop_frame(icon: int) -> int:
 	if icon >= ThrongClips.BASE:
 		return icon
 	return _prop_frame(icon)
+
+
+const APPLE_BITE_1_FRAME := 92
+const APPLE_BITE_2_FRAME := 93
+const APPLE_BITE_3_FRAME := 94
+
+
+func _apple_frame(it: Dictionary) -> int:
+	match int(it.get("bites_left", 3)):
+		2:
+			return APPLE_BITE_1_FRAME
+		1:
+			return APPLE_BITE_2_FRAME
+		0:
+			return APPLE_BITE_3_FRAME
+		_:
+			return _prop_frame(Catalog.ICON_APPLE)
 
 
 func _egg_frame(it: Dictionary) -> int:
@@ -3073,8 +3106,14 @@ func _focus_draws() -> Array:
 			if lift > 0.0:
 				_push_iso(egg_front, p2, item_frame, Color.WHITE, lift, item_scale)
 				continue
-		elif int(it.kind) == Catalog.ITEM_APPLE and lift > 14.0:
-			_push_iso(egg_front, p2, item_frame, Color.WHITE, lift, item_scale)
+			_push_iso(draws, p2, item_frame, Color.WHITE, lift, item_scale)
+			continue
+		elif int(it.kind) == Catalog.ITEM_APPLE:
+			item_frame = _apple_frame(it)
+			if lift > 14.0:
+				_push_iso(egg_front, p2, item_frame, Color.WHITE, lift, item_scale)
+				continue
+			_push_iso(draws, p2, item_frame, Color.WHITE, lift, item_scale)
 			continue
 		_push_iso(draws, p2, item_frame, Color.WHITE, lift, item_scale)
 	for b in sim.buildings:

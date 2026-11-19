@@ -440,9 +440,9 @@ static func _apply_in(id: String, key: String) -> String:
 		"act:eat":
 			match key:
 				"bite":
-					return "ThrongletSimServer._seek_food: apple.bite threshold before fed fill."
+					return "ThrongletSimServer._seek_food: per-bite progress threshold before a bite is consumed."
 				"fed":
-					return "ThrongletSimServer._seek_food: fed[i] = value after bite."
+					return "ThrongletSimServer._seek_food: fed[i] = value after each apple bite (3 bites per apple)."
 		"act:bath":
 			match key:
 				"clean":

@@ -23,6 +23,11 @@ var round_hold := 0
 var board: SubViewport
 var video_saved := false
 var title_saved := false
+var apple_phase := 0
+var apple_a := -1
+var apple_b := -1
+var apple_id := -1
+var apple_wait := 0
 
 
 func setup(p_main: Node2D) -> void:
@@ -39,6 +44,9 @@ func tick_shot() -> void:
 		return
 	if sim.shot_carry:
 		_tick_shot_carry()
+		return
+	if sim.shot_apple:
+		_tick_shot_apple()
 		return
 	if board == null:
 		if sim.shot_throng >= 0:
@@ -514,6 +522,158 @@ func _tick_shot_fx() -> void:
 	done = true
 	main.get_tree().quit(0)
 
+
+
+func _apple_item() -> Dictionary:
+	for it in sim.items:
+		if not it.dead and int(it.kind) == Catalog.ITEM_APPLE:
+			return it
+	return {}
+
+
+func _tick_shot_apple() -> void:
+	if main.ui != null:
+		main.ui.visible = false
+	main.kit_open = false
+	if main.has_method("_set_kit_shown"):
+		main._set_kit_shown(false)
+	elif "kit_panel" in main and main.kit_panel != null:
+		main.kit_panel.visible = false
+	if "task_panel" in main and main.task_panel != null:
+		main.task_panel.visible = false
+	if "console" in main and main.console != null:
+		main.console.visible = false
+	main.crt_on = false
+	if main.has_method("_apply_crt"):
+		main._apply_crt()
+	sim.frozen = false
+	sim.paused = false
+	sim.smoke_hold = false
+	main.cam_rig.set_zoom(5.5)
+	main.camera.position = main.cam_rig.to_iso(sim.shot_focus)
+
+	if apple_phase == 0:
+		# find actors once
+		for it in sim.items:
+			if not it.dead and int(it.kind) == Catalog.ITEM_APPLE:
+				apple_id = int(it.id)
+				break
+		var ids: Array = []
+		for i in sim.slot_count:
+			if sim.state[i] == Catalog.ST_LIVING:
+				ids.append(i)
+		if ids.size() >= 2:
+			# A is hungrier/closer initially
+			if sim.fed[int(ids[0])] <= sim.fed[int(ids[1])]:
+				apple_a = int(ids[0]); apple_b = int(ids[1])
+			else:
+				apple_a = int(ids[1]); apple_b = int(ids[0])
+		frames += 1
+		if frames < 12:
+			return
+		apple_phase = 1
+		frames = 0
+		apple_wait = 0
+		if not save_shot(main.get_viewport(), "res://shots/apple_bites_01_full.png"):
+			main.get_tree().quit(1)
+			return
+		return
+
+	if apple_phase == 1:
+		# wait for A to eat first bite
+		apple_wait += 1
+		var apple := _apple_item()
+		var bites := int(apple.get("bites_left", 3)) if not apple.is_empty() else -1
+		# capture mid-bite: sprite should already show the bite being taken
+		if bites == 3 and not apple.is_empty() and float(apple.get("bite", 0.0)) > 0.15 and frames == 0:
+			frames = 1
+			if not save_shot(main.get_viewport(), "res://shots/apple_bites_01b_biting.png"):
+				main.get_tree().quit(1)
+				return
+		if bites == 2 and apple_a >= 0 and sim.fed[apple_a] >= 95.0:
+			if frames <= 1:
+				frames = 2
+			frames += 1
+			if frames < 22:
+				return
+			apple_phase = 2
+			frames = 0
+			apple_wait = 0
+			# prepare B to eat remaining bites
+			if apple_b >= 0:
+				sim.fed[apple_b] = 15.0
+				sim.hungry_t[apple_b] = 6.0
+				sim.amused[apple_b] = 90.0
+				sim.clean[apple_b] = 90.0
+				# bring B close so it reaches the apple reliably
+				if not apple.is_empty():
+					sim.pos_x[apple_b] = float(apple.x) + 18.0
+					sim.pos_y[apple_b] = float(apple.y) + 4.0
+			if not save_shot(main.get_viewport(), "res://shots/apple_bites_02_after_first.png"):
+				main.get_tree().quit(1)
+				return
+			return
+		if apple_wait > 1200:
+			print("SHOT APPLE TIMEOUT phase1 bites=%s fedA=%s" % [bites, sim.fed[apple_a] if apple_a >= 0 else -1])
+			save_shot(main.get_viewport(), "res://shots/apple_bites_timeout_1.png")
+			main.get_tree().quit(1)
+			return
+		return
+
+	if apple_phase == 2:
+		# B eats second bite
+		apple_wait += 1
+		var apple := _apple_item()
+		var bites := int(apple.get("bites_left", 3)) if not apple.is_empty() else -1
+		if bites == 1:
+			frames += 1
+			if frames < 20:
+				return
+			apple_phase = 3
+			frames = 0
+			apple_wait = 0
+			# B is full after second bite; make B hungry again so it can finish the apple
+			if apple_b >= 0:
+				sim.fed[apple_b] = 15.0
+				sim.hungry_t[apple_b] = 6.0
+				sim.amused[apple_b] = 90.0
+				sim.clean[apple_b] = 90.0
+				if not apple.is_empty():
+					sim.pos_x[apple_b] = float(apple.x) + 14.0
+					sim.pos_y[apple_b] = float(apple.y) + 2.0
+			if not save_shot(main.get_viewport(), "res://shots/apple_bites_03_after_second.png"):
+				main.get_tree().quit(1)
+				return
+			return
+		if apple_wait > 1200:
+			print("SHOT APPLE TIMEOUT phase2 bites=%s fedB=%s" % [bites, sim.fed[apple_b] if apple_b >= 0 else -1])
+			save_shot(main.get_viewport(), "res://shots/apple_bites_timeout_2.png")
+			main.get_tree().quit(1)
+			return
+		return
+
+	if apple_phase == 3:
+		# B eats third bite, apple should be gone
+		apple_wait += 1
+		var apple := _apple_item()
+		var gone := apple.is_empty()
+		if gone:
+			frames += 1
+			if frames < 20:
+				return
+			if not save_shot(main.get_viewport(), "res://shots/apple_bites_04_finished.png"):
+				main.get_tree().quit(1)
+				return
+			done = true
+			print("SHOT APPLE DONE")
+			main.get_tree().quit(0)
+			return
+		if apple_wait > 1200:
+			print("SHOT APPLE TIMEOUT phase3 gone=%s" % gone)
+			save_shot(main.get_viewport(), "res://shots/apple_bites_timeout_3.png")
+			main.get_tree().quit(1)
+			return
+		return
 
 func save_shot(source: Viewport, path: String) -> bool:
 	var image := source.get_texture().get_image()
