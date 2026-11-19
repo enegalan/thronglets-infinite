@@ -252,6 +252,7 @@ var biome_plates: Array[Sprite2D] = []
 
 
 func _ready() -> void:
+	AnimTune.load_saved()
 	EffectTune.load_saved()
 	ui_assets = UIAssets.new()
 	_build_sky()
@@ -1252,7 +1253,7 @@ func _sync_actors() -> void:
 			_push_iso(draws, _item_draw_at(int(hand.kind), hand_at), hand_frame, Color(1, 1, 1, 0.9), 10.0, hand_scale, NAN, Color.TRANSPARENT, hand_off, hand_rot)
 		else:
 			var hand_draw := {
-				"p": get_global_mouse_position() + hand_off,
+				"p": get_global_mouse_position() + (cam_rig.to_iso(hand_off) - cam_rig.to_iso(Vector2.ZERO)),
 				"icon": hand_frame,
 				"tint": Color.WHITE,
 				"scale": hand_scale,
@@ -1349,7 +1350,7 @@ func _sync_actors() -> void:
 					drag_scale = Catalog.building_sprite_scale(int(kit_drag.id))
 				if drag_frame >= 0:
 					var drag_draw := {
-						"p": get_global_mouse_position() + drag_off,
+						"p": get_global_mouse_position() + (cam_rig.to_iso(drag_off) - cam_rig.to_iso(Vector2.ZERO)),
 						"icon": drag_frame,
 						"tint": ghost,
 						"scale": drag_scale,
@@ -1473,7 +1474,7 @@ func _sync_actors() -> void:
 		if hand_frame >= 0:
 			var hand_off_h := AnimTune.frame_offset("hand", hand_idx_h)
 			draws.append({
-				"p": get_global_mouse_position() + Vector2(10, 6) + hand_off_h,
+				"p": get_global_mouse_position() + Vector2(10, 6) + (cam_rig.to_iso(hand_off_h) - cam_rig.to_iso(Vector2.ZERO)),
 				"sy": 1000001.0,
 				"icon": hand_frame,
 				"tint": Color.WHITE,
@@ -3321,12 +3322,14 @@ func _tab_ready(tab: Dictionary) -> bool:
 		var entry := _tool_entry(int(id))
 		if not entry.is_empty():
 			var ukey := str(entry.get("unlock", ""))
-			if bool(sim.unlocks.get(ukey, false)) and not ProgressionManager.replaced_by_unlocked(sim, ukey):
+			if ukey == "" or (bool(sim.unlocks.get(ukey, false)) and not ProgressionManager.replaced_by_unlocked(sim, ukey)):
 				return true
 	for id in tab.builds:
 		var info: Dictionary = Catalog.BUILD_INFO.get(int(id), {})
-		if not info.is_empty() and bool(sim.unlocks.get(str(info.unlock), false)):
-			return true
+		if not info.is_empty():
+			var bkey := str(info.get("unlock", ""))
+			if bkey == "" or bool(sim.unlocks.get(bkey, false)):
+				return true
 	return false
 
 
@@ -3458,13 +3461,16 @@ func _rebuild_bars() -> void:
 		if entry.is_empty():
 			continue
 		var ukey := str(entry.get("unlock", ""))
-		if not bool(sim.unlocks.get(ukey, false)) or ProgressionManager.replaced_by_unlocked(sim, ukey):
+		if not (ukey == "" or (bool(sim.unlocks.get(ukey, false)) and not ProgressionManager.replaced_by_unlocked(sim, ukey))):
 			continue
 		pending.append({"kind": "tool", "id": int(entry.tool), "icon": int(entry.icon)})
 		count += 1
 	for id in page.builds:
 		var info: Dictionary = Catalog.BUILD_INFO.get(int(id), {})
-		if info.is_empty() or not bool(sim.unlocks.get(str(info.unlock), false)):
+		if info.is_empty():
+			continue
+		var bkey := str(info.get("unlock", ""))
+		if not (bkey == "" or bool(sim.unlocks.get(bkey, false))):
 			continue
 		var build_id := int(id)
 		if build_id == Catalog.BLD_MARKET and sim.has_building_kind(Catalog.BLD_MARKET):
@@ -3685,10 +3691,12 @@ func _hotkey(code: int) -> void:
 	]
 	var tools: Array = []
 	for entry in Catalog.TOOL_INFO:
-		if int(entry.tool) == Catalog.TOOL_EYE:
+		var tid := int(entry.tool)
+		if tid == Catalog.TOOL_EYE:
 			continue
-		if bool(ThrongletSimServer.unlocks.get(str(entry.get("unlock", "")), false)):
-			tools.append(int(entry.tool))
+		var ukey := str(entry.get("unlock", ""))
+		if ukey == "" or (bool(ThrongletSimServer.unlocks.get(ukey, false)) and not ProgressionManager.replaced_by_unlocked(ThrongletSimServer, ukey)):
+			tools.append(tid)
 	for i in order.size():
 		if code == order[i] and i < tools.size():
 			media.play("ui")
