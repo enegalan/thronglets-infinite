@@ -2420,7 +2420,10 @@ func _paint_anim(draws: Array, origin: Vector2, alpha: float) -> void:
 	var index := _shown_index()
 	var off: Vector2 = AnimTune.frame_offset(key, index)
 	var frame := _box().x + index
-	main._push_iso(draws, origin + off, frame, Color(1, 1, 1, alpha), 0.0, AnimTune.frame_scale(key, index))
+	var scale := AnimTune.frame_scale(key, index)
+	if key == "round":
+		scale = Catalog.building_sprite_scale(Catalog.BLD_ROUND) * scale
+	main._push_iso(draws, origin + off, frame, Color(1, 1, 1, alpha), 0.0, scale)
 	draws[draws.size() - 1]["rot"] = AnimTune.frame_rot(key, index)
 	if mirror:
 		draws[draws.size() - 1]["flip"] = -1.0
