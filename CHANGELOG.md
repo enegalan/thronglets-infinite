@@ -11,6 +11,7 @@
 - Island expansions are larger: early land-tier growth is doubled and later tiers expand to the chunk edge.
 - Kit tab icons have been updated.
 - Kit buildings now show their price with the correspondent icon.
+- Removed remaining bridge remnants: bridge dialogues/trees and related lines, bridge audio and art/sprite assets, and leftover bridge code, probes, spec text, catalog/gaze references, and reference assets.
 
 ### 2026-11-18
 

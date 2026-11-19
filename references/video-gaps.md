@@ -113,7 +113,6 @@ Frames taken at the moments that the two passes above did not land on.
 | 14:34 | [t014-34.jpg](video-frames/t014-34.jpg) | unlock card `AXE`                                 |
 | 37:33 | [t037-33.jpg](video-frames/t037-33.jpg) | market: `Pickaxe`, `Mine`                         |
 | 39:14 | [t039-14.jpg](video-frames/t039-14.jpg) | market: `Mine`, `Dwelling`                        |
-| 43:24 | [t043-24.jpg](video-frames/t043-24.jpg) | the `i` panel: `Mines`, `New Tools`, `Bridges`, `Why?` |
 | 43:31 | [t043-31.jpg](video-frames/t043-31.jpg) | market: `Dwelling`, `Factory`                     |
 | 49:36 | [t049-36.jpg](video-frames/t049-36.jpg) | market: `Chainsaw`, `Theatre`                     |
 | 50:59 | [t050-59.jpg](video-frames/t050-59.jpg) | market: `Theatre`, `Factory Mark II`              |
@@ -136,8 +135,6 @@ Frames taken at the moments that the two passes above did not land on.
 
 ## Gestures, mailbox, and unlocks
 
-- 11:00 ([screenshot](video-frames/t011-00.jpg)) and 17:00 ([screenshot](video-frames/t017-00.jpg)). The hammer drags a white arc and the target (a rock) gets a green box. At 17:00 the banner is `BUILD A BRIDGE` and, over a group, there is a black line of code: `>> data == ♥ makes ♥`.
-- 20:00 ([screenshot](video-frames/t020-00.jpg)). Parchment card. The top reads `unlocked BUG`. Inside, a picture of a color glitch, `this gift from creator`, `help bridge faster`, and a `&&continue` button.
 - 35:00 ([screenshot](video-frames/t035-00.jpg)). A red British mailbox on the grass. The console shows, as drawings, a ball, an apple, and a thronglet, and writes that ore is processed to make energy. A blue button with an `i` floats on the right.
 - 37:00 ([screenshot](video-frames/t037-00.jpg)). The banner is `CRACK ROCKS & COLLECT GEMS`. Next to the counter there is a `New item!`. The mailbox is still on the ground. The hammer still has the white arc over a rock.
 - 59:00 ([screenshot](video-frames/t059-00.jpg)). The unlock card, titled `New Item!`: `You've unlocked THEATRE!`, the masks, `Entertains Thronglets & applies a speed buff`, and `Continue`. Here an unlock does not open that card.
@@ -191,26 +188,18 @@ The same walkthrough, read at the other half of every minute. It fills the gaps 
 - 11:30 ([screenshot](video-frames/t011-30.jpg)). The console is open over the wood frame and reads `ERROR 0B INVALID FORMAT`.
 - 12:30 ([screenshot](video-frames/t012-30.jpg)). Banner `FIND THE GIFT`, counter 30, four roundabouts, and a speech bubble over a thronglet: `hard to ...`
 - 13:30 ([screenshot](video-frames/t013-30.jpg)). The console writes lines, not code: `can you 👀` / `how strange && how beautiful ♥` / `it is a newness` / `it is all knot up,,,` / `new possibility`. This is the line of code the first pass read at 17:00.
-- 14:30 ([screenshot](video-frames/t014-30.jpg)). Two windows at once. The main one: `on query "build bridge"` / `we find item` / `/*AXE - combine with trees for lumber*/` / `we uncover?`. The other is titled `System`: `Yeah! Give me an axe!` and `We can build a bridge out of lumber, sure.`
 - 15:30 ([screenshot](video-frames/t015-30.jpg)). A sign: `They will remember your lack of care`. Stumps and cut logs everywhere.
 - 16:30 ([screenshot](video-frames/t016-30.jpg)). The console asks `input "Y know, like: look after, support."` and shows `we have □ == ♥`, `♥??`, `input "Heart usually means 'love'."`, `what is == love??`. The `System` window answers `Love lifts us up where we belong!` and `It's... really hard to explain.`
-- 17:30 ([screenshot](video-frames/t017-30.jpg)). Banner `BUILD A BRIDGE`, counter 64.
 - 18:30 ([screenshot](video-frames/t018-30.jpg)). Counter 90, the axe in hand, and the reach mark on a tree: a white arc and a green outline around the trunk.
 - 19:30 ([screenshot](video-frames/t019-30.jpg)). The banner changes to `TOUCH THE MONOLITH`, counter 106. A gray block is struck by the axe and throws white sparks.
 - 20:30 ([screenshot](video-frames/t020-30.jpg)). The console asks `input "What if it was hidden for a reason?"` over the wood frame, and a pink glow leaks at the bottom edge of the screen.
 
-### 21:30–32:30 — the bridge, the glitch and the first report
 
-- 21:30 ([screenshot](video-frames/t021-30.jpg)). `input "The bug ATE the Thronglet??"` / `use 💀 for bridge` / `input "Build the bridge out of your bones?!"` / `we learn from TapGameplay` / `must under`.
-- 22:30 ([screenshot](video-frames/t022-30.jpg)). The axe on the gray monolith, with the green box and the white arc. Banner still `BUILD A BRIDGE`, counter 158. A music-note icon floats at the right edge of the screen.
 - 23:30 ([screenshot](video-frames/t023-30.jpg)). Counter 185, the axe on a tree, an apple orchard.
-- 24:30 ([screenshot](video-frames/t024-30.jpg)). Counter 197 and the whole island in one view. Two speech bubbles carry music notes and `... be best`. The white glitch tower stands at the top right, and a wooden bridge is already built in that corner.
 - 25:30 ([screenshot](video-frames/t025-30.jpg)). Counter 204; a grid of tubs; the pink glitch at the top right.
-- 26:30 ([screenshot](video-frames/t026-30.jpg)). Counter 251; the island ends at a void and the wooden bridge crosses it to the glitch.
 - 27:30 ([screenshot](video-frames/t027-30.jpg)). Counter 295; the axe on a stump.
 - 28:30 ([screenshot](video-frames/t028-30.jpg)). Counter 321; the axe on a tree with the arc, an apple orchard.
 - 29:30 ([screenshot](video-frames/t029-30.jpg)). Counter 335 and a field of tubs.
-- 30:30 ([screenshot](video-frames/t030-30.jpg)). The wood frame around the glitch; the colorful burst at the end of the bridge.
 - 31:30 ([screenshot](video-frames/t031-30.jpg)). `NEW DATA DECRYPTED` appears here, and it is not the ending. A panel of judgements (`TapGameplay: Destroyed the majority of Throngletville's native trees.`, `Killed over 50 Thronglets.`, `Allowed Thronglets to starve to death.`, `Seemed to enjoy trapping Thronglets and watching them be frightened.`) and a column with `VOL 7`, `EFF 2`, `CAR 22`, `INQ 4`, `PRO -3`, `CRE 10`, over a `Continue` button. The report at 96:00 is the same screen with other numbers.
 - 32:30 ([screenshot](video-frames/t032-30.jpg)). The console, over the frame and the glitch: `it is starting` / `we will process this new dat`.
 
@@ -241,7 +230,6 @@ The same walkthrough, read at the other half of every minute. It fills the gaps 
 - 52:30 ([screenshot](video-frames/t052-30.jpg)). `We move through the tunnel where the first bones were discovered, and find a strange artefact. It shifts and ripples like water, thou`
 - 53:30 ([screenshot](video-frames/t053-30.jpg)). The world is black and only the console is lit: `flickering in and out of existence so rapidly we appear ghost-like. We suddenly know we must tell them something, but it wi` The dark stretch the first pass only suspected.
 - 54:30 ([screenshot](video-frames/t054-30.jpg)). Gems 487, counter 158; a blue glow on the ground.
-- 55:30 ([screenshot](video-frames/t055-30.jpg)). A stone bridge over the void with a green arrow and a progress bar; a floppy-disk save icon at the top right, next to the menu.
 - 56:30 ([screenshot](video-frames/t056-30.jpg)). Gems 543; a pile of colored crystals in a patch of dirt, a `+10` badge and a green bar. This cycle pays ten.
 - 57:30 ([screenshot](video-frames/t057-30.jpg)). Gems 333, counter 270; a wide view of the town, and a red X over one of the build buttons.
 - 58:30 ([screenshot](video-frames/t058-30.jpg)). Gems 551; a row of red houses, each with a `FULL` bar over its chimney.
@@ -403,7 +391,6 @@ The share button, the Netflix account, the recorder's label, this playthrough's 
 - [ ] **Priority-based Animation FSM (`ThrongletAnimator`)**: separate entity logic state from sprite frame playback with a 4-tier interrupt hierarchy (`1: Base/Needs` -> `2: Direct Interaction` -> `3: Critical/One-shot` -> `4: Cutscene Override`), supporting both looping (`idle`, `walk`, `walk_homed`, `sing`) and one-shot (`eat`, `mitosis`, `egg_hatch`, `deflesh`) cycles with `onComplete` callbacks.
 - [ ] **Cutscene Director (`CutsceneDirector`)**: global controller referencing `references/Assets/ScriptableObjectGroup/` timelines (`ThrongletTalkTimeline.json`, `ThrongletEmergeTimeline.json`, `SEQ_1.json`–`SEQ_8.json`) that pauses autonomous AI (`aiPaused = true`) for scripted events:
   - [ ] `triggerDialogueStare()`: freezes all living thronglets and switches them to `ThrongA_Talk_*` / `ThrongA_LooktAtPlayerHappyNod_*` / `ThrongA_DeepThought_*` (with a 0–300 ms stagger) whenever a console dialogue/choice opens.
-  - [ ] `triggerGathering(x, y, radius)`: moves a group into a circle around a target (bridge construction, monolith, new structure) and plays synchronized `Throng_Sing_Spritesheet_*` (`A`–`E` variants) or `Char_ThrongA_LiftProp_*` animations upon arrival.
   - [ ] `triggerCelebration()`: triggers `ThrongA_Celebrate_Spritesheet_*` jumps across the swarm on milestone/unlock cards.
 - [ ] **Spatial & local event reactions**:
   - [ ] Proximity `Char_ThrongA_PanicRun_*` / `Char_ThrongA_FreakOut_*` / `ThrongA_ReactToKill_*` burst when a thronglet dies nearby or destructive tools (`HAMMER`, `AXE`, `CHAINSAW`) strike within range.
@@ -412,7 +399,6 @@ The share button, the Netflix account, the recorder's label, this playthrough's 
 
 ### World and tools
 
-- [ ] Task banners from the playthrough: `GROW THRONGLET NUMBERS`, `BUILD A BRIDGE`, `CRACK ROCKS & COLLECT GEMS`, `SPEND GEMS; GROW THRONG`, `UPGRADE STRUCTURES`, and also `CARE FOR THEM`, `FIND THE GIFT`, `TOUCH THE MONOLITH`, `WIPE THE SLATE CLEAN`, `USE TOOLS ON THE UPLINK`. We already have task banner frame, but we need to work on the task names. (capturas: [7:00](video-frames/t007-00.jpg), [17:00](video-frames/t017-00.jpg), [37:00](video-frames/t037-00.jpg), [40:00](video-frames/t040-00.jpg), [81:00](video-frames/t081-00.jpg), [92:00](video-frames/t092-00.jpg), [4:30](video-frames/t004-30.jpg), [12:30](video-frames/t012-30.jpg), [19:30](video-frames/t019-30.jpg), [92:30](video-frames/t092-30.jpg), [100:30](video-frames/t100-30.jpg))
 - [ ] Fix Energy frame, it is positioned right behind the tasks frame, in a buggy way.
 - [ ] Pointing hand of the tutorial: a big white hand (`UI_Tutorial_HandPointA.json`, `UI_Tutorial_HandPointB.json`, `UI_Tutorial_HandTouch.json`, `UI_Tutorial_TouchRings_1..2.json` in `sactx-0-128x128-ASTC 4x4-Sprites-UITutorial-d57718eb.png`) that points at the thronglet and asks for the first click. (capturas: [3:30](video-frames/t003-30.jpg))
   - [ ] Adding to this, I would make changes related to what is given to the user initially. Right now we are giving him apple, sponge and ball. We should give first an apple (triggers `ThrongA_Eat_001..002` + `Prop_Apple_Bite_1..3` -> `ThrongA_Celebrate_Spritesheet_*`), then the ball (triggers `ThrongA_Jump_VariantA_*` -> `celebrate`), then sponge (triggers `FX_CleanSparkles_Spritesheet` / `FX_SoapBubbles_Spritesheet` -> `ThrongA_Mitosis_*` / sign progression). Confirm exact sequence against `SEQ_1.json`–`SEQ_8.json`.
@@ -448,7 +434,6 @@ The share button, the Netflix account, the recorder's label, this playthrough's 
   | 2 | 9:30  | `ROUNDABOUT`     | `Thronglets can be entertained en masse`       | centered, same layout                                |
   | 3 | 10:26 | `HAMMER`         | `Use it to remove unwanted structures`         | centered, same layout                                |
   | 4 | 14:34 | `AXE`            | `Chops trees and other materials`              | centered, same layout                                |
-  | 5 | 20:00 | `BUG`            | `this gift from creator == help bridge faster` | scrolling in from the top, button reads `&&continue` |
   | 6 | 59:00 | `THEATRE`        | `Entertains Thronglets & applies a speed buff` | centered, picture of the two masks                   |
   | 7 | 59:46 | `FLOWER`         | `It's pretty, it looks pretty`                 | centered, picture of the flower                      |
   | 8 | 60:21 | `MOP`            | `It cleans, but over a radius`                 | centered, picture of the mop                         |
@@ -483,7 +468,6 @@ The share button, the Netflix account, the recorder's label, this playthrough's 
   - [x] The order of the market is known. (capturas: [37:33](video-frames/t037-33.jpg), [39:14](video-frames/t039-14.jpg), [43:31](video-frames/t043-31.jpg), [46:00](video-frames/t046-00.jpg), [49:36](video-frames/t049-36.jpg), [50:59](video-frames/t050-59.jpg), [67:25](video-frames/t067-25.jpg), [74:41](video-frames/t074-41.jpg), [93:44](video-frames/t093-44.jpg))
     - [ ] `Theatre` is the only entry that is also given by an unlock card. The rest is either sold (the buildings and the tools) or given (the gifts).
     - [ ] The `+5000` of the pile capture is the price of `Factory Mark II`, not the prize of a cycle. (capturas: [50:59](video-frames/t050-59.jpg))
-- [ ] The blue `i` button opens a panel with four wood buttons: `Mines`, `New Tools`, `Bridges`, `Why?`. (capturas: [43:24](video-frames/t043-24.jpg))
 - [ ] Console that shows the objects as drawings (ball, apple, thronglet...etc) for some scene animations. (capturas: [35:00](video-frames/t035-00.jpg), [39:30](video-frames/t039-30.jpg))
   - [ ] We need to define which animations will need these and define each animation making it coherent with the game history.
 
@@ -579,8 +563,6 @@ In the base game, items unlock sequentially through **population thresholds**, *
 | **5** | `apple_tree` | Apple Tree | Building | Population $\ge 10$ | Periodically spawns apples on nearby ground. |
 | **6** | `roundabout` | Roundabout | Building | Population $\ge 15$ | Entertains multiple Thronglets simultaneously. |
 | **7** | `hammer` | Hammer | Tool | Population $\ge 20$ | Breaks basic rocks/stumps and demolishes buildings (`radius: 0`). |
-| **8** | `axe` | Axe | Tool | Exploration milestone / Population $\ge 25$ | Chops trees to obtain **logs** (bridge material). |
-| **9** | `the_bug` | The Bug | Tool | Event / ethical decision | Defleshes Thronglets to obtain **bones** (alternative bridge material). |
 
 #### Phase 2: Industrial era and automation
 
@@ -631,8 +613,6 @@ Upgraded tools are expected to replace their previous version in the action bar 
 
 #### 3.4. Expansion materials and map pressure
 
-Expansion in an infinite map context relies on obstacle clearing and bridge building:
-- **Logs** from `axe`/`chainsaw` and **bones** from `the_bug`/`swarm` as alternative bridge materials.
 - **Rock/vein clearing** with `pickaxe` to open space and resources.
 
 #### 3.5. Core friction and moral trade-off (identity preserved)

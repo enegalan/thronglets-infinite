@@ -38,7 +38,6 @@
 		"singletonassets/ch01": { "m_Collection": "globalgamemanagers", "m_PathID": 1466 },
 		"singletonassets/ch01_s03_helloworld": { "m_Collection": "globalgamemanagers", "m_PathID": 1467 },
 		"singletonassets/ch01_s04_abyssdilemma": { "m_Collection": "globalgamemanagers", "m_PathID": 1468 },
-		"singletonassets/ch01_s05_buildingthebridge": { "m_Collection": "globalgamemanagers", "m_PathID": 1469 },
 		"singletonassets/ch01_s06_themonolith": { "m_Collection": "globalgamemanagers", "m_PathID": 1470 },
 		"singletonassets/ch02": { "m_Collection": "globalgamemanagers", "m_PathID": 1471 },
 		"singletonassets/ch02_bonusscenes": { "m_Collection": "globalgamemanagers", "m_PathID": 1472 },
