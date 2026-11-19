@@ -371,11 +371,6 @@ def draw_icon(img, ox, oy, index):
         box(4, 6, 3, 7, RED)
         box(9, 6, 3, 7, RED)
         box(7, 8, 2, 5, GOLD)
-    elif index == 21:  # cannon
-        box(3, 10, 10, 3, GYD)
-        box(4, 6, 8, 3, GY)
-        box(8, 3, 3, 4, GY)
-        p(10, 3, GOLD)
     elif index == 22:  # market
         box(2, 5, 12, 3, RED)
         box(3, 8, 10, 5, CREAM)
@@ -618,11 +613,7 @@ def make_terrain():
     mountain = _tex("TEMP_Mountain_Bright.png")
     rubble = _tex("TEMP_Mountain_Darker.png")
     goo = _tex("T_PollutedTile_GroundVariant.png")
-    # Bridge_*_Iso_A are full segment sprites, not terrain diamonds.
-    # Sample their material into the same iso tile shape as grass/dirt.
-    wood = _opaque_fill(_tex("Bridge_Wood_Iso_A.png"))
-    bone = _opaque_fill(_tex("Bridge_Bones_Iso_A.png"))
-    tiles = (grass, dirt, water, mountain, rubble, goo, wood, bone, None, grass_dark, ground_a, ground_b)
+    tiles = (grass, dirt, water, mountain, rubble, goo, None, None, None, grass_dark, ground_a, ground_b)
     img = new(32 * len(tiles), 32)
     for i, src in enumerate(tiles):
         if src is None:
@@ -633,8 +624,6 @@ def make_terrain():
             light = tuple(min(255, int(channel * 1.3)) for channel in mid[:3]) + (255,)
             dark = tuple(int(channel * 0.55) for channel in mid[:3]) + (255,)
             _peak(img, i * 32, light, dark)
-        elif i == 6:
-            _plank_seams(img, i * 32)
     extra = _river_tiles() + _wasteland_tiles()
     wide = new(32 * (len(tiles) + len(extra)), 32)
     wide.alpha_composite(img, (0, 0))
@@ -1007,7 +996,6 @@ def _world_sprites():
     factory = _px(_ref("factory.png"))
     factory2 = _px(_ref("factory2.png"))
     theatre = _px(_ref("theatre.png"))
-    cannon = _px(_ref("cannon.png"))
     market = _px(_ref("market.png"))
     monolith = _px(_ref("monolith.png"))
     statue = _px(_ref("statue.png"))
@@ -1024,15 +1012,13 @@ def _world_sprites():
     curer = _px(_ref("curer.png"))
     jack = _px(_ref("jack.png"))
     superbug = _px(_ref("superbug.png"))
-    theatre2 = _px(_ref("theatre2.png"))
-    maw = _px(_ref("maw.png"))
     mstump = _px(_ref("mstump.png"))
     mnode = _px(_ref("mnode.png"))
     sprites = (
         tree, rock, ore, node, super_gem, apple, tub, merry, dwell, fancy,
-        mine, mine2, factory, factory2, theatre, cannon, market, monolith, statue, goo,
+        mine, mine2, factory, factory2, theatre, market, monolith, statue, goo,
         bigrock, cosmetic, cosmetic_bad, ore_mega, ore_super, ore_ultra,
-        wood_statue, fire, totem, curer, jack, superbug, theatre2, maw, mstump, mnode,
+        wood_statue, fire, totem, curer, jack, superbug, mstump, mnode,
     )
     extras = {
         3: _px(_ref("stump.png")),
@@ -1041,18 +1027,17 @@ def _world_sprites():
         42: _px(_ref("fx_hammer.png")),
         43: _px(_ref("fx_spark.png")),
         44: _px(_ref("fx_boom.png")),
-        45: _px(_ref("fx_poof.png")),
         46: _px(_ref("fx_blood.png")),
     }
     icons = {
         2: tree, 3: extras[3], 4: rock, 5: ore, 6: node, 7: super_gem,
         11: apple, 12: tub, 13: merry, 14: dwell, 15: fancy,
         16: mine, 17: mine2, 18: factory, 19: factory2, 20: theatre,
-        21: cannon, 22: market, 23: extras[23], 24: statue, 25: monolith, 27: goo,
+        22: market, 23: extras[23], 24: statue, 25: monolith, 27: goo,
         47: bigrock, 48: cosmetic, 49: cosmetic_bad,
         50: ore_mega, 51: ore_super, 52: ore_ultra,
         53: wood_statue, 54: fire, 55: totem, 56: curer, 57: jack,
-        58: superbug, 59: theatre2, 60: maw, 61: mstump, 62: mnode,
+        58: superbug, 61: mstump, 62: mnode,
     }
     for key in (41, 42, 43, 44, 45, 46):
         icons[key] = extras[key]
