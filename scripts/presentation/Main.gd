@@ -3184,7 +3184,7 @@ func _tab_ready(tab: Dictionary) -> bool:
 	for id in tab.tools:
 		var entry := _tool_entry(int(id))
 		if not entry.is_empty():
-			var ukey := str(entry.unlock)
+			var ukey := str(entry.get("unlock", ""))
 			if bool(sim.unlocks.get(ukey, false)) and not ProgressionManager.replaced_by_unlocked(sim, ukey):
 				return true
 	for id in tab.builds:
@@ -3321,7 +3321,7 @@ func _rebuild_bars() -> void:
 		var entry := _tool_entry(int(id))
 		if entry.is_empty():
 			continue
-		var ukey := str(entry.unlock)
+		var ukey := str(entry.get("unlock", ""))
 		if not bool(sim.unlocks.get(ukey, false)) or ProgressionManager.replaced_by_unlocked(sim, ukey):
 			continue
 		pending.append({"kind": "tool", "id": int(entry.tool), "icon": int(entry.icon)})
@@ -3484,7 +3484,7 @@ func _replacement_tool_for(tool_id: int) -> int:
 	var key := ""
 	for entry in Catalog.TOOL_INFO:
 		if int(entry.tool) == tool_id:
-			key = str(entry.unlock)
+			key = str(entry.get("unlock", ""))
 			break
 	if key == "":
 		return -1
@@ -3492,7 +3492,7 @@ func _replacement_tool_for(tool_id: int) -> int:
 	if rep_key == "":
 		return -1
 	for entry in Catalog.TOOL_INFO:
-		if str(entry.unlock) == rep_key:
+		if str(entry.get("unlock", "")) == rep_key:
 			return int(entry.tool)
 	return -1
 
@@ -3551,7 +3551,7 @@ func _hotkey(code: int) -> void:
 	for entry in Catalog.TOOL_INFO:
 		if int(entry.tool) == Catalog.TOOL_EYE:
 			continue
-		if bool(ThrongletSimServer.unlocks.get(str(entry.unlock), false)):
+		if bool(ThrongletSimServer.unlocks.get(str(entry.get("unlock", "")), false)):
 			tools.append(int(entry.tool))
 	for i in order.size():
 		if code == order[i] and i < tools.size():
