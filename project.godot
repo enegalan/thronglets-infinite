@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="Thronglets: Infinite"
-config/version="2.3.5"
+config/version="2.4.0"
 run/main_scene="uid://7lkyknev3r5w"
 config/features=PackedStringArray("4.7", "Forward Plus")
 config/icon="res://icon.svg"
