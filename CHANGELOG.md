@@ -7,6 +7,10 @@
 - New eating system for apples: Thronglets can now bite into apples up to 3 times.
 - The hand tool shows a single sprite in the kit and plays the pickup strip while dragging over something it can collect; idle drags stay on the first frame.
 - Runtime animations follow their `AnimTune` entries: per-clip fps, frame scale, offset, and rotation now drive the hand, egg, bubbles and foam, splash and clean pops, fire, fumes, anomaly rays, biome features, and the roundabout instead of hardcoded timings.
+- The progression milestone that required 100 gems now requires 20 gems.
+- Island expansions are larger: early land-tier growth is doubled and later tiers expand to the chunk edge.
+- Kit tab icons have been updated.
+- Kit buildings now show their price with the correspondent icon.
 
 ### 2026-11-18
 
