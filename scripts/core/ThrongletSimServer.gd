@@ -95,6 +95,7 @@ var shot_mode := false
 var shot_fx := false
 var shot_carry := false
 var shot_round := false
+var shot_apple := false
 var shot_focus := Vector2(256, 256)
 var shot_span := 210.0
 var shot_throng := -1
@@ -199,7 +200,7 @@ func _ready() -> void:
 	save_system = SaveSystemScript.new(self)
 	save_path = save_system.slot_path(SaveSystem.LIVE_SLOT)
 	var args := OS.get_cmdline_user_args()
-	shot_mode = args.has("--shot") or args.has("--shot-fx") or args.has("--shot-carry") or args.has("--shot-round")
+	shot_mode = args.has("--shot") or args.has("--shot-fx") or args.has("--shot-carry") or args.has("--shot-round") or args.has("--shot-apple")
 	testing = args.has("--smoke") or shot_mode
 	if args.has("--shot-fx"):
 		shot_fx = true
@@ -207,6 +208,8 @@ func _ready() -> void:
 		shot_carry = true
 	if args.has("--shot-round"):
 		shot_round = true
+	if args.has("--shot-apple"):
+		shot_apple = true
 	if testing:
 		# Keep smoke/shot saves inside the project so headless CI sandboxes can write.
 		save_path = ProjectSettings.globalize_path("res://shots/thronglets_smoke.save")
@@ -243,6 +246,8 @@ func _begin_smoke() -> void:
 			_prep_shot_carry()
 		elif shot_round:
 			_prep_shot_round()
+		elif shot_apple:
+			_prep_shot_apple()
 		else:
 			_prep_shot_world()
 		return
@@ -609,15 +614,21 @@ func _seek_food(i: int, speed: float, dt: float) -> bool:
 	if best < 12.0:
 		act[i] = ACT_EAT
 		act_t[i] = 0.25
-		apple.bite = float(apple.get("bite", 0.0)) + dt
-		if float(apple.bite) >= 0.45:
-			apple.dead = true
-			apple.claimer = -1
+		var progress := float(apple.get("bite", 0.0)) + dt
+		apple.bite = progress
+		if progress >= 0.45:
+			apple.bite = 0.0
+			var left := int(apple.get("bites_left", 1)) - 1
+			apple.bites_left = left
 			fed[i] = 100.0
 			sfx_queue.append("apple")
 			hungry_t[i] = 0.0
-			_pop(pos_x[i], pos_y[i], Catalog.ICON_APPLE, Catalog.APPLE_SPRITE_SCALE)
 			_release_apple_claim(i)
+			if left <= 0:
+				apple.dead = true
+				apple.claimer = -1
+			else:
+				apple.claimer = -1
 		return true
 	_walk(i, tx, ty, speed, dt)
 	return true
@@ -5919,6 +5930,9 @@ func _add_item(kind: int, x: float, y: float, value: int) -> Dictionary:
 	var it := {"id": id, "kind": kind, "x": x, "y": y, "value": value, "held": false, "dead": false, "fixed": false, "air": 0.0, "vz": 0.0, "vx": 0.0, "vy": 0.0, "falling_void": false, "rest": 0.0}
 	if kind == Catalog.ITEM_BALL:
 		it.life = BALL_LIFE
+	if kind == Catalog.ITEM_APPLE:
+		it.bites_left = 3
+		it.bite = 0.0
 	items.append(it)
 	item_by_id[id] = it
 	return it
@@ -6699,6 +6713,42 @@ func _as_i32(value) -> PackedInt32Array:
 		out.append(int(v))
 	return out
 
+
+
+func _prep_shot_apple() -> void:
+	_clear_shot_props()
+	# Two hungry thronglets and one apple with 3 bites.
+	var ax := 256.0
+	var ay := 256.0
+	var apple := _add_item(Catalog.ITEM_APPLE, ax, ay, 1)
+	apple.air = 0.0
+	apple.fixed = false
+	apple.bites_left = 3
+	apple.bite = 0.0
+	var a := _push_slot(ax - 10.0, ay, 20.0, 80.0, 80.0, 0.0, 0)
+	var b := _push_slot(ax + 64.0, ay + 8.0, 95.0, 80.0, 80.0, 0.0, 1)
+	# a is very hungry and close -> eats first bite. b is satisfied for now.
+	if a >= 0:
+		fed[a] = 20.0
+		hungry_t[a] = 5.0
+		dir_x[a] = 0.0
+		dir_y[a] = 0.0
+		act[a] = 0
+		act_t[a] = 0.0
+	if b >= 0:
+		fed[b] = 95.0
+		hungry_t[b] = 0.0
+		dir_x[b] = 0.0
+		dir_y[b] = 0.0
+		act[b] = 0
+		act_t[b] = 0.0
+	shot_focus = Vector2(ax, ay)
+	shot_span = 56.0
+	view_rect = Rect2(shot_focus.x - shot_span, shot_focus.y - shot_span, shot_span * 2.0, shot_span * 2.0)
+	unlocks.apple = true
+	_rebuild_hash()
+	smoke_hold = true
+	print("SHOT APPLE READY a=%s b=%s apple_bites=%s" % [a, b, apple.get("bites_left", -1)])
 
 func _prep_shot_carry() -> void:
 	_clear_shot_props()

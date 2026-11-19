@@ -898,9 +898,26 @@ def make_font():
 STRUCT = lambda name: OUT("resources", "src", "structures", name)
 ITEM = lambda name: OUT("resources", "src", "items", name)
 REF = lambda name: OUT("resources", "src", "ref", name)
+_ALT_REF = lambda name: OUT("tools", "art_source", "src", "ref", name)
+_ALT_STRUCT = lambda name: OUT("tools", "art_source", "src", "structures", name)
+_ALT_ITEM = lambda name: OUT("tools", "art_source", "src", "items", name)
 
 
 def _open_png(path):
+    if not os.path.isfile(path):
+        # fallbacks for source layout variations
+        base = os.path.basename(path)
+        for alt in (
+            OUT("tools", "art_source", "src", "ref", base),
+            OUT("tools", "art_source", "src", "items", base),
+            OUT("tools", "art_source", "src", "structures", base),
+            OUT("resources", "src", "ref", base),
+            OUT("resources", "src", "items", base),
+            OUT("resources", "src", "structures", base),
+        ):
+            if os.path.isfile(alt):
+                path = alt
+                break
     img = Image.open(path).convert("RGBA")
     box = img.getbbox()
     if box:
@@ -909,10 +926,16 @@ def _open_png(path):
 
 
 def _open_struct(name):
+    for p in (STRUCT(name), _ALT_STRUCT(name)):
+        if os.path.isfile(p):
+            return _open_png(p)
     return _open_png(STRUCT(name))
 
 
 def _ref(name):
+    for p in (REF(name), _ALT_REF(name)):
+        if os.path.isfile(p):
+            return _open_png(p)
     return _open_png(REF(name))
 
 
@@ -1043,8 +1066,10 @@ def _item_icons():
     def load(name):
         return _open_png(ITEM(name))
 
+    whole_path = REF("apple_whole.png") if os.path.isfile(REF("apple_whole.png")) else _ALT_REF("apple_whole.png")
+    apple_img = _open_png(whole_path) if os.path.isfile(whole_path) else _ref("apple.png")
     return {
-        0: _ref("apple.png"),
+        0: apple_img,
         1: _ref("ball.png"),
         8: _ref("wood.png"),
         9: _ref("bone.png"),
@@ -1129,6 +1154,9 @@ def make_world():
         src = i * 4
         frame = flame.crop((src * 32, 0, src * 32 + 32, 32))
         _stamp_frame(sheet, cols, 140 + i, _px(frame))
+    # Apple eat stages (whole = icon 0 / frame 24). Bites 1-3 after each eat.
+    for i, name in enumerate(("apple_bite_1.png", "apple_bite_2.png", "apple_bite_3.png")):
+        _stamp_frame(sheet, cols, 92 + i, _px(_ref(name)))
     sheet = _stamp_throng_anims(sheet, cols)
     # Flower build/idle loop. Main.FLOWER_ANIM is 742 (7 frames).
     flower_anim = os.path.join(SRC_TEX, "TEMP_flowerAnim.png")
