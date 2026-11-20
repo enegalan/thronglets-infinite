@@ -90,8 +90,8 @@ def slice_atlases(rows):
             if ident and rect and rect.get("m_Width", 0) > 1:
                 rects[ident] = rect
         image = Image.open(png).convert("RGBA")
-        if token == "Sprites-ConsoleUI":
-            # Console UI atlas crops are loaded directly at runtime.
+        if token in ("Sprites-ConsoleUI", "Sprites-Tooltip"):
+            # Console / tooltip atlas crops are loaded directly at runtime.
             folder = os.path.join(ROOT, "resources", "ui", "atlas", token)
         else:
             folder = os.path.join(out_root, token)

@@ -2,6 +2,10 @@
 
 ## [Unreleased](https://github.com/enegalan/thronglets-infinite/compare/7851ab6...HEAD)
 
+### 2026-11-20
+
+- Tapping a thronglet opens a HUD needs card (`FED` / `AMUSED` / `CLEAN`) instead of three bars over its head.
+
 ### 2026-11-19
 
 - New eating system for apples: Thronglets can now bite into apples up to 3 times.

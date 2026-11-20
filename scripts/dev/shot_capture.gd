@@ -48,6 +48,9 @@ func tick_shot() -> void:
 	if sim.shot_apple:
 		_tick_shot_apple()
 		return
+	if sim.shot_needs:
+		_tick_shot_needs()
+		return
 	if board == null:
 		if sim.shot_throng >= 0:
 			main.selected = sim.shot_throng
@@ -322,6 +325,57 @@ func tick_shot() -> void:
 	if not save_shot(board, "res://shots/thronglet_sheet.png"):
 		main.get_tree().quit(1)
 		return
+	done = true
+	main.get_tree().quit(0)
+
+
+func _tick_shot_needs() -> void:
+	if main.ui != null:
+		main.ui.visible = true
+	main.kit_open = true
+	main.kit_tab = 0
+	main._set_kit_shown(true)
+	main._set_hud_shown(true)
+	if "console" in main and main.console != null:
+		main.console.visible = false
+	main.crt_on = false
+	if main.has_method("_apply_crt"):
+		main._apply_crt()
+	if sim.shot_throng >= 0:
+		main.selected = sim.shot_throng
+	main.cam_rig.set_zoom(3.2)
+	main.camera.position = main.cam_rig.to_iso(sim.shot_focus)
+	main._sync_hud(0.0)
+	if "task_panel" in main and main.task_panel != null:
+		main.task_panel.visible = false
+	frames += 1
+	if frames == 8 and sim.shot_throng >= 0:
+		sim.fed[sim.shot_throng] = 18.0
+		sim.amused[sim.shot_throng] = 0.0
+		sim.clean[sim.shot_throng] = 0.0
+	if frames == 18 and sim.shot_throng >= 0:
+		# Full cyan pills like the user reference (no gray track peeking).
+		sim.fed[sim.shot_throng] = 100.0
+		sim.amused[sim.shot_throng] = 100.0
+		sim.clean[sim.shot_throng] = 100.0
+	main._sync_need_bars()
+	if frames == 14:
+		RenderingServer.force_draw()
+		if not save_shot(main.get_viewport(), "res://shots/needs_low.png"):
+			main.get_tree().quit(1)
+			return
+		return
+	if frames < 28:
+		return
+	RenderingServer.force_draw()
+	if not save_shot(main.get_viewport(), "res://shots/needs_card.png"):
+		main.get_tree().quit(1)
+		return
+	print("SHOT NEEDS DONE fed=%.0f amused=%.0f clean=%.0f" % [
+		sim.fed[sim.shot_throng] if sim.shot_throng >= 0 else -1.0,
+		sim.amused[sim.shot_throng] if sim.shot_throng >= 0 else -1.0,
+		sim.clean[sim.shot_throng] if sim.shot_throng >= 0 else -1.0,
+	])
 	done = true
 	main.get_tree().quit(0)
 

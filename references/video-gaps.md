@@ -410,7 +410,7 @@ The share button, the Netflix account, the recorder's label, this playthrough's 
   - [ ] When moral chooses are done by the user in dialog windows a dark window will appear with that kind of texts representing new knowledge based on chooses.
 - [ ] Red mailbox on the grass with an `i` blue button that opens a window with some mechanics' info. (capturas: [35:00](video-frames/t035-00.jpg), [37:00](video-frames/t037-00.jpg))
   - [ ] Window screenshot is missing.
-- [ ] White card for one clicked thronglet instead of 3 bars on its head: `FED`, `AMUSED`, `CLEAN`. (capturas: [68:00](video-frames/t068-00.jpg), [68:30](video-frames/t068-30.jpg))
+- [x] White card for one clicked thronglet instead of 3 bars on its head: `FED`, `AMUSED`, `CLEAN`. (capturas: [68:00](video-frames/t068-00.jpg), [68:30](video-frames/t068-30.jpg); shots: `needs_low.png`, `needs_card.png`)
 - [X] **CANCELLED** In-game news banner, `UK Network News`, over the world. (capturas: [114:30](video-frames/t114-30.jpg))
   - [X] This is not part of our game history, we are not implementing it.
 - [x] Save icon (floppy disk) in the top bar, next to the menu. (capturas: [55:30](video-frames/t055-30.jpg))
