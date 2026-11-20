@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased](https://github.com/enegalan/thronglets-infinite/compare/7851ab6...HEAD)
+## [Unreleased](https://github.com/enegalan/thronglets-infinite/compare/v2.6.5...HEAD)
 
 ### 2026-11-20
 
@@ -37,7 +37,6 @@
 - Thronglet draw sorting uses their ground position so large animations such as mitosis no longer sort too far forward.
 - Thronglets stay still while the mitosis animation plays (including the charge-up), so they no longer walk through the split.
 - The development bench releases lab drags correctly on mouse release, and the FPS overlay applies when entering play or the bench.
-
 
 ### 2026-11-16
 
@@ -143,3 +142,17 @@
 - Eating has its own little animation.
 - Land outside the home island stays hidden until the world opens.
 - First playable version: care for the thronglets, use tools and buildings, and grow the island.
+
+## [v2.6.5](https://github.com/enegalan/thronglets-infinite/compare/7851ab6...v2.6.5) - 2026-11-20
+
+### What's Changed
+
+* feat(ui): implement new HUD needs card for thronglets, replacing needbars with a card by [@enegalan](https://github.com/enegalan) in https://github.com/enegalan/thronglets-infinite/pull/29
+* fix(ci): sync app version via pull request by [@enegalan](https://github.com/enegalan) in https://github.com/enegalan/thronglets-infinite/pull/31
+* chore: set application version to 2.6.5 by [@github-actions](https://github.com/github-actions)[bot] in https://github.com/enegalan/thronglets-infinite/pull/32
+
+### New Contributors
+
+* [@github-actions](https://github.com/github-actions)[bot] made their first contribution in https://github.com/enegalan/thronglets-infinite/pull/32
+
+**Full Changelog**: https://github.com/enegalan/thronglets-infinite/compare/v2.6.0...v2.6.5
