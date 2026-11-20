@@ -4139,7 +4139,6 @@ func _sync_need_bars() -> void:
 		if pollution_mark != null:
 			pollution_mark.visible = false
 		return
-	# Fixed left HUD slot (original: panel on the left edge, not over the thronglet).
 	var view := get_viewport().get_visible_rect().size
 	var card_scale: float = float(need_card.get_meta("card_scale", 1.0))
 	var card_size := need_card.size * card_scale
