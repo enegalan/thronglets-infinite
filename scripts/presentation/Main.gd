@@ -467,10 +467,10 @@ func _process(delta: float) -> void:
 	_tick_tool_charge(delta)
 	_tick_hand_hold(delta)
 	_sync_world()
+	_sync_charge_mark(delta)
 	_sync_actors()
 	_sync_biome_plates()
 	_sync_place_mark()
-	_sync_charge_mark(delta)
 	if not sim.shot_mode:
 		_sync_hud(delta)
 	_sync_need_bars()
@@ -1966,7 +1966,7 @@ func _sync_charge_mark(delta: float = 0.0) -> void:
 			zoom_scale = float(camera.zoom.x)
 		charge_area.call("set_area", _iso_ellipse_points(Vector2(tx, ty), area_r * anim_scale, area_r * 0.82 * anim_scale, 48), area_color, true, zoom_scale)
 	# Single-target hover highlight for bug tool.
-	if tool == Catalog.TOOL_BUG and not sim.has_scoop() and kit_drag.is_empty():
+	if preview_tool == Catalog.TOOL_BUG and not sim.has_scoop():
 		var bug_id := sim.find_thronglet(at.x, at.y, 14.0, false)
 		if bug_id >= 0:
 			outlined_throng_ids[bug_id] = true
