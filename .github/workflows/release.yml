@@ -12,6 +12,7 @@ on:
 permissions:
   actions: write
   contents: write
+  pull-requests: write
 
 concurrency:
   group: release
@@ -19,7 +20,13 @@ concurrency:
 
 jobs:
   release:
-    if: ${{ github.ref_type == 'tag' || github.event.head_commit.message != 'Update CHANGELOG' }}
+    if: >-
+      ${{
+        github.ref_type == 'tag' || (
+          github.event.head_commit.message != 'Update CHANGELOG' &&
+          !startsWith(github.event.head_commit.message, 'chore: set application version to ')
+        )
+      }}
     runs-on: ubuntu-latest
 
     steps:
@@ -49,11 +56,17 @@ jobs:
           echo "version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Sync project.godot version
+        id: sync_version
         shell: bash
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
           VERSION: ${{ steps.version.outputs.version }}
+          BASE_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           NUM="${VERSION#v}"
+          HEAD_BRANCH="chore/set-version-$NUM"
+
           if grep -q '^config/version=' project.godot; then
             sed -i.bak -E "s|^config/version=.*|config/version=\"$NUM\"|" project.godot
             rm -f project.godot.bak
@@ -65,15 +78,36 @@ jobs:
               END { if (!done) print "config/version=\"" v "\"" }
             ' project.godot > project.godot.tmp && mv project.godot.tmp project.godot
           fi
+
+          if git diff --quiet -- project.godot; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # main requires a PR via repository ruleset; push to a side branch and merge.
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if ! git diff --quiet -- project.godot; then
-            git add project.godot
-            git commit -m "chore: set application version to $NUM"
-            if [ "${{ github.ref_type }}" = "branch" ]; then
-              git push origin HEAD:"${{ github.ref_name }}"
-            fi
+          git checkout -B "$HEAD_BRANCH"
+          git add project.godot
+          git commit -m "chore: set application version to $NUM"
+          git push -u origin HEAD:"$HEAD_BRANCH" --force
+
+          EXISTING="$(gh pr list --head "$HEAD_BRANCH" --base "$BASE_BRANCH" --state open --json number --jq '.[0].number // empty')"
+          if [ -z "$EXISTING" ]; then
+            gh pr create \
+              --base "$BASE_BRANCH" \
+              --head "$HEAD_BRANCH" \
+              --title "chore: set application version to $NUM" \
+              --body "Automated application version sync for \`$VERSION\`."
           fi
+
+          gh pr merge --squash --delete-branch "$HEAD_BRANCH"
+
+          git fetch origin "$BASE_BRANCH"
+          git checkout "$BASE_BRANCH"
+          git reset --hard "origin/$BASE_BRANCH"
+
+          echo "changed=true" >> "$GITHUB_OUTPUT"
 
       - name: Tag the merge and push it
         if: github.ref_type == 'branch'
@@ -81,8 +115,13 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag "${{ steps.version.outputs.version }}"
-          git push origin "${{ steps.version.outputs.version }}"
+          VERSION="${{ steps.version.outputs.version }}"
+          if git rev-parse "$VERSION" >/dev/null 2>&1; then
+            echo "Tag $VERSION already exists"
+          else
+            git tag "$VERSION"
+            git push origin "$VERSION"
+          fi
 
       - name: Create GitHub Release and trigger changelog update
         env:
