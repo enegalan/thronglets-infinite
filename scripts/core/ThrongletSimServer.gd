@@ -7220,7 +7220,7 @@ func _check_player_name(errors: Array) -> void:
 	submit_name("shit")
 	var banned_log := " ".join(modal.get("log", []))
 	submit_name("€")
-	var alien_log := " ".join(modal.get("log", []))
+	var charset_log := " ".join(modal.get("log", []))
 	submit_name("Ana")
 	var asked := str(modal.get("step", "")) == "confirm" and "Ana" in " ".join(modal.get("log", []))
 	choose(1)
@@ -7233,14 +7233,14 @@ func _check_player_name(errors: Array) -> void:
 	var stored := player_name == "Ana" and modal.is_empty()
 	print("NAME EMPTY " + empty_log)
 	print("NAME BANNED " + banned_log)
-	print("NAME ALIEN " + alien_log)
+	print("NAME CHARSET " + charset_log)
 	print("NAME ECHO " + echo)
 	if "entrada" not in empty_log:
 		errors.append("name empty")
 	if "inapropiado" not in banned_log:
 		errors.append("name banned")
-	if "reconoce" not in alien_log:
-		errors.append("name alien")
+	if "reconoce" not in charset_log:
+		errors.append("name charset")
 	if not asked or not declined or not echoed or not stored:
 		errors.append("name confirm")
 

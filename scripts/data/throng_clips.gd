@@ -66,14 +66,6 @@ const CLIPS := {
 	"ThrongE_SingToThronglet_Spriesheet2": Vector2i(474, 8),
 	"ThrongE_TalkToOtherThronglet_Spritesheet": Vector2i(482, 3),
 	"ThrongE_TalkToOtherThronglet_Spritesheet2": Vector2i(485, 3),
-	"Throng_Alien_Anim_Flying_Spritesheet": Vector2i(488, 4),
-	"Throng_Alien_EggHatch": Vector2i(492, 3),
-	"Throng_Alien_Jump": Vector2i(495, 1),
-	"Throng_Alien_Neutral": Vector2i(496, 1),
-	"Throng_Alien_Neutral-HandOnHeadset": Vector2i(497, 1),
-	"Throng_Alien_Talk": Vector2i(498, 6),
-	"Throng_Alien_TalkFacingForward": Vector2i(504, 8),
-	"Throng_Alien_Walk": Vector2i(512, 4),
 	"Throng_Anim_Flying_Spritesheet": Vector2i(516, 9),
 	"Throng_Egg_A": Vector2i(525, 1),
 	"Throng_Egg_A_Glow": Vector2i(526, 1),
@@ -132,9 +124,7 @@ const TALK := [
 		"ThrongC_TalkToOtherThronglet_Spritesheet2",
 		"ThrongD_TalkToOtherThronglet_Spritesheet2",
 		"ThrongE_TalkToOtherThronglet_Spritesheet",
-		"ThrongE_TalkToOtherThronglet_Spritesheet2",
-		"Throng_Alien_Talk",
-		"Throng_Alien_TalkFacingForward"
+		"ThrongE_TalkToOtherThronglet_Spritesheet2"
 ]
 
 const IDLE := [
@@ -173,12 +163,6 @@ const IDLE := [
 		"ThrongC_SingToThronglet_Spritesheet2",
 		"ThrongD_SingToThronglet_Spritesheet2",
 		"ThrongE_SingToThronglet_Spriesheet2",
-		"Throng_Alien_Anim_Flying_Spritesheet",
-		"Throng_Alien_EggHatch",
-		"Throng_Alien_Jump",
-		"Throng_Alien_Neutral",
-		"Throng_Alien_Neutral-HandOnHeadset",
-		"Throng_Alien_Walk",
 		"Throng_Anim_Flying_Spritesheet",
 		"Throng_Egg_A",
 		"Throng_Egg_A_Glow",
