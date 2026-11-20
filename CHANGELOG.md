@@ -4,7 +4,7 @@
 
 ### 2026-11-20
 
-- Tapping a thronglet opens a HUD needs card (`FED` / `AMUSED` / `CLEAN`) instead of three bars over its head.
+- Tapping a thronglet opens a HUD needs card instead of three bars over its head.
 
 ### 2026-11-19
 

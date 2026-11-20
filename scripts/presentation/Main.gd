@@ -4021,15 +4021,15 @@ func _sync_glitch(delta: float) -> void:
 
 func _build_need_card(root: Control) -> void:
 	need_fills.clear()
-	const GRID_W := 160.0
+	const GRID_W := 210.0
 	const GRID_H := 108.0
 	const PAD := 7.0
 	const TOP := 25.0
 	const CARD_W := GRID_W + PAD * 2.0
 	const CARD_H := GRID_H + TOP + PAD
-	const COL_SPLIT := 78.0
+	const COL_SPLIT := 105.0
 	const ROW_H := GRID_H / 3.0
-	const GAUGE_W := 62.0
+	const GAUGE_W := 72.0
 	const GAUGE_H := 12.0
 	const ICON := 52.0
 	const CARD_SCALE := 0.75
@@ -4074,7 +4074,7 @@ func _build_need_card(root: Control) -> void:
 		hline.size = Vector2(GRID_W, LINE)
 		hline.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		need_card.add_child(hline)
-	var names := ["FED", "AMUSED", "CLEAN"]
+	var names := ["ALIMENTADO", "ENTRETENIDO", "ASEADO"]
 	var font := ui_assets.ui_font()
 	var gauge_tex := ui_assets.tex_rgba("res://resources/ui/tooltip_gauge.png")
 	var right_w := GRID_W - COL_SPLIT
@@ -4090,7 +4090,7 @@ func _build_need_card(root: Control) -> void:
 		tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		if font != null:
 			tag.add_theme_font_override("font", font)
-		tag.add_theme_font_size_override("font_size", 19)
+		tag.add_theme_font_size_override("font_size", 16)
 		tag.add_theme_constant_override("line_spacing", -6)
 		tag.add_theme_color_override("font_color", Color(0.06, 0.06, 0.08))
 		need_card.add_child(tag)
