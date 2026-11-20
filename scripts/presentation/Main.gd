@@ -4020,7 +4020,6 @@ func _sync_glitch(delta: float) -> void:
 
 
 func _build_need_card(root: Control) -> void:
-	# Original HUD crop is ~1.26 with the info badge; keep atlas art, taller than native 171x100.
 	need_fills.clear()
 	const GRID_W := 160.0
 	const GRID_H := 108.0
@@ -4028,12 +4027,10 @@ func _build_need_card(root: Control) -> void:
 	const TOP := 25.0
 	const CARD_W := GRID_W + PAD * 2.0
 	const CARD_H := GRID_H + TOP + PAD
-	# Vertical split left of center (~42%); the info badge stays on the card mid.
 	const COL_SPLIT := 78.0
 	const ROW_H := GRID_H / 3.0
 	const GAUGE_W := 62.0
 	const GAUGE_H := 12.0
-	# Native info sprite is 60px; ~1/3 of card width like the original HUD.
 	const ICON := 52.0
 	const CARD_SCALE := 0.75
 	need_card = Control.new()
@@ -4062,7 +4059,6 @@ func _build_need_card(root: Control) -> void:
 	style.content_margin_bottom = 0
 	panel.add_theme_stylebox_override("panel", style)
 	need_card.add_child(panel)
-	# Fixed 2px lines inset inside the panel rim (atlas stretch was bleeding past the border).
 	const LINE := 2.0
 	const LINE_COLOR := Color(255.0 / 255.0, 203.0 / 255.0, 0.0)
 	var vline := ColorRect.new()
