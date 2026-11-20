@@ -96,6 +96,7 @@ var shot_fx := false
 var shot_carry := false
 var shot_round := false
 var shot_apple := false
+var shot_needs := false
 var shot_focus := Vector2(256, 256)
 var shot_span := 210.0
 var shot_throng := -1
@@ -200,7 +201,7 @@ func _ready() -> void:
 	save_system = SaveSystemScript.new(self)
 	save_path = save_system.slot_path(SaveSystem.LIVE_SLOT)
 	var args := OS.get_cmdline_user_args()
-	shot_mode = args.has("--shot") or args.has("--shot-fx") or args.has("--shot-carry") or args.has("--shot-round") or args.has("--shot-apple")
+	shot_mode = args.has("--shot") or args.has("--shot-fx") or args.has("--shot-carry") or args.has("--shot-round") or args.has("--shot-apple") or args.has("--shot-needs")
 	testing = args.has("--smoke") or shot_mode
 	if args.has("--shot-fx"):
 		shot_fx = true
@@ -210,6 +211,8 @@ func _ready() -> void:
 		shot_round = true
 	if args.has("--shot-apple"):
 		shot_apple = true
+	if args.has("--shot-needs"):
+		shot_needs = true
 	if testing:
 		# Keep smoke/shot saves inside the project so headless CI sandboxes can write.
 		save_path = ProjectSettings.globalize_path("res://shots/thronglets_smoke.save")
@@ -248,6 +251,8 @@ func _begin_smoke() -> void:
 			_prep_shot_round()
 		elif shot_apple:
 			_prep_shot_apple()
+		elif shot_needs:
+			_prep_shot_needs()
 		else:
 			_prep_shot_world()
 		return
@@ -6733,6 +6738,40 @@ func _as_i32(value) -> PackedInt32Array:
 		out.append(int(v))
 	return out
 
+
+
+func _prep_shot_needs() -> void:
+	_clear_shot_props()
+	# One thronglet with mixed needs so the HUD card matches the video card.
+	var ax := 256.0
+	var ay := 256.0
+	shot_throng = _push_slot(ax, ay, 18.0, 62.0, 12.0, 0.0, 0)
+	if shot_throng >= 0:
+		# First capture (needs_low) matches video 68:00; second bumps to full cyan.
+		fed[shot_throng] = 18.0
+		amused[shot_throng] = 0.0
+		clean[shot_throng] = 0.0
+		dir_x[shot_throng] = 0.0
+		dir_y[shot_throng] = 0.0
+		act[shot_throng] = 0
+		act_t[shot_throng] = 0.0
+		peak = maxi(peak, 1)
+	_add_item(Catalog.ITEM_APPLE, ax + 18.0, ay + 4.0, 1)
+	_add_item(Catalog.ITEM_BALL, ax + 40.0, ay - 6.0, 1)
+	shot_focus = Vector2(ax, ay)
+	shot_span = 72.0
+	view_rect = Rect2(shot_focus.x - shot_span, shot_focus.y - shot_span, shot_span * 2.0, shot_span * 2.0)
+	unlocks.apple = true
+	unlocks.ball = true
+	unlocks.sponge = true
+	_rebuild_hash()
+	smoke_hold = true
+	print("SHOT NEEDS READY throng=%s fed=%.0f amused=%.0f clean=%.0f" % [
+		shot_throng,
+		fed[shot_throng] if shot_throng >= 0 else -1.0,
+		amused[shot_throng] if shot_throng >= 0 else -1.0,
+		clean[shot_throng] if shot_throng >= 0 else -1.0,
+	])
 
 
 func _prep_shot_apple() -> void:

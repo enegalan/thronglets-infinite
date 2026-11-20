@@ -125,8 +125,9 @@ var goal_label: Label
 var hint: Label
 var toast: Label
 var need_show := false
-var need_backs: Array = []
+var need_card: Control
 var need_fills: Array = []
+var need_icon: TextureRect
 var bubble_panels: Array = []
 var bubble_tails: Array = []
 var bubble_icons: Array = []
@@ -4018,43 +4019,157 @@ func _sync_glitch(delta: float) -> void:
 			glitch_mat.set_shader_parameter("intensity", clampf(sim.glitch_t / 1.4, 0.35, 1.0))
 
 
+func _build_need_card(root: Control) -> void:
+	need_fills.clear()
+	const GRID_W := 210.0
+	const GRID_H := 108.0
+	const PAD := 7.0
+	const TOP := 25.0
+	const CARD_W := GRID_W + PAD * 2.0
+	const CARD_H := GRID_H + TOP + PAD
+	const COL_SPLIT := 105.0
+	const ROW_H := GRID_H / 3.0
+	const GAUGE_W := 72.0
+	const GAUGE_H := 12.0
+	const ICON := 52.0
+	const CARD_SCALE := 0.75
+	need_card = Control.new()
+	need_card.visible = false
+	need_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	need_card.z_index = 18
+	need_card.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	need_card.custom_minimum_size = Vector2(CARD_W, CARD_H)
+	need_card.size = Vector2(CARD_W, CARD_H)
+	need_card.scale = Vector2(CARD_SCALE, CARD_SCALE)
+	need_card.set_meta("card_scale", CARD_SCALE)
+	root.add_child(need_card)
+	var panel := PanelContainer.new()
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var style := StyleBoxTexture.new()
+	style.texture = ui_assets.tex("res://resources/ui/tooltip_panel.png")
+	style.texture_margin_left = 4
+	style.texture_margin_right = 4
+	style.texture_margin_top = 4
+	style.texture_margin_bottom = 4
+	style.content_margin_left = 0
+	style.content_margin_right = 0
+	style.content_margin_top = 0
+	style.content_margin_bottom = 0
+	panel.add_theme_stylebox_override("panel", style)
+	need_card.add_child(panel)
+	const LINE := 2.0
+	const LINE_COLOR := Color(255.0 / 255.0, 203.0 / 255.0, 0.0)
+	var vline := ColorRect.new()
+	vline.color = LINE_COLOR
+	vline.position = Vector2(PAD + COL_SPLIT - LINE * 0.5, TOP)
+	vline.size = Vector2(LINE, GRID_H)
+	vline.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	need_card.add_child(vline)
+	for r in 2:
+		var hline := ColorRect.new()
+		hline.color = LINE_COLOR
+		hline.position = Vector2(PAD, TOP + ROW_H * float(r + 1) - LINE * 0.5)
+		hline.size = Vector2(GRID_W, LINE)
+		hline.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		need_card.add_child(hline)
+	var names := ["ALIMENTADO", "ENTRETENIDO", "ASEADO"]
+	var font := ui_assets.ui_font()
+	var gauge_tex := ui_assets.tex_rgba("res://resources/ui/tooltip_gauge.png")
+	var right_w := GRID_W - COL_SPLIT
+	var gauge_x := PAD + COL_SPLIT + (right_w - GAUGE_W) * 0.5
+	for i in 3:
+		var row_y := TOP + ROW_H * float(i)
+		var tag := Label.new()
+		tag.text = names[i]
+		tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		tag.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		tag.position = Vector2(PAD, row_y)
+		tag.size = Vector2(COL_SPLIT, ROW_H)
+		tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		if font != null:
+			tag.add_theme_font_override("font", font)
+		tag.add_theme_font_size_override("font_size", 16)
+		tag.add_theme_constant_override("line_spacing", -6)
+		tag.add_theme_color_override("font_color", Color(0.06, 0.06, 0.08))
+		need_card.add_child(tag)
+		var gauge_y := row_y + (ROW_H - GAUGE_H) * 0.5
+		var track := NinePatchRect.new()
+		track.texture = gauge_tex
+		track.patch_margin_left = 4
+		track.patch_margin_right = 4
+		track.position = Vector2(gauge_x, gauge_y)
+		track.size = Vector2(GAUGE_W, GAUGE_H)
+		track.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		track.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		track.modulate = Color(0.62, 0.62, 0.64)
+		need_card.add_child(track)
+		var fill := NinePatchRect.new()
+		fill.texture = gauge_tex
+		fill.patch_margin_left = 4
+		fill.patch_margin_right = 4
+		fill.position = Vector2(gauge_x, gauge_y)
+		fill.size = Vector2(0.0, GAUGE_H)
+		fill.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		fill.visible = false
+		fill.modulate = Color(91.0 / 255.0, 198.0 / 255.0, 230.0 / 255.0)
+		fill.set_meta("gauge_w", GAUGE_W)
+		need_card.add_child(fill)
+		need_fills.append(fill)
+	need_icon = TextureRect.new()
+	need_icon.texture = ui_assets.tex("res://resources/ui/tooltip_info.png")
+	need_icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	need_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	need_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	need_icon.size = Vector2(ICON, ICON)
+	need_icon.position = Vector2((CARD_W - ICON) * 0.5, -ICON * 0.5)
+	need_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	need_card.add_child(need_icon)
+
+
 func _sync_need_bars() -> void:
 	var sim: ThrongletSim = ThrongletSimServer
 	var show: bool = selected >= 0 and selected < sim.slot_count and sim.state[selected] != Catalog.ST_VACANT
 	need_show = show
+	if need_card != null:
+		need_card.visible = show
 	if not show:
-		for node in need_backs:
-			node.visible = false
-		for node in need_fills:
-			node.visible = false
 		if pollution_mark != null:
 			pollution_mark.visible = false
 		return
-	var origin := get_global_mouse_position()
-	if not (sim.held_kind == "thronglet" and sim.held_ref == selected):
-		origin = cam_rig.to_iso(Vector2(sim.pos_x[selected], sim.pos_y[selected]))
-	var at := origin + Vector2(-14, -42)
+	var view := get_viewport().get_visible_rect().size
+	var card_scale: float = float(need_card.get_meta("card_scale", 1.0))
+	var card_size := need_card.size * card_scale
+	if card_size.x < 1.0:
+		card_size = need_card.get_combined_minimum_size() * card_scale
+	var icon_over := 0.0
+	if need_icon != null:
+		icon_over = maxf(0.0, -need_icon.position.y) * card_scale
+	const HUD_LEFT := 36.0
+	need_card.position = Vector2(HUD_LEFT, (view.y - card_size.y) * 0.5 + icon_over * 0.35)
 	var amounts := [sim.fed[selected], sim.amused[selected], sim.clean[selected]]
-	var colors := [Color(0.86, 0.22, 0.24), Color(0.95, 0.72, 0.22), Color(0.32, 0.62, 0.9)]
 	for i in 3:
-		var y := float(i) * 8.0
-		var back: Sprite2D = need_backs[i]
-		back.position = at + Vector2(0, y)
-		back.visible = true
-		var width := clampf(amounts[i] / 100.0, 0.0, 1.0) * 26.0
-		var fill: Polygon2D = need_fills[i]
-		fill.color = colors[i]
-		fill.visible = width >= 1.0
-		if width < 1.0:
-			continue
-		fill.position = at + Vector2(2, y + 1)
-		fill.polygon = PackedVector2Array([
-			Vector2(0, 0), Vector2(width, 0), Vector2(width, 4), Vector2(0, 4),
-		])
+		var fill: NinePatchRect = need_fills[i]
+		var amount: float = clampf(amounts[i] / 100.0, 0.0, 1.0)
+		var gauge_w: float = float(fill.get_meta("gauge_w"))
+		var width := gauge_w * amount
+		# Keep enough width for the 9-patch caps so a low need reads as a stub, not a dot.
+		if amount > 0.0:
+			width = maxf(width, 10.0)
+		fill.size = Vector2(width, fill.size.y)
+		fill.visible = amount >= 0.02
+		# Original: cyan gauges; low needs tip red (video 68:00).
+		if amounts[i] < 35.0:
+			fill.modulate = Color(0.95, 0.28, 0.28)
+		else:
+			fill.modulate = Color(91.0 / 255.0, 198.0 / 255.0, 230.0 / 255.0)
 	if pollution_mark != null:
+		var origin := cam_rig.to_iso(Vector2(sim.pos_x[selected], sim.pos_y[selected]))
 		var dirty := sim.state[selected] == Catalog.ST_LIVING and sim.clean[selected] < 40.0
 		pollution_mark.visible = dirty
-		pollution_mark.position = at + Vector2(-10, 10)
+		pollution_mark.position = origin + Vector2(-24, -28)
 
 
 func _atlas_icon(icon: int) -> AtlasTexture:
@@ -4202,26 +4317,6 @@ func _build_world() -> void:
 	void_back_mesh = _mesh(true, Vector2(WORLD_CELL, WORLD_CELL))
 	void_back.multimesh = void_back_mesh
 	add_child(void_back)
-	var bar_colors := [
-		Color(0.86, 0.22, 0.24),
-		Color(0.95, 0.72, 0.22),
-		Color(0.32, 0.62, 0.9),
-	]
-	for i in 3:
-		var back := Sprite2D.new()
-		back.texture = ui_assets.tex("res://resources/ui/need_gauge.png")
-		back.centered = false
-		back.scale = Vector2(0.5, 0.5)
-		back.z_index = 6
-		back.visible = false
-		add_child(back)
-		need_backs.append(back)
-		var fill := Polygon2D.new()
-		fill.z_index = 7
-		fill.color = bar_colors[i]
-		fill.visible = false
-		add_child(fill)
-		need_fills.append(fill)
 	camera = Camera2D.new()
 	add_child(camera)
 	camera.make_current()
@@ -4511,6 +4606,7 @@ func _build_ui() -> void:
 	market_list = VBoxContainer.new()
 	market_panel.add_child(market_list)
 	root.add_child(market_panel)
+	_build_need_card(root)
 
 	focus_dim = ColorRect.new()
 	focus_dim.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -6057,10 +6153,8 @@ func _enter_dev() -> void:
 		charge_ring.visible = false
 	if charge_area:
 		charge_area.visible = false
-	for back in need_backs:
-		back.visible = false
-	for fill in need_fills:
-		fill.visible = false
+	if need_card != null:
+		need_card.visible = false
 	_hide_marks()
 	for plate in biome_plates:
 		plate.visible = false

@@ -2029,10 +2029,8 @@ func _sync_effect_need_bars() -> void:
 		var label: Label = effect_gauge_labels[i]
 		label.text = str(int(round(amounts[i])))
 	main.need_show = false
-	for node in main.need_backs:
-		node.visible = false
-	for node in main.need_fills:
-		node.visible = false
+	if main.need_card != null:
+		main.need_card.visible = false
 
 
 func _hide_effect_need_bars() -> void:
@@ -2041,10 +2039,8 @@ func _hide_effect_need_bars() -> void:
 	if main == null:
 		return
 	main.need_show = false
-	for node in main.need_backs:
-		node.visible = false
-	for node in main.need_fills:
-		node.visible = false
+	if main.need_card != null:
+		main.need_card.visible = false
 
 
 func _effect_radius_center() -> Vector2:
