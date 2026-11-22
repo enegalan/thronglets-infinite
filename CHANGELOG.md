@@ -2,6 +2,11 @@
 
 ## [Unreleased](https://github.com/enegalan/thronglets-infinite/compare/v2.7.0...HEAD)
 
+### 2026-11-22
+
+- Zooming out keeps performance steadier: distant thronglets and static props use lighter rendering paths, simulation ticks batch living agents and throttle compaction, and idle ground items skip unnecessary physics checks.
+- Added performance bench and repro scripts for zoom-out, save, and pick/zoom scenarios.
+
 ### 2026-11-20
 
 - Tapping a thronglet opens a HUD needs card instead of three bars over its head.

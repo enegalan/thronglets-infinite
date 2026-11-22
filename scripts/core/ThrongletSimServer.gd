@@ -7,11 +7,13 @@ const ProgressionManager := preload("res://scripts/core/progression_manager.gd")
 const ProgressionCatalog := preload("res://scripts/data/progression_catalog.gd")
 const TiovivoLabTune := preload("res://scripts/data/tune/tiovivo_lab_tune.gd")
 const SaveSystemScript := preload("res://scripts/core/save_system.gd")
+const IslandGenScript := preload("res://scripts/core/IslandGen.gd")
 
 const DECAY_FED := 0.24
 const DECAY_FUN := 0.14
 const DECAY_CLEAN := 0.16
 const MOVE_SPEED := 26.0
+const PATH_BFS_MAX := 256
 const MITOSIS_CHARGE := 6.0
 const MITOSIS_ANIM := 0.45
 const MITOSIS_SPLIT_ALONG := 0.72
@@ -20,8 +22,19 @@ const STARVE_GRACE := 30.0
 const EGG_NEED := 4
 const EGG_FALL := 140.0
 const BALL_LIFE := 60.0
-# The ring art is eight wedges. Past eight it stays full and ore still stacks.
+const CORPSE_LIFE := 60.0
+# The ring art is eight wedges: a time meter for one ore→energy cycle, not stock.
 const FACTORY_WEDGES := 8
+const FACTORY_PROCESS_TIME := 8.0
+const FACTORY_PROCESS_TIME2 := 4.0
+# Per ore unit spent. Early original cycles paid ~+10; Mk II pays more.
+const FACTORY_GEM_PAY := 10
+const FACTORY_GEM_PAY2 := 25
+# Mine ore stock (blue bar). Fills on a timer; diggers enter and leave with a load.
+const MINE_STOCK_CAP := 5
+const MINE_STOCK_CAP2 := 8
+const MINE_FILL_TIME := 8.0
+const MINE_DIG_TIME := 2.5
 const TALK_OPEN_DELAY := 1.0
 const BATH_CLEAN_RATE := 3.0
 const BATH_DONE := 95.0
@@ -50,6 +63,8 @@ const SPAWN_CLEAR := 110.0
 
 var testing := false
 var smoke_hold := false
+var perf_mode := false
+var save_perf_mode := false
 var save_path := ""
 var world_seed := 1
 var biomes: Array = []
@@ -85,6 +100,12 @@ var total_gems_earned := 0
 var deaths_total := 0
 var peak := 0
 var land_tier := 0
+var sandbox_mode := false
+const SANDBOX_TIER_MIN := 0
+const SANDBOX_TIER_MAX := 16
+const SANDBOX_START_TIER := 2
+const SANDBOX_GEMS := 99999
+var _shaping_island := false
 var glitch_seen := false
 var glitch_t := 0.0
 var gaze_home := {}
@@ -112,6 +133,9 @@ var revealed := {}
 var chunks := {}
 var dirty_chunks: Array = []
 var paint_epoch := 0
+# Bumped when features are added/removed so presentation can rebuild static prop meshes.
+var feat_mesh_epoch := 0
+var lists_dirty := false
 
 var features: Array = []
 var feature_by_id := {}
@@ -191,18 +215,82 @@ var autosave_t := 0.0
 var save_pulse := 0
 var hash_head := PackedInt32Array()
 var hash_next := PackedInt32Array()
+var hash_cell := PackedInt32Array()
+# O(1) reverse links: thronglet slot -> entity id (-1 = none).
+var link_tub := PackedInt32Array()
+var link_ride := PackedInt32Array()
+var link_guest := PackedInt32Array()
+var link_claim := PackedInt32Array()
+var link_ball := PackedInt32Array()
+var living_ids := PackedInt32Array()
+var living_at := PackedInt32Array()
+var bark_cool := PackedFloat32Array()
+var fires: Array = []
+# Features keyed by chunk ("cx,cy") so draw/sync only walks visible chunks.
+var features_by_chunk := {}
+# Cached colony walkable-cell count; invalidated when terrain/props change.
+var _walk_cells_cache := -1
+var _has_factory_cache := false
+var _has_factory_known := false
+# Per-cell inland (cliff) cache: depends only on tiles, not props.
+var inland_cache := {}
+# bid -> assigned mine workers (avoids O(living) scans in _seek_mine).
+var mine_job_n := {}
+# Full AI while the colony fits — LOD budgets only above this (50k–120k scale).
+const AGENT_FULL_CAP := 220
+const AGENT_STICKY_BUDGET := 160
+const AGENT_SEEK_BUDGET := 48
+const AGENT_CHEAP_BUDGET := 256
+const AGENT_NEAR_BUDGET := 420
+const AGENT_NEAR_PAD := 160.0
+const AGENT_STICKY_SCAN_CAP := 4000
+var _decay_scale_frame := -1
+var _decay_scale_cached := 1.0
+var _agent_done_frame := PackedInt32Array()
+# Kind-partitioned live lists so seeks skip full items/buildings scans.
+var items_apple: Array = []
+var items_ball: Array = []
+var items_wood: Array = []
+var items_bone: Array = []
+var items_ore: Array = []
+var blds_tub: Array = []
+var blds_round: Array = []
+var blds_home: Array = []
+var blds_mine: Array = []
+var blds_show: Array = []
+# Generation cache for ground piles; carried resources stay O(1) via carry_*_n.
+var _item_count_gen := 0
+var _item_count_built := -1
+var _item_count_wood := 0
+var _item_count_bone := 0
+var _item_count_ore := 0
+var _item_count_other := {}
+var carry_wood_n := 0
+var carry_bone_n := 0
+var carry_ore_n := 0
+var _milestone_cool := 0.0
+var dead_n := 0
+var dead_ids := PackedInt32Array()
+var seek_x := PackedFloat32Array()
+var seek_y := PackedFloat32Array()
+var seek_t := PackedFloat32Array()
 
 var _rng := RandomNumberGenerator.new()
 var item_physics: ItemPhysics
+var island_gen
 
 
 func _ready() -> void:
 	item_physics = ItemPhysics.new(self)
+	island_gen = IslandGenScript.new(self)
 	save_system = SaveSystemScript.new(self)
 	save_path = save_system.slot_path(SaveSystem.LIVE_SLOT)
 	var args := OS.get_cmdline_user_args()
+	perf_mode = args.has("--perf")
+	save_perf_mode = args.has("--save-perf")
 	shot_mode = args.has("--shot") or args.has("--shot-fx") or args.has("--shot-carry") or args.has("--shot-round") or args.has("--shot-apple") or args.has("--shot-needs")
-	testing = args.has("--smoke") or shot_mode
+	var pick_zoom_repro := args.has("--pick-zoom-repro")
+	testing = args.has("--smoke") or shot_mode or perf_mode or pick_zoom_repro or save_perf_mode
 	if args.has("--shot-fx"):
 		shot_fx = true
 	if args.has("--shot-carry"):
@@ -213,28 +301,41 @@ func _ready() -> void:
 		shot_apple = true
 	if args.has("--shot-needs"):
 		shot_needs = true
-	if testing:
-		# Keep smoke/shot saves inside the project so headless CI sandboxes can write.
+	if testing and not save_perf_mode:
+		# Keep smoke/shot/perf saves inside the project so headless CI sandboxes can write.
 		save_path = ProjectSettings.globalize_path("res://shots/thronglets_smoke.save")
 		world_seed = 12345
 		seed(world_seed)
-		smoke_hold = true
+		# Perf / pick-zoom repro must keep the sim stepping; smoke/shot freeze until harness moves.
+		smoke_hold = not perf_mode and not pick_zoom_repro
+	elif save_perf_mode:
+		# Keep the real user:// slot path; harness loads the player's save.
+		smoke_hold = false
+		world_seed = 12345
+		seed(world_seed)
 	else:
 		world_seed = randi()
 	hash_head.resize(Catalog.HASH_SIZE)
 	hash_head.fill(-1)
 	_load_biomes()
 	_init_unlocks()
-	if testing:
+	if testing and not save_perf_mode:
 		_bootstrap_new()
-	if testing:
+	if testing and not perf_mode and not pick_zoom_repro and not save_perf_mode:
 		_begin_smoke()
 
 
 func _process(delta: float) -> void:
 	if smoke_hold or paused:
 		return
-	_step(delta)
+	if save_perf_mode:
+		var t0 := Time.get_ticks_usec()
+		_step(delta)
+		set_meta("save_perf_step_ms", float(Time.get_ticks_usec() - t0) * 0.001)
+		if (frame_i % 30) == 0:
+			print("SAVE PERF step_parts %s" % str(get_meta("save_perf_parts", {})))
+	else:
+		_step(delta)
 
 
 func _notification(what: int) -> void:
@@ -268,6 +369,63 @@ func _step(delta: float) -> void:
 		if sponge_hold <= 0.0:
 			sponge_id = -1
 	_tick_talk_wait(delta)
+	if save_perf_mode:
+		var parts := {}
+		var mark := Time.get_ticks_usec()
+		if not frozen:
+			item_physics.tick_items(delta)
+			parts["items"] = float(Time.get_ticks_usec() - mark) * 0.001
+			mark = Time.get_ticks_usec()
+			_tick_trees(delta)
+			parts["trees"] = float(Time.get_ticks_usec() - mark) * 0.001
+			mark = Time.get_ticks_usec()
+			_tick_props(delta)
+			parts["props"] = float(Time.get_ticks_usec() - mark) * 0.001
+			mark = Time.get_ticks_usec()
+			_tick_monoliths(delta)
+			parts["mono"] = float(Time.get_ticks_usec() - mark) * 0.001
+			mark = Time.get_ticks_usec()
+			_tick_buildings(delta)
+			parts["bld"] = float(Time.get_ticks_usec() - mark) * 0.001
+			mark = Time.get_ticks_usec()
+			_tick_auras(delta)
+			parts["aura"] = float(Time.get_ticks_usec() - mark) * 0.001
+			mark = Time.get_ticks_usec()
+			_tick_agents(delta)
+			_tick_corpses(delta)
+			parts["agents"] = float(Time.get_ticks_usec() - mark) * 0.001
+			parts["agent_walk_ms"] = float(get_meta("_ap_walk_us", 0)) * 0.001
+			parts["move_blocked_n"] = int(get_meta("_ap_move_n", 0))
+			parts["walk_cells_n"] = int(get_meta("_ap_walk_cells_n", 0))
+			set_meta("_ap_walk_us", 0)
+			set_meta("_ap_move_n", 0)
+			set_meta("_ap_walk_cells_n", 0)
+			mark = Time.get_ticks_usec()
+			if lists_dirty or (frame_i & 7) == 0:
+				var item_n := items.size()
+				var bld_n := buildings.size()
+				var feat_n := features.size()
+				_compact(items)
+				_compact(features)
+				_compact(buildings)
+				lists_dirty = false
+				if items.size() != item_n or buildings.size() != bld_n or features.size() != feat_n:
+					_rebuild_kind_indexes()
+			parts["compact"] = float(Time.get_ticks_usec() - mark) * 0.001
+		elif str(modal.get("event", "")) == "monolith_appear":
+			_tick_monoliths(delta, false)
+		mark = Time.get_ticks_usec()
+		_tick_barks(delta, not frozen)
+		_tick_pops(delta, not frozen)
+		_milestone_cool = maxf(0.0, _milestone_cool - delta)
+		if _milestone_cool <= 0.0:
+			_milestone_cool = 0.35
+			_check_milestones()
+		_tick_voice(delta)
+		save_system.tick_autosave(delta)
+		parts["tail"] = float(Time.get_ticks_usec() - mark) * 0.001
+		set_meta("save_perf_parts", parts)
+		return
 	if not frozen:
 		item_physics.tick_items(delta)
 		_tick_trees(delta)
@@ -275,35 +433,192 @@ func _step(delta: float) -> void:
 		_tick_monoliths(delta)
 		_tick_buildings(delta)
 		_tick_auras(delta)
-		_tick_visible(delta)
-		_tick_slice(delta)
-		_compact(items)
-		_compact(features)
-		_compact(buildings)
+		_tick_agents(delta)
+		_tick_corpses(delta)
+		# Compacting 3k+ feature dicts every frame was a large sync tax; only when dirty or periodically.
+		if lists_dirty or (frame_i & 7) == 0:
+			var item_n := items.size()
+			var bld_n := buildings.size()
+			var feat_n := features.size()
+			_compact(items)
+			_compact(features)
+			_compact(buildings)
+			lists_dirty = false
+			if items.size() != item_n or buildings.size() != bld_n or features.size() != feat_n:
+				_rebuild_kind_indexes()
 	elif str(modal.get("event", "")) == "monolith_appear":
 		_tick_monoliths(delta, false)
 	# Keep bark and anchored pop positions on live thronglets even during gaze teleport.
 	_tick_barks(delta, not frozen)
 	_tick_pops(delta, not frozen)
-	_check_milestones()
+	_milestone_cool = maxf(0.0, _milestone_cool - delta)
+	if _milestone_cool <= 0.0:
+		_milestone_cool = 0.35
+		_check_milestones()
 	_tick_voice(delta)
-	_rebuild_hash()
 	save_system.tick_autosave(delta)
 
 
-func _tick_slice(delta: float) -> void:
-	if slot_count <= 0:
+func _tick_agents(delta: float) -> void:
+	if living_ids.is_empty():
 		return
-	var steps := mini(Catalog.SLICE, slot_count)
-	var passes := maxi(1, int(ceil(float(slot_count) / float(steps))))
-	var dt := delta * float(passes)
-	for _s in steps:
-		var i := cursor
-		cursor = (cursor + 1) % slot_count
-		_tick_one(i, dt)
-		_sample_mood(i)
-		if cursor == 0:
+	var n := living_ids.size()
+	var decay := _decay_scale()
+	_ensure_agent_done_frame()
+	# Mid-game: every thronglet gets real _walk/_decide — LOD made them freeze on trees.
+	if n <= AGENT_FULL_CAP:
+		for raw in living_ids:
+			var i_full := int(raw)
+			if i_full < 0 or i_full >= slot_count or state[i_full] != Catalog.ST_LIVING:
+				continue
+			if held_kind == "thronglet" and i_full == held_ref:
+				continue
+			_tick_one(i_full, delta, decay, true)
+			_sample_mood(i_full)
+		_publish_mood()
+		return
+	var sticky_left := AGENT_STICKY_BUDGET
+	var seek_left := AGENT_SEEK_BUDGET
+	var cheap_left := AGENT_CHEAP_BUDGET
+	# 1) Sticky goals — haul/mine first, then any active seek (needs _walk to peel buildings).
+	if n <= AGENT_STICKY_SCAN_CAP:
+		for pass_i in 2:
+			if sticky_left <= 0:
+				break
+			var hard_pass := pass_i == 0
+			for raw_goal in living_ids:
+				if sticky_left <= 0:
+					break
+				var ig := int(raw_goal)
+				if ig < 0 or ig >= slot_count or state[ig] != Catalog.ST_LIVING:
+					continue
+				if held_kind == "thronglet" and ig == held_ref:
+					continue
+				_ensure_agent_done_frame()
+				if _agent_done_frame[ig] == frame_i:
+					continue
+				if hard_pass:
+					if not _agent_has_hard_goal(ig):
+						continue
+				elif not _agent_has_goal(ig):
+					continue
+				_tick_one(ig, delta, decay, true)
+				_ensure_agent_done_frame()
+				_agent_done_frame[ig] = frame_i
+				sticky_left -= 1
+				_sample_mood(ig)
+	# 2) Near camera: rotate idle seeks; leftovers coast so the view stays alive.
+	var near_ids: Array = []
+	if view_rect.size != Vector2.ZERO:
+		near_ids = query_rect(view_rect.grow(AGENT_NEAR_PAD), AGENT_NEAR_BUDGET)
+	var near_n := near_ids.size()
+	if near_n > 0:
+		var near_base := frame_i % near_n
+		for j in near_n:
+			var i := int(near_ids[(near_base + j) % near_n])
+			if i < 0 or i >= slot_count or state[i] != Catalog.ST_LIVING:
+				continue
+			if held_kind == "thronglet" and i == held_ref:
+				continue
+			_ensure_agent_done_frame()
+			if _agent_done_frame[i] == frame_i:
+				continue
+			if seek_left > 0:
+				_tick_one(i, delta, decay, true)
+				_ensure_agent_done_frame()
+				_agent_done_frame[i] = frame_i
+				seek_left -= 1
+				_sample_mood(i)
+			else:
+				if tick_stamp[i] != frame_i:
+					tick_stamp[i] = frame_i
+					_tick_busy_or_coast(i, delta)
+				_agent_done_frame[i] = frame_i
+	# 3) Far / overflow: fixed rotating budgets — cost flat at 50k-120k.
+	# Re-read living_ids.size() — sticky/near ticks can kill and shrink the list.
+	n = living_ids.size()
+	if n <= 0:
+		_publish_mood()
+		return
+	_ensure_agent_done_frame()
+	if seek_left > 0:
+		var base := int((frame_i * AGENT_SEEK_BUDGET) % n)
+		var far_period := maxi(1, int(ceil(float(n) / float(AGENT_SEEK_BUDGET))))
+		var life_dt := delta * float(far_period)
+		for j2 in seek_left:
+			var live_n2 := living_ids.size()
+			if live_n2 <= 0:
+				break
+			var i2 := int(living_ids[(base + j2) % live_n2])
+			if i2 < 0 or i2 >= slot_count or state[i2] != Catalog.ST_LIVING:
+				continue
+			_ensure_agent_done_frame()
+			if _agent_done_frame[i2] == frame_i:
+				continue
+			if not _tick_life(i2, life_dt, decay):
+				_agent_done_frame[i2] = frame_i
+				continue
+			tick_stamp[i2] = frame_i
+			if _tick_busy(i2, delta, true):
+				_tick_decide(i2, delta)
+			_agent_done_frame[i2] = frame_i
+			_sample_mood(i2)
+	if cheap_left > 0:
+		n = living_ids.size()
+		if n <= 0:
 			_publish_mood()
+			return
+		var cbase := int((frame_i * AGENT_CHEAP_BUDGET) % n)
+		var cheap_period := maxi(1, int(ceil(float(n) / float(AGENT_CHEAP_BUDGET))))
+		var cheap_life_dt := delta * float(cheap_period)
+		for j3 in cheap_left:
+			var live_n3 := living_ids.size()
+			if live_n3 <= 0:
+				break
+			var i3 := int(living_ids[(cbase + j3) % live_n3])
+			if i3 < 0 or i3 >= slot_count or state[i3] != Catalog.ST_LIVING:
+				continue
+			_ensure_agent_done_frame()
+			if _agent_done_frame[i3] == frame_i:
+				continue
+			if not _tick_life(i3, cheap_life_dt, decay):
+				_agent_done_frame[i3] = frame_i
+				continue
+			tick_stamp[i3] = frame_i
+			_tick_busy_or_coast(i3, delta)
+			_agent_done_frame[i3] = frame_i
+	_publish_mood()
+
+
+func _ensure_agent_done_frame() -> void:
+	var need := slot_count
+	if _agent_done_frame.size() == need:
+		return
+	var old := _agent_done_frame.size()
+	_agent_done_frame.resize(need)
+	for k in range(old, need):
+		_agent_done_frame[k] = -1
+
+
+func _agent_has_hard_goal(i: int) -> bool:
+	if i < 0 or i >= slot_count:
+		return false
+	if i < mine_job.size() and int(mine_job[i]) >= 0:
+		return true
+	if i < carry.size() and carry[i] != Catalog.CARRY_NONE:
+		return true
+	if i < link_claim.size() and link_claim[i] >= 0:
+		return true
+	return false
+
+
+func _agent_has_goal(i: int) -> bool:
+	# Any active walk needs every-frame _walk — coast cannot peel around buildings.
+	if _agent_has_hard_goal(i):
+		return true
+	if i < seek_t.size() and seek_t[i] > 0.0:
+		return true
+	return false
 
 
 func _sample_mood(i: int) -> void:
@@ -347,15 +662,7 @@ func _publish_mood() -> void:
 	_mood_freak = 0
 
 
-func _tick_visible(delta: float) -> void:
-	if view_rect.size == Vector2.ZERO or hash_head.is_empty():
-		return
-	var ids := query_rect(view_rect.grow(48.0))
-	for id in ids:
-		_tick_one(int(id), delta)
-
-
-func _tick_one(i: int, dt: float) -> void:
+func _tick_one(i: int, dt: float, decay: float = -1.0, allow_seek: bool = true) -> void:
 	if i < 0 or i >= slot_count:
 		return
 	if tick_stamp[i] == frame_i:
@@ -365,11 +672,41 @@ func _tick_one(i: int, dt: float) -> void:
 		return
 	if held_kind == "thronglet" and i == held_ref:
 		return
+	if decay < 0.0:
+		decay = _decay_scale()
+	if not _tick_life(i, dt, decay):
+		return
+	if not allow_seek:
+		_tick_busy_or_coast(i, dt)
+		return
+	if not _tick_busy(i, dt, true):
+		return
+	_tick_decide(i, dt)
+
+
+func _tick_cheap(i: int, dt: float, decay: float) -> void:
+	# Life + continue current motion/action. No seeks, no open_dir peeling.
+	if i < 0 or i >= slot_count:
+		return
+	if tick_stamp[i] == frame_i:
+		return
+	tick_stamp[i] = frame_i
+	if state[i] != Catalog.ST_LIVING:
+		return
+	if held_kind == "thronglet" and i == held_ref:
+		return
+	if not _tick_life(i, dt, decay):
+		return
+	_tick_busy_or_coast(i, dt)
+
+
+func _tick_life(i: int, dt: float, decay: float) -> bool:
+	# Returns false when the agent should not move/decide further this tick.
 	if mito_t[i] > 0.0:
 		mito_t[i] = maxf(0.0, mito_t[i] - dt)
 		if mito_t[i] <= 0.0:
 			_finish_mitosis(i)
-		return
+		return false
 	if mito_charge[i] > 0.0:
 		# The mitosis sheet already plays while charging, so stay put for the
 		# whole buildup + split instead of walking through the animation.
@@ -382,28 +719,32 @@ func _tick_one(i: int, dt: float) -> void:
 		act[i] = 0
 		act_t[i] = 0.0
 		shake_t[i] = 0.0
-		return
-	var decay := _decay_scale()
+		return false
 	fed[i] = maxf(0.0, fed[i] - DECAY_FED * decay * dt)
 	amused[i] = maxf(0.0, amused[i] - DECAY_FUN * decay * dt)
 	clean[i] = maxf(0.0, clean[i] - DECAY_CLEAN * decay * dt)
-	var tile := _tile_at(pos_x[i], pos_y[i])
-	if tile == Catalog.TILE_GOO:
-		var goo_hit := 0.35 if bool(mutations.get("adapt", false)) else 0.9
-		clean[i] = maxf(0.0, clean[i] - goo_hit * dt)
-		fed[i] = maxf(0.0, fed[i] - 0.35 * dt)
+	# Goo check is relatively rare terrain; skip most cheap frames via id phase.
+	if ((frame_i + i) & 7) == 0:
+		var tile := _tile_at(pos_x[i], pos_y[i])
+		if tile == Catalog.TILE_GOO:
+			var goo_hit := 0.35 if bool(mutations.get("adapt", false)) else 0.9
+			clean[i] = maxf(0.0, clean[i] - goo_hit * dt * 8.0)
+			fed[i] = maxf(0.0, fed[i] - 0.35 * dt * 8.0)
 	if fed[i] <= 0.0 or amused[i] <= 0.0 or clean[i] <= 0.0:
 		starve[i] += dt
 		if starve[i] >= STARVE_GRACE:
 			_die_neglect(i)
-			return
+			return false
 	else:
 		starve[i] = 0.0
 	if fed[i] < Catalog.NEED_HUNGRY:
 		hungry_t[i] += dt
 	else:
 		hungry_t[i] = 0.0
-	_maybe_bark(i)
+	if bark_cool[i] > 0.0:
+		bark_cool[i] = maxf(0.0, bark_cool[i] - dt)
+	elif ((frame_i + i) & 15) == 0:
+		_maybe_bark(i)
 	if act_t[i] > 0.0:
 		act_t[i] = maxf(0.0, act_t[i] - dt)
 		if act_t[i] <= 0.0:
@@ -413,16 +754,51 @@ func _tick_one(i: int, dt: float) -> void:
 		act[i] = ACT_WASH
 		act_t[i] = 0.2
 	if act[i] == ACT_WASH:
-		return
+		return false
 	if i == sponge_id and sponge_hold > 0.0:
-		return
+		return false
 	cool[i] = maxf(0.0, cool[i] - dt)
-	# Tub sitters and carousel riders stay on the pad. Everyone else gets pushed out.
+	return true
+
+
+func _tick_busy_or_coast(i: int, dt: float) -> void:
+	# Most agents are free walkers: skip tub/ride/guest scans via O(1) link checks.
+	var linked := (i < link_tub.size() and link_tub[i] >= 0) \
+		or (i < link_ride.size() and link_ride[i] >= 0) \
+		or (i < link_guest.size() and link_guest[i] >= 0)
+	if linked:
+		if not _tick_busy(i, dt, false):
+			return
+	elif mito_charge[i] > 0.0:
+		return
+	if _move_blocked(pos_x[i], pos_y[i]):
+		_unstick(i)
+	var speed := MOVE_SPEED
+	if buff_t[i] > 0.0:
+		speed = 36.0
+		buff_t[i] = maxf(0.0, buff_t[i] - dt)
+	if i < seek_t.size() and seek_t[i] > 0.0:
+		seek_t[i] = maxf(0.0, seek_t[i] - dt)
+		_coast(i, seek_x[i], seek_y[i], speed, dt)
+	else:
+		if absf(dir_x[i]) + absf(dir_y[i]) < 0.01:
+			_pick_wander(i)
+		_coast_dir(i, speed, dt)
+
+
+func _tick_busy(i: int, dt: float, hard_unstick: bool) -> bool:
+	# Tub / ride / guest. Returns false when occupied for the rest of the tick.
 	var tub_here := seat_of(i)
 	var in_tub := not tub_here.is_empty() and float(tub_here.get("bath_t", -1.0)) >= 0.0
 	var on_ride := not _ride_building(i).is_empty()
-	if _move_blocked(pos_x[i], pos_y[i]) and not in_tub and not on_ride:
-		_unstick(i)
+	if not in_tub and not on_ride and _move_blocked(pos_x[i], pos_y[i]):
+		if hard_unstick:
+			_unstick(i)
+		else:
+			dir_x[i] = 0.0
+			dir_y[i] = 0.0
+			if i < seek_t.size():
+				seek_t[i] = 0.0
 	var visit := _guest_building(i)
 	if not visit.is_empty():
 		var visit_kind := int(visit.kind)
@@ -440,33 +816,82 @@ func _tick_one(i: int, dt: float) -> void:
 		if leave:
 			_drop_guest(visit, i)
 		else:
-			# Stay outside the solid footprint; use from the approach ring.
-			if not _inside_building_reach(pos_x[i], pos_y[i], visit):
-				var door := _approach_building(visit, i)
-				_walk(i, float(door.x), float(door.y), MOVE_SPEED, dt)
+			var door := _approach_building(visit, i)
+			var at_door := _dist_i(i, float(door.x), float(door.y)) < float(Catalog.TILE) * 1.25
+			if not _inside_building_reach(pos_x[i], pos_y[i], visit) and not at_door:
+				if i < seek_t.size() and seek_t[i] > 0.0:
+					_coast(i, seek_x[i], seek_y[i], MOVE_SPEED, dt)
+				elif hard_unstick:
+					_walk(i, float(door.x), float(door.y), MOVE_SPEED, dt)
 			else:
-				act[i] = ACT_PLAY if _is_show(visit_kind) else ACT_BATH
+				if _is_show(visit_kind):
+					act[i] = ACT_PLAY
+				elif _is_mine_kind(visit_kind):
+					act[i] = ACT_WORK
+				else:
+					act[i] = ACT_BATH
 				act_t[i] = 0.4
-			return
-	# Keep an in-progress soak even after clean rises past NEED_SEEK.
+			return false
 	var tub_seat := seat_of(i)
 	if not tub_seat.is_empty() and float(tub_seat.get("bath_t", -1.0)) >= 0.0:
 		_do_bath(i, tub_seat, dt)
-		return
-	# Keep an in-progress carousel ride until fun is topped and the min stay is done.
+		return false
 	var riding_b := _ride_building(i)
 	if not riding_b.is_empty():
 		_do_roundabout_ride(i, riding_b, dt)
-		return
+		return false
 	var ready := fed[i] >= Catalog.NEED_OK and amused[i] >= Catalog.NEED_OK and clean[i] >= Catalog.NEED_OK and cool[i] <= 0.0
 	if ready:
 		mito_charge[i] = minf(MITOSIS_CHARGE, mito_charge[i] + dt)
 		if mito_charge[i] >= MITOSIS_CHARGE:
 			mito_charge[i] = 0.0
 			_start_mitosis(i)
-			return
+			return false
 	else:
 		mito_charge[i] = maxf(0.0, mito_charge[i] - dt * 1.5)
+	return true
+
+
+func _coast(i: int, tx: float, ty: float, speed: float, dt: float) -> void:
+	# Same cardinal/BFS stepper as _walk — coast must not charge diagonals into trees.
+	_walk(i, tx, ty, speed, dt)
+
+
+func _coast_dir(i: int, speed: float, dt: float) -> void:
+	var step := speed * dt
+	if absf(dir_x[i]) + absf(dir_y[i]) < 0.01 or step < 0.01:
+		return
+	_snap_dir_cardinal(i)
+	if _move_cardinal_toward(i, pos_x[i] + dir_x[i] * 32.0, pos_y[i] + dir_y[i] * 32.0, step):
+		return
+	# Peel around the tree — never freeze with dir=0 until the next seek.
+	var peel := _open_dir(i, Vector2(dir_x[i], dir_y[i]))
+	if peel == Vector2.ZERO:
+		peel = _open_dir(i, _side_dir(i, Vector2(dir_x[i], dir_y[i])))
+	if peel != Vector2.ZERO:
+		dir_x[i] = peel.x
+		dir_y[i] = peel.y
+		_snap_dir_cardinal(i)
+		if _move_cardinal_toward(i, pos_x[i] + dir_x[i] * 32.0, pos_y[i] + dir_y[i] * 32.0, step):
+			return
+	if _move_blocked(pos_x[i], pos_y[i]) or _corner_trap(i):
+		_unstick(i)
+	else:
+		_pick_wander(i)
+	if i < seek_t.size():
+		seek_t[i] = 0.0
+
+
+func _snap_dir_cardinal(i: int) -> void:
+	if absf(dir_x[i]) >= absf(dir_y[i]):
+		dir_x[i] = 0.0 if is_zero_approx(dir_x[i]) else signf(dir_x[i])
+		dir_y[i] = 0.0
+	else:
+		dir_y[i] = 0.0 if is_zero_approx(dir_y[i]) else signf(dir_y[i])
+		dir_x[i] = 0.0
+
+
+func _tick_decide(i: int, dt: float) -> void:
 	var speed := MOVE_SPEED
 	if buff_t[i] > 0.0:
 		speed = 36.0
@@ -568,7 +993,15 @@ func colony_cap() -> int:
 	return maxi(2, int(floor(float(_walk_cells()) / float(Catalog.SPACE_PER_THRONG))))
 
 
+func _invalidate_walk_cells() -> void:
+	_walk_cells_cache = -1
+
+
 func _walk_cells() -> int:
+	if save_perf_mode:
+		set_meta("_ap_walk_cells_n", int(get_meta("_ap_walk_cells_n", 0)) + 1)
+	if _walk_cells_cache >= 0:
+		return _walk_cells_cache
 	var n := 0
 	for ck in revealed.keys():
 		if not chunks.has(ck):
@@ -584,6 +1017,7 @@ func _walk_cells() -> int:
 				if feature_cell.has(cell) or building_cell.has(cell):
 					continue
 				n += 1
+	_walk_cells_cache = n
 	return n
 
 
@@ -609,14 +1043,24 @@ func _tell_space_cap() -> void:
 
 func _seek_food(i: int, speed: float, dt: float) -> bool:
 	var apple := _nearest_apple(i, 240.0)
-	if apple.is_empty():
+	var home := _nearest_building_kinds(pos_x[i], pos_y[i], [Catalog.BLD_DWELL, Catalog.BLD_FANCY], 280.0, i)
+	var apple_d := 999999.0 if apple.is_empty() else _dist_i(i, float(apple.x), float(apple.y))
+	var home_d := 999999.0 if home.is_empty() else _dist_i(i, float(home.x), float(home.y))
+	if apple.is_empty() and home.is_empty():
 		return false
+	# Prefer the nearer option; houses feed while resting.
+	if home_d + 8.0 < apple_d:
+		_release_apple_claim(i)
+		return _approach_home_visit(i, home, speed, dt)
+	if apple.is_empty():
+		return _approach_home_visit(i, home, speed, dt)
 	if not _claim_apple(i, apple):
+		if not home.is_empty():
+			return _approach_home_visit(i, home, speed, dt)
 		return false
 	var tx := float(apple.x)
 	var ty := float(apple.y)
-	var best := _dist_i(i, tx, ty)
-	if best < 12.0:
+	if apple_d < 12.0:
 		act[i] = ACT_EAT
 		act_t[i] = 0.25
 		var progress := float(apple.get("bite", 0.0)) + dt
@@ -639,11 +1083,27 @@ func _seek_food(i: int, speed: float, dt: float) -> bool:
 	return true
 
 
+func _approach_home_visit(i: int, home: Dictionary, speed: float, dt: float) -> bool:
+	if home.is_empty():
+		return false
+	_release_claim(i)
+	var edge := _approach_building(home, i)
+	var at_rim := _dist_i(i, float(edge.x), float(edge.y)) < 10.0
+	if _inside_building_reach(pos_x[i], pos_y[i], home) or at_rim:
+		if _enter_visit(i, home):
+			act[i] = ACT_BATH
+			act_t[i] = 0.4
+			return true
+		return false
+	_walk(i, float(edge.x), float(edge.y), speed, dt)
+	return true
+
+
 func _nearest_apple(i: int, max_dist: float) -> Dictionary:
 	var best := {}
 	var best_d := max_dist
-	for it in items:
-		if it.dead or it.held or int(it.kind) != Catalog.ITEM_APPLE:
+	for it in items_apple:
+		if it.dead or it.held:
 			continue
 		if float(it.get("air", 0.0)) > 0.0:
 			continue
@@ -652,7 +1112,7 @@ func _nearest_apple(i: int, max_dist: float) -> Dictionary:
 			if who < slot_count and state[who] == Catalog.ST_LIVING and not _food_priority_beats(i, who):
 				continue
 			if who < 0 or who >= slot_count or state[who] != Catalog.ST_LIVING:
-				it.claimer = -1
+				_clear_item_claimer(it)
 		var d := _dist_i(i, float(it.x), float(it.y))
 		if d < best_d:
 			best_d = d
@@ -688,7 +1148,7 @@ func _claim_apple(i: int, apple: Dictionary) -> bool:
 		if not _food_priority_beats(i, who):
 			return false
 	_release_apple_claim(i)
-	apple.claimer = i
+	_bind_item_claimer(apple, i)
 	return true
 
 
@@ -696,10 +1156,25 @@ func _release_apple_claim(i: int) -> void:
 	_release_item_claims(i)
 
 
+func _items_of_kind(kind: int) -> Array:
+	match kind:
+		Catalog.ITEM_APPLE:
+			return items_apple
+		Catalog.ITEM_BALL:
+			return items_ball
+		Catalog.ITEM_WOOD:
+			return items_wood
+		Catalog.ITEM_BONE:
+			return items_bone
+		Catalog.ITEM_ORE:
+			return items_ore
+	return items
+
+
 func _nearest_free_item(i: int, kind: int, max_dist: float) -> Dictionary:
 	var best := {}
 	var best_d := max_dist
-	for it in items:
+	for it in _items_of_kind(kind):
 		if it.dead or it.held or int(it.kind) != kind:
 			continue
 		if bool(it.get("falling_void", false)) or float(it.get("air", 0.0)) > 4.0:
@@ -708,7 +1183,7 @@ func _nearest_free_item(i: int, kind: int, max_dist: float) -> Dictionary:
 		if who >= 0 and who != i:
 			if _item_claim_holds(who):
 				continue
-			it.claimer = -1
+			_clear_item_claimer(it)
 		var d := _dist_i(i, float(it.x), float(it.y))
 		if d < best_d:
 			best_d = d
@@ -742,13 +1217,45 @@ func _claim_item(i: int, item: Dictionary) -> void:
 	if who >= 0 and who != i and _item_claim_holds(who):
 		return
 	_release_item_claims(i)
+	_bind_item_claimer(item, i)
+
+
+func _bind_item_claimer(item: Dictionary, i: int) -> void:
+	var prev := int(item.get("claimer", -1))
+	if prev >= 0 and prev != i and prev < link_claim.size():
+		if link_claim[prev] == int(item.id):
+			link_claim[prev] = -1
+		if link_ball[prev] == int(item.id):
+			link_ball[prev] = -1
 	item.claimer = i
+	if i < 0 or i >= link_claim.size():
+		return
+	link_claim[i] = int(item.id)
+	link_ball[i] = int(item.id) if int(item.kind) == Catalog.ITEM_BALL else -1
+
+
+func _clear_item_claimer(item: Dictionary) -> void:
+	var who := int(item.get("claimer", -1))
+	item.claimer = -1
+	if who < 0 or who >= link_claim.size():
+		return
+	if link_claim[who] == int(item.id):
+		link_claim[who] = -1
+	if link_ball[who] == int(item.id):
+		link_ball[who] = -1
 
 
 func _release_item_claims(i: int) -> void:
-	for it in items:
-		if int(it.get("claimer", -1)) == i:
-			it.claimer = -1
+	if i < 0 or i >= link_claim.size():
+		return
+	var iid := link_claim[i]
+	link_claim[i] = -1
+	link_ball[i] = -1
+	if iid < 0:
+		return
+	var it: Dictionary = item_by_id.get(iid, {})
+	if not it.is_empty() and int(it.get("claimer", -1)) == i:
+		it.claimer = -1
 
 
 func _seek_clean(i: int, speed: float, dt: float) -> bool:
@@ -785,19 +1292,7 @@ func _seek_clean(i: int, speed: float, dt: float) -> bool:
 			return true
 		_walk(i, float(edge.x), float(edge.y), speed, dt)
 		return true
-	else:
-		_release_claim(i)
-	var edge := _approach_building(target, i)
-	var at_rim := _dist_i(i, float(edge.x), float(edge.y)) < 10.0
-	if not use_tub and (_inside_building_reach(pos_x[i], pos_y[i], target) or at_rim):
-		if _enter_visit(i, target):
-			act[i] = ACT_BATH
-			act_t[i] = 0.4
-			return true
-		# Home/theatre full: don't camp at the door, do something else.
-		return false
-	_walk(i, float(edge.x), float(edge.y), speed, dt)
-	return true
+	return _approach_home_visit(i, target, speed, dt)
 
 
 func _do_bath(i: int, b: Dictionary, dt: float) -> void:
@@ -815,11 +1310,14 @@ func _do_bath(i: int, b: Dictionary, dt: float) -> void:
 		b.bath_t = age + dt
 	act[i] = ACT_BATH
 	act_t[i] = 0.55
+	if i < seek_t.size():
+		seek_t[i] = 0.0
 	var seat := Vector2(float(b.x), float(b.y)) + Catalog.TUB_SEAT_OFF
 	pos_x[i] = seat.x
 	pos_y[i] = seat.y
 	dir_x[i] = 0.0
 	dir_y[i] = 0.0
+	_hash_relocate(i)
 	b.active = true
 	clean[i] = minf(100.0, clean[i] + BATH_CLEAN_RATE * dt)
 	if clean[i] >= BATH_DONE and float(b.bath_t) >= BATH_MIN_STAY:
@@ -829,6 +1327,8 @@ func _do_bath(i: int, b: Dictionary, dt: float) -> void:
 func _finish_bath(i: int, b: Dictionary) -> void:
 	var rim := _approach_building(b, i)
 	_release_claim(i)
+	if i < seek_t.size():
+		seek_t[i] = 0.0
 	pos_x[i] = float(rim.x)
 	pos_y[i] = float(rim.y)
 	act[i] = ACT_BATH
@@ -839,8 +1339,14 @@ func _finish_bath(i: int, b: Dictionary) -> void:
 func _nearest_roundabout(i: int, max_dist: float) -> Dictionary:
 	var best := {}
 	var best_d := max_dist
-	for b in buildings:
-		if b.dead or bool(b.get("lifted", false)) or int(b.kind) != Catalog.BLD_ROUND:
+	var slots_n := _ride_slot_count()
+	for b in blds_round:
+		if b.dead or bool(b.get("lifted", false)):
+			continue
+		# Already boarding/riding this one: keep going. Otherwise skip full rides
+		# so seekers do not camp the rim walking in place (same as busy tubs).
+		var mine := _is_rider(b, i) or _ride_slot_of(b, i) >= 0
+		if not mine and _taken_ride_slots(b).size() >= slots_n:
 			continue
 		var d := _dist_i(i, float(b.x), float(b.y))
 		if d < best_d:
@@ -870,23 +1376,41 @@ func _set_rider(b: Dictionary, i: int, on: bool, clear_slot: bool = true) -> voi
 			kept.append(int(raw))
 	if on:
 		kept.append(i)
+		if i >= 0 and i < link_ride.size():
+			link_ride[i] = int(b.id)
 	else:
 		_set_ride_age(b, i, -1.0)
 		if clear_slot:
 			_set_ride_slot(b, i, -1)
+		if i >= 0 and i < link_ride.size() and link_ride[i] == int(b.id):
+			link_ride[i] = -1
 	b.riders = kept
 
 
 func _ride_building(i: int) -> Dictionary:
+	if i < 0 or i >= link_ride.size():
+		return {}
+	var bid := link_ride[i]
+	if bid >= 0:
+		var linked: Dictionary = building_by_id.get(bid, {})
+		if not linked.is_empty() and not linked.dead and not bool(linked.get("lifted", false)) and _is_rider(linked, i):
+			return linked
+		link_ride[i] = -1
 	for b in buildings:
 		if b.dead or bool(b.get("lifted", false)):
 			continue
 		if _is_rider(b, i):
+			link_ride[i] = int(b.id)
 			return b
 	return {}
 
 
 func _clear_ride(i: int) -> void:
+	if i >= 0 and i < link_ride.size() and link_ride[i] >= 0:
+		var b: Dictionary = building_by_id.get(link_ride[i], {})
+		if not b.is_empty() and _is_rider(b, i):
+			_set_rider(b, i, false)
+			return
 	for b in buildings:
 		if _is_rider(b, i):
 			_set_rider(b, i, false)
@@ -1074,8 +1598,9 @@ func _do_roundabout_ride(i: int, b: Dictionary, dt: float) -> void:
 		if slot < 0 or _taken_ride_slots(b, i).has(slot):
 			slot = _pick_ride_slot(b, ang)
 			if slot < 0:
-				var rim := _approach_building(b, i)
-				_walk(i, float(rim.x), float(rim.y), MOVE_SPEED, dt)
+				# Full: do not camp the approach rim. Seek will pick other fun.
+				dir_x[i] = 0.0
+				dir_y[i] = 0.0
 				return
 			_set_ride_slot(b, i, slot)
 		var gate := _ride_gate_pos(b, slot)
@@ -1179,21 +1704,57 @@ func _seek_fun(i: int, speed: float, dt: float) -> bool:
 		var rim := _approach_building(round, i)
 		if _inside_building_reach(pos_x[i], pos_y[i], round) or _dist_i(i, float(rim.x), float(rim.y)) < 10.0:
 			_do_roundabout_ride(i, round, dt)
+			# Boarded or still holding a seat claim.
+			if _is_rider(round, i) or _ride_slot_of(round, i) >= 0:
+				return true
+			# Full at the gate: fall through to ball / play buildings.
+			use_round = false
+			best = 999999.0
+			if not ball.is_empty():
+				best = _dist_i(i, float(ball.x), float(ball.y))
+				tx = float(ball.x)
+				ty = float(ball.y)
+				radius = 16.0
+				use_ball = true
+			if not play.is_empty():
+				var d_play := _dist_i(i, float(play.x), float(play.y))
+				if d_play < best:
+					best = d_play
+					tx = float(play.x)
+					ty = float(play.y)
+					play_kind = int(play.kind)
+					if _is_show(play_kind):
+						radius = 52.0
+					else:
+						radius = 22.0
+					use_ball = false
+			if best > 900000.0:
+				return false
+		else:
+			_walk(i, float(rim.x), float(rim.y), speed, dt)
 			return true
-		_walk(i, float(rim.x), float(rim.y), speed, dt)
-		return true
 	if use_ball:
 		_claim_ball(i, ball)
 	else:
 		_release_item_claims(i)
+	# Theatre: enter at the approach rim like homes/mines. Pad edges are often
+	# blocked, so _approach_building sits just outside the reach ellipse and a
+	# strict inside-only check leaves thronglets camping the door forever.
+	# Rim must match _walk's give-up distance (TILE*1.25): walk stops before 10px.
+	if not use_ball and not play.is_empty() and play_kind >= 0 and _is_show(play_kind):
+		var show_edge := _approach_building(play, i)
+		var at_rim := _dist_i(i, float(show_edge.x), float(show_edge.y)) < float(Catalog.TILE) * 1.25
+		if _inside_building_reach(pos_x[i], pos_y[i], play) or at_rim:
+			if _enter_visit(i, play):
+				act[i] = ACT_PLAY
+				act_t[i] = 0.4
+				return true
+			return false
+		_walk(i, float(show_edge.x), float(show_edge.y), speed, dt)
+		return true
 	if not use_ball and not play.is_empty() and play_kind >= 0 and _inside_building_reach(pos_x[i], pos_y[i], play):
 		act[i] = ACT_PLAY
 		act_t[i] = 0.55
-		if _is_show(play_kind):
-			_enter_visit(i, play)
-			act[i] = ACT_PLAY
-			act_t[i] = 0.4
-			return true
 		amused[i] = minf(100.0, amused[i] + PLAY_AURA_FUN * dt)
 		return true
 	if best < radius:
@@ -1225,10 +1786,6 @@ func _seek_fun(i: int, speed: float, dt: float) -> bool:
 			else:
 				dir_x[i] = 0.0
 				dir_y[i] = 0.0
-			return true
-		if _is_show(play_kind):
-			var show_edge := _approach_building(play, i)
-			_walk(i, float(show_edge.x), float(show_edge.y), speed, dt)
 			return true
 		amused[i] = minf(100.0, amused[i] + PLAY_AURA_FUN * dt)
 		return true
@@ -1268,10 +1825,10 @@ func _walk_pickup(i: int, item: Dictionary, carry_kind: int, speed: float, dt: f
 			if _item_claim_holds(int(item.get("claimer", -1))):
 				return false
 			item.claimer = i
-		carry[i] = carry_kind
-		carry_value[i] = int(item.value)
+		_set_carry(i, carry_kind, int(item.value))
 		item.claimer = -1
 		item.dead = true
+		_invalidate_item_counts()
 		if carry_kind == Catalog.CARRY_WOOD:
 			sfx_queue.append("wood_grab")
 		elif carry_kind == Catalog.CARRY_BONE:
@@ -1283,29 +1840,91 @@ func _walk_pickup(i: int, item: Dictionary, carry_kind: int, speed: float, dt: f
 
 
 func _deliver(i: int, speed: float, dt: float) -> bool:
-	var tx := 0.0
-	var ty := 0.0
 	var factory := {}
 	if carry[i] == Catalog.CARRY_ORE:
 		factory = _nearest_building_kinds(pos_x[i], pos_y[i], [Catalog.BLD_FACTORY, Catalog.BLD_FACTORY2], 4000.0)
 		if factory.is_empty():
-			carry[i] = Catalog.CARRY_NONE
+			_set_carry(i, Catalog.CARRY_NONE)
 			return false
-		tx = float(factory.x)
-		ty = float(factory.y)
 	else:
-		carry[i] = Catalog.CARRY_NONE
-		carry_value[i] = 0
+		_set_carry(i, Catalog.CARRY_NONE)
 		return false
+	# Walk to a free rim spot — the factory pad center is blocked and mid-path
+	# shore gaps need local inland waypoints or haulers oscillate forever.
+	var spot := _approach_building(factory, i)
+	var tx := float(spot.x)
+	var ty := float(spot.y)
+	if _haul_path_blocked(i, tx, ty):
+		var via := _haul_waypoint(i, tx, ty)
+		tx = via.x
+		ty = via.y
 	act[i] = ACT_WORK
 	act_t[i] = 0.3
 	_walk(i, tx, ty, speed, dt)
-	if _dist_i(i, tx, ty) < 64.0:
+	if (
+		_inside_building_reach(pos_x[i], pos_y[i], factory)
+		or _dist_i(i, float(spot.x), float(spot.y)) < 12.0
+		or _dist_i(i, float(factory.x), float(factory.y)) < 72.0
+	):
 		_factory_stack(factory, maxi(1, carry_value[i]))
 		factory.active = true
-		carry[i] = Catalog.CARRY_NONE
-		carry_value[i] = 0
+		_set_carry(i, Catalog.CARRY_NONE)
 	return true
+
+
+func _haul_path_blocked(i: int, tx: float, ty: float) -> bool:
+	var dx := tx - pos_x[i]
+	var dy := ty - pos_y[i]
+	var dist := sqrt(dx * dx + dy * dy)
+	if dist < 20.0:
+		return false
+	return _goal_path_blocked(pos_x[i], pos_y[i], dx / dist, dy / dist, mini(dist, 56.0))
+
+
+func _haul_waypoint(i: int, tx: float, ty: float) -> Vector2:
+	# Local inland hop that still progresses toward the factory rim.
+	var origin := Vector2(pos_x[i], pos_y[i])
+	var goal := Vector2(tx, ty)
+	var goal_dir := goal - origin
+	if goal_dir.length_squared() < 0.01:
+		return goal
+	goal_dir = goal_dir.normalized()
+	# Prefer the hop already in seek — flipping every frame loops the hauler.
+	if i < seek_t.size() and seek_t[i] > 0.15:
+		var kept := Vector2(seek_x[i], seek_y[i])
+		if origin.distance_squared_to(kept) > 14.0 * 14.0 and not _move_blocked(kept.x, kept.y):
+			if (kept - origin).normalized().dot(goal_dir) > 0.05:
+				return kept
+	var inland := _inland_dir(i)
+	var shore := _shore_push(i)
+	var facing := Vector2(dir_x[i], dir_y[i])
+	var best := goal
+	var best_score := -INF
+	for n in 12:
+		var ang := float(n) * (TAU / 12.0)
+		var hop := origin + Vector2(cos(ang), sin(ang)) * 56.0
+		if _move_blocked(hop.x, hop.y):
+			continue
+		var step := hop - origin
+		var step_n := step.normalized()
+		var score := step.dot(goal_dir) * 3.0
+		score += (origin.distance_to(goal) - hop.distance_to(goal)) * 2.0
+		if facing.length_squared() > 0.2:
+			score += step_n.dot(facing.normalized()) * 12.0
+		if inland != Vector2.ZERO:
+			score += step_n.dot(inland) * 8.0
+		if shore != Vector2.ZERO:
+			score += step_n.dot(shore) * 10.0
+		if score > best_score:
+			best_score = score
+			best = hop
+	if best_score > -INF:
+		return best
+	if inland != Vector2.ZERO:
+		var inland_hop := origin + inland * 48.0
+		if not _move_blocked(inland_hop.x, inland_hop.y):
+			return inland_hop
+	return goal
 
 
 func _work_radius(b: Dictionary) -> float:
@@ -1313,29 +1932,34 @@ func _work_radius(b: Dictionary) -> float:
 	return maxf(reach.x, reach.y)
 
 
+func _set_mine_job(i: int, bid: int) -> void:
+	if i < 0 or i >= mine_job.size():
+		return
+	var prev := int(mine_job[i])
+	if prev == bid:
+		return
+	if prev >= 0:
+		mine_job_n[prev] = maxi(0, int(mine_job_n.get(prev, 0)) - 1)
+	mine_job[i] = bid
+	if bid >= 0:
+		mine_job_n[bid] = int(mine_job_n.get(bid, 0)) + 1
+
+
 func _release_mine_job(i: int) -> void:
-	if i >= 0 and i < mine_job.size():
-		mine_job[i] = -1
+	_set_mine_job(i, -1)
 
 
 func _mine_jobs(b: Dictionary) -> int:
-	var bid := int(b.id)
-	var n := 0
-	for who in slot_count:
-		if state[who] != Catalog.ST_LIVING:
-			continue
-		if int(mine_job[who]) != bid:
-			continue
-		n += 1
-	return n
+	return int(mine_job_n.get(int(b.id), 0))
 
 
 func _mine_taker(b: Dictionary, cap: int) -> int:
 	var bid := int(b.id)
 	var radius := _work_radius(b) + 8.0
 	# Prefer assigned workers inside the mine, ready and empty-handed.
-	for who in slot_count:
-		if state[who] != Catalog.ST_LIVING:
+	for raw in living_ids:
+		var who := int(raw)
+		if who < 0 or who >= slot_count or state[who] != Catalog.ST_LIVING:
 			continue
 		if int(mine_job[who]) != bid:
 			continue
@@ -1351,28 +1975,41 @@ func _mine_taker(b: Dictionary, cap: int) -> int:
 func _seek_mine(i: int, speed: float, dt: float) -> bool:
 	# Dirty / hungry thronglets must not mine. Jobs are claimed on the walk so
 	# the whole colony cannot rush the rim before ACT_WORK sticks.
-	if not _work_ready(i) or not _has_factory():
+	if not _work_ready(i) or not _has_factory() or carry[i] != Catalog.CARRY_NONE:
 		_release_mine_job(i)
 		return false
 	var mine := _nearest_building_kinds(pos_x[i], pos_y[i], [Catalog.BLD_MINE, Catalog.BLD_MINE2], 360.0)
 	if mine.is_empty():
 		_release_mine_job(i)
 		return false
+	if _is_guest(mine, i):
+		act[i] = ACT_WORK
+		act_t[i] = 0.5
+		return true
+	var stock := int(mine.get("buffer", 0))
+	var digging := _live_guests(mine)
+	# Each digger needs a reserved stock unit waiting inside.
+	if stock <= digging:
+		_release_mine_job(i)
+		return false
 	var cap := 6 if int(mine.kind) == Catalog.BLD_MINE2 else 2
 	var bid := int(mine.id)
 	var already := int(mine_job[i]) == bid
-	if _mine_jobs(mine) >= cap and not already:
+	if digging + _mine_jobs(mine) >= cap and not already:
 		_release_mine_job(i)
 		return false
-	mine_job[i] = bid
+	_set_mine_job(i, bid)
 	var spot := _approach_building(mine, i)
 	var tx := float(spot.x)
 	var ty := float(spot.y)
 	if _inside_building_reach(pos_x[i], pos_y[i], mine) or _dist_i(i, tx, ty) < 8.0:
-		act[i] = ACT_WORK
-		act_t[i] = 0.5
-		# Never set shake_t here — shake forces ACT_WASH and dropped the work slot.
-		return true
+		if _enter_visit(i, mine):
+			_release_mine_job(i)
+			act[i] = ACT_WORK
+			act_t[i] = 0.5
+			return true
+		_release_mine_job(i)
+		return false
 	act[i] = ACT_WORK
 	act_t[i] = 0.5
 	_walk(i, tx, ty, speed, dt)
@@ -1380,16 +2017,21 @@ func _seek_mine(i: int, speed: float, dt: float) -> bool:
 
 
 func _wander(i: int, speed: float, dt: float) -> void:
+	# Drop stale seek (tub/food/…) or debug path and coast keep chasing it.
+	if i < seek_t.size():
+		seek_t[i] = 0.0
 	wander_t[i] -= dt
 	if wander_t[i] <= 0.0:
 		_pick_wander(i)
 	if absf(dir_x[i]) + absf(dir_y[i]) < 0.01:
 		return
+	_snap_dir_cardinal(i)
 	if _move_blocked(pos_x[i] + dir_x[i] * 12.0, pos_y[i] + dir_y[i] * 12.0):
 		_pick_wander(i)
+		_snap_dir_cardinal(i)
 		if absf(dir_x[i]) + absf(dir_y[i]) < 0.01:
 			return
-	_move(i, dir_x[i] * speed * dt, dir_y[i] * speed * dt)
+	_move_cardinal_toward(i, pos_x[i] + dir_x[i] * 32.0, pos_y[i] + dir_y[i] * 32.0, speed * dt)
 
 
 func _pick_wander(i: int) -> void:
@@ -1489,21 +2131,9 @@ func _open_dir(i: int, prefer: Vector2) -> Vector2:
 		base = base.normalized()
 	var best := Vector2.ZERO
 	var best_score := -1.0
-	for n in 16:
-		var d := base.rotated(float(n) * (TAU / 16.0))
-		var run := _clear_run(i, d.x, d.y)
-		if run < 12.0:
-			continue
-		# Prefer open runway over greedily facing the goal into a dead end.
-		var score := run * 2.5 + d.dot(base) * 5.0
-		if score > best_score:
-			best_score = score
-			best = d
-	if best != Vector2.ZERO:
-		return best
-	# Last resort: accept a shorter gap so they can leave a tight cove.
-	for n in 16:
-		var d := base.rotated(float(n) * (TAU / 16.0))
+	# Min run 6 — a 1-tile tree gap clears ~8px; 10 rejected every narrow path.
+	for n in 8:
+		var d := base.rotated(float(n) * (TAU / 8.0))
 		var run := _clear_run(i, d.x, d.y)
 		if run < 6.0:
 			continue
@@ -1511,6 +2141,17 @@ func _open_dir(i: int, prefer: Vector2) -> Vector2:
 		if score > best_score:
 			best_score = score
 			best = d
+	if best != Vector2.ZERO:
+		return best
+	for n in 8:
+		var d2 := base.rotated(float(n) * (TAU / 8.0) + TAU / 16.0)
+		var run2 := _clear_run(i, d2.x, d2.y)
+		if run2 < 4.0:
+			continue
+		var score2 := run2 * 2.5 + d2.dot(base) * 5.0
+		if score2 > best_score:
+			best_score = score2
+			best = d2
 	return best
 
 
@@ -1529,67 +2170,270 @@ func _side_dir(i: int, goal: Vector2) -> Vector2:
 	return left if run_l >= run_r else right
 
 
-func _hold_avoid(i: int, secs: float = 0.9) -> void:
+func _hold_avoid(i: int, secs: float = 0.2) -> void:
 	if i < 0 or i >= avoid_t.size():
 		return
 	avoid_t[i] = maxf(avoid_t[i], secs)
 
 
 func _walk(i: int, tx: float, ty: float, speed: float, dt: float) -> void:
+	var _walk_t0 := 0
+	if save_perf_mode:
+		_walk_t0 = Time.get_ticks_usec()
+	if _move_blocked(pos_x[i], pos_y[i]):
+		_unstick(i)
+		if i < seek_t.size():
+			seek_t[i] = 0.0
+		if save_perf_mode:
+			set_meta("_ap_walk_us", int(get_meta("_ap_walk_us", 0)) + (Time.get_ticks_usec() - _walk_t0))
+		return
 	var dx := tx - pos_x[i]
 	var dy := ty - pos_y[i]
 	var dist := sqrt(dx * dx + dy * dy)
 	if dist < 1.0:
+		if i < seek_t.size():
+			seek_t[i] = 0.0
+		if i < avoid_t.size():
+			avoid_t[i] = 0.0
+		if save_perf_mode:
+			set_meta("_ap_walk_us", int(get_meta("_ap_walk_us", 0)) + (Time.get_ticks_usec() - _walk_t0))
 		return
+	if i < seek_t.size():
+		seek_x[i] = tx
+		seek_y[i] = ty
+		seek_t[i] = Catalog.SEEK_HOLD
 	if avoid_t[i] > 0.0:
 		avoid_t[i] = maxf(0.0, avoid_t[i] - dt)
-	var gx := dx / dist
-	var gy := dy / dist
-	var goal := Vector2(gx, gy)
-	var goal_run := _clear_run(i, gx, gy)
-	# Only require a corridor as far as the goal. Building footprints block
-	# just past approach rims, so demanding runway beyond the goal (or a
-	# 20px floor while already close) left thronglets circling tubs and rides.
-	var need_run := mini(dist, 40.0)
-	# If the straight shot is already known-bad, peel sideways now — do not walk into it.
-	var goal_blocked := goal_run + 4.0 < need_run or _goal_path_blocked(pos_x[i], pos_y[i], gx, gy, need_run)
-	var take_goal := avoid_t[i] <= 0.0 and not goal_blocked
-	if take_goal:
-		dir_x[i] = gx
-		dir_y[i] = gy
-	else:
-		var cur := Vector2(dir_x[i], dir_y[i])
-		var keep := false
-		if cur.length_squared() > 0.2:
-			cur = cur.normalized()
-			var cur_run := _clear_run(i, cur.x, cur.y)
-			if avoid_t[i] > 0.0:
-				# Finish the peel even if it heads away from the blocked goal.
-				if cur_run >= 6.0:
-					keep = true
-					dir_x[i] = cur.x
-					dir_y[i] = cur.y
-			elif cur_run >= 14.0 and cur.dot(goal) > -0.35:
-				keep = true
-				dir_x[i] = cur.x
-				dir_y[i] = cur.y
-		if not keep:
-			var bias := _side_dir(i, goal)
-			var detour := _open_dir(i, bias)
-			if detour == Vector2.ZERO:
-				detour = _open_dir(i, -bias)
-			if detour == Vector2.ZERO:
-				detour = _open_dir(i, goal)
-			if detour == Vector2.ZERO:
+	var step := speed * dt
+	var hop := _path_hop(pos_x[i], pos_y[i], tx, ty)
+	if hop == Vector2.ZERO:
+		# No improving BFS step (blocked goal / sealed best). Stopping beats
+		# unstick-teleport bouncing inside a tree enclosure forever.
+		if i < seek_t.size():
+			seek_t[i] = 0.0
+		if save_perf_mode:
+			set_meta("_ap_walk_us", int(get_meta("_ap_walk_us", 0)) + (Time.get_ticks_usec() - _walk_t0))
+		return
+	# Already on the best open cell (blocked goal / dead-end approach) — stop, do not unstick-spin.
+	if absf(hop.x - pos_x[i]) <= 0.5 and absf(hop.y - pos_y[i]) <= 0.5:
+		if _move_blocked(tx, ty) or dist <= float(Catalog.TILE) * 1.25:
+			if i < seek_t.size():
+				seek_t[i] = 0.0
+		if save_perf_mode:
+			set_meta("_ap_walk_us", int(get_meta("_ap_walk_us", 0)) + (Time.get_ticks_usec() - _walk_t0))
+		return
+	var moved := _steer_toward(i, hop.x, hop.y, step)
+	if not moved:
+		# Peel around the blocker toward the hop; unstick only when wedged.
+		var toward := Vector2(hop.x - pos_x[i], hop.y - pos_y[i])
+		var peel := _open_dir(i, toward)
+		if peel == Vector2.ZERO:
+			peel = _open_dir(i, _side_dir(i, toward))
+		if peel != Vector2.ZERO:
+			dir_x[i] = peel.x
+			dir_y[i] = peel.y
+			_snap_dir_cardinal(i)
+			moved = _move_cardinal_toward(i, pos_x[i] + dir_x[i] * 32.0, pos_y[i] + dir_y[i] * 32.0, step)
+		if not moved:
+			if _move_blocked(pos_x[i], pos_y[i]) or _corner_trap(i):
 				_unstick(i)
-				_hold_avoid(i, 1.1)
-				return
-			dir_x[i] = detour.x
-			dir_y[i] = detour.y
-			_hold_avoid(i, 0.95)
-		elif goal_blocked:
-			_hold_avoid(i, 0.7)
-	_move(i, dir_x[i] * speed * dt, dir_y[i] * speed * dt)
+			if i < seek_t.size():
+				seek_t[i] = 0.0
+	elif _move_blocked(pos_x[i], pos_y[i]):
+		_unstick(i)
+		if i < seek_t.size():
+			seek_t[i] = 0.0
+	if save_perf_mode:
+		set_meta("_ap_walk_us", int(get_meta("_ap_walk_us", 0)) + (Time.get_ticks_usec() - _walk_t0))
+
+
+func _steer_toward(i: int, tx: float, ty: float, step: float) -> bool:
+	# Cardinal BFS hops stay on one axis (no cell-center zigzag). Open space steers linearly.
+	var hop_cell := _cell_vec(tx, ty)
+	var cur_cell := _cell_vec(pos_x[i], pos_y[i])
+	var dc := hop_cell - cur_cell
+	if absi(dc.x) + absi(dc.y) == 1:
+		if dc.x != 0:
+			return _move_cardinal_toward(i, tx, pos_y[i], step)
+		return _move_cardinal_toward(i, pos_x[i], ty, step)
+	var adx := tx - pos_x[i]
+	var ady := ty - pos_y[i]
+	# Ignore sub-tile drift on the minor axis so "up" stays a straight line.
+	if absf(adx) <= 1.5 and absf(ady) > absf(adx):
+		adx = 0.0
+	elif absf(ady) <= 1.5 and absf(adx) > absf(ady):
+		ady = 0.0
+	var len := sqrt(adx * adx + ady * ady)
+	if len < 0.01:
+		return false
+	var mx := adx / len * step
+	var my := ady / len * step
+	if absf(mx) > absf(adx):
+		mx = adx
+	if absf(my) > absf(ady):
+		my = ady
+	var nx := pos_x[i] + mx
+	var ny := pos_y[i] + my
+	if not _move_blocked(nx, ny):
+		dir_x[i] = mx / step if step > 0.0001 else 0.0
+		dir_y[i] = my / step if step > 0.0001 else 0.0
+		_move(i, mx, my)
+		return true
+	return _move_cardinal_toward(i, tx, ty, step)
+
+
+func _move_cardinal_toward(i: int, tx: float, ty: float, step: float) -> bool:
+	# One axis per frame — diagonals wedge thronglets into tree/rock corners.
+	var adx := tx - pos_x[i]
+	var ady := ty - pos_y[i]
+	var sx := 0.0 if absf(adx) <= 0.5 else signf(adx)
+	var sy := 0.0 if absf(ady) <= 0.5 else signf(ady)
+	var tries: Array[Vector2] = []
+	if absf(adx) >= absf(ady):
+		if sx != 0.0:
+			tries.append(Vector2(sx * step, 0.0))
+		if sy != 0.0:
+			tries.append(Vector2(0.0, sy * step))
+	else:
+		if sy != 0.0:
+			tries.append(Vector2(0.0, sy * step))
+		if sx != 0.0:
+			tries.append(Vector2(sx * step, 0.0))
+	for delta in tries:
+		var nx := pos_x[i] + delta.x
+		var ny := pos_y[i] + delta.y
+		if _move_blocked(nx, ny):
+			continue
+		dir_x[i] = 0.0 if is_zero_approx(delta.x) else signf(delta.x)
+		dir_y[i] = 0.0 if is_zero_approx(delta.y) else signf(delta.y)
+		_move(i, delta.x, delta.y)
+		return true
+	return false
+
+
+func _path_hop(fx: float, fy: float, tx: float, ty: float) -> Vector2:
+	# Next waypoint: open-field goal, else one BFS cell (never a far L-corner —
+	# steering at a distant corner chords through tree walls / enclosure gaps).
+	var adx := absf(tx - fx)
+	var ady := absf(ty - fy)
+	if adx < 1.0 and ady < 1.0:
+		return Vector2(tx, ty)
+	var h_then_v := _axis_clear(fx, fy, tx, fy) and (ady < 1.0 or _axis_clear(tx, fy, tx, ty))
+	var v_then_h := _axis_clear(fx, fy, fx, ty) and (adx < 1.0 or _axis_clear(fx, ty, tx, ty))
+	if h_then_v and v_then_h and _axis_clear(fx, fy, tx, ty):
+		return Vector2(tx, ty)
+	var next_cell := _bfs_next_cell(_cell_vec(fx, fy), _cell_vec(tx, ty))
+	if next_cell.x <= -999000:
+		return Vector2.ZERO
+	return _cell_world(next_cell)
+
+
+func _axis_clear(ax: float, ay: float, bx: float, by: float) -> bool:
+	var dx := bx - ax
+	var dy := by - ay
+	var dist := sqrt(dx * dx + dy * dy)
+	if dist < 0.5:
+		return not _move_blocked(bx, by)
+	var steps := maxi(1, int(ceil(dist / 4.0)))
+	for s in range(1, steps + 1):
+		var t := float(s) / float(steps)
+		if _move_blocked(ax + dx * t, ay + dy * t):
+			return false
+	return true
+
+
+func _bfs_next_cell(start: Vector2i, goal: Vector2i) -> Vector2i:
+	var miss := Vector2i(-999999, -999999)
+	if start == goal:
+		return start
+	var goal_at := _cell_world(goal)
+	var goal_open := not _move_blocked(goal_at.x, goal_at.y)
+	var q: Array[Vector2i] = [start]
+	var came := {}
+	came[start] = start
+	var dirs: Array[Vector2i] = [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
+	var visited := 0
+	var best := start
+	var best_d := start.distance_squared_to(goal)
+	while not q.is_empty() and visited < PATH_BFS_MAX:
+		var cur: Vector2i = q.pop_front()
+		visited += 1
+		var d0 := cur.distance_squared_to(goal)
+		if d0 < best_d:
+			best_d = d0
+			best = cur
+		if goal_open and cur == goal:
+			best = goal
+			break
+		for d in dirs:
+			var nxt: Vector2i = cur + d
+			if came.has(nxt):
+				continue
+			var at := _cell_world(nxt)
+			if _move_blocked(at.x, at.y):
+				continue
+			came[nxt] = cur
+			q.append(nxt)
+	var end: Vector2i = goal if (goal_open and came.has(goal)) else best
+	if end == start or not came.has(end):
+		return miss
+	var step: Vector2i = end
+	while came.has(step) and came[step] != start:
+		step = came[step]
+	if not came.has(step) or came[step] != start:
+		return miss
+	return step
+
+
+func _bfs_path_cells(start: Vector2i, goal: Vector2i) -> Array[Vector2i]:
+	var out: Array[Vector2i] = []
+	if start == goal:
+		out.append(start)
+		return out
+	var goal_at := _cell_world(goal)
+	var goal_open := not _move_blocked(goal_at.x, goal_at.y)
+	var q: Array[Vector2i] = [start]
+	var came := {}
+	came[start] = start
+	var dirs: Array[Vector2i] = [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
+	var visited := 0
+	var best := start
+	var best_d := start.distance_squared_to(goal)
+	while not q.is_empty() and visited < PATH_BFS_MAX:
+		var cur: Vector2i = q.pop_front()
+		visited += 1
+		var d0 := cur.distance_squared_to(goal)
+		if d0 < best_d:
+			best_d = d0
+			best = cur
+		if goal_open and cur == goal:
+			best = goal
+			break
+		for d in dirs:
+			var nxt: Vector2i = cur + d
+			if came.has(nxt):
+				continue
+			var at := _cell_world(nxt)
+			if _move_blocked(at.x, at.y):
+				continue
+			came[nxt] = cur
+			q.append(nxt)
+	var end: Vector2i = goal if (goal_open and came.has(goal)) else best
+	if not came.has(end):
+		out.append(start)
+		return out
+	var stack: Array[Vector2i] = []
+	var step: Vector2i = end
+	while true:
+		stack.append(step)
+		if step == start or not came.has(step) or came[step] == step:
+			break
+		step = came[step]
+	var i := stack.size() - 1
+	while i >= 0:
+		out.append(stack[i])
+		i -= 1
+	return out
 
 
 func _convex_corner_at(px: float, py: float, dx: float, dy: float) -> bool:
@@ -1631,6 +2475,7 @@ func _move(i: int, dx: float, dy: float) -> void:
 		pos_x[i] = ox + dx
 		pos_y[i] = oy + dy
 		_wear_ground(i)
+		_hash_relocate(i)
 		return
 	# Convex corner: commit to one axis. Do not unstick — that bounces them
 	# backward and _walk then charges the same corner again.
@@ -1666,6 +2511,7 @@ func _move(i: int, dx: float, dy: float) -> void:
 			_hold_avoid(i, 1.1)
 		if pos_x[i] != ox or pos_y[i] != oy:
 			_wear_ground(i)
+			_hash_relocate(i)
 		return
 	if can_x:
 		pos_x[i] = ox + dx
@@ -1684,6 +2530,7 @@ func _move(i: int, dx: float, dy: float) -> void:
 		_hold_avoid(i, 1.1)
 	if pos_x[i] != ox or pos_y[i] != oy:
 		_wear_ground(i)
+		_hash_relocate(i)
 
 
 func _wear_ground(i: int) -> void:
@@ -1731,12 +2578,14 @@ func _thought_known(key: String) -> bool:
 func _thought_icon(i: int) -> int:
 	# Only desire things the colony has already discovered.
 	var doing := int(act[i])
-	for feat in features:
-		if feat.dead or int(feat.kind) != Catalog.FEAT_FIRE:
-			continue
-		if _dist_i(i, float(feat.x), float(feat.y)) < 48.0:
-			return Catalog.ICON_FIRE
-	if _is_penned(i):
+	if not fires.is_empty():
+		for feat in fires:
+			if feat.dead or int(feat.kind) != Catalog.FEAT_FIRE:
+				continue
+			if _dist_i(i, float(feat.x), float(feat.y)) < 48.0:
+				return Catalog.ICON_FIRE
+	# Penned check is expensive (8 blocked probes); sample infrequently.
+	if posmod(frame_i + i, 45) == 0 and _is_penned(i):
 		return Catalog.ICON_ROCK
 	var tile := _tile_at(pos_x[i], pos_y[i])
 	if tile == Catalog.TILE_GOO:
@@ -1746,8 +2595,8 @@ func _thought_icon(i: int) -> int:
 			return Catalog.ICON_SPONGE
 	if fed[i] < Catalog.NEED_HUNGRY and _thought_known("apple"):
 		return Catalog.ICON_APPLE
-	var in_tub := not seat_of(i).is_empty()
-	var on_ride := not ride_of(i).is_empty()
+	var in_tub := link_tub[i] >= 0
+	var on_ride := link_ride[i] >= 0
 	if clean[i] < Catalog.NEED_SEEK and not in_tub:
 		if _thought_known("bathtub"):
 			return Catalog.ICON_TUB
@@ -1791,15 +2640,20 @@ func _is_penned(i: int) -> bool:
 
 func _maybe_bark(i: int) -> void:
 	if barks.size() >= 2:
+		bark_cool[i] = Catalog.BARK_COOL
 		return
 	if view_rect.size != Vector2.ZERO and not view_rect.has_point(Vector2(pos_x[i], pos_y[i])):
+		bark_cool[i] = Catalog.BARK_COOL * 0.5
 		return
 	for bark in barks:
 		if int(bark.id) == i:
+			bark_cool[i] = Catalog.BARK_COOL
 			return
 	var icon := _thought_icon(i)
 	if icon < 0:
+		bark_cool[i] = Catalog.BARK_COOL
 		return
+	bark_cool[i] = Catalog.BARK_COOL
 	var urgent := (
 		icon == Catalog.ICON_FIRE
 		or icon == Catalog.ICON_APPLE
@@ -1831,8 +2685,14 @@ func _tick_voice(delta: float) -> void:
 	var upset := -1
 	var sing := -1
 	var idle := -1
-	for i in slot_count:
-		if state[i] != Catalog.ST_LIVING:
+	var fast := 0
+	var n := living_ids.size()
+	# Sample the living list — never scan slot_count (can be 120k).
+	var step := maxi(1, n / 64)
+	var start := posmod(frame_i, step)
+	for k in range(start, n, step):
+		var i := int(living_ids[k])
+		if i < 0 or i >= slot_count or state[i] != Catalog.ST_LIVING:
 			continue
 		if fed[i] < Catalog.NEED_HUNGRY or clean[i] < 20.0:
 			upset = i
@@ -1840,6 +2700,8 @@ func _tick_voice(delta: float) -> void:
 			sing = i
 		elif absf(dir_x[i]) + absf(dir_y[i]) < 0.01:
 			idle = i
+		if absf(dir_x[i]) + absf(dir_y[i]) > 0.85:
+			fast += 1
 	voice_wait = randf_range(12.0, 20.0)
 	if upset >= 0:
 		sfx_queue.append("voice_upset")
@@ -1847,10 +2709,6 @@ func _tick_voice(delta: float) -> void:
 		sfx_queue.append("voice_sing")
 	elif idle >= 0 and randf() < 0.2:
 		sfx_queue.append("voice_prrr")
-	var fast := 0
-	for i in slot_count:
-		if state[i] == Catalog.ST_LIVING and absf(dir_x[i]) + absf(dir_y[i]) > 0.85:
-			fast += 1
 	if fast > 10 and randf() < 0.35:
 		sfx_queue.append("speed")
 
@@ -1880,30 +2738,27 @@ func clear_bark(id: int) -> void:
 
 
 func seat_of(i: int) -> Dictionary:
-	for b in buildings:
-		if b.dead or int(b.kind) != Catalog.BLD_TUB:
-			continue
-		if int(b.get("occupant", -1)) == i:
-			return b
-	return {}
+	if i < 0 or i >= link_tub.size():
+		return {}
+	var bid := link_tub[i]
+	if bid < 0:
+		return {}
+	var b: Dictionary = building_by_id.get(bid, {})
+	if b.is_empty() or b.dead or int(b.kind) != Catalog.BLD_TUB or int(b.get("occupant", -1)) != i:
+		link_tub[i] = -1
+		return {}
+	return b
 
 
 func indoors(i: int) -> bool:
+	# Guest of a visit building (home / theatre / mine). Roundabout and tub keep
+	# their on-world animations; flower/statue auras never register guests.
 	if i < 0 or i >= slot_count or state[i] != Catalog.ST_LIVING:
 		return false
 	var visit := _guest_building(i)
-	if not visit.is_empty():
-		var kind := int(visit.kind)
-		if kind == Catalog.BLD_DWELL or kind == Catalog.BLD_FANCY or kind == Catalog.BLD_THEATRE:
-			return _inside_building_reach(pos_x[i], pos_y[i], visit)
-	if int(act[i]) != ACT_WORK:
+	if visit.is_empty():
 		return false
-	if absf(dir_x[i]) + absf(dir_y[i]) >= 0.01:
-		return false
-	var mine := _nearest_building_kinds(pos_x[i], pos_y[i], [Catalog.BLD_MINE, Catalog.BLD_MINE2], 64.0)
-	if mine.is_empty():
-		return false
-	return _inside_building_reach(pos_x[i], pos_y[i], mine) or _dist_i(i, float(mine.x), float(mine.y)) < 12.0
+	return not _visit_rule(int(visit.kind)).is_empty()
 
 
 func ride_of(i: int) -> Dictionary:
@@ -1912,29 +2767,62 @@ func ride_of(i: int) -> Dictionary:
 	return _ride_building(i)
 
 
+func has_ball(i: int) -> bool:
+	if i < 0 or i >= link_ball.size() or int(act[i]) != ACT_PLAY:
+		return false
+	var iid := link_ball[i]
+	if iid < 0:
+		return false
+	var it: Dictionary = item_by_id.get(iid, {})
+	if it.is_empty() or it.dead or int(it.kind) != Catalog.ITEM_BALL or int(it.get("claimer", -1)) != i:
+		link_ball[i] = -1
+		return false
+	return true
+
+
 func ball_of(i: int) -> Dictionary:
 	if i < 0 or i >= slot_count or int(act[i]) != ACT_PLAY:
 		return {}
+	var iid := link_ball[i] if i < link_ball.size() else -1
+	if iid >= 0:
+		var linked: Dictionary = item_by_id.get(iid, {})
+		if not linked.is_empty() and not linked.dead and int(linked.kind) == Catalog.ITEM_BALL and int(linked.get("claimer", -1)) == i:
+			return linked
+		link_ball[i] = -1
 	for it in items:
 		if it.dead or int(it.kind) != Catalog.ITEM_BALL:
 			continue
 		if int(it.get("claimer", -1)) == i:
+			if i < link_ball.size():
+				link_ball[i] = int(it.id)
 			return it
 	return {}
 
 
 func _visit_rule(kind: int) -> Dictionary:
 	if kind == Catalog.BLD_DWELL:
-		return {"cap": 4, "stay": 18.0, "cool": 14.0, "fed": 6.0, "clean": 8.0, "fun": 0.0}
+		return {"cap": 4, "stay": 18.0, "cool": 14.0, "fed": 8.0, "clean": 8.0, "fun": 0.0}
 	if kind == Catalog.BLD_FANCY:
-		return {"cap": 10, "stay": 24.0, "cool": 12.0, "fed": 7.0, "clean": 12.0, "fun": 0.0}
+		return {"cap": 10, "stay": 24.0, "cool": 12.0, "fed": 10.0, "clean": 12.0, "fun": 0.0}
 	if kind == Catalog.BLD_THEATRE:
-		return {"cap": 18, "stay": 14.0, "cool": 10.0, "fed": 0.0, "clean": 0.0, "fun": 9.0}
+		return {"cap": 18, "stay": 30.0, "cool": 10.0, "fed": 0.0, "clean": 0.0, "fun": 9.0}
+	if kind == Catalog.BLD_MINE:
+		return {"cap": 2, "stay": MINE_DIG_TIME, "cool": 0.6, "fed": 0.0, "clean": 0.0, "fun": 0.0}
+	if kind == Catalog.BLD_MINE2:
+		return {"cap": 6, "stay": MINE_DIG_TIME * 0.7, "cool": 0.4, "fed": 0.0, "clean": 0.0, "fun": 0.0}
 	return {}
 
 
 func _is_show(kind: int) -> bool:
 	return kind == Catalog.BLD_THEATRE
+
+
+func _is_mine_kind(kind: int) -> bool:
+	return kind == Catalog.BLD_MINE or kind == Catalog.BLD_MINE2
+
+
+func _mine_stock_cap(b: Dictionary) -> int:
+	return MINE_STOCK_CAP2 if int(b.kind) == Catalog.BLD_MINE2 else MINE_STOCK_CAP
 
 
 func _ore_tier(kind: int) -> int:
@@ -1959,9 +2847,12 @@ func _stay_for(kind: int, base: float) -> float:
 	if _is_show(kind):
 		return base
 	var stay := base
+	var home := kind == Catalog.BLD_DWELL or kind == Catalog.BLD_FANCY
 	if bool(mutations.get("care", false)):
 		stay *= 1.35
-	if bool(mutations.get("hard", false)):
+	if home and bool(mutations.get("short_rest", false)):
+		stay *= 0.55
+	elif bool(mutations.get("hard", false)):
 		stay *= 0.6
 	return stay
 
@@ -2001,10 +2892,19 @@ func _can_enter(b: Dictionary, i: int) -> bool:
 
 
 func _guest_building(i: int) -> Dictionary:
+	if i < 0 or i >= link_guest.size():
+		return {}
+	var bid := link_guest[i]
+	if bid >= 0:
+		var linked: Dictionary = building_by_id.get(bid, {})
+		if not linked.is_empty() and not linked.dead and _is_guest(linked, i):
+			return linked
+		link_guest[i] = -1
 	for b in buildings:
 		if b.dead:
 			continue
 		if _is_guest(b, i):
+			link_guest[i] = int(b.id)
 			return b
 	return {}
 
@@ -2026,6 +2926,8 @@ func _drop_guest(b: Dictionary, i: int) -> void:
 		if int(guest.id) != i:
 			guests.append(guest)
 	b.guests = guests
+	if i >= 0 and i < link_guest.size() and link_guest[i] == int(b.id):
+		link_guest[i] = -1
 	var away: Array = b.get("away", [])
 	var rule := _visit_rule(int(b.kind))
 	away.append({"id": i, "t": float(rule.get("cool", 8.0))})
@@ -2039,17 +2941,37 @@ func _enter_visit(i: int, b: Dictionary) -> bool:
 	var rule := _visit_rule(int(b.kind))
 	if rule.is_empty():
 		return false
+	var kind := int(b.kind)
+	# Diggers reserve one stock unit for the whole stay.
+	if _is_mine_kind(kind) and int(b.get("buffer", 0)) <= _live_guests(b):
+		return false
 	var guests: Array = b.get("guests", [])
-	guests.append({"id": i, "left": _stay_for(int(b.kind), float(rule.stay))})
+	guests.append({"id": i, "left": _stay_for(kind, float(rule.stay))})
 	b.guests = guests
-	if int(b.kind) == Catalog.BLD_TUB:
+	if i >= 0 and i < link_guest.size():
+		link_guest[i] = int(b.id)
+	if kind == Catalog.BLD_TUB:
 		sfx_queue.append("tub_in")
 		sfx_queue.append("splash")
 	return true
 
 
+func _mine_finish_dig(b: Dictionary, id: int) -> void:
+	if id < 0 or id >= slot_count or state[id] != Catalog.ST_LIVING:
+		return
+	if carry[id] != Catalog.CARRY_NONE:
+		return
+	if int(b.get("buffer", 0)) <= 0 or not _has_factory():
+		return
+	b.buffer = maxi(0, int(b.get("buffer", 0)) - 1)
+	_set_carry(id, Catalog.CARRY_ORE, _mine_value(b))
+	_release_mine_job(id)
+
+
 func _tick_visit(b: Dictionary, dt: float) -> void:
 	var rule := _visit_rule(int(b.kind))
+	var kind := int(b.kind)
+	var mine := _is_mine_kind(kind)
 	var away: Array = []
 	for ban in b.get("away", []):
 		ban.t = float(ban.t) - dt
@@ -2059,9 +2981,15 @@ func _tick_visit(b: Dictionary, dt: float) -> void:
 	for guest in b.get("guests", []):
 		var id := int(guest.id)
 		if id < 0 or id >= slot_count or state[id] != Catalog.ST_LIVING:
+			if id >= 0 and id < link_guest.size() and link_guest[id] == int(b.id):
+				link_guest[id] = -1
 			continue
 		guest.left = float(guest.left) - dt
 		if float(guest.left) <= 0.0:
+			if id < link_guest.size() and link_guest[id] == int(b.id):
+				link_guest[id] = -1
+			if mine:
+				_mine_finish_dig(b, id)
 			_push_out(b, id)
 			away.append({"id": id, "t": float(rule.cool)})
 			continue
@@ -2075,7 +3003,8 @@ func _tick_visit(b: Dictionary, dt: float) -> void:
 		kept.append(guest)
 	b.guests = kept
 	b.away = away
-	b.active = not kept.is_empty()
+	if not mine:
+		b.active = not kept.is_empty()
 
 
 func _apple_land_spot(bx: float, by: float) -> Vector2:
@@ -2149,17 +3078,27 @@ func structure_full(b: Dictionary) -> bool:
 		var rule := _visit_rule(kind)
 		return _live_guests(b) >= int(rule.cap)
 	if kind == Catalog.BLD_ROUND:
-		return _taken_ride_slots(b).size() >= Catalog.ROUND_RIDE_SLOTS
+		return _taken_ride_slots(b).size() >= _ride_slot_count()
 	return false
 
 
 func _corner_trap(i: int) -> bool:
+	# Truly boxed in — a 1-tile corridor still has 2+ opens and must stay walkable.
 	var open := 0
 	for n in 8:
 		var a := float(n) * TAU * 0.125
 		if not _move_blocked(pos_x[i] + cos(a) * 8.0, pos_y[i] + sin(a) * 8.0):
 			open += 1
-	return open <= 2
+	return open <= 1
+
+
+func _move_failed_escape(i: int) -> bool:
+	# Stuck if every short step fails — used after a move into a true trap.
+	for n in 8:
+		var a := float(n) * TAU * 0.125
+		if not _move_blocked(pos_x[i] + cos(a) * 4.0, pos_y[i] + sin(a) * 4.0):
+			return false
+	return true
 
 
 func _unstick(i: int) -> void:
@@ -2182,8 +3121,7 @@ func _unstick(i: int) -> void:
 	for n in 16:
 		var a := float(n) * (TAU / 16.0)
 		candidates.append(Vector2(cos(a), sin(a)))
-	# Edge cells are a full TILE from safe inland; short probes leave them stranded.
-	var try_dist: Array[float] = [24.0, 20.0, 16.0, 12.0, 10.0, 8.0, 6.0, 4.0, 3.0, 2.0]
+	var try_dist: Array[float] = [48.0, 40.0, 32.0, 24.0, 20.0, 16.0, 12.0, 10.0, 8.0, 6.0, 4.0]
 	for dist in try_dist:
 		var best := Vector2.ZERO
 		var best_run := -1.0
@@ -2192,8 +3130,10 @@ func _unstick(i: int) -> void:
 			var ny: float = pos_y[i] + cand.y * dist
 			if _move_blocked(nx, ny):
 				continue
+			# Destination-only checks teleported through tree walls (enclosure escape).
+			if not _axis_clear(pos_x[i], pos_y[i], nx, ny):
+				continue
 			var run := _clear_run_at(nx, ny, cand.x, cand.y)
-			# Prefer sideways escape over reversing into the same blocked approach.
 			var score := run + cand.dot(prefer) * 6.0 - cand.dot(back) * 10.0
 			if score > best_run:
 				best_run = score
@@ -2204,18 +3144,40 @@ func _unstick(i: int) -> void:
 			dir_x[i] = best.x
 			dir_y[i] = best.y
 			wander_t[i] = randf_range(0.7, 1.6)
+			if i < seek_t.size():
+				seek_t[i] = 0.0
+			_hash_relocate(i)
+			return
+	for ring in range(1, 9):
+		var rad := float(ring) * 8.0
+		for n in 16:
+			var a := float(n) * (TAU / 16.0)
+			var nx2 := pos_x[i] + cos(a) * rad
+			var ny2 := pos_y[i] + sin(a) * rad
+			if _move_blocked(nx2, ny2):
+				continue
+			if not _axis_clear(pos_x[i], pos_y[i], nx2, ny2):
+				continue
+			pos_x[i] = nx2
+			pos_y[i] = ny2
+			dir_x[i] = cos(a)
+			dir_y[i] = sin(a)
+			wander_t[i] = randf_range(0.7, 1.6)
+			if i < seek_t.size():
+				seek_t[i] = 0.0
+			_hash_relocate(i)
 			return
 	wander_t[i] = 0.0
 
 
 func _clear_run_at(px: float, py: float, dx: float, dy: float) -> float:
 	var clear := 0.0
-	var step := 4.0
-	while clear + step <= 40.0:
+	var step := 8.0
+	while clear + step <= 32.0:
 		if _move_blocked(px + dx * (clear + step), py + dy * (clear + step)):
 			return clear
 		clear += step
-	return 40.0
+	return 32.0
 
 
 func _tick_trees(dt: float) -> void:
@@ -2231,6 +3193,7 @@ func _tick_trees(dt: float) -> void:
 		feat.kind = Catalog.FEAT_TREE
 		feat.hp = 1
 		feat.rooted = true
+		feat_mesh_epoch += 1
 	if tree_seeds.is_empty():
 		return
 	var kept: Array = []
@@ -2291,33 +3254,38 @@ func _tick_buildings(dt: float) -> void:
 		if kind == Catalog.BLD_APPLE:
 			_tick_apple_tree(b, dt)
 		elif kind == Catalog.BLD_MINE or kind == Catalog.BLD_MINE2:
-			var cap := 6 if kind == Catalog.BLD_MINE2 else 2
-			var workers := _workers_near(b, cap)
-			if workers > 0 and _has_factory():
-				b.active = true
-				b.timer = float(b.timer) - dt * float(workers)
+			var stock_cap := _mine_stock_cap(b)
+			var stock := int(b.get("buffer", 0))
+			if stock < stock_cap:
+				b.timer = float(b.timer) - dt
 				if float(b.timer) <= 0.0:
-					b.timer = 2.2
-					var taker := _mine_taker(b, cap)
-					if taker >= 0:
-						carry[taker] = Catalog.CARRY_ORE
-						carry_value[taker] = _mine_value(b)
-						_release_mine_job(taker)
+					b.timer = MINE_FILL_TIME
+					b.buffer = mini(stock_cap, stock + 1)
+			else:
+				b.timer = MINE_FILL_TIME
+			_tick_visit(b, dt)
+			b.active = _live_guests(b) > 0
 		elif kind == Catalog.BLD_FACTORY or kind == Catalog.BLD_FACTORY2:
-			b.timer = float(b.timer) - dt
-			if float(b.timer) <= 0.0:
-				var buffered := int(b.get("buffer", 0))
-				if buffered > 0:
+			var cycle := _factory_cycle_time(kind)
+			var buffered := int(b.get("buffer", 0))
+			if buffered > 0:
+				if float(b.timer) > cycle:
+					b.timer = cycle
+				b.timer = float(b.timer) - dt
+				if float(b.timer) <= 0.0:
 					_factory_spend(b)
-					b.timer = 0.7 if kind == Catalog.BLD_FACTORY2 else 2.0
-					var _g := 2 if kind == Catalog.BLD_FACTORY2 else 1
+					var _g := FACTORY_GEM_PAY2 if kind == Catalog.BLD_FACTORY2 else FACTORY_GEM_PAY
 					gems += _g
 					total_gems_earned += _g
 					b.active = true
 					_pop(float(b.x), float(b.y) - 6.0, Catalog.ICON_GEM)
 					_spill_goo(float(b.x), float(b.y), 2 if kind == Catalog.BLD_FACTORY2 else 1)
+					buffered = int(b.get("buffer", 0))
+					b.timer = cycle if buffered > 0 else 0.25
 				else:
-					b.timer = 0.25
+					b.active = true
+			else:
+				b.timer = 0.25
 			if bool(b.get("incinerate", false)):
 				b.active = true
 				b.burn = float(b.get("burn", 0.0)) + dt
@@ -2359,6 +3327,22 @@ func _tick_buildings(dt: float) -> void:
 				b.spin = float(b.get("spin", 0.0)) + float(_ride_cfg().get("spin_speed", Catalog.ROUND_SPIN_RATE)) * dt
 		elif kind == Catalog.BLD_DWELL or kind == Catalog.BLD_FANCY or _is_show(kind):
 			_tick_visit(b, dt)
+
+
+func capacity_info(b: Dictionary) -> Dictionary:
+	if b.is_empty() or bool(b.get("dead", true)):
+		return {}
+	var kind := int(b.kind)
+	if _is_mine_kind(kind):
+		var cap := _mine_stock_cap(b)
+		var n := clampi(int(b.get("buffer", 0)), 0, cap)
+		return {"n": n, "cap": cap, "full": n >= cap, "mine": true}
+	var rule := _visit_rule(kind)
+	if rule.is_empty():
+		return {}
+	var cap2 := int(rule.cap)
+	var n2 := clampi(_live_guests(b), 0, cap2)
+	return {"n": n2, "cap": cap2, "full": n2 >= cap2, "mine": false}
 
 
 func _tick_auras(dt: float) -> void:
@@ -2480,6 +3464,8 @@ func _tool_axe(x: float, y: float) -> void:
 func _chop(feat: Dictionary) -> void:
 	feat.kind = Catalog.FEAT_STUMP
 	feat.grow = Catalog.TREE_REGROW
+	# Far-view MultiMesh caches sprites by epoch — kind changes must dirty it.
+	feat_mesh_epoch += 1
 	var wood_it := _add_item(Catalog.ITEM_WOOD, float(feat.x) + 8.0, float(feat.y), 1)
 	item_physics.launch_item(wood_it, 6.0, randf_range(85.0, 115.0), randf_range(-34.0, 34.0), randf_range(-34.0, 34.0))
 	_pop(float(feat.x), float(feat.y), Catalog.ICON_FX_CHOP)
@@ -2574,7 +3560,7 @@ func _hammer_feature(feat: Dictionary) -> void:
 
 
 func _tool_pick(x: float, y: float) -> void:
-	# Ore piles: let the pick collect energy too (hammer replacement path).
+	# Ore piles: pick can also collect energy (additive with hammer).
 	if part_two and _smash_ore_near(x, y) > 0:
 		sfx_queue.append("pick")
 		return
@@ -3119,11 +4105,11 @@ func _describe_building(b: Dictionary) -> void:
 		Catalog.BLD_ROUND:
 			notes.append("EL TIOVIVO SUBE LA DIVERSION. LOS MULTIS GIRAN ALREDEDOR.")
 		Catalog.BLD_DWELL:
-			notes.append("VIVIENDA. CUPO 4. COMEN, SE LAVAN Y SALEN.")
+			notes.append("VIVIENDA. CUPO 4. COMEN, SE LAVAN Y DESCANSAN UN RATO.")
 		Catalog.BLD_FANCY:
-			notes.append("VIVIENDA DE LUJO. CABEN MÁS Y SE LAVAN MÁS.")
+			notes.append("VIVIENDA DE LUJO. CABEN MÁS; COMEN Y SE LAVAN MEJOR.")
 		Catalog.BLD_MINE, Catalog.BLD_MINE2:
-			notes.append("LA MINA SACA MINERAL SI HAY MULTIS TRABAJANDO.")
+			notes.append("LA MINA SE LLENA SOLA. CON FABRICA, LOS MULTIS ENTRAN Y SACAN MINERAL.")
 		Catalog.BLD_THEATRE:
 			notes.append("EL TEATRO TIENE CUPO. LA FUNCION ACABA Y SALEN.")
 		Catalog.BLD_FLOWER:
@@ -3219,6 +4205,7 @@ func grab_at(x: float, y: float) -> bool:
 		held_x = float(feat.x)
 		held_y = float(feat.y)
 		feat.lifted = true
+		feat_mesh_epoch += 1
 		_unbind_feature(feat)
 		return true
 	var it := _item_at(x, y, 10.0)
@@ -3317,6 +4304,7 @@ func release_at(x: float, y: float, short_click: bool, _allow_use: bool = true, 
 				feat.y = held_y
 				_bind_feature_at(feat, held_x, held_y)
 			feat.lifted = false
+			feat_mesh_epoch += 1
 	_clear_held()
 	if short_click and kind == "thronglet":
 		return {"type": "thronglet", "id": id}
@@ -3339,27 +4327,47 @@ func _can_drop(x: float, y: float, allow_ore: bool = false, allow_soft: bool = f
 
 
 func _tile_holds(px: float, py: float) -> bool:
-	var tile := _tile_at(px, py)
-	if tile == Catalog.TILE_VOID or tile == Catalog.TILE_WATER or tile == Catalog.TILE_FOG:
-		return false
-	return true
+	return _tile_holds_cell(_cell_vec(px, py))
+
+
+func _tile_holds_kind(tile: int) -> bool:
+	return tile != Catalog.TILE_VOID and tile != Catalog.TILE_WATER and tile != Catalog.TILE_FOG
+
+
+func _tile_holds_cell(cell: Vector2i) -> bool:
+	return _tile_holds_kind(_tile_at_cell(cell))
+
+
+func _invalidate_inland_around(cell: Vector2i) -> void:
+	for oy in range(-1, 2):
+		for ox in range(-1, 2):
+			inland_cache.erase(cell + Vector2i(ox, oy))
 
 
 func _land_inland(px: float, py: float) -> bool:
+	return _land_inland_cell(_cell_vec(px, py))
+
+
+func _land_inland_cell(cell: Vector2i) -> bool:
 	# Center must hold, and no Moore neighbor may be void/water/fog.
 	# Diagonal cliffs still read as "in the void" under iso sprites.
-	if not _tile_holds(px, py):
-		return false
-	var cell := _cell_vec(px, py)
-	for oy in range(-1, 2):
-		for ox in range(-1, 2):
-			if ox == 0 and oy == 0:
-				continue
-			var at := Catalog.cell_world(cell + Vector2i(ox, oy))
-			var tile := _tile_at(at.x, at.y)
-			if tile == Catalog.TILE_VOID or tile == Catalog.TILE_WATER or tile == Catalog.TILE_FOG:
-				return false
-	return true
+	if inland_cache.has(cell):
+		return bool(inland_cache[cell])
+	var ok := true
+	if not _tile_holds_cell(cell):
+		ok = false
+	else:
+		for oy in range(-1, 2):
+			if not ok:
+				break
+			for ox in range(-1, 2):
+				if ox == 0 and oy == 0:
+					continue
+				if not _tile_holds_cell(cell + Vector2i(ox, oy)):
+					ok = false
+					break
+	inland_cache[cell] = ok
+	return ok
 
 
 func _span_for_feature(kind: int) -> Vector2:
@@ -3401,24 +4409,43 @@ func _pad_feature_soft(kind: int) -> bool:
 		or kind == Catalog.FEAT_COSMETIC or kind == Catalog.FEAT_COSMETIC_BAD or kind == Catalog.FEAT_FIRE
 
 
+func _pad_item_soft(kind: int) -> bool:
+	# Ground clutter claimed with the pad. Ore / TNT / eggs stay hard.
+	return kind == Catalog.ITEM_WOOD or kind == Catalog.ITEM_APPLE \
+		or kind == Catalog.ITEM_BALL or kind == Catalog.ITEM_BONE
+
+
+func _pad_item_blocks(x: float, y: float, ignore_id: int = -1) -> bool:
+	var other := _item_at(x, y, 10.0)
+	if other.is_empty() or int(other.id) == ignore_id:
+		return false
+	return not _pad_item_soft(int(other.kind))
+
+
 func _clear_pad_soft(cells: Array[Vector2i]) -> void:
+	# Pad claim only clears blockers. Wood comes from the axe, not from placement.
 	var seen := {}
+	var seen_item := {}
 	for cell in cells:
 		var fid := int(feature_cell.get(cell, -1))
-		if fid < 0 or seen.has(fid):
+		if fid >= 0 and not seen.has(fid):
+			seen[fid] = true
+			var feat = feature_by_id.get(fid, {})
+			if not feat.is_empty() and not feat.dead and _pad_feature_soft(int(feat.kind)):
+				_kill_feature(feat)
+		var at := _cell_world(cell)
+		var it := _item_at(at.x, at.y, 10.0)
+		if it.is_empty():
 			continue
-		seen[fid] = true
-		var feat = feature_by_id.get(fid, {})
-		if feat.is_empty() or feat.dead:
+		var iid := int(it.id)
+		if seen_item.has(iid) or it.dead or it.held:
 			continue
-		var fk := int(feat.kind)
-		if not _pad_feature_soft(fk):
+		if not _pad_item_soft(int(it.kind)):
 			continue
-		var fx := float(feat.x)
-		var fy := float(feat.y)
-		_kill_feature(feat)
-		if fk == Catalog.FEAT_TREE:
-			_add_item(Catalog.ITEM_WOOD, fx, fy, 1)
+		seen_item[iid] = true
+		it.dead = true
+	if not seen_item.is_empty():
+		_invalidate_item_counts()
 
 
 func _building_spot_free(id: int, x: float, y: float, kind: int = -1) -> bool:
@@ -3458,7 +4485,7 @@ func _building_spot_free(id: int, x: float, y: float, kind: int = -1) -> bool:
 				var feat = feature_by_id.get(fid, {})
 				if feat.is_empty() or feat.dead or not _pad_feature_soft(int(feat.kind)):
 					return false
-		if not _item_spot_free(at.x, at.y):
+		if _pad_item_blocks(at.x, at.y):
 			return false
 	return true
 
@@ -3507,12 +4534,14 @@ func _bind_feature_at(feat: Dictionary, x: float, y: float) -> bool:
 		var bid := int(building_cell.get(cell, -1))
 		if bid >= 0:
 			return false
+	_feat_chunk_unindex(feat)
 	_unbind_feature(feat)
 	feat.x = x
 	feat.y = y
 	var c := _chunk_at(x, y)
 	feat.cx = c.x
 	feat.cy = c.y
+	_feat_chunk_index(feat)
 	for cell in cells:
 		feature_cell[cell] = int(feat.id)
 	return true
@@ -3631,26 +4660,24 @@ func place_building(kind: int, x: float, y: float) -> bool:
 	var node := 0
 	var ore_feat := {}
 	if kind == Catalog.BLD_MINE or kind == Catalog.BLD_MINE2:
-		ore_feat = _feature_at(at.x, at.y, 12.0)
-		if ore_feat.is_empty() or _ore_tier(int(ore_feat.kind)) == 0:
-			notes.append("LA MINA SOLO VA SOBRE UN NODO.")
-			sfx_queue.append("error")
-			return false
-		node = _ore_tier(int(ore_feat.kind))
-		at = Catalog.snap_world(float(ore_feat.x), float(ore_feat.y))
+		if sandbox_mode:
+			node = 1 if kind == Catalog.BLD_MINE else 2
+		else:
+			ore_feat = _feature_at(at.x, at.y, 12.0)
+			if ore_feat.is_empty() or _ore_tier(int(ore_feat.kind)) == 0:
+				notes.append("LA MINA SOLO VA SOBRE UN NODO.")
+				sfx_queue.append("error")
+				return false
+			node = _ore_tier(int(ore_feat.kind))
+			at = Catalog.snap_world(float(ore_feat.x), float(ore_feat.y))
 	var allow_ore := not ore_feat.is_empty()
 	if not _can_drop(at.x, at.y, allow_ore, true) or not _building_spot_free(-1, at.x, at.y, kind):
 		notes.append("AHI NO SE PUEDE CONSTRUIR.")
 		sfx_queue.append("error")
 		return false
-	var pid := str(info.unlock)
-	var cost := ProgressionManager.placement_cost(self, pid)
-	var gem_cost := 0
-	var wood_cost := int(info.wood)
-	if str(cost.get("resource", "")) == "gem":
-		gem_cost = int(cost.get("amount", 0))
-	elif str(cost.get("resource", "")) == "wood":
-		wood_cost = int(cost.get("amount", 0))
+	var costs := _building_costs(kind)
+	var gem_cost := int(costs.gem)
+	var wood_cost := int(costs.wood)
 	if gem_cost > 0 and gems < gem_cost:
 		notes.append("FALTAN GEMAS (%d)." % gem_cost)
 		sfx_queue.append("error")
@@ -3708,12 +4735,15 @@ func spot_ok(x: float, y: float, building_id: int = -1, ignore_item_id: int = -1
 func can_place_building(kind: int, x: float, y: float) -> bool:
 	if kind == Catalog.BLD_MARKET and _has_building(Catalog.BLD_MARKET):
 		return false
+	if not _can_afford_building(kind):
+		return false
 	var at := Catalog.snap_world(x, y)
 	if kind == Catalog.BLD_MINE or kind == Catalog.BLD_MINE2:
-		var feat := _feature_at(at.x, at.y, 12.0)
-		if feat.is_empty() or _ore_tier(int(feat.kind)) == 0:
-			return false
-		at = Catalog.snap_world(float(feat.x), float(feat.y))
+		if not sandbox_mode:
+			var feat := _feature_at(at.x, at.y, 12.0)
+			if feat.is_empty() or _ore_tier(int(feat.kind)) == 0:
+				return false
+			at = Catalog.snap_world(float(feat.x), float(feat.y))
 	return spot_ok(at.x, at.y, -1, -1, kind)
 
 
@@ -3962,46 +4992,403 @@ func moral_line() -> String:
 
 
 func count_item(kind: int) -> int:
-	var n := 0
-	for it in items:
-		if not it.dead and not it.held and int(it.kind) == kind:
-			n += 1
-	for i in slot_count:
-		if carry[i] == Catalog.CARRY_WOOD and kind == Catalog.ITEM_WOOD:
-			n += 1
-		elif carry[i] == Catalog.CARRY_BONE and kind == Catalog.ITEM_BONE:
-			n += 1
-		elif carry[i] == Catalog.CARRY_ORE and kind == Catalog.ITEM_ORE:
-			n += 1
-	return n
+	_ensure_item_counts()
+	match kind:
+		Catalog.ITEM_WOOD:
+			return _item_count_wood
+		Catalog.ITEM_BONE:
+			return _item_count_bone
+		Catalog.ITEM_ORE:
+			return _item_count_ore
+		_:
+			if _item_count_other.has(kind):
+				return int(_item_count_other[kind])
+			var n := 0
+			for it in items:
+				if not it.dead and not it.held and int(it.kind) == kind:
+					n += 1
+			_item_count_other[kind] = n
+			return n
+
+
+func _invalidate_item_counts() -> void:
+	_item_count_gen += 1
+
+
+func _carry_dec(i: int) -> void:
+	if i < 0 or i >= carry.size():
+		return
+	match int(carry[i]):
+		Catalog.CARRY_WOOD:
+			carry_wood_n = maxi(0, carry_wood_n - 1)
+		Catalog.CARRY_BONE:
+			carry_bone_n = maxi(0, carry_bone_n - 1)
+		Catalog.CARRY_ORE:
+			carry_ore_n = maxi(0, carry_ore_n - 1)
+
+
+func _carry_inc(i: int) -> void:
+	if i < 0 or i >= carry.size():
+		return
+	match int(carry[i]):
+		Catalog.CARRY_WOOD:
+			carry_wood_n += 1
+		Catalog.CARRY_BONE:
+			carry_bone_n += 1
+		Catalog.CARRY_ORE:
+			carry_ore_n += 1
+
+
+func _set_carry(i: int, kind: int, value: int = 0) -> void:
+	if i < 0 or i >= carry.size():
+		return
+	if int(carry[i]) == kind and (kind == Catalog.CARRY_NONE or int(carry_value[i]) == value):
+		return
+	_carry_dec(i)
+	carry[i] = kind
+	carry_value[i] = value if kind != Catalog.CARRY_NONE else 0
+	_carry_inc(i)
+
+
+func _rebuild_carry_counts() -> void:
+	carry_wood_n = 0
+	carry_bone_n = 0
+	carry_ore_n = 0
+	for raw in living_ids:
+		_carry_inc(int(raw))
+
+
+func _ensure_item_counts() -> void:
+	if _item_count_built == _item_count_gen:
+		return
+	_item_count_built = _item_count_gen
+	_item_count_other.clear()
+	var wood := 0
+	var bone := 0
+	var ore := 0
+	for it in items_wood:
+		if not it.dead and not it.held:
+			wood += 1
+	for it in items_bone:
+		if not it.dead and not it.held:
+			bone += 1
+	for it in items_ore:
+		if not it.dead and not it.held:
+			ore += 1
+	_item_count_wood = wood + carry_wood_n
+	_item_count_bone = bone + carry_bone_n
+	_item_count_ore = ore + carry_ore_n
 
 
 func count_dead() -> int:
-	var n := 0
-	for i in slot_count:
-		if state[i] == Catalog.ST_DEAD:
-			n += 1
-	return n
+	return dead_n
+
+
+func debug_agent_path(i: int) -> PackedVector2Array:
+	var pts := PackedVector2Array()
+	if i < 0 or i >= slot_count or state[i] == Catalog.ST_VACANT:
+		return pts
+	var fx := pos_x[i]
+	var fy := pos_y[i]
+	pts.append(Vector2(fx, fy))
+	var has_seek := i < seek_t.size() and seek_t[i] > 0.0
+	if not has_seek and not _agent_has_hard_goal(i):
+		if absf(dir_x[i]) + absf(dir_y[i]) > 0.05:
+			pts.append(Vector2(fx + dir_x[i] * 28.0, fy + dir_y[i] * 28.0))
+		return pts
+	var tx := seek_x[i] if i < seek_x.size() else fx
+	var ty := seek_y[i] if i < seek_y.size() else fy
+	var cells := _bfs_path_cells(_cell_vec(fx, fy), _cell_vec(tx, ty))
+	for cell in cells:
+		var at := _cell_world(cell)
+		if pts[pts.size() - 1].distance_squared_to(at) > 0.25:
+			pts.append(at)
+	var goal := Vector2(tx, ty)
+	var last := pts[pts.size() - 1]
+	# Do not draw a fake chord through blockers when BFS stopped short of the goal.
+	if last.distance_squared_to(goal) > 1.0 and _axis_clear(last.x, last.y, goal.x, goal.y):
+		pts.append(goal)
+	return pts
+
+
+func _debug_can_food(i: int) -> bool:
+	if not _nearest_apple(i, 240.0).is_empty():
+		return true
+	return not _nearest_building_kinds(pos_x[i], pos_y[i], [Catalog.BLD_DWELL, Catalog.BLD_FANCY], 280.0, i).is_empty()
+
+
+func _debug_can_clean(i: int) -> bool:
+	var tub_seat := seat_of(i)
+	if not tub_seat.is_empty() and float(tub_seat.get("bath_t", -1.0)) >= 0.0:
+		return true
+	if not _nearest_tub(i).is_empty():
+		return true
+	return not _nearest_building_kinds(pos_x[i], pos_y[i], [Catalog.BLD_DWELL, Catalog.BLD_FANCY], 280.0, i).is_empty()
+
+
+func _debug_can_fun(i: int) -> bool:
+	if not _ride_building(i).is_empty():
+		return true
+	if not _nearest_roundabout(i, 320.0).is_empty():
+		return true
+	if not _nearest_ball(i, 260.0).is_empty():
+		return true
+	return not _nearest_building_kinds(
+		pos_x[i], pos_y[i],
+		[Catalog.BLD_THEATRE, Catalog.BLD_FLOWER, Catalog.BLD_STATUE, Catalog.BLD_WOOD],
+		320.0, i
+	).is_empty()
+
+
+func _debug_can_haul(i: int) -> bool:
+	if i < carry.size() and carry[i] != Catalog.CARRY_NONE:
+		return true
+	if not _has_factory():
+		return false
+	return not _nearest_free_item(i, Catalog.ITEM_ORE, 180.0).is_empty()
+
+
+func _debug_can_mine(i: int) -> bool:
+	if not _work_ready(i) or not _has_factory() or carry[i] != Catalog.CARRY_NONE:
+		return false
+	var mine := _nearest_building_kinds(pos_x[i], pos_y[i], [Catalog.BLD_MINE, Catalog.BLD_MINE2], 360.0)
+	if mine.is_empty():
+		return false
+	if _is_guest(mine, i):
+		return true
+	var stock := int(mine.get("buffer", 0))
+	var digging := _live_guests(mine)
+	if stock <= digging:
+		return false
+	var cap := 6 if int(mine.kind) == Catalog.BLD_MINE2 else 2
+	var already := i < mine_job.size() and int(mine_job[i]) == int(mine.id)
+	if digging + _mine_jobs(mine) >= cap and not already:
+		return false
+	return true
+
+
+func debug_agent_tasks(i: int) -> Array:
+	# Mirrors _tick_decide: urgency only counts when the seek can actually run.
+	var out: Array = []
+	if i < 0 or i >= slot_count or state[i] == Catalog.ST_VACANT:
+		return out
+	var fed_v := fed[i]
+	var clean_v := clean[i]
+	var fun_v := amused[i]
+	var carrying := i < carry.size() and carry[i] != Catalog.CARRY_NONE
+	var mining := i < mine_job.size() and int(mine_job[i]) >= 0
+	var in_tub := false
+	var on_ride := false
+	var tub_seat := seat_of(i)
+	if not tub_seat.is_empty() and float(tub_seat.get("bath_t", -1.0)) >= 0.0:
+		in_tub = true
+	if not _ride_building(i).is_empty():
+		on_ride = true
+	var can_food := _debug_can_food(i)
+	var can_clean := _debug_can_clean(i)
+	var can_fun := _debug_can_fun(i)
+	var can_haul := _debug_can_haul(i)
+	var can_mine := _debug_can_mine(i)
+	var food_p := 0.0
+	if can_food:
+		if fed_v < Catalog.NEED_HUNGRY:
+			food_p = 1000.0 + (Catalog.NEED_HUNGRY - fed_v)
+		elif fed_v < Catalog.NEED_OK:
+			food_p = 300.0 + (Catalog.NEED_OK - fed_v)
+	var clean_p := 0.0
+	if can_clean:
+		if clean_v < Catalog.NEED_SEEK:
+			clean_p = 900.0 + (Catalog.NEED_SEEK - clean_v)
+		elif clean_v < Catalog.NEED_OK:
+			clean_p = 300.0 + (Catalog.NEED_OK - clean_v)
+		if in_tub:
+			clean_p = maxf(clean_p, 950.0)
+	var fun_p := 0.0
+	if can_fun:
+		if fun_v < Catalog.NEED_FUN:
+			fun_p = 700.0 + (Catalog.NEED_FUN - fun_v)
+		elif fun_v < Catalog.NEED_OK:
+			fun_p = 300.0 + (Catalog.NEED_OK - fun_v)
+		if on_ride:
+			fun_p = maxf(fun_p, 750.0)
+	var haul_p := 0.0
+	if can_haul:
+		haul_p = 800.0 if carrying else 50.0
+	var mine_p := 0.0
+	if can_mine:
+		mine_p = 550.0 if mining else 500.0
+	var wander_p := 10.0
+	# Same gate order as _tick_decide, skipping seeks that would return false.
+	var active := "wander"
+	if in_tub and can_clean:
+		active = "clean"
+	elif on_ride and can_fun:
+		active = "fun"
+	elif fed_v < Catalog.NEED_HUNGRY and can_food:
+		active = "food"
+	elif clean_v < Catalog.NEED_SEEK and can_clean:
+		active = "clean"
+	elif carrying and can_haul:
+		active = "haul"
+	elif fun_v < Catalog.NEED_FUN and can_fun:
+		active = "fun"
+	elif can_haul:
+		active = "haul"
+	elif can_mine:
+		active = "mine"
+	elif fed_v < Catalog.NEED_OK or clean_v < Catalog.NEED_OK or fun_v < Catalog.NEED_OK:
+		var lack_fed := Catalog.NEED_OK - fed_v if can_food else -1.0
+		var lack_clean := Catalog.NEED_OK - clean_v if can_clean else -1.0
+		var lack_fun := Catalog.NEED_OK - fun_v if can_fun else -1.0
+		if lack_fed >= lack_clean and lack_fed >= lack_fun and lack_fed >= 0.0:
+			active = "food"
+		elif lack_clean >= lack_fun and lack_clean >= 0.0:
+			active = "clean"
+		elif lack_fun >= 0.0:
+			active = "fun"
+	var rows: Array = [
+		{"id": "food", "label": "COMER", "priority": food_p, "active": active == "food"},
+		{"id": "clean", "label": "BANARSE", "priority": clean_p, "active": active == "clean"},
+		{"id": "fun", "label": "DIVERTIRSE", "priority": fun_p, "active": active == "fun"},
+		{"id": "haul", "label": "ACARREAR", "priority": haul_p, "active": active == "haul"},
+		{"id": "mine", "label": "MINAR", "priority": mine_p, "active": active == "mine"},
+		{"id": "wander", "label": "VAGAR", "priority": wander_p, "active": active == "wander"},
+	]
+	for row in rows:
+		# Drop targets the agent cannot act on right now (busy tub, no mine stock, …).
+		if float(row.priority) <= 0.0 and str(row.id) != "wander":
+			continue
+		out.append(row)
+	out.sort_custom(func(a, b): return float(a.priority) > float(b.priority))
+	return out
 
 
 func debug_spawn(amount: int, around: Vector2) -> void:
+	var rx := 360.0 + sqrt(float(maxi(0, amount))) * 8.0
+	var ry := 220.0 + sqrt(float(maxi(0, amount))) * 5.0
 	for _n in amount:
 		if slot_count >= Catalog.MAX_SLOTS:
 			break
-		var x := around.x + randf_range(-360.0, 360.0)
-		var y := around.y + randf_range(-220.0, 220.0)
+		var x := around.x + randf_range(-rx, rx)
+		var y := around.y + randf_range(-ry, ry)
 		if _blocked(x, y):
-			x = around.x
-			y = around.y
+			x = around.x + randf_range(-rx * 0.3, rx * 0.3)
+			y = around.y + randf_range(-ry * 0.3, ry * 0.3)
 		_push_slot(x, y, 80.0, 80.0, 80.0, 8.0, randi() % Catalog.TINTS.size())
 	_rebuild_hash()
 	notes.append("ENJAMBRE DE PRUEBA: %d" % living)
 
 
+func debug_perf_busy(around: Vector2, scale: int = 1) -> Dictionary:
+	# Populate a mid-game-like island so perf measures props/paths/AI seeks, not an empty field.
+	# scale=1 ≈ early mid-game; scale=3+ packs many more props/paths for stress.
+	scale = maxi(1, scale)
+	for info in Catalog.BUILD_INFO.values():
+		unlocks[str(info.unlock)] = true
+	for key in ["axe", "mine", "factory", "factory2", "theatre", "nuke", "bug"]:
+		unlocks[key] = true
+	gems = maxi(gems, 500)
+	var placed_bld := 0
+	var placed_item := 0
+	var placed_path := 0
+	var base_plan: Array = [
+		[Catalog.BLD_TUB, Vector2(-48, -16)],
+		[Catalog.BLD_TUB, Vector2(64, 24)],
+		[Catalog.BLD_ROUND, Vector2(-16, 72)],
+		[Catalog.BLD_DWELL, Vector2(96, -48)],
+		[Catalog.BLD_DWELL, Vector2(-96, 48)],
+		[Catalog.BLD_FANCY, Vector2(48, 96)],
+		[Catalog.BLD_THEATRE, Vector2(-120, -64)],
+		[Catalog.BLD_APPLE, Vector2(120, 40)],
+		[Catalog.BLD_APPLE, Vector2(-64, 112)],
+		[Catalog.BLD_FACTORY, Vector2(160, -24)],
+		[Catalog.BLD_MARKET, Vector2(24, -112)],
+	]
+	var plan: Array = []
+	for s in scale:
+		var ox := float((s % 3) - 1) * 220.0
+		var oy := float((s / 3) - (scale / 6)) * 180.0
+		for row in base_plan:
+			# Only one market: keep the first, skip extras.
+			if int(row[0]) == Catalog.BLD_MARKET and s > 0:
+				continue
+			var off: Vector2 = row[1]
+			plan.append([row[0], Vector2(off.x + ox, off.y + oy)])
+	for row in plan:
+		var kind := int(row[0])
+		var off2: Vector2 = row[1]
+		var at := Catalog.snap_world(around.x + off2.x, around.y + off2.y)
+		if _try_add_building_near(kind, at.x, at.y):
+			placed_bld += 1
+	var loot: Array = [
+		[Catalog.ITEM_APPLE, 18 * scale],
+		[Catalog.ITEM_BALL, 8 * scale],
+		[Catalog.ITEM_WOOD, 24 * scale],
+		[Catalog.ITEM_BONE, 10 * scale],
+		[Catalog.ITEM_ORE, 12 * scale],
+	]
+	var spread := 200.0 + float(scale - 1) * 80.0
+	for row2 in loot:
+		var ikind := int(row2[0])
+		var n := int(row2[1])
+		for _i in n:
+			var ix := around.x + randf_range(-spread, spread)
+			var iy := around.y + randf_range(-spread * 0.7, spread * 0.7)
+			if _blocked(ix, iy):
+				ix = around.x + randf_range(-80.0, 80.0)
+				iy = around.y + randf_range(-80.0, 80.0)
+			_add_item(ikind, ix, iy, 1)
+			placed_item += 1
+	# Stamp worn paths in a cross + grid so path sprites stress the draw path.
+	var origin := _cell_vec(around.x, around.y)
+	var path_r := 10 + 6 * (scale - 1)
+	var side_r := 4 + 2 * (scale - 1)
+	for i in range(-path_r, path_r + 1):
+		for cell in [origin + Vector2i(i, 0), origin + Vector2i(0, i)]:
+			var key := "%d,%d" % [cell.x, cell.y]
+			if int(wear.get(key, 0)) < WEAR_NEED:
+				wear[key] = WEAR_NEED
+				_mark_path(cell)
+				placed_path += 1
+		if absi(i) % 3 == 0:
+			for j in range(-side_r, side_r + 1):
+				var side := origin + Vector2i(i, j)
+				var skey := "%d,%d" % [side.x, side.y]
+				if int(wear.get(skey, 0)) < WEAR_NEED:
+					wear[skey] = WEAR_NEED
+					_mark_path(side)
+					placed_path += 1
+	_rebuild_kind_indexes()
+	_rebuild_hash()
+	paint_epoch += 1
+	notes.append("PERF BUSY x%d: bld=%d item=%d path=%d" % [scale, placed_bld, placed_item, placed_path])
+	return {"scale": scale, "buildings": placed_bld, "items": placed_item, "paths": placed_path}
+
+
+func _try_add_building_near(kind: int, x: float, y: float) -> bool:
+	if not _add_building(kind, x, y).is_empty():
+		return true
+	for ring in range(1, 8):
+		for d in [
+			Vector2(ring * 16, 0), Vector2(-ring * 16, 0),
+			Vector2(0, ring * 16), Vector2(0, -ring * 16),
+			Vector2(ring * 16, ring * 16), Vector2(-ring * 16, ring * 16),
+			Vector2(ring * 16, -ring * 16), Vector2(-ring * 16, -ring * 16),
+		]:
+			var try_at := Catalog.snap_world(x + d.x, y + d.y)
+			if not _add_building(kind, try_at.x, try_at.y).is_empty():
+				return true
+	return false
+
+
 func chunk_shown(ck: String) -> bool:
-	if not revealed.has(ck):
-		return false
-	return ck == "0,0"
+	return revealed.has(ck)
+
+
+func chunk_at_home(x: float, y: float) -> bool:
+	var c := _chunk_at(x, y)
+	var key := _ck(c.x, c.y)
+	return revealed.has(key) and _is_island_chunk(c.x, c.y)
 
 
 func chunk_key_at(x: float, y: float) -> String:
@@ -4022,9 +5409,31 @@ func explore_rect(rect: Rect2) -> void:
 			_try_reveal(cx, cy)
 
 
-func query_rect(rect: Rect2) -> Array:
-	var half := rect.size * 0.5
-	return query_radius(rect.get_center().x, rect.get_center().y, half.length() + 24.0)
+func query_rect(rect: Rect2, limit: int = 0) -> Array:
+	# AABB over hash cells — circle(half.diagonal) massively over-included at wide zooms.
+	# limit > 0 stops early (AI priority / density sampling).
+	var out: Array = []
+	if hash_head.is_empty() or rect.size == Vector2.ZERO:
+		return out
+	var pad := 8.0
+	var x0 := int(floor((rect.position.x - pad) / Catalog.HASH_CELL))
+	var y0 := int(floor((rect.position.y - pad) / Catalog.HASH_CELL))
+	var x1 := int(floor((rect.end.x + pad) / Catalog.HASH_CELL))
+	var y1 := int(floor((rect.end.y + pad) / Catalog.HASH_CELL))
+	var hit := Rect2(rect.position - Vector2(pad, pad), rect.size + Vector2(pad * 2.0, pad * 2.0))
+	for oy in range(y0, y1 + 1):
+		for ox in range(x0, x1 + 1):
+			var i := hash_head[_bucket_cell(ox, oy)]
+			var guard := 0
+			while i != -1 and guard < slot_count + 2:
+				guard += 1
+				if i >= 0 and i < slot_count and state[i] != Catalog.ST_VACANT:
+					if hit.has_point(Vector2(pos_x[i], pos_y[i])):
+						out.append(i)
+						if limit > 0 and out.size() >= limit:
+							return out
+				i = hash_next[i] if i >= 0 and i < hash_next.size() else -1
+	return out
 
 
 func query_radius(x: float, y: float, radius: float) -> Array:
@@ -4149,6 +5558,7 @@ func new_game() -> void:
 	save_system.clear_saves()
 	current_slot = SaveSystem.LIVE_SLOT
 	ethics = []
+	sandbox_mode = false
 	_init_unlocks()
 	unlock_serial += 1
 	world_seed = randi()
@@ -4158,6 +5568,37 @@ func new_game() -> void:
 	tutorial_i = 0
 	count_unknown = true
 	notes.append("PARTIDA NUEVA.")
+
+
+func new_sandbox_game(tier: int = SANDBOX_START_TIER) -> void:
+	save_system.clear_saves()
+	current_slot = SaveSystem.LIVE_SLOT
+	ethics = []
+	world_seed = randi()
+	if world_seed == 0:
+		world_seed = 1
+	_bootstrap_sandbox(clampi(tier, SANDBOX_TIER_MIN, SANDBOX_TIER_MAX))
+	notes.append("SANDBOX.")
+
+
+func set_sandbox_land_tier(tier: int) -> void:
+	if not sandbox_mode:
+		return
+	var next := clampi(tier, SANDBOX_TIER_MIN, SANDBOX_TIER_MAX)
+	if next == land_tier:
+		return
+	land_tier = next
+	_shape_island()
+	_sandbox_strip_props()
+	notes.append("ISLA %d" % land_tier)
+
+
+func sandbox_grow() -> void:
+	set_sandbox_land_tier(land_tier + 1)
+
+
+func sandbox_shrink() -> void:
+	set_sandbox_land_tier(land_tier - 1)
 
 
 func _apply_action(action: Dictionary) -> void:
@@ -4185,14 +5626,23 @@ func _drop_carried(i: int) -> void:
 		kind = Catalog.ITEM_ORE
 	var dropped_carry := _add_item(kind, pos_x[i], pos_y[i], maxi(1, carry_value[i]))
 	item_physics.launch_item(dropped_carry, 6.0, randf_range(70.0, 100.0), randf_range(-28.0, 28.0), randf_range(-28.0, 28.0))
-	carry[i] = Catalog.CARRY_NONE
-	carry_value[i] = 0
+	_set_carry(i, Catalog.CARRY_NONE)
 
 
 func _lift_building(b: Dictionary) -> void:
 	var occ := int(b.get("occupant", -1))
 	if occ >= 0 and occ < claim.size():
 		claim[occ] = -1
+		if occ < link_tub.size():
+			link_tub[occ] = -1
+	for guest in b.get("guests", []):
+		var gid := int(guest.get("id", -1))
+		if gid >= 0 and gid < link_guest.size() and link_guest[gid] == int(b.id):
+			link_guest[gid] = -1
+	for raw in _rider_list(b):
+		var rid := int(raw)
+		if rid >= 0 and rid < link_ride.size() and link_ride[rid] == int(b.id):
+			link_ride[rid] = -1
 	b.occupant = -1
 	b.bath_t = -1.0
 	b.guests = []
@@ -4218,7 +5668,9 @@ func _deflesh(id: int, count_use: bool) -> void:
 	if was_living:
 		living -= 1
 		deaths_total += 1
+		_living_remove(id)
 	state[id] = Catalog.ST_VACANT
+	_hash_unlink(id)
 	var bone_it := _add_item(Catalog.ITEM_BONE, x, y, 1)
 	item_physics.launch_item(bone_it, 6.0, randf_range(80.0, 110.0), randf_range(-30.0, 30.0), randf_range(-30.0, 30.0))
 	_pop(x, y, ThrongClips.frame_at("ThrongA_Bones", 0))
@@ -4272,7 +5724,7 @@ func _nuke(cx: int, cy: int) -> void:
 			continue
 		var cc := _chunk_at(pos_x[i], pos_y[i])
 		if cc.x == cx and cc.y == cy:
-			state[i] = Catalog.ST_VACANT
+			_vacate(i)
 	goo_count = _count_goo()
 	_mark_dirty(ck)
 	var mid := float(cx * Catalog.CHUNK + Catalog.CHUNK / 2) * float(Catalog.TILE)
@@ -4305,8 +5757,12 @@ func _become_corpse(i: int) -> void:
 		return
 	state[i] = Catalog.ST_DEAD
 	living -= 1
+	dead_n += 1
 	deaths_total += 1
-	carry[i] = Catalog.CARRY_NONE
+	starve[i] = CORPSE_LIFE
+	_living_remove(i)
+	_dead_add(i)
+	_set_carry(i, Catalog.CARRY_NONE)
 	if absf(dir_x[i]) < 0.01:
 		dir_x[i] = 1.0
 	else:
@@ -4319,22 +5775,64 @@ func _become_corpse(i: int) -> void:
 		_enter_game_over()
 
 
+func _tick_corpses(dt: float) -> void:
+	if dead_ids.is_empty():
+		return
+	var k := 0
+	while k < dead_ids.size():
+		var id := int(dead_ids[k])
+		if id < 0 or id >= slot_count or state[id] != Catalog.ST_DEAD:
+			_dead_remove_at(k)
+			continue
+		starve[id] = maxf(0.0, starve[id] - dt)
+		if starve[id] <= 0.0:
+			_vacate(id)
+			continue
+		k += 1
+
+
+func _dead_add(i: int) -> void:
+	dead_ids.append(i)
+
+
+func _dead_remove(i: int) -> void:
+	for k in dead_ids.size():
+		if int(dead_ids[k]) == i:
+			_dead_remove_at(k)
+			return
+
+
+func _dead_remove_at(k: int) -> void:
+	var last := dead_ids.size() - 1
+	if k < 0 or k > last:
+		return
+	dead_ids[k] = dead_ids[last]
+	dead_ids.resize(last)
+
+
 func _vacate(i: int) -> void:
 	if i < 0 or i >= slot_count or state[i] == Catalog.ST_VACANT:
 		return
 	var was_living := state[i] == Catalog.ST_LIVING
+	var was_dead := state[i] == Catalog.ST_DEAD
 	if was_living:
 		living -= 1
+		_living_remove(i)
+	elif was_dead:
+		dead_n = maxi(0, dead_n - 1)
+		_dead_remove(i)
+	_set_carry(i, Catalog.CARRY_NONE)
 	state[i] = Catalog.ST_VACANT
 	_release_claim(i)
 	_release_item_claims(i)
 	_clear_ride(i)
+	_hash_unlink(i)
 	if was_living and living <= 0:
 		_enter_game_over()
 
 
 func _enter_game_over() -> void:
-	if game_over or living > 0 or peak <= 0:
+	if sandbox_mode or game_over or living > 0 or peak <= 0:
 		return
 	game_over = true
 	paused = true
@@ -4363,7 +5861,7 @@ func _reflect(event: String) -> void:
 
 
 func _queue_talk(event: String, action: Dictionary) -> void:
-	if game_over or not Catalog.GAZE.has(event):
+	if sandbox_mode or game_over or not Catalog.GAZE.has(event):
 		return
 	if _ethics_choice(event) != -1 and action.is_empty():
 		return
@@ -4741,14 +6239,20 @@ func _apply_moral_edge(edge: Dictionary) -> void:
 			notes.append("APRENDEN A VER ENERGIA EN TODO.")
 		elif flag == "care":
 			notes.append("RECUERDAN QUE LOS CUIDAS.")
+		elif flag == "short_rest":
+			notes.append("PASAN MENOS TIEMPO EN LAS VIVIENDAS.")
 
 
 func _decay_scale() -> float:
+	if _decay_scale_frame == frame_i:
+		return _decay_scale_cached
 	var scale := 1.0
 	if bool(mutations.get("care", false)) or moral > 0:
 		scale *= 0.9
 	if bool(mutations.get("hard", false)) or bool(mutations.get("numb", false)) or moral < 0:
 		scale *= 1.12
+	_decay_scale_frame = frame_i
+	_decay_scale_cached = scale
 	return scale
 
 
@@ -4781,14 +6285,7 @@ func _refresh_pop_gates(announce: bool = true) -> void:
 
 
 func _expand_super_island(announce: bool = true) -> void:
-	var first := not part_two
-	# Grow the main island.
-	land_tier = maxi(land_tier, 3)
-	var added := _shape_island()
-	if first:
-		_enter_part_two("LA ISLA CRECE Y SE ABRE UN NUEVO CAMINO.", true)
-	elif announce and added > 0:
-		notes.append("LA ISLA CRECE.")
+	island_gen.expand_super_island(announce)
 
 
 func _milestone_defs() -> Array:
@@ -4802,6 +6299,16 @@ func _milestone_defs() -> Array:
 		{"kind": "pop", "n": 40},
 		{"kind": "gem", "n": 500},
 	]
+
+
+func _milestone_at(tier: int) -> Dictionary:
+	var defs := _milestone_defs()
+	if tier < defs.size():
+		return defs[tier]
+	var n_base := tier - 7
+	if (tier - 8) % 2 == 0:
+		return {"kind": "pop", "n": 40 + n_base * 10}
+	return {"kind": "gem", "n": 20 + n_base * 25}
 
 
 func _milestone_met(step: Dictionary) -> bool:
@@ -4819,6 +6326,8 @@ func _check_milestones(announce: bool = true) -> void:
 	if gems > gems_peak:
 		gems_peak = gems
 	total_gems_earned = maxi(total_gems_earned, gems_peak)
+	if sandbox_mode:
+		return
 	if peak >= 25:
 		var mono1 := false
 		for feat in features:
@@ -4834,11 +6343,12 @@ func _check_milestones(announce: bool = true) -> void:
 		if spawned1 and not bug and not mono1:
 			monolith_tier_spawned.erase(1)
 		_ensure_monolith(1)
-	var defs := _milestone_defs()
 	var grew := false
-	while land_tier < defs.size() and _milestone_met(defs[land_tier]):
+	var guard := 0
+	while _milestone_met(_milestone_at(land_tier)) and guard < 64:
 		land_tier += 1
 		grew = true
+		guard += 1
 	ProgressionManager.evaluate_unlocks(self, announce)
 	if not grew:
 		return
@@ -4848,6 +6358,8 @@ func _check_milestones(announce: bool = true) -> void:
 
 
 func goal_line() -> String:
+	if sandbox_mode:
+		return "SANDBOX  ISLA %d" % land_tier
 	if living <= 0 and _has_egg():
 		return "AYUDA AL HUEVO A ECLOSIONAR"
 	if peak < 2:
@@ -4868,10 +6380,10 @@ func goal_line() -> String:
 		return "CRECE LA COLONIA  %d/12" % mini(peak, 12)
 	if not part_two:
 		return "HAZ CRECER LA COLONIA PARA EXPANDIR LA ISLA"
-	var defs := _milestone_defs()
-	if land_tier >= defs.size():
-		return _sandbox_goal()
-	var step: Dictionary = defs[land_tier]
+	var sand := _sandbox_goal()
+	if sand != "":
+		return sand
+	var step: Dictionary = _milestone_at(land_tier)
 	var kind := str(step.kind)
 	var n := int(step.n)
 	if kind == "pop":
@@ -4888,23 +6400,23 @@ func goal_line() -> String:
 
 
 func _sandbox_goal() -> String:
-	# Endless run: never park on "island complete".
+	# Building goals only; land growth keeps using milestones forever.
 	if not _has_building(Catalog.BLD_MARKET):
 		return _goal_build("COLOCA EL MERCADO", int(Catalog.BUILD_INFO[Catalog.BLD_MARKET].wood))
 	if not _has_factory():
 		if not bool(unlocks.get("factory", false)):
 			var need := int(Catalog.MARKET.factory.cost)
 			return "COMPRA LA FABRICA  %d/%d ENERGIA" % [mini(gems, need), need]
-		return _goal_build("CONSTRUYE UNA FABRICA", 3)
+		return _goal_place("CONSTRUYE UNA FABRICA", "factory")
 	if not bool(unlocks.get("theatre", false)):
 		var need_t := int(Catalog.MARKET.theatre.cost)
 		return "COMPRA EL TEATRO  %d/%d ENERGIA" % [mini(gems, need_t), need_t]
 	if not _has_building(Catalog.BLD_THEATRE):
-		return _goal_build("CONSTRUYE EL TEATRO", 3)
+		return _goal_place("CONSTRUYE EL TEATRO", "theatre")
 	if not bool(unlocks.get("factory2", false)):
 		var need_f2 := int(Catalog.MARKET.factory2.cost)
 		return "COMPRA FABRICA II  %d/%d ENERGIA" % [mini(gems, need_f2), need_f2]
-	return "EXPANSION LIBRE  %d MULTIS · %d ENERGIA" % [living, gems]
+	return ""
 
 
 func _goal_build(label: String, cost: int) -> String:
@@ -4916,6 +6428,47 @@ func _goal_build(label: String, cost: int) -> String:
 	return "%s  (%d MADERA)" % [label, cost]
 
 
+func _goal_place(label: String, unlock_id: String) -> String:
+	var cost := ProgressionManager.placement_cost(self, unlock_id)
+	var resource := str(cost.get("resource", ""))
+	var amount := int(cost.get("amount", 0))
+	if amount <= 0 or resource == "":
+		return label
+	if resource == "gem":
+		if gems < amount:
+			return "JUNTA ENERGIA  %d/%d  LUEGO %s" % [gems, amount, label]
+		return "%s  (%d ENERGIA)" % [label, amount]
+	if resource == "wood":
+		return _goal_build(label, amount)
+	return label
+
+
+func _building_costs(kind: int) -> Dictionary:
+	var wood_cost := 0
+	var gem_cost := 0
+	if sandbox_mode:
+		return {"wood": 0, "gem": 0}
+	if not Catalog.BUILD_INFO.has(kind):
+		return {"wood": 0, "gem": 0}
+	var info: Dictionary = Catalog.BUILD_INFO[kind]
+	wood_cost = int(info.wood)
+	var cost := ProgressionManager.placement_cost(self, str(info.unlock))
+	if str(cost.get("resource", "")) == "gem":
+		gem_cost = int(cost.get("amount", 0))
+	elif str(cost.get("resource", "")) == "wood":
+		wood_cost = int(cost.get("amount", 0))
+	return {"wood": wood_cost, "gem": gem_cost}
+
+
+func _can_afford_building(kind: int) -> bool:
+	var costs := _building_costs(kind)
+	if int(costs.gem) > 0 and gems < int(costs.gem):
+		return false
+	if int(costs.wood) > 0 and count_item(Catalog.ITEM_WOOD) < int(costs.wood):
+		return false
+	return true
+
+
 func _enter_part_two(reason: String, talk_market: bool = true) -> void:
 	var first := not part_two
 	part_two = true
@@ -4924,10 +6477,7 @@ func _enter_part_two(reason: String, talk_market: bool = true) -> void:
 	_grant("sculpture", "", false)
 	if first:
 		_seed_early_ore(6)
-		_grant("pickaxe", "", false)
-		_grant("mine", "", false)
-		_grant("factory", "", false)
-		notes.append("EL PICO, LAS MINAS Y LA FABRICA YA ESTAN. EL MERCADO, EN EL MENU.")
+		notes.append("EL MERCADO ESTA LISTO. COMPRA EL PICO Y LO DEMAS ALLI.")
 		if reason != "":
 			notes.append(reason)
 	_check_milestones()
@@ -5053,6 +6603,97 @@ func _bootstrap_new() -> void:
 	session_live = true
 
 
+func _bootstrap_sandbox(tier: int) -> void:
+	var keep := world_seed
+	_reset_world()
+	sandbox_mode = true
+	world_seed = keep
+	if world_seed == 0:
+		world_seed = 1
+	land_tier = clampi(tier, SANDBOX_TIER_MIN, SANDBOX_TIER_MAX)
+	_unlock_all()
+	gems = SANDBOX_GEMS
+	gems_peak = SANDBOX_GEMS
+	total_gems_earned = SANDBOX_GEMS
+	part_two = true
+	tutorial_i = -1
+	count_unknown = false
+	_reveal(0, 0)
+	_clear_spawn()
+	_shape_island()
+	_sandbox_strip_props()
+	_rebuild_hash()
+	session_live = true
+
+
+func sandbox_place_prop(prop: String, x: float, y: float) -> bool:
+	if not sandbox_mode or frozen:
+		return false
+	var at := Catalog.snap_world(x, y)
+	if not revealed.has(_ck_of(at.x, at.y)):
+		return false
+	match prop:
+		"tree":
+			if Catalog.tile_blocks(_tile_at(at.x, at.y)):
+				return false
+			return not _add_feature(Catalog.FEAT_TREE, at.x, at.y, 1, 0, true).is_empty()
+		"rock":
+			if Catalog.tile_blocks(_tile_at(at.x, at.y)):
+				return false
+			return not _add_feature(Catalog.FEAT_ROCK, at.x, at.y, 1, 0, true).is_empty()
+		"ore":
+			if Catalog.tile_blocks(_tile_at(at.x, at.y)):
+				return false
+			return not _add_feature(Catalog.FEAT_ROCK, at.x, at.y, 2, 1, true).is_empty()
+		"water":
+			var cell := _cell_vec(at.x, at.y)
+			var tile := _tile_at_cell(cell)
+			if tile == Catalog.TILE_VOID or tile == Catalog.TILE_FOG:
+				return false
+			_set_world_cell(cell.x, cell.y, Catalog.TILE_WATER, true)
+			var feat := _feature_at(at.x, at.y, 8.0)
+			if not feat.is_empty():
+				_kill_feature(feat)
+			return true
+		"grass":
+			var cell := _cell_vec(at.x, at.y)
+			var tile := _tile_at_cell(cell)
+			if tile == Catalog.TILE_VOID or tile == Catalog.TILE_FOG:
+				return false
+			_set_world_cell(cell.x, cell.y, Catalog.TILE_GRASS, true)
+			return true
+		"thronglet":
+			if Catalog.tile_blocks(_tile_at(at.x, at.y)) or not _land_inland(at.x, at.y):
+				return false
+			var tint := randi() % Catalog.TINTS.size()
+			return _push_slot(at.x, at.y, 90.0, 90.0, 90.0, 8.0, tint) >= 0
+		_:
+			return false
+
+
+func _unlock_all() -> void:
+	_init_unlocks()
+	for key in unlocks.keys():
+		unlocks[key] = true
+	for id in ProgressionCatalog.all_ids():
+		unlocks[str(id)] = true
+	for key in Catalog.MARKET.keys():
+		unlocks[str(key)] = true
+	unlocks["camera"] = true
+	unlocks["flower"] = true
+	unlocks["sculpture"] = true
+	unlock_serial += 1
+
+
+func _sandbox_strip_props() -> void:
+	if not sandbox_mode:
+		return
+	for feat in features:
+		if feat.dead:
+			continue
+		_kill_feature(feat)
+
+
 func _spawn_starter_egg() -> void:
 	var it := _add_item(Catalog.ITEM_EGG, 256.0, 256.0, 0)
 	it.fixed = true
@@ -5106,6 +6747,8 @@ func _reset_world() -> void:
 	features.clear()
 	feature_by_id.clear()
 	feature_cell.clear()
+	features_by_chunk.clear()
+	inland_cache.clear()
 	tree_seeds.clear()
 	items.clear()
 	item_by_id.clear()
@@ -5130,12 +6773,20 @@ func _reset_world() -> void:
 	_mood_sus = 0
 	_mood_freak = 0
 	living = 0
+	dead_n = 0
+	dead_ids = PackedInt32Array()
+	carry_wood_n = 0
+	carry_bone_n = 0
+	carry_ore_n = 0
+	_invalidate_item_counts()
 	peak = 0
 	gems = 0
 	gems_peak = 0
 	total_gems_earned = 0
 	deaths_total = 0
 	land_tier = 0
+	sandbox_mode = false
+	_shaping_island = false
 	special_biomes = {}
 	glitch_seen = false
 	glitch_t = 0.0
@@ -5193,7 +6844,32 @@ func _reset_world() -> void:
 	tick_stamp = PackedInt32Array()
 	pops.clear()
 	hash_next = PackedInt32Array()
+	hash_cell = PackedInt32Array()
+	link_tub = PackedInt32Array()
+	link_ride = PackedInt32Array()
+	link_guest = PackedInt32Array()
+	link_claim = PackedInt32Array()
+	link_ball = PackedInt32Array()
+	living_ids = PackedInt32Array()
+	living_at = PackedInt32Array()
+	bark_cool = PackedFloat32Array()
+	fires.clear()
+	items_apple.clear()
+	items_ball.clear()
+	items_wood.clear()
+	items_bone.clear()
+	items_ore.clear()
+	blds_tub.clear()
+	blds_round.clear()
+	blds_home.clear()
+	blds_mine.clear()
+	blds_show.clear()
+	seek_x = PackedFloat32Array()
+	seek_y = PackedFloat32Array()
+	seek_t = PackedFloat32Array()
+	hash_head.fill(-1)
 	paint_epoch += 1
+	feat_mesh_epoch += 1
 
 
 func _push_slot(x: float, y: float, fed_v: float, fun_v: float, clean_v: float, cool_v: float, tint_i: int) -> int:
@@ -5236,9 +6912,22 @@ func _push_slot_quiet(x: float, y: float, fed_v: float, fun_v: float, clean_v: f
 	act_t.append(0.0)
 	tick_stamp.append(0)
 	hash_next.append(-1)
+	hash_cell.append(-1)
+	link_tub.append(-1)
+	link_ride.append(-1)
+	link_guest.append(-1)
+	link_claim.append(-1)
+	link_ball.append(-1)
+	living_at.append(-1)
+	bark_cool.append(0.0)
+	seek_x.append(0.0)
+	seek_y.append(0.0)
+	seek_t.append(0.0)
 	var id := slot_count
 	slot_count += 1
 	living += 1
+	_living_add(id)
+	_hash_link(id)
 	return id
 
 
@@ -5250,16 +6939,19 @@ func _reveal(cx: int, cy: int) -> void:
 	if not fresh:
 		return
 	cap_told = false
+	# Fog→land changes cliff margins on this chunk and its borders.
+	inland_cache.clear()
+	_invalidate_walk_cells()
 	_mark_dirty(ck)
 
 
 func _try_reveal(cx: int, cy: int) -> void:
-	if cx == 0 and cy == 0:
+	if cx == 0 and cy == 0 or _is_island_chunk(cx, cy):
 		_reveal(cx, cy)
 
 
 func _is_known_chunk(cx: int, cy: int) -> bool:
-	return cx == 0 and cy == 0
+	return revealed.has(_ck(cx, cy))
 
 
 func _ensure(cx: int, cy: int) -> void:
@@ -5269,10 +6961,12 @@ func _ensure(cx: int, cy: int) -> void:
 	var biome := _biome_formula(cx, cy)
 	var tiles := _fill_tiles(cx, cy, biome)
 	chunks[ck] = {"biome": biome, "axis": "", "tiles": tiles, "base": tiles.duplicate()}
-	if cx == 0 and cy == 0:
+	if cx == 0 and cy == 0 and not _shaping_island:
 		_shape_island()
-		_seed_mine_nodes(0, 0)
-	_scatter(cx, cy, biome)
+		if not sandbox_mode:
+			_seed_mine_nodes(0, 0)
+	if not _shaping_island and not sandbox_mode:
+		_scatter(cx, cy, biome)
 	_mark_dirty(ck)
 
 
@@ -5307,53 +7001,15 @@ func _fill_tiles(cx: int, cy: int, biome: String) -> PackedByteArray:
 
 
 func _is_island_chunk(cx: int, cy: int) -> bool:
-	return cx == 0 and cy == 0
-
+	return island_gen.is_island_chunk(cx, cy)
 
 
 func _count_mine_nodes(cx: int, cy: int) -> int:
-	var n := 0
-	for feat in features:
-		if feat.dead:
-			continue
-		if int(feat.cx) != cx or int(feat.cy) != cy:
-			continue
-		if _ore_tier(int(feat.kind)) > 0:
-			n += 1
-	return n
+	return island_gen.count_mine_nodes(cx, cy)
 
 
 func _seed_mine_nodes(cx: int, cy: int) -> void:
-	var ck := _ck(cx, cy)
-	if not chunks.has(ck):
-		return
-	var tiles = chunks[ck].tiles
-	var placed := _count_mine_nodes(cx, cy)
-	var want := 3
-	var tries := 0
-	while placed < want and tries < 400:
-		tries += 1
-		var lx := randi() % Catalog.CHUNK
-		var ly := randi() % Catalog.CHUNK
-		if not _mine_spot_ok(cx, cy, lx, ly, tiles, 58.0):
-			continue
-		var wx := float((cx * Catalog.CHUNK + lx) * Catalog.TILE + 8)
-		var wy := float((cy * Catalog.CHUNK + ly) * Catalog.TILE + 8)
-		var kind := Catalog.FEAT_SUPER if placed == 0 else Catalog.FEAT_NODE
-		var ore := 2 if kind == Catalog.FEAT_SUPER else 1
-		if _add_feature(kind, wx, wy, 1, ore, true).is_empty():
-			continue
-		placed += 1
-	if placed > 0:
-		return
-	for ly in Catalog.CHUNK:
-		for lx in Catalog.CHUNK:
-			if not _mine_spot_ok(cx, cy, lx, ly, tiles, 0.0):
-				continue
-			var fx := float((cx * Catalog.CHUNK + lx) * Catalog.TILE + 8)
-			var fy := float((cy * Catalog.CHUNK + ly) * Catalog.TILE + 8)
-			if not _add_feature(Catalog.FEAT_SUPER, fx, fy, 1, 2, true).is_empty():
-				return
+	island_gen.seed_mine_nodes(cx, cy)
 
 
 func _is_mine_node(kind: int) -> bool:
@@ -5394,46 +7050,20 @@ func _near_mine_node(x: float, y: float) -> bool:
 	return false
 
 
-func _mine_spot_ok(cx: int, cy: int, lx: int, ly: int, tiles, mid_min: float) -> bool:
-	for oy in range(-3, 4):
-		for ox in range(-3, 4):
-			var nx := lx + ox
-			var ny := ly + oy
-			if nx < 0 or ny < 0 or nx >= Catalog.CHUNK or ny >= Catalog.CHUNK:
-				return false
-			var tile := int(tiles[ny * Catalog.CHUNK + nx])
-			if tile == Catalog.TILE_VOID or tile == Catalog.TILE_WATER or tile == Catalog.TILE_MOUNTAIN or tile == Catalog.TILE_RUBBLE:
-				return false
-			var wx := float((cx * Catalog.CHUNK + nx) * Catalog.TILE + 8)
-			var wy := float((cy * Catalog.CHUNK + ny) * Catalog.TILE + 8)
-			var key := Vector2i(cx * Catalog.CHUNK + nx, cy * Catalog.CHUNK + ny)
-			if feature_cell.has(key):
-				var feat = feature_by_id.get(int(feature_cell[key]), {})
-				if not feat.is_empty() and not feat.dead:
-					return false
-			if not _building_at(wx, wy, 10.0).is_empty():
-				return false
-	if mid_min > 0.0:
-		var local_mid := float(Catalog.CHUNK * Catalog.TILE) * 0.5
-		if _dist_point(local_mid, local_mid, float(lx * Catalog.TILE + 8), float(ly * Catalog.TILE + 8)) < mid_min:
-			return false
-	return true
-
-
 func _fall_void(x: float, y: float) -> void:
 	notes.append("SE CAE AL VACIO. LA PARTIDA SIGUE.")
 	sfx_queue.append("crush")
 
 
 func occupancy_text(b: Dictionary) -> String:
-	var rule := _visit_rule(int(b.kind))
-	if rule.is_empty():
+	var info := capacity_info(b)
+	if info.is_empty():
 		return ""
-	var n := _live_guests(b)
-	var cap := int(rule.cap)
-	if n >= cap:
+	if bool(info.full):
 		return "LLENO"
-	return "%d/%d" % [n, cap]
+	if bool(info.get("mine", false)):
+		return ""
+	return "%d/%d" % [int(info.n), int(info.cap)]
 
 
 func _tick_props(dt: float) -> void:
@@ -5495,254 +7125,12 @@ func _tick_monoliths(dt: float, allow_touch: bool = true) -> void:
 		_touch_monolith(feat)
 
 
-func _disk_land(x: float, y: float, mid: float, reach: float, phase: float) -> bool:
-	var ang := atan2(y - mid, x - mid)
-	var wobble := sin(ang * 2.0 + phase) * 20.0 + sin(ang * 5.0 + phase * 1.4) * 10.0 + sin(ang * 7.0 + 0.8) * 5.0
-	return _dist_point(mid, mid, x, y) <= reach + wobble
-
-
-func _ellipse(px: float, py: float, center: Vector2, axis: Vector2, rx: float, ry: float) -> float:
-	var rel := Vector2(px, py) - center
-	var side := Vector2(-axis.y, axis.x)
-	var u := rel.dot(axis) / rx
-	var v := rel.dot(side) / ry
-	return u * u + v * v
-
-
-func _local_mid() -> float:
-	return float(Catalog.CHUNK * Catalog.TILE) * 0.5
-
-
-func _open_ground(cx: int, cy: int, lx: int, ly: int) -> bool:
-	if lx < 0 or ly < 0 or lx >= Catalog.CHUNK or ly >= Catalog.CHUNK:
-		return false
-	var tile := int(chunks[_ck(cx, cy)].tiles[ly * Catalog.CHUNK + lx])
-	if tile != Catalog.TILE_GRASS and tile != Catalog.TILE_DIRT and tile != Catalog.TILE_BLOOM:
-		return false
-	var wx := float((cx * Catalog.CHUNK + lx) * Catalog.TILE + 8)
-	var wy := float((cy * Catalog.CHUNK + ly) * Catalog.TILE + 8)
-	return _land_inland(wx, wy)
-
-
-func _paint_water(tiles: PackedByteArray, cx: int, cy: int) -> PackedByteArray:
-	var outward := Vector2(1, 0)
-	if absi(int(world_seed)) % 2 == 1:
-		outward = Vector2(-1, 0)
-	var away := -outward
-	if cx != 0 or cy != 0:
-		away = outward
-	var side := Vector2(-away.y, away.x)
-	var mid := _local_mid()
-	var origin := Vector2(float(cx * Catalog.CHUNK * Catalog.TILE), float(cy * Catalog.CHUNK * Catalog.TILE))
-	var lake := Vector2(mid, mid) + side * 78.0 + away * 24.0
-	var made := 0
-	for ly in Catalog.CHUNK:
-		for lx in Catalog.CHUNK:
-			if not _wet_cell(tiles, lx, ly, mid, origin, lake, side, lake, 64.0, 34.0, 26.0, 0.0):
-				continue
-			tiles[ly * Catalog.CHUNK + lx] = Catalog.TILE_WATER
-			made += 1
-	if made >= 10:
-		return tiles
-	var inland := Vector2(mid, mid) + side * 64.0
-	for ly in Catalog.CHUNK:
-		for lx in Catalog.CHUNK:
-			var idx := ly * Catalog.CHUNK + lx
-			var tile := int(tiles[idx])
-			if tile != Catalog.TILE_GRASS and tile != Catalog.TILE_DIRT and tile != Catalog.TILE_BLOOM:
-				continue
-			var px := float(lx * Catalog.TILE + 8)
-			var py := float(ly * Catalog.TILE + 8)
-			if _dist_point(mid, mid, px, py) < 58.0:
-				continue
-			if _dist_point(inland.x, inland.y, px, py) > 40.0:
-				continue
-			var wx := origin.x + px
-			var wy := origin.y + py
-			if not _feature_at(wx, wy, 6.0).is_empty() or not _building_at(wx, wy, 8.0).is_empty():
-				continue
-			tiles[idx] = Catalog.TILE_WATER
-	return tiles
-
-
-func _wet_cell(tiles: PackedByteArray, lx: int, ly: int, mid: float, origin: Vector2, bay: Vector2, away: Vector2, pond: Vector2, camp: float, bay_rx: float, bay_ry: float, pond_r: float) -> bool:
-	var idx := ly * Catalog.CHUNK + lx
-	var tile := int(tiles[idx])
-	if tile != Catalog.TILE_GRASS and tile != Catalog.TILE_DIRT and tile != Catalog.TILE_BLOOM:
-		return false
-	var px := float(lx * Catalog.TILE + 8)
-	var py := float(ly * Catalog.TILE + 8)
-	if _dist_point(mid, mid, px, py) < camp:
-		return false
-	var wx := origin.x + px
-	var wy := origin.y + py
-	if not _feature_at(wx, wy, 6.0).is_empty() or not _building_at(wx, wy, 8.0).is_empty():
-		return false
-	if _ellipse(px, py, bay, away, bay_rx, bay_ry) <= 1.0:
-		return true
-	return _dist_point(pond.x, pond.y, px, py) <= pond_r
-
-
-func _pick_points(cx: int, cy: int, want: int, min_mid: float, apart: float, salt: int) -> Array[Vector2]:
-	var found: Array[Vector2] = []
-	var mid := _local_mid()
-	var n := 0
-	while found.size() < want and n < 40:
-		n += 1
-		var lx := 3 + int(_rand(cx, cy, n, salt, 51) * 26.0)
-		var ly := 3 + int(_rand(cx, cy, n, salt + 3, 52) * 26.0)
-		var px := float(lx * Catalog.TILE + 8)
-		var py := float(ly * Catalog.TILE + 8)
-		if _dist_point(mid, mid, px, py) < min_mid:
-			continue
-		if not _open_ground(cx, cy, lx, ly):
-			continue
-		var spot := Vector2(px, py)
-		var ok := true
-		for have in found:
-			if have.distance_to(spot) < apart:
-				ok = false
-				break
-		if ok:
-			found.append(spot)
-	return found
-
-
-func _nearest_point(px: float, py: float, points: Array[Vector2]) -> float:
-	var best := 10000.0
-	var at := Vector2(px, py)
-	for p in points:
-		best = minf(best, at.distance_to(p))
-	return best
-
-
-func _wants_tree(cx: int, cy: int, lx: int, ly: int) -> bool:
-	var px := float(lx * Catalog.TILE + 8)
-	var py := float(ly * Catalog.TILE + 8)
-	if _near_island_mid(px, py):
-		return false
-	var near := _nearest_point(px, py, _pick_points(cx, cy, 6, SPAWN_CLEAR + 8.0, 52.0, 2))
-	if near < 110.0:
-		return _rand(cx, cy, lx, ly, 1) < 0.62
-	if near < 140.0:
-		return _rand(cx, cy, lx, ly, 1) < 0.28
-	return _rand(cx, cy, lx, ly, 1) < 0.04
+func _scatter_island(cx: int, cy: int) -> void:
+	island_gen.scatter_island(cx, cy)
 
 
 func _count_kind_on(cx: int, cy: int, kind: int) -> int:
-	var n := 0
-	for feat in features:
-		if feat.dead or int(feat.cx) != cx or int(feat.cy) != cy:
-			continue
-		if int(feat.kind) == kind:
-			n += 1
-	return n
-
-
-func _count_ore_rocks_on(cx: int, cy: int) -> int:
-	var n := 0
-	for feat in features:
-		if feat.dead or int(feat.cx) != cx or int(feat.cy) != cy:
-			continue
-		var kind := int(feat.kind)
-		if (kind == Catalog.FEAT_ROCK or kind == Catalog.FEAT_BIGROCK) and int(feat.ore) > 0:
-			n += 1
-		elif _ore_tier(kind) > 0:
-			n += 1
-	return n
-
-
-func _free_land_near(cx: int, cy: int, points: Array[Vector2], n: int) -> Vector2:
-	if points.is_empty():
-		return Vector2(-1, -1)
-	var origin: Vector2 = points[n % points.size()]
-	var ang := float(n) * 2.399
-	var dist := 12.0 + float(n % 6) * 16.0
-	var px := origin.x + cos(ang) * dist
-	var py := origin.y + sin(ang) * dist
-	if _near_island_mid(px, py):
-		return Vector2(-1, -1)
-	var lx := int(floor(px / float(Catalog.TILE)))
-	var ly := int(floor(py / float(Catalog.TILE)))
-	if not _open_ground(cx, cy, lx, ly):
-		return Vector2(-1, -1)
-	# Spiral probe is continuous; park on the cell center so props stay on-grid.
-	var wx := float((cx * Catalog.CHUNK + lx) * Catalog.TILE + 8)
-	var wy := float((cy * Catalog.CHUNK + ly) * Catalog.TILE + 8)
-	if not _feature_at(wx, wy, 10.0).is_empty():
-		return Vector2(-1, -1)
-	return Vector2(wx, wy)
-
-
-func _top_up_island(cx: int, cy: int, groves: Array[Vector2], rocks: Array[Vector2]) -> void:
-	# Inland-only props (no cliff hang) leave less pad than the old coastal fill.
-	# Keep the interior open for buildings, but guarantee a healthy baseline of trees and ores.
-	var trees := _count_kind_on(cx, cy, Catalog.FEAT_TREE)
-	var stones := _count_kind_on(cx, cy, Catalog.FEAT_ROCK) + _count_kind_on(cx, cy, Catalog.FEAT_BIGROCK)
-	var ore_rocks := _count_ore_rocks_on(cx, cy)
-	var guard := 0
-	while trees < 42 and guard < 120:
-		guard += 1
-		var spot := _free_land_near(cx, cy, groves, guard)
-		if spot.x < 0.0:
-			continue
-		if _add_feature(Catalog.FEAT_TREE, spot.x, spot.y, 1, 0, true).is_empty():
-			continue
-		trees += 1
-	guard = 0
-	while stones < 18 and guard < 100:
-		guard += 1
-		var rock := _free_land_near(cx, cy, rocks, guard + 3)
-		if rock.x < 0.0:
-			continue
-		var ore := 1 if guard % 2 == 0 else 0
-		if _add_feature(Catalog.FEAT_ROCK, rock.x, rock.y, 1 + ore, ore, true).is_empty():
-			continue
-		stones += 1
-		if ore > 0:
-			ore_rocks += 1
-	guard = 0
-	while ore_rocks < 8 and guard < 80:
-		guard += 1
-		var rock := _free_land_near(cx, cy, rocks, guard + 7)
-		if rock.x < 0.0:
-			continue
-		if _add_feature(Catalog.FEAT_ROCK, rock.x, rock.y, 2, 1, true).is_empty():
-			continue
-		ore_rocks += 1
-		stones += 1
-
-
-func _scatter_island(cx: int, cy: int) -> void:
-	var groves := _pick_points(cx, cy, 6, SPAWN_CLEAR + 8.0, 52.0, 2)
-	var rocks := _pick_points(cx, cy, 3, SPAWN_CLEAR + 12.0, 72.0, 6)
-	var origin := Vector2(float(cx * Catalog.CHUNK * Catalog.TILE), float(cy * Catalog.CHUNK * Catalog.TILE))
-	for ly in Catalog.CHUNK:
-		for lx in Catalog.CHUNK:
-			if not _open_ground(cx, cy, lx, ly):
-				continue
-			var px := float(lx * Catalog.TILE + 8)
-			var py := float(ly * Catalog.TILE + 8)
-			var wx := origin.x + px
-			var wy := origin.y + py
-			if _near_island_mid(px, py):
-				continue
-			var grove := _nearest_point(px, py, groves)
-			var rock := _nearest_point(px, py, rocks)
-			if grove < 110.0 and _rand(cx, cy, lx, ly, 1) < 0.72:
-				_add_feature(Catalog.FEAT_TREE, wx, wy, 1, 0, true)
-			elif grove < 140.0 and _rand(cx, cy, lx, ly, 1) < 0.36:
-				_add_feature(Catalog.FEAT_TREE, wx, wy, 1, 0, true)
-			elif rock < 64.0 and _rand(cx, cy, lx, ly, 2) < 0.32:
-				_add_feature(Catalog.FEAT_ROCK, wx, wy, 2, 1, true)
-			elif rock < 80.0 and _rand(cx, cy, lx, ly, 3) < 0.46:
-				var ore := 1 if _rand(cx, cy, lx, ly, 7) < 0.35 else 0
-				_add_feature(Catalog.FEAT_ROCK, wx, wy, 1 + ore, ore, true)
-			elif grove > 140.0:
-				_scatter_one(cx, cy, wx, wy, lx, ly)
-	for rp in rocks:
-		_add_feature(Catalog.FEAT_BIGROCK, origin.x + rp.x, origin.y + rp.y, 4, 1, true)
-	_top_up_island(cx, cy, groves, rocks)
+	return island_gen.count_kind_on(cx, cy, kind)
 
 
 func _scatter_one(cx: int, cy: int, wx: float, wy: float, lx: int, ly: int) -> void:
@@ -5784,7 +7172,9 @@ func _scatter(cx: int, cy: int, biome: String) -> void:
 			var wy := float((cy * Catalog.CHUNK + ly) * Catalog.TILE + 8)
 			if not _land_inland(wx, wy):
 				continue
-			if _rand(cx, cy, lx, ly, 1) < float(spec.get("tree", 0.0)):
+			# Jitter 0.25..1.75 keeps mean density but breaks uniform grid fills.
+			var tree_chance := float(spec.get("tree", 0.0)) * (0.25 + _rand(cx, cy, lx, ly, 19) * 1.5)
+			if _rand(cx, cy, lx, ly, 1) < tree_chance:
 				_add_feature(Catalog.FEAT_TREE, wx, wy, 1, 0, true)
 			elif _rand(cx, cy, lx, ly, 2) < float(spec.get("ore", 0.0)):
 				_add_feature(Catalog.FEAT_ROCK, wx, wy, 2, 1, true)
@@ -5799,122 +7189,37 @@ func _scatter(cx: int, cy: int, biome: String) -> void:
 
 
 func _island_reach() -> float:
-	if land_tier <= 2:
-		return minf(252.0, 170.0 + float(land_tier) * 48.0)
-	if land_tier == 3:
-		return 252.0
-	return 252.0
+	return island_gen.island_reach()
 
 
 func _shape_island() -> int:
-	var ck := "0,0"
-	if not chunks.has(ck):
-		return 0
-	var tiles = chunks[ck].tiles
-	var keep := {}
-	for i in slot_count:
-		if state[i] != Catalog.ST_LIVING:
-			continue
-		_keep_cell(keep, pos_x[i], pos_y[i])
-	for b in buildings:
-		if not b.dead:
-			_keep_cell(keep, float(b.x), float(b.y))
-	var reach := _island_reach()
-	var changed := false
-	var fresh: Array[Vector2] = []
-	for ly in Catalog.CHUNK:
-		for lx in Catalog.CHUNK:
-			var wx := float(lx * Catalog.TILE + 8)
-			var wy := float(ly * Catalog.TILE + 8)
-			var phase := float(absi(int(world_seed) % 628)) * 0.01
-			var land := _disk_land(wx, wy, 256.0, reach, phase)
-			var idx := ly * Catalog.CHUNK + lx
-			var tile := int(tiles[idx])
-			if land:
-				if tile == Catalog.TILE_VOID:
-					tiles[idx] = Catalog.TILE_GRASS
-					fresh.append(Vector2(wx, wy))
-					changed = true
-			elif not keep.has("%d,%d" % [lx, ly]) and tile != Catalog.TILE_VOID:
-				tiles[idx] = Catalog.TILE_VOID
-				changed = true
-	if not changed:
-		return 0
-	tiles = _paint_water(tiles, 0, 0)
-	chunks[ck].tiles = tiles
-	chunks[ck].base = tiles.duplicate()
-	for feat in features:
-		if feat.dead or int(feat.cx) != 0 or int(feat.cy) != 0:
-			continue
-		if int(feat.kind) == Catalog.FEAT_MONOLITH:
-			continue
-		var sx := _cell_of(float(feat.x))
-		var sy := _cell_of(float(feat.y))
-		if sx < 0 or sy < 0 or sx >= Catalog.CHUNK or sy >= Catalog.CHUNK:
-			continue
-		var under := int(tiles[sy * Catalog.CHUNK + sx])
-		if under == Catalog.TILE_VOID or under == Catalog.TILE_WATER:
-			_kill_feature(feat)
-		elif bool(feat.get("rooted", false)) and not _is_mine_node(int(feat.kind)) and not _land_inland(float(feat.x), float(feat.y)):
-			_kill_feature(feat)
-	for spot in fresh:
-		if _near_spawn(spot.x, spot.y):
-			continue
-		if _tile_at(spot.x, spot.y) == Catalog.TILE_WATER:
-			continue
-		var fx := _cell_of(spot.x)
-		var fy := _cell_of(spot.y)
-		if _wants_tree(0, 0, fx, fy):
-			_add_feature(Catalog.FEAT_TREE, spot.x, spot.y, 1, 0, true)
-		elif _rand(0, 0, fx, fy, 23) < 0.16:
-			_add_feature(Catalog.FEAT_ROCK, spot.x, spot.y, 1, 0, true)
-	_seed_mine_nodes(0, 0)
-	_mark_dirty(ck)
-	return fresh.size()
-
-
-func _keep_cell(keep: Dictionary, x: float, y: float) -> void:
-	var lx := _cell_of(x)
-	var ly := _cell_of(y)
-	if lx < 0 or ly < 0 or lx >= Catalog.CHUNK or ly >= Catalog.CHUNK:
-		return
-	keep["%d,%d" % [lx, ly]] = true
+	return island_gen.shape_island()
 
 
 func _near_spawn(x: float, y: float) -> bool:
-	return _dist_point(256.0, 256.0, x, y) < SPAWN_CLEAR
-
-
-func _near_island_mid(px: float, py: float) -> bool:
-	var mid := _local_mid()
-	return _dist_point(mid, mid, px, py) < SPAWN_CLEAR
+	return island_gen.near_spawn(x, y)
 
 
 func _clear_spawn() -> void:
-	var doomed: Array = []
-	for feat in features:
-		if feat.dead:
-			continue
-		if _near_spawn(float(feat.x), float(feat.y)):
-			doomed.append(feat)
-	for feat in doomed:
-		_kill_feature(feat)
+	island_gen.clear_spawn()
 
 
 func _add_feature(kind: int, x: float, y: float, hp: int, ore: int, rooted: bool = false) -> Dictionary:
 	var at := Catalog.snap_world(x, y)
 	x = at.x
 	y = at.y
-	if kind == Catalog.FEAT_TREE and _near_spawn(x, y):
+	# Campaign keeps the egg clearing tree-free; sandbox places freely.
+	if kind == Catalog.FEAT_TREE and not sandbox_mode and _near_spawn(x, y):
 		return {}
-	if rooted and not _stands(x, y, _span_for_feature(kind)):
+	if rooted and not sandbox_mode and not _stands(x, y, _span_for_feature(kind)):
 		return {}
 	if not _is_mine_node(kind) and _near_mine_node(x, y):
 		return {}
-	if _feature_crowded(x, y, kind):
+	# Campaign scatter keeps props spaced; sandbox places adjacent rocks/trees freely.
+	if not sandbox_mode and _feature_crowded(x, y, kind):
 		return {}
 	var cells := _footprint_cells(x, y, Catalog.footprint_for_feature(kind))
-	if rooted and not _footprint_holds(cells):
+	if rooted and not sandbox_mode and not _footprint_holds(cells):
 		return {}
 	for cell in cells:
 		if feature_cell.has(cell) or building_cell.has(cell):
@@ -5936,8 +7241,13 @@ func _add_feature(kind: int, x: float, y: float, hp: int, ore: int, rooted: bool
 	}
 	features.append(feat)
 	feature_by_id[id] = feat
+	_feat_chunk_index(feat)
+	if kind == Catalog.FEAT_FIRE:
+		fires.append(feat)
 	for cell in cells:
 		feature_cell[cell] = id
+	feat_mesh_epoch += 1
+	_invalidate_walk_cells()
 	return feat
 
 
@@ -5945,9 +7255,15 @@ func _kill_feature(feat: Dictionary) -> void:
 	if feat.is_empty() or feat.dead:
 		return
 	feat.dead = true
+	lists_dirty = true
+	feat_mesh_epoch += 1
+	_feat_chunk_unindex(feat)
+	if int(feat.kind) == Catalog.FEAT_FIRE:
+		fires.erase(feat)
 	_unbind_feature(feat)
 	feature_by_id.erase(int(feat.id))
 	cap_told = false
+	_invalidate_walk_cells()
 
 
 func _add_item(kind: int, x: float, y: float, value: int) -> Dictionary:
@@ -5961,6 +7277,8 @@ func _add_item(kind: int, x: float, y: float, value: int) -> Dictionary:
 		it.bite = 0.0
 	items.append(it)
 	item_by_id[id] = it
+	_index_item(it)
+	_invalidate_item_counts()
 	return it
 
 
@@ -5986,7 +7304,60 @@ func _add_building(kind: int, x: float, y: float) -> Dictionary:
 		return {}
 	buildings.append(b)
 	building_by_id[id] = b
+	_index_building(b)
+	_invalidate_factory_cache()
+	_invalidate_walk_cells()
 	return b
+
+
+func _index_item(it: Dictionary) -> void:
+	match int(it.kind):
+		Catalog.ITEM_APPLE:
+			items_apple.append(it)
+		Catalog.ITEM_BALL:
+			items_ball.append(it)
+		Catalog.ITEM_WOOD:
+			items_wood.append(it)
+		Catalog.ITEM_BONE:
+			items_bone.append(it)
+		Catalog.ITEM_ORE:
+			items_ore.append(it)
+
+
+func _index_building(b: Dictionary) -> void:
+	match int(b.kind):
+		Catalog.BLD_TUB:
+			blds_tub.append(b)
+		Catalog.BLD_ROUND:
+			blds_round.append(b)
+		Catalog.BLD_DWELL, Catalog.BLD_FANCY:
+			blds_home.append(b)
+		Catalog.BLD_MINE, Catalog.BLD_MINE2:
+			blds_mine.append(b)
+		Catalog.BLD_THEATRE:
+			blds_show.append(b)
+
+
+func _rebuild_kind_indexes() -> void:
+	items_apple.clear()
+	items_ball.clear()
+	items_wood.clear()
+	items_bone.clear()
+	items_ore.clear()
+	blds_tub.clear()
+	blds_round.clear()
+	blds_home.clear()
+	blds_mine.clear()
+	blds_show.clear()
+	_invalidate_item_counts()
+	for it in items:
+		if it.dead:
+			continue
+		_index_item(it)
+	for b in buildings:
+		if b.dead:
+			continue
+		_index_building(b)
 
 
 func _remove_building(b: Dictionary) -> void:
@@ -5997,11 +7368,14 @@ func _remove_building(b: Dictionary) -> void:
 	var occ := int(b.occupant)
 	if occ >= 0 and occ < claim.size():
 		claim[occ] = -1
+	_invalidate_factory_cache()
+	_invalidate_walk_cells()
 
 
 func _consume_kind(kind: int, count: int, near_x: float, near_y: float) -> bool:
 	if count <= 0:
 		return true
+	_invalidate_item_counts()
 	if count_item(kind) < count:
 		return false
 	var left := count
@@ -6021,9 +7395,11 @@ func _consume_kind(kind: int, count: int, near_x: float, near_y: float) -> bool:
 		it.dead = true
 		left -= 1
 	if left <= 0:
+		_invalidate_item_counts()
 		return true
 	var carriers: Array = []
-	for i in slot_count:
+	for raw in living_ids:
+		var i := int(raw)
 		if not _carry_matches(i, kind):
 			continue
 		carriers.append(i)
@@ -6033,9 +7409,9 @@ func _consume_kind(kind: int, count: int, near_x: float, near_y: float) -> bool:
 	for i in carriers:
 		if left <= 0:
 			break
-		carry[int(i)] = Catalog.CARRY_NONE
-		carry_value[int(i)] = 0
+		_set_carry(int(i), Catalog.CARRY_NONE)
 		left -= 1
+	_invalidate_item_counts()
 	return left <= 0
 
 
@@ -6054,6 +7430,8 @@ func _carry_matches(i: int, kind: int) -> bool:
 func _claim_tub(i: int, tub: Dictionary) -> void:
 	var occ := int(tub.occupant)
 	if occ == i:
+		if i < link_tub.size():
+			link_tub[i] = int(tub.id)
 		return
 	if occ >= 0 and occ != i:
 		return
@@ -6061,6 +7439,8 @@ func _claim_tub(i: int, tub: Dictionary) -> void:
 	tub.occupant = i
 	tub.bath_t = -1.0
 	claim[i] = int(tub.id)
+	if i < link_tub.size():
+		link_tub[i] = int(tub.id)
 
 
 func _release_claim(i: int) -> void:
@@ -6068,6 +7448,8 @@ func _release_claim(i: int) -> void:
 		return
 	var bid := claim[i]
 	claim[i] = -1
+	if i < link_tub.size() and (bid < 0 or link_tub[i] == bid):
+		link_tub[i] = -1
 	if bid < 0:
 		return
 	var b = building_by_id.get(bid, {})
@@ -6083,8 +7465,8 @@ func _release_claim(i: int) -> void:
 func _nearest_tub(i: int, allow_busy: bool = false) -> Dictionary:
 	var best := {}
 	var best_d := 999999.0
-	for b in buildings:
-		if b.dead or int(b.kind) != Catalog.BLD_TUB:
+	for b in blds_tub:
+		if b.dead:
 			continue
 		var occ := int(b.occupant)
 		if occ >= 0 and occ != i and not allow_busy:
@@ -6096,10 +7478,33 @@ func _nearest_tub(i: int, allow_busy: bool = false) -> Dictionary:
 	return best
 
 
+func _buildings_for_kinds(kinds: Array) -> Array:
+	if kinds.size() == 1:
+		match int(kinds[0]):
+			Catalog.BLD_TUB:
+				return blds_tub
+			Catalog.BLD_ROUND:
+				return blds_round
+			Catalog.BLD_DWELL, Catalog.BLD_FANCY:
+				return blds_home
+			Catalog.BLD_MINE, Catalog.BLD_MINE2:
+				return blds_mine
+			Catalog.BLD_THEATRE:
+				return blds_show
+	if kinds.size() == 2:
+		var a := int(kinds[0])
+		var b := int(kinds[1])
+		if (a == Catalog.BLD_DWELL and b == Catalog.BLD_FANCY) or (b == Catalog.BLD_DWELL and a == Catalog.BLD_FANCY):
+			return blds_home
+		if (a == Catalog.BLD_MINE and b == Catalog.BLD_MINE2) or (b == Catalog.BLD_MINE and a == Catalog.BLD_MINE2):
+			return blds_mine
+	return buildings
+
+
 func _nearest_building_kinds(x: float, y: float, kinds: Array, max_dist: float, who: int = -1) -> Dictionary:
 	var best := {}
 	var best_d := max_dist
-	for b in buildings:
+	for b in _buildings_for_kinds(kinds):
 		if b.dead or not kinds.has(int(b.kind)):
 			continue
 		if who >= 0 and not _can_enter(b, who):
@@ -6114,7 +7519,8 @@ func _nearest_building_kinds(x: float, y: float, kinds: Array, max_dist: float, 
 func _nearest_item(x: float, y: float, kind: int, max_dist: float) -> Dictionary:
 	var best := {}
 	var best_d := max_dist
-	for it in items:
+	for it in _items_of_kind(kind):
+
 		if it.dead or it.held or int(it.kind) != kind:
 			continue
 		var d := _dist_point(x, y, float(it.x), float(it.y))
@@ -6267,14 +7673,23 @@ func _has_building(kind: int) -> bool:
 	return false
 
 
+func _invalidate_factory_cache() -> void:
+	_has_factory_known = false
+
+
 func _has_factory() -> bool:
+	if _has_factory_known:
+		return _has_factory_cache
+	_has_factory_cache = false
 	for b in buildings:
 		if b.dead:
 			continue
 		var kind := int(b.kind)
 		if kind == Catalog.BLD_FACTORY or kind == Catalog.BLD_FACTORY2:
-			return true
-	return false
+			_has_factory_cache = true
+			break
+	_has_factory_known = true
+	return _has_factory_cache
 
 
 func _count_living_near(x: float, y: float, radius: float) -> int:
@@ -6306,10 +7721,13 @@ func _count_goo() -> int:
 
 
 func _blocked(px: float, py: float, allow_ore: bool = false, allow_soft: bool = false) -> bool:
-	var tile := _tile_at(px, py)
+	return _blocked_cell(_cell_vec(px, py), allow_ore, allow_soft)
+
+
+func _blocked_cell(cell: Vector2i, allow_ore: bool = false, allow_soft: bool = false) -> bool:
+	var tile := _tile_at_cell(cell)
 	if Catalog.tile_blocks(tile):
 		return true
-	var cell := _cell_vec(px, py)
 	if feature_cell.has(cell):
 		var feat = feature_by_id.get(int(feature_cell[cell]), {})
 		if not feat.is_empty() and not feat.dead and Catalog.feature_blocks(int(feat.kind)):
@@ -6327,9 +7745,12 @@ func _blocked(px: float, py: float, allow_ore: bool = false, allow_soft: bool = 
 
 
 func _on_mine_pad(px: float, py: float) -> bool:
+	return _on_mine_pad_cell(_cell_vec(px, py))
+
+
+func _on_mine_pad_cell(cell: Vector2i) -> bool:
 	# Mine footprints are walkable ground pads above terrain.
-	var cell := _cell_vec(px, py)
-	if not building_cell.has(cell):
+	if blds_mine.is_empty() or not building_cell.has(cell):
 		return false
 	var b = building_by_id.get(int(building_cell[cell]), {})
 	if b.is_empty() or b.dead:
@@ -6339,15 +7760,18 @@ func _on_mine_pad(px: float, py: float) -> bool:
 
 
 func _move_blocked(px: float, py: float) -> bool:
+	if save_perf_mode:
+		set_meta("_ap_move_n", int(get_meta("_ap_move_n", 0)) + 1)
+	var cell := _cell_vec(px, py)
 	# Mine zones are walkable ground pads (exception): treat as passable ground
 	# above terrain, ignoring pad footprint/feature hitboxes. Without a mine,
 	# the ore/node feature remains and blocks in _blocked as usual.
-	if _on_mine_pad(px, py):
-		return Catalog.tile_blocks(_tile_at(px, py))
+	if _on_mine_pad_cell(cell):
+		return Catalog.tile_blocks(_tile_at_cell(cell))
 	# 6px probes stay inside a 16px cell; cliff walk needs a full neighbor-tile pad.
-	if _blocked(px, py):
+	if _blocked_cell(cell):
 		return true
-	return not _land_inland(px, py)
+	return not _land_inland_cell(cell)
 
 
 func _ride_spot_blocked(px: float, py: float, ride_b: Dictionary) -> bool:
@@ -6420,13 +7844,24 @@ func _approach_ellipse(x: float, y: float, rx: float, ry: float, who: int = -1) 
 
 
 func _tile_at(px: float, py: float) -> int:
-	var c := _chunk_at(px, py)
-	var ck := _ck(c.x, c.y)
+	return _tile_at_cell(_cell_vec(px, py))
+
+
+func _tile_at_cell(cell: Vector2i) -> int:
+	var chunk_x := _floor_div(cell.x, Catalog.CHUNK)
+	var chunk_y := _floor_div(cell.y, Catalog.CHUNK)
+	var ck := _ck(chunk_x, chunk_y)
 	if not revealed.has(ck):
 		return Catalog.TILE_FOG
-	_ensure(c.x, c.y)
-	var local := _local_cell(px, py)
-	return int(chunks[ck].tiles[local.y * Catalog.CHUNK + local.x])
+	var ch = chunks.get(ck)
+	if ch == null:
+		_ensure(chunk_x, chunk_y)
+		ch = chunks.get(ck)
+		if ch == null:
+			return Catalog.TILE_FOG
+	var lx := cell.x - chunk_x * Catalog.CHUNK
+	var ly := cell.y - chunk_y * Catalog.CHUNK
+	return int(ch.tiles[ly * Catalog.CHUNK + lx])
 
 
 func _base_at(px: float, py: float) -> int:
@@ -6454,22 +7889,100 @@ func _set_local_tile(ck: String, lx: int, ly: int, tile: int, also_base: bool) -
 	if not chunks.has(ck):
 		return
 	var idx := ly * Catalog.CHUNK + lx
+	var prev := int(chunks[ck].tiles[idx])
 	chunks[ck].tiles[idx] = tile
 	if also_base:
 		chunks[ck].base[idx] = tile
+	if prev != tile:
+		var c := _parse_ck(ck)
+		_invalidate_inland_around(Vector2i(c.x * Catalog.CHUNK + lx, c.y * Catalog.CHUNK + ly))
+		_invalidate_walk_cells()
 	_mark_dirty(ck)
 
 
+func _living_add(i: int) -> void:
+	if i < 0 or i >= living_at.size():
+		return
+	if living_at[i] >= 0:
+		return
+	living_at[i] = living_ids.size()
+	living_ids.append(i)
+
+
+func _living_remove(i: int) -> void:
+	if i < 0 or i >= living_at.size():
+		return
+	var at := living_at[i]
+	if at < 0:
+		return
+	var last_i := living_ids.size() - 1
+	var last := int(living_ids[last_i])
+	living_ids[at] = last
+	if last < living_at.size():
+		living_at[last] = at
+	living_ids.resize(last_i)
+	living_at[i] = -1
+
+
+func _hash_unlink(i: int) -> void:
+	if i < 0 or i >= hash_cell.size():
+		return
+	var b := hash_cell[i]
+	if b < 0:
+		return
+	var prev := -1
+	var cur := hash_head[b]
+	var guard := 0
+	while cur != -1 and guard < slot_count + 2:
+		guard += 1
+		if cur == i:
+			if prev < 0:
+				hash_head[b] = hash_next[i]
+			else:
+				hash_next[prev] = hash_next[i]
+			break
+		prev = cur
+		cur = hash_next[cur] if cur >= 0 and cur < hash_next.size() else -1
+	hash_cell[i] = -1
+	hash_next[i] = -1
+
+
+func _hash_link(i: int) -> void:
+	if i < 0 or i >= slot_count or state[i] == Catalog.ST_VACANT:
+		return
+	var b := _bucket(pos_x[i], pos_y[i])
+	if i >= hash_cell.size():
+		return
+	hash_cell[i] = b
+	hash_next[i] = hash_head[b]
+	hash_head[b] = i
+
+
+func _hash_relocate(i: int) -> void:
+	if i < 0 or i >= hash_cell.size():
+		return
+	if state[i] == Catalog.ST_VACANT:
+		_hash_unlink(i)
+		return
+	var b := _bucket(pos_x[i], pos_y[i])
+	if hash_cell[i] == b:
+		return
+	_hash_unlink(i)
+	_hash_link(i)
+
+
 func _rebuild_hash() -> void:
-	for b in Catalog.HASH_SIZE:
-		hash_head[b] = -1
+	if hash_cell.size() != slot_count:
+		hash_cell.resize(slot_count)
+	if hash_next.size() != slot_count:
+		hash_next.resize(slot_count)
+	hash_head.fill(-1)
+	hash_cell.fill(-1)
+	hash_next.fill(-1)
 	for i in slot_count:
 		if state[i] == Catalog.ST_VACANT:
-			hash_next[i] = -1
 			continue
-		var bucket := _bucket(pos_x[i], pos_y[i])
-		hash_next[i] = hash_head[bucket]
-		hash_head[bucket] = i
+		_hash_link(i)
 
 
 func _feature_movable(feat: Dictionary) -> bool:
@@ -6485,12 +7998,53 @@ func _anchor_terrain_feature(feat: Dictionary) -> void:
 		feat.rooted = true
 
 
+func _feat_chunk_index(feat: Dictionary) -> void:
+	var ck := _ck(int(feat.cx), int(feat.cy))
+	if not features_by_chunk.has(ck):
+		features_by_chunk[ck] = []
+	features_by_chunk[ck].append(feat)
+
+
+func _feat_chunk_unindex(feat: Dictionary) -> void:
+	var ck := _ck(int(feat.cx), int(feat.cy))
+	var bucket = features_by_chunk.get(ck, null)
+	if bucket == null:
+		return
+	bucket.erase(feat)
+	if bucket.is_empty():
+		features_by_chunk.erase(ck)
+
+
+func features_in_rect(rect: Rect2) -> Array:
+	# Only features whose chunks overlap rect (+1 chunk pad for tall sprites).
+	var out: Array = []
+	if rect.size == Vector2.ZERO:
+		return out
+	var size := float(Catalog.TILE * Catalog.CHUNK)
+	var x0 := int(floor(rect.position.x / size)) - 1
+	var y0 := int(floor(rect.position.y / size)) - 1
+	var x1 := int(floor(rect.end.x / size)) + 1
+	var y1 := int(floor(rect.end.y / size)) + 1
+	for cy in range(y0, y1 + 1):
+		for cx in range(x0, x1 + 1):
+			var bucket = features_by_chunk.get(_ck(cx, cy), null)
+			if bucket == null:
+				continue
+			for feat in bucket:
+				if feat.dead:
+					continue
+				out.append(feat)
+	return out
+
+
 func _reindex() -> void:
 	feature_by_id.clear()
 	feature_cell.clear()
+	features_by_chunk.clear()
 	item_by_id.clear()
 	building_by_id.clear()
 	building_cell.clear()
+	fires.clear()
 	next_feature_id = 1
 	next_item_id = 1
 	next_building_id = 1
@@ -6501,7 +8055,13 @@ func _reindex() -> void:
 		var at := Catalog.snap_world(float(feat.x), float(feat.y))
 		feat.x = at.x
 		feat.y = at.y
+		var c := _chunk_at(float(feat.x), float(feat.y))
+		feat.cx = c.x
+		feat.cy = c.y
 		feature_by_id[int(feat.id)] = feat
+		_feat_chunk_index(feat)
+		if int(feat.kind) == Catalog.FEAT_FIRE:
+			fires.append(feat)
 		for cell in _footprint_cells(float(feat.x), float(feat.y), Catalog.footprint_for_feature(int(feat.kind))):
 			feature_cell[cell] = int(feat.id)
 		next_feature_id = maxi(next_feature_id, int(feat.id) + 1)
@@ -6526,17 +8086,118 @@ func _reindex() -> void:
 		act_t.append(0.0)
 	while avoid_t.size() < slot_count:
 		avoid_t.append(0.0)
-	hash_next = PackedInt32Array()
-	hash_next.resize(slot_count)
-	hash_next.fill(-1)
+	_ensure_link_arrays()
+	_rebuild_links()
+	_rebuild_living()
+	_rebuild_kind_indexes()
+	_rebuild_hash()
+
+
+func _ensure_link_arrays() -> void:
+	var n := slot_count
+	if link_tub.size() != n:
+		link_tub.resize(n)
+		link_tub.fill(-1)
+	if link_ride.size() != n:
+		link_ride.resize(n)
+		link_ride.fill(-1)
+	if link_guest.size() != n:
+		link_guest.resize(n)
+		link_guest.fill(-1)
+	if link_claim.size() != n:
+		link_claim.resize(n)
+		link_claim.fill(-1)
+	if link_ball.size() != n:
+		link_ball.resize(n)
+		link_ball.fill(-1)
+	if living_at.size() != n:
+		living_at.resize(n)
+		living_at.fill(-1)
+	if bark_cool.size() != n:
+		bark_cool.resize(n)
+		bark_cool.fill(0.0)
+	if seek_x.size() != n:
+		seek_x.resize(n)
+		seek_x.fill(0.0)
+	if seek_y.size() != n:
+		seek_y.resize(n)
+		seek_y.fill(0.0)
+	if seek_t.size() != n:
+		seek_t.resize(n)
+		seek_t.fill(0.0)
+	if hash_cell.size() != n:
+		hash_cell.resize(n)
+		hash_cell.fill(-1)
+	if hash_next.size() != n:
+		hash_next.resize(n)
+		hash_next.fill(-1)
+
+
+func _rebuild_links() -> void:
+	_ensure_link_arrays()
+	link_tub.fill(-1)
+	link_ride.fill(-1)
+	link_guest.fill(-1)
+	link_claim.fill(-1)
+	link_ball.fill(-1)
+	mine_job_n.clear()
+	for i in mine_job.size():
+		var bid := int(mine_job[i])
+		if bid < 0:
+			continue
+		mine_job_n[bid] = int(mine_job_n.get(bid, 0)) + 1
+	_invalidate_factory_cache()
+	_invalidate_walk_cells()
+	for b in buildings:
+		if b.dead:
+			continue
+		var bid := int(b.id)
+		var occ := int(b.get("occupant", -1))
+		if occ >= 0 and occ < link_tub.size() and int(b.kind) == Catalog.BLD_TUB:
+			link_tub[occ] = bid
+		for guest in b.get("guests", []):
+			var gid := int(guest.get("id", -1))
+			if gid >= 0 and gid < link_guest.size():
+				link_guest[gid] = bid
+		for raw in _rider_list(b):
+			var rid := int(raw)
+			if rid >= 0 and rid < link_ride.size():
+				link_ride[rid] = bid
+	for it in items:
+		if it.dead:
+			continue
+		var who := int(it.get("claimer", -1))
+		if who < 0 or who >= link_claim.size():
+			continue
+		link_claim[who] = int(it.id)
+		if int(it.kind) == Catalog.ITEM_BALL:
+			link_ball[who] = int(it.id)
+
+
+func _rebuild_living() -> void:
+	living_ids = PackedInt32Array()
+	if living_at.size() != slot_count:
+		living_at.resize(slot_count)
+	living_at.fill(-1)
+	dead_n = 0
+	dead_ids = PackedInt32Array()
+	for i in slot_count:
+		if state[i] == Catalog.ST_LIVING:
+			_living_add(i)
+		elif state[i] == Catalog.ST_DEAD:
+			dead_n += 1
+			_dead_add(i)
+			# Legacy saves keep hunger-starve leftovers; clamp into corpse lifetime.
+			if starve[i] <= 0.0 or starve[i] > CORPSE_LIFE:
+				starve[i] = CORPSE_LIFE
 
 
 func _recount() -> void:
-	living = 0
-	for i in slot_count:
-		if state[i] == Catalog.ST_LIVING:
-			living += 1
+	_rebuild_living()
+	living = living_ids.size()
 	peak = maxi(peak, living)
+	_rebuild_carry_counts()
+	_invalidate_item_counts()
 
 
 func _compact(list: Array) -> void:
@@ -6823,8 +8484,7 @@ func _prep_shot_carry() -> void:
 		var id := _push_slot(gx, 268.0, 90.0, 90.0, 90.0, 0.0, 0)
 		if id < 0:
 			continue
-		carry[id] = int(row.carry)
-		carry_value[id] = 1
+		_set_carry(id, int(row.carry), 1)
 		dir_x[id] = 0.0
 		dir_y[id] = 0.0
 		act[id] = 0
@@ -7123,13 +8783,33 @@ func _factory_pile(b: Dictionary) -> Array:
 	return fresh
 
 
+func _factory_cycle_time(kind: int) -> float:
+	return FACTORY_PROCESS_TIME2 if kind == Catalog.BLD_FACTORY2 else FACTORY_PROCESS_TIME
+
+
+func factory_process_progress(b: Dictionary) -> float:
+	# 0 at cycle start → 1 when the current ore is about to become energy.
+	if b.is_empty() or bool(b.get("dead", true)):
+		return 0.0
+	if int(b.get("buffer", 0)) <= 0:
+		return 0.0
+	var cycle := _factory_cycle_time(int(b.kind))
+	if cycle <= 0.01:
+		return 0.0
+	return clampf(1.0 - float(b.get("timer", 0.0)) / cycle, 0.0, 1.0)
+
+
 func _factory_stack(b: Dictionary, n: int) -> void:
 	var pile := _factory_pile(b)
+	var was_empty := pile.is_empty() and int(b.get("buffer", 0)) <= 0
 	var start := pile.size()
 	for k in n:
 		pile.append(start + k + 1)
 	b.pile = pile
 	b.buffer = pile.size()
+	# First ore in an idle factory starts a fresh process cycle.
+	if was_empty and n > 0:
+		b.timer = _factory_cycle_time(int(b.kind))
 
 
 func _factory_spend(b: Dictionary) -> void:
@@ -7180,30 +8860,54 @@ func _check_factory_fill(errors: Array) -> void:
 		return
 	factory.buffer = 0
 	factory.pile = []
+	factory.timer = 0.25
 	main.selected_bld = int(factory.id)
 	var i := 0
 	pos_x[i] = float(factory.x)
 	pos_y[i] = float(factory.y)
-	var seen := PackedStringArray()
+	var cycle := _factory_cycle_time(Catalog.BLD_FACTORY)
+	# Ring tracks process time, not stock: empty at cycle start, full at the end.
+	_set_carry(i, Catalog.CARRY_ORE, 1)
+	_deliver(i, MOVE_SPEED, 0.05)
+	if int(factory.get("buffer", 0)) < 1:
+		errors.append("factory fill: deposit failed")
+		return
+	factory.timer = cycle
+	main._sync_factory_mark(self)
+	var shown0 := 0
+	for slice in main.factory_slices:
+		if slice.visible:
+			shown0 += 1
+	if shown0 != 0:
+		errors.append("factory fill: expected 0 slices at cycle start got %d" % shown0)
+	factory.timer = cycle * 0.5
+	main._sync_factory_mark(self)
+	var shown_mid := 0
+	for slice in main.factory_slices:
+		if slice.visible:
+			shown_mid += 1
+	if shown_mid != FACTORY_WEDGES / 2:
+		errors.append("factory fill: expected %d slices at mid-cycle got %d" % [FACTORY_WEDGES / 2, shown_mid])
+	factory.timer = 0.01
+	main._sync_factory_mark(self)
+	var shown_end := 0
+	for slice in main.factory_slices:
+		if slice.visible:
+			shown_end += 1
+	if shown_end != FACTORY_WEDGES:
+		errors.append("factory fill: expected %d slices at cycle end got %d" % [FACTORY_WEDGES, shown_end])
+	print("FACTORY FILL time wedges start=%d mid=%d end=%d buffer=%d" % [
+		shown0, shown_mid, shown_end, int(factory.get("buffer", 0)),
+	])
+	# Pile still stacks beyond the ring; order is FIFO for spend.
+	factory.buffer = 0
+	factory.pile = []
 	var deposits := FACTORY_WEDGES + 2
-	for step in deposits + 1:
-		if step > 0:
-			carry[i] = Catalog.CARRY_ORE
-			carry_value[i] = 1
-			pos_x[i] = float(factory.x)
-			pos_y[i] = float(factory.y)
-			_deliver(i, MOVE_SPEED, 0.05)
-		var buf := int(factory.get("buffer", 0))
-		main._sync_factory_mark(self)
-		var shown := 0
-		for slice in main.factory_slices:
-			if slice.visible:
-				shown += 1
-		seen.append("%d:%d" % [buf, shown])
-		var wedges := mini(step, FACTORY_WEDGES)
-		if buf != step or shown != wedges:
-			errors.append("factory fill step %s buffer %s slices %s" % [step, buf, shown])
-	print("FACTORY FILL " + " ".join(seen))
+	for step in deposits:
+		_set_carry(i, Catalog.CARRY_ORE, 1)
+		pos_x[i] = float(factory.x)
+		pos_y[i] = float(factory.y)
+		_deliver(i, MOVE_SPEED, 0.05)
 	var piled: Array = factory.get("pile", [])
 	var order := PackedStringArray()
 	for token in piled:
@@ -7397,7 +9101,10 @@ func _run_checks() -> void:
 	if bool(unlocks.apple_tree):
 		errors.append("apple before tub")
 	peak = 12
+	living = 12
 	_refresh_pop_gates(false)
+	if bool(unlocks.apple_tree) or bool(unlocks.roundabout):
+		errors.append("care builds from peak")
 	if _count_mine_nodes(0, 0) < 1:
 		errors.append("home mine nodes missing")
 	if not bool(unlocks.axe):
@@ -7474,11 +9181,23 @@ func _run_checks() -> void:
 	if tub_spot == Vector2.ZERO or not place_building(Catalog.BLD_TUB, tub_spot.x, tub_spot.y):
 		errors.append("tub place for solid")
 	else:
+		if not bool(unlocks.apple_tree):
+			errors.append("apple after tub")
+		if bool(unlocks.roundabout):
+			errors.append("round before apple")
 		if not _blocked(tub_spot.x, tub_spot.y):
 			errors.append("tub not solid")
 		var rim := _approach_building({"kind": Catalog.BLD_TUB, "x": tub_spot.x, "y": tub_spot.y, "id": -1}, -1)
 		if _blocked(rim.x, rim.y):
 			errors.append("tub approach blocked")
+		var apple_spot := _smoke_find_spot(Catalog.BLD_APPLE, [
+			Vector2(tub_spot.x + 64.0, tub_spot.y + 48.0), Vector2(220.0, 200.0), Vector2(280.0, 280.0),
+			Vector2(120.0, 280.0), Vector2(320.0, 160.0), Vector2(180.0, 340.0),
+		])
+		if apple_spot == Vector2.ZERO or not place_building(Catalog.BLD_APPLE, apple_spot.x, apple_spot.y):
+			errors.append("apple place for unlock")
+		elif not bool(unlocks.roundabout):
+			errors.append("round after apple")
 	var dug := {}
 	for b in buildings:
 		if not b.dead and int(b.kind) == Catalog.BLD_MINE:
@@ -7502,7 +9221,7 @@ func _run_checks() -> void:
 			fed[0] = 90.0
 			amused[0] = 90.0
 			clean[0] = 90.0
-			carry[0] = Catalog.CARRY_NONE
+			_set_carry(0, Catalog.CARRY_NONE)
 			act[0] = 0
 			act_t[0] = 0.0
 			_seek_mine(0, MOVE_SPEED, 0.2)
@@ -7534,9 +9253,9 @@ func _run_checks() -> void:
 					fed[helper] = 90.0
 					amused[helper] = 90.0
 					clean[helper] = 90.0
-					carry[helper] = Catalog.CARRY_NONE
-					mine_job[0] = int(dug.id)
-					mine_job[helper] = int(dug.id)
+					_set_carry(helper, Catalog.CARRY_NONE)
+					_set_mine_job(0, int(dug.id))
+					_set_mine_job(helper, int(dug.id))
 					act[helper] = ACT_WORK
 					act_t[helper] = 0.5
 					var third := -1
@@ -7550,10 +9269,10 @@ func _run_checks() -> void:
 						fed[third] = 90.0
 						amused[third] = 90.0
 						clean[third] = 90.0
-						carry[third] = Catalog.CARRY_NONE
+						_set_carry(third, Catalog.CARRY_NONE)
 						act[third] = 0
 						act_t[third] = 0.0
-						mine_job[third] = -1
+						_set_mine_job(third, -1)
 						if _seek_mine(third, MOVE_SPEED, 0.2):
 							errors.append("mine over capacity seek")
 						if int(act[third]) == ACT_WORK:
@@ -7564,7 +9283,7 @@ func _run_checks() -> void:
 					pos_y[helper] = helper_back.y
 					act[helper] = 0
 					act_t[helper] = 0.0
-					mine_job[helper] = -1
+					_set_mine_job(helper, -1)
 				dug.timer = 0.01
 				var ore_before := _count_items_near(Catalog.ITEM_ORE, drop.x, drop.y, 24.0)
 				_tick_buildings(0.05)
@@ -7619,7 +9338,7 @@ func _run_checks() -> void:
 			pos_y[0] = back.y
 			act[0] = 0
 			act_t[0] = 0.0
-			carry[0] = Catalog.CARRY_NONE
+			_set_carry(0, Catalog.CARRY_NONE)
 	var round_b := {}
 	for spot in [Vector2(300.0, 300.0), Vector2(140.0, 200.0), Vector2(360.0, 180.0), Vector2(160.0, 320.0), Vector2(200.0, 180.0), Vector2(240.0, 340.0), Vector2(340.0, 260.0)]:
 		var at := Catalog.snap_world(spot.x, spot.y)
@@ -7673,9 +9392,10 @@ func _run_checks() -> void:
 		for it in items:
 			if int(it.kind) == Catalog.ITEM_WOOD:
 				it.dead = true
-		for i in slot_count:
+		for raw in living_ids:
+			var i := int(raw)
 			if carry[i] == Catalog.CARRY_WOOD:
-				carry[i] = Catalog.CARRY_NONE
+				_set_carry(i, Catalog.CARRY_NONE)
 		var node_id := int(spare.id)
 		place_building(Catalog.BLD_MINE, float(spare.x), float(spare.y))
 		var still = feature_by_id.get(node_id, {})
@@ -7760,11 +9480,14 @@ func _run_checks() -> void:
 			dir_x[0] = 1.0
 			dir_y[0] = 1.0
 			var corner_start := Vector2(pos_x[0], pos_y[0])
+			var into_tree := 0
 			for _n in 90:
 				_walk(0, block_at.x, block_at.y, MOVE_SPEED, 0.08)
+				if _move_blocked(pos_x[0], pos_y[0]):
+					into_tree += 1
 			if _dist_point(pos_x[0], pos_y[0], corner_start.x, corner_start.y) < 12.0:
 				errors.append("stuck on tree corner")
-			if _move_blocked(pos_x[0], pos_y[0]):
+			if into_tree > 0 or _move_blocked(pos_x[0], pos_y[0]):
 				errors.append("walked into tree")
 	_rebuild_hash()
 	if find_thronglet(pos_x[0], pos_y[0], 8.0, true) != 0:

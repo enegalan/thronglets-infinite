@@ -10,11 +10,17 @@ const ProgressionManager := preload("res://scripts/core/progression_manager.gd")
 const CameraRig := preload("res://scripts/presentation/camera/camera_rig.gd")
 const UIAssets := preload("res://scripts/presentation/ui/ui_assets.gd")
 const ShotCaptureScript := preload("res://scripts/dev/shot_capture.gd")
+const PerfBenchScript := preload("res://scripts/dev/perf_bench.gd")
+const SavePerfScript := preload("res://scripts/dev/save_perf.gd")
+const PickZoomReproScript := preload("res://scripts/dev/pick_zoom_repro.gd")
 
 var camera: Camera2D
 var cam_rig: CameraRig
 var ui_assets: UIAssets
 var shot_capture: ShotCapture
+var perf_bench = null
+var save_perf = null
+var pick_zoom_repro = null
 var media: Node
 var tilemap: TileMapLayer
 var pathmap: TileMapLayer
@@ -28,8 +34,17 @@ var focus_pathmap: TileMapLayer
 var world: MultiMeshInstance2D
 var world_mesh: MultiMesh
 var world_layer: Node2D
+var throng_crowd: MultiMeshInstance2D
+var throng_crowd_mesh: MultiMesh
+var feat_static: MultiMeshInstance2D
+var feat_static_mesh: MultiMesh
 var void_back: MultiMeshInstance2D
 var void_back_mesh: MultiMesh
+var _crowd_default_frame := -1
+var _crowd_walk_frame := -1
+var _crowd_sad_frame := -1
+var _feat_static_epoch := -1
+var _feat_static_active := false
 var hand_last_world := Vector2.ZERO
 var hand_vel := Vector2.ZERO
 var hand_vel_init := false
@@ -37,9 +52,24 @@ var _prop_bands: Array = []
 var _monoliths := {}
 var _building_active_sprites := {}
 var _active_structure_tex := {}
+var _bark_tex_cache := {}
+var _bark_atlas_img: Image
+var _atlas_tex_cache := {}
+var _calm_pool: Array[String] = []
+var _sing_pool: Array[String] = []
+var _talk_pool: Array[String] = []
+var _clip_pools_ready := false
+var _water_frame := -1
 var place_marks: Node2D
 var place_fills: Array[Polygon2D] = []
 var place_edges: Array[Line2D] = []
+var hitbox_marks: Node2D
+var hitbox_fills: Array[Polygon2D] = []
+var hitbox_edges: Array[Line2D] = []
+var agent_path_line: Line2D
+var agent_task_panel: PanelContainer
+var agent_task_title: Label
+var agent_task_rows: Array[Label] = []
 var charge_ring: Line2D
 var charge_area: Node2D
 var charge_area_anim := 1.0
@@ -119,8 +149,9 @@ const POP_FACES := {
 	"epilogue_birthday": "res://resources/ui/face_Epilogue_Birthday.png",
 	"epilogue_capitalist": "res://resources/ui/face_Epilogue_Capitalist.png",
 }
-var gem_panel: PanelContainer
+var gem_panel: Control
 var gem_label: Label
+var gem_icon_rect: TextureRect
 var goal_label: Label
 var hint: Label
 var toast: Label
@@ -133,6 +164,8 @@ var bubble_tails: Array = []
 var bubble_icons: Array = []
 var bubble_labels: Array = []
 var full_labels: Array = []
+var cap_tracks: Array = []
+var cap_fills: Array = []
 var ring_lines: Array = []
 var glitch_bars: Array = []
 var glitch_label: Label
@@ -156,9 +189,11 @@ var dos_hold := 0.0
 var crt_overlay: ColorRect
 var crt_on := true
 var show_fps := false
+var show_hitboxes := false
 var settings_lang := "Español"
 var fps_label: Label
 const SETTINGS_LANGS := ["Español"]
+const HITBOX_MARK_CAP := 900
 var sign_button: Button
 var dev_on := false
 var dev_bench = null
@@ -168,6 +203,7 @@ var title_menu: Control
 var title_hud: Control
 var title_bars: Button
 var title_start: Button
+var title_sandbox: Button
 var title_video: Button
 var settings_tab := 3
 var settings_shell: Control
@@ -222,7 +258,11 @@ var glitch_overlay: ColorRect
 var glitch_mat: ShaderMaterial
 var console_line := ""
 var console_reveal := 0
-var factory_frame: Sprite2D
+var console_shown := ""
+# One ring+wedges mark per visible factory (time meter while processing).
+var factory_marks: Array = []
+var _factory_slice_texs: Array[Texture2D] = []
+# Smoke / legacy: slices of the first mark after the last sync.
 var factory_slices: Array[Sprite2D] = []
 var pollution_mark: Sprite2D
 var pollution_bld: Sprite2D
@@ -283,6 +323,18 @@ func _ready() -> void:
 			cam_rig.focus_world(Vector2(256, 256))
 			if ui != null:
 				ui.visible = false
+		elif ThrongletSimServer.save_perf_mode:
+			save_perf = SavePerfScript.new()
+			add_child(save_perf)
+			save_perf.setup(self)
+		elif ThrongletSimServer.perf_mode:
+			perf_bench = PerfBenchScript.new()
+			add_child(perf_bench)
+			perf_bench.setup(self)
+		elif OS.get_cmdline_user_args().has("--pick-zoom-repro"):
+			pick_zoom_repro = PickZoomReproScript.new()
+			add_child(pick_zoom_repro)
+			pick_zoom_repro.setup(self)
 	else:
 		if PropTune.consume_boot():
 			_enter_dev()
@@ -391,6 +443,16 @@ func _process(delta: float) -> void:
 	media.tick_captions()
 	_sync_tutorial()
 	_sync_active_tool()
+	if ThrongletSimServer.perf_mode and perf_bench != null and not perf_bench.done:
+		_process_perf(delta)
+		perf_bench.tick(delta)
+		return
+	if ThrongletSimServer.save_perf_mode and save_perf != null and not save_perf.done:
+		_process_save_perf(delta)
+		save_perf.tick(delta)
+		return
+	if pick_zoom_repro != null and str(pick_zoom_repro.phase) != "quit":
+		pick_zoom_repro.tick(delta)
 	if dev_on:
 		var _focus := get_viewport().gui_get_focus_owner()
 		var _typing := _focus is LineEdit or _focus is TextEdit
@@ -405,6 +467,8 @@ func _process(delta: float) -> void:
 	if in_title:
 		_tick_title(delta)
 		_sync_place_mark()
+		_hide_hitboxes()
+		_hide_agent_debug()
 		if charge_ring != null:
 			charge_ring.visible = false
 		if charge_area != null:
@@ -471,6 +535,8 @@ func _process(delta: float) -> void:
 	_sync_actors()
 	_sync_biome_plates()
 	_sync_place_mark()
+	_sync_hitboxes()
+	_sync_agent_debug()
 	if not sim.shot_mode:
 		_sync_hud(delta)
 	_sync_need_bars()
@@ -483,6 +549,55 @@ func _process(delta: float) -> void:
 		media.play(str(name))
 	if sim.shot_mode and not shot_capture.done:
 		shot_capture.tick_shot()
+
+
+func _process_perf(delta: float) -> void:
+	var sim: ThrongletSim = ThrongletSimServer
+	if not sim.paused:
+		anim_time += delta
+		_sync_water_animation()
+	var view := cam_rig.world_view()
+	sim.view_rect = view
+	sim.explore_rect(view.grow(8.0))
+	_sync_world()
+	var t0 := Time.get_ticks_usec()
+	_sync_actors()
+	set_meta("perf_sync_ms", float(Time.get_ticks_usec() - t0) * 0.001)
+	_sync_biome_plates()
+	_sync_place_mark()
+	_sync_hud(delta)
+	_sync_need_bars()
+	_sync_marks()
+
+
+func _process_save_perf(delta: float) -> void:
+	# Same systems as normal play, with timers so we can see where the save burns time.
+	var sim: ThrongletSim = ThrongletSimServer
+	if not sim.paused:
+		anim_time += delta
+		_sync_water_animation()
+	cam_rig.move(delta, true, false)
+	var view := cam_rig.world_view()
+	sim.view_rect = view
+	sim.explore_rect(view.grow(8.0))
+	var tw := Time.get_ticks_usec()
+	_sync_world()
+	set_meta("save_perf_world_ms", float(Time.get_ticks_usec() - tw) * 0.001)
+	_sync_charge_mark(delta)
+	var ts := Time.get_ticks_usec()
+	_sync_actors()
+	set_meta("save_perf_sync_ms", float(Time.get_ticks_usec() - ts) * 0.001)
+	_sync_biome_plates()
+	_sync_place_mark()
+	_sync_hud(delta)
+	_sync_need_bars()
+	_sync_marks()
+	_sync_glitch(delta)
+	_sync_market()
+	_sync_gaze()
+	_sync_focus(delta)
+	# Sim _process already ran; expose its last step cost if present.
+	set_meta("save_perf_step_ms", float(sim.get_meta("save_perf_step_ms", 0.0)))
 
 
 func _world_click() -> void:
@@ -593,7 +708,7 @@ func _tick_hand_hold(delta: float) -> void:
 	var id := hand_pending_id
 	_clear_hand_pending()
 	if sim.grab_thronglet(id):
-		selected = id
+		selected = -1
 		selected_bld = -1
 
 
@@ -608,8 +723,6 @@ func _hand_press() -> void:
 	hand_from = get_viewport().get_mouse_position()
 	var throng := _throng_under_cursor(true)
 	if throng >= 0:
-		selected = throng
-		selected_bld = -1
 		hand_pending = true
 		hand_pending_id = throng
 		hand_hold_t = 0.0
@@ -755,7 +868,8 @@ func _want_place_grid() -> bool:
 		return false
 	var sim: ThrongletSim = ThrongletSimServer
 	if not kit_drag.is_empty():
-		if str(kit_drag.get("type", "")) == "build":
+		var drag_type := str(kit_drag.get("type", ""))
+		if drag_type == "build" or drag_type == "prop":
 			return true
 		return int(kit_drag.get("id", -1)) == Catalog.TOOL_TNT
 	if sim.hand_id != -1:
@@ -1076,49 +1190,54 @@ func _sync_actors() -> void:
 	var egg_front: Array = []
 	var void_back_draws: Array = []
 	var time_pre := anim_time
-	for feat in sim.features:
-		if feat.dead or bool(feat.get("lifted", false)):
+	# far_view only affects thronglet anim LOD — never batch features into a stale MultiMesh.
+	var far_props := cam_rig.zoom_level < 2.5
+	_clear_feat_static()
+	for feat in sim.features_in_rect(view):
+		if bool(feat.get("lifted", false)):
 			continue
-		if not sim.chunk_shown("%d,%d" % [int(feat.cx), int(feat.cy)]):
+		if not sim.chunk_shown(sim._ck(int(feat.cx), int(feat.cy))):
 			continue
 		var p := Vector2(float(feat.x), float(feat.y))
-		if int(feat.kind) == Catalog.FEAT_MONOLITH:
-			_sync_monolith(int(feat.id), p + Catalog.feature_draw_off(Catalog.FEAT_MONOLITH), feat, time_pre)
+		var feat_kind := int(feat.kind)
+		var fid := int(feat.id)
+		if feat_kind == Catalog.FEAT_MONOLITH:
+			_sync_monolith(fid, p + Catalog.feature_draw_off(Catalog.FEAT_MONOLITH), feat, time_pre)
 			continue
-		var feat_at := _feature_draw_at(int(feat.kind), p, int(feat.ore))
+		var feat_at := _feature_draw_at(feat_kind, p, int(feat.ore))
+		# Viewport cull only — never hide in-view props.
 		if view.has_point(p) or view.has_point(feat_at):
-			var feat_anim := _feature_anim(int(feat.kind), time_pre, int(feat.ore))
+			var feat_outline := Color.TRANSPARENT
+			if outlined_feat_ids.has(fid):
+				feat_outline = Color(0.35, 1.0, 0.45, 1.0)
+			elif tool_charge > 0.02 and str(tool_charge_key).begins_with("feat:") and int(str(tool_charge_key).substr(5)) == fid:
+				# Axe and hammer both charge on a single feature (tree / stump).
+				feat_outline = Color(0.35, 1.0, 0.45, 1.0)
+			var feat_anim := _feature_anim(feat_kind, time_pre, int(feat.ore))
 			var feat_frame := int(feat_anim.get("frame", -1))
-			var feat_scale := Catalog.feature_sprite_scale(int(feat.kind), int(feat.ore))
+			var feat_scale := Catalog.feature_sprite_scale(feat_kind, int(feat.ore))
 			var feat_off := Vector2.ZERO
 			var feat_rot := 0.0
 			if feat_frame < 0:
-				feat_frame = _prop_frame(Catalog.icon_for_feature(int(feat.kind), int(feat.ore)))
+				feat_frame = _prop_frame(Catalog.icon_for_feature(feat_kind, int(feat.ore)))
 			elif not feat_anim.is_empty():
 				var feat_tune_id := str(feat_anim.get("id", ""))
 				var feat_idx := int(feat_anim.get("idx", 0))
 				feat_scale *= AnimTune.frame_scale(feat_tune_id, feat_idx)
 				feat_off = AnimTune.frame_offset(feat_tune_id, feat_idx)
 				feat_rot = AnimTune.frame_rot(feat_tune_id, feat_idx)
-			var feat_outline := Color.TRANSPARENT
-			var fid := int(feat.id)
-			if outlined_feat_ids.has(fid):
-				feat_outline = Color(0.35, 1.0, 0.45, 1.0)
-			elif tool_charge > 0.02 and str(tool_charge_key).begins_with("feat:") and int(str(tool_charge_key).substr(5)) == fid:
-				# Axe and hammer both charge on a single feature (tree / stump).
-				feat_outline = Color(0.35, 1.0, 0.45, 1.0)
 			var feat_sort_y := NAN
-			if sim._ore_tier(int(feat.kind)) > 0:
+			if sim._ore_tier(feat_kind) > 0:
 				# Mine zones (ore nodes) are ground zones: above ground, below sprites on top.
 				feat_sort_y = -1000000.0
 			_push_iso(draws, feat_at, feat_frame, Color.WHITE, 0.0, feat_scale, feat_sort_y, feat_outline, feat_off, feat_rot)
-			_push_glitch_fumes(draws, int(feat.kind), feat_at, time_pre)
-			_push_anomaly_ray(draws, int(feat.kind), feat_at, time_pre)
+			_push_glitch_fumes(draws, feat_kind, feat_at, time_pre)
+			_push_anomaly_ray(draws, feat_kind, feat_at, time_pre)
 	for it in sim.items:
 		if it.dead or it.held:
 			continue
 		var falling_void := bool(it.get("falling_void", false))
-		if not falling_void and not sim.chunk_shown(sim.chunk_key_at(float(it.x), float(it.y))):
+		if not falling_void and not sim.chunk_at_home(float(it.x), float(it.y)):
 			continue
 		var world_pos := Vector2(float(it.x), float(it.y))
 		var p2 := _item_draw_at(int(it.kind), world_pos)
@@ -1164,7 +1283,7 @@ func _sync_actors() -> void:
 	for b in sim.buildings:
 		if b.dead or bool(b.get("lifted", false)):
 			continue
-		if not sim.chunk_shown(sim.chunk_key_at(float(b.x), float(b.y))):
+		if not sim.chunk_at_home(float(b.x), float(b.y)):
 			continue
 		var p3 := Vector2(float(b.x), float(b.y))
 		var b_kind := int(b.kind)
@@ -1190,9 +1309,11 @@ func _sync_actors() -> void:
 					b_tint = Color(0.85, 0.95, 1.0)
 				elif b_kind != Catalog.BLD_ROUND:
 					var mine_kind := b_kind == Catalog.BLD_MINE or b_kind == Catalog.BLD_MINE2
-					if not mine_kind:
+					var factory_kind := b_kind == Catalog.BLD_FACTORY or b_kind == Catalog.BLD_FACTORY2
+					# Mines/factories stay planted; bounce was a leftover "active" cue.
+					if not mine_kind and not factory_kind:
 						b_lift = absf(sin(time_pre * 8.0 + float(b.id))) * 2.2
-					if b_kind == Catalog.BLD_FACTORY or b_kind == Catalog.BLD_FACTORY2:
+					if factory_kind:
 						b_tint = Color(1.0, 0.9, 0.82)
 					elif mine_kind:
 						b_tint = Color(1.0, 0.95, 0.75)
@@ -1209,10 +1330,15 @@ func _sync_actors() -> void:
 				and int(sim._live_guests(b)) > 0
 			)
 			if occupied_home and _active_structure_texture(b_kind) != null:
-				_sync_active_building_sprite(int(b.id), b_kind, draw_at, b_scale, b_sort_y)
+				_sync_active_building_sprite(int(b.id), b_kind, p3, b_scale, b_sort_y)
 			else:
 				_hide_active_building_sprite(int(b.id))
-				var b_outline := Color(0.35, 1.0, 0.45, 1.0) if outlined_bld_ids.has(int(b.id)) else Color.TRANSPARENT
+				var b_outline := Color.TRANSPARENT
+				var bid := int(b.id)
+				if outlined_bld_ids.has(bid):
+					b_outline = Color(0.35, 1.0, 0.45, 1.0)
+				elif tool_charge > 0.02 and str(tool_charge_key).begins_with("bld:") and int(str(tool_charge_key).substr(4)) == bid:
+					b_outline = Color(0.35, 1.0, 0.45, 1.0)
 				_push_iso(draws, draw_at, b_frame, b_tint, b_lift, b_scale, b_sort_y, b_outline, b_off, b_rot)
 			if b_kind == Catalog.BLD_FACTORY or b_kind == Catalog.BLD_FACTORY2:
 				_push_factory_pile(draws, b, draw_at)
@@ -1329,7 +1455,7 @@ func _sync_actors() -> void:
 				var drag_rot := 0.0
 				var drag_off := Vector2.ZERO
 				if str(kit_drag.get("type", "")) == "tool":
-					var tid := int(kit_drag.id)
+					var tid := int(kit_drag.get("id", -1))
 					match tid:
 						Catalog.TOOL_APPLE:
 							drag_scale = Catalog.APPLE_SPRITE_SCALE
@@ -1348,7 +1474,7 @@ func _sync_actors() -> void:
 						drag_off = AnimTune.frame_offset("hand", hand_idx)
 						drag_rot = AnimTune.frame_rot("hand", hand_idx)
 				elif str(kit_drag.get("type", "")) == "build":
-					drag_scale = Catalog.building_sprite_scale(int(kit_drag.id))
+					drag_scale = Catalog.building_sprite_scale(int(kit_drag.get("id", -1)))
 				if drag_frame >= 0:
 					var drag_draw := {
 						"p": get_global_mouse_position() + (cam_rig.to_iso(drag_off) - cam_rig.to_iso(Vector2.ZERO)),
@@ -1360,102 +1486,110 @@ func _sync_actors() -> void:
 						drag_draw["rot"] = drag_rot
 					drag_front.append(drag_draw)
 	var time := anim_time
-	for id in sim.query_rect(view):
-		var i := int(id)
-		if sim.held_kind == "thronglet" and i == sim.held_ref:
-			continue
-		var pos := Vector2(sim.pos_x[i], sim.pos_y[i])
-		var tint: Color = Catalog.TINTS[int(sim.tint[i]) % Catalog.TINTS.size()]
-		if sim.state[i] == Catalog.ST_DEAD:
-			tint = Color.WHITE
-		var lift := 0.0
-		var doing := int(sim.act[i])
-		var seated := false
-		var riding := false
-		var prop_anchor := Vector2.INF
-		var sort_y := NAN
-		var ball_play: bool = doing == ThrongletSim.ACT_PLAY and not sim.ball_of(i).is_empty()
-		if not sim.frozen:
-			if sim.shake_t[i] > 0.0:
-				pos += Vector2(randf_range(-1.5, 1.5), randf_range(-1.5, 1.5))
-			if doing == ThrongletSim.ACT_EAT:
-				lift = sin(time * 10.0 + float(i)) * 1.0
-			elif doing == ThrongletSim.ACT_PLAY and ball_play:
-				lift = 0.0
-			elif doing == ThrongletSim.ACT_PLAY and not ball_play:
-				var ride: Dictionary = sim.ride_of(i)
-				if ride.is_empty():
+	var far_view := far_props
+	# Crowd LOD only when the viewport is actually dense — not merely zoomed out.
+	var visible_ids: Array = sim.query_rect(view, Catalog.DRAW_THRONG_DETAIL + 1)
+	var crowd_mode := visible_ids.size() > Catalog.DRAW_THRONG_DETAIL
+	_clear_throng_crowd()
+	if crowd_mode:
+		var crowd_ids: Array = sim.query_rect(view)
+		_push_throng_crowd_draws(draws, crowd_ids, time, far_view)
+	else:
+		for id in visible_ids:
+			var i := int(id)
+			if sim.held_kind == "thronglet" and i == sim.held_ref:
+				continue
+			if _throng_hidden_indoors(sim, i):
+				continue
+			var pos := Vector2(sim.pos_x[i], sim.pos_y[i])
+			var tint: Color = Catalog.TINTS[int(sim.tint[i]) % Catalog.TINTS.size()]
+			if sim.state[i] == Catalog.ST_DEAD:
+				tint = Color.WHITE
+			var lift := 0.0
+			var doing := int(sim.act[i])
+			var riding := false
+			var prop_anchor := Vector2.INF
+			var sort_y := NAN
+			var ball_play: bool = doing == ThrongletSim.ACT_PLAY and sim.has_ball(i)
+			if not sim.frozen:
+				if not far_view and sim.shake_t[i] > 0.0:
+					pos += Vector2(randf_range(-1.5, 1.5), randf_range(-1.5, 1.5))
+				if doing == ThrongletSim.ACT_EAT:
+					lift = sin(time * 10.0 + float(i)) * 1.0
+				elif doing == ThrongletSim.ACT_PLAY and ball_play:
 					lift = 0.0
-				else:
-					riding = true
-					lift = 2.0
-					# Place and depth-sort riders like the dev lab so they read faithfully on the disk.
-					var seat := sim._ride_slot_of(ride, i)
-					if seat >= 0:
-						pos = sim._ride_slot_pos(ride, seat)
+				elif doing == ThrongletSim.ACT_PLAY and not ball_play:
+					var ride: Dictionary = sim.ride_of(i)
+					if ride.is_empty():
+						lift = 0.0
 					else:
-						var mid := sim._ride_center_of(ride)
-						var ring := pos - mid
-						var rr := sim._ride_radius(ride)
-						if ring.length_squared() >= 0.25 and rr > 0.0:
-							pos = mid + ring.normalized() * rr
+						riding = true
+						lift = 2.0
+						var seat := sim._ride_slot_of(ride, i)
+						if seat >= 0:
+							pos = sim._ride_slot_pos(ride, seat)
 						else:
-							pos = mid
-					prop_anchor = Vector2.INF
-					# per-rider depth around the carousel (front seats over, back under)
-					sort_y = cam_rig.to_iso(pos).y + 10.0
-			elif doing == ThrongletSimServer.ACT_BATH:
-				var tub: Dictionary = sim.seat_of(i)
-				if tub.is_empty():
-					lift = absf(sin(time * 9.0 + float(i))) * 2.2
-				else:
-					seated = true
-					var tub_origin := Vector2(float(tub.x), float(tub.y))
-					pos = tub_origin + Catalog.TUB_SEAT_OFF
-					var age := float(tub.get("bath_t", 0.0))
-					# Sink with the FallInBath enter frames, then hold still in the water.
-					if age < 0.0:
-						lift = Catalog.TUB_ENTER_LIFT
-					elif age < ThrongletSimServer.BATH_ENTER_T:
-						lift = lerpf(Catalog.TUB_ENTER_LIFT, Catalog.TUB_SOAK_LIFT, age / ThrongletSimServer.BATH_ENTER_T)
+							var mid := sim._ride_center_of(ride)
+							var ring := pos - mid
+							var rr := sim._ride_radius(ride)
+							if ring.length_squared() >= 0.25 and rr > 0.0:
+								pos = mid + ring.normalized() * rr
+							else:
+								pos = mid
+						prop_anchor = Vector2.INF
+						sort_y = cam_rig.to_iso(pos).y + 10.0
+				elif doing == ThrongletSimServer.ACT_BATH:
+					var tub: Dictionary = sim.seat_of(i)
+					if tub.is_empty():
+						lift = absf(sin(time * 9.0 + float(i))) * 2.2
 					else:
-						lift = Catalog.TUB_SOAK_LIFT
-					prop_anchor = _building_draw_at(Catalog.BLD_TUB, tub_origin)
-			elif doing == ThrongletSimServer.ACT_WASH:
-				lift = 0.0
-			elif doing == ThrongletSimServer.ACT_WORK:
-				lift = 0.0
-			elif sim.act_t[i] > 0.0:
-				lift = sin(time * 16.0 + float(i)) * 3.5
-		if prop_anchor.x == INF:
-			prop_anchor = _use_prop_anchor(pos)
-		if is_nan(sort_y):
-			sort_y = NAN if prop_anchor.x == INF else _prop_front_sort_y(prop_anchor)
-		var throng_frame := _frame(i, time)
-		var throng_scale := _throng_sprite_scale(throng_frame)
-		# Ride seat is the feet point; Roundabout sheet off would push them off the disk.
-		var throng_at := pos if riding else pos + _throng_sprite_off(throng_frame)
-		# Sort by ground position, not sprite draw offset (large anims like mitosis would sort too far forward).
-		var throng_sort_y := sort_y if not is_nan(sort_y) else cam_rig.to_iso(pos).y
-		var throng_outline := Color(0.35, 1.0, 0.45, 1.0) if outlined_throng_ids.has(i) else Color.TRANSPARENT
-		_push_iso(draws, throng_at, throng_frame, tint, lift, throng_scale, throng_sort_y, throng_outline)
-		draws[draws.size() - 1]["flip"] = _throng_flip(i)
-		draws[draws.size() - 1]["dirty"] = _throng_dirty(sim.clean[i])
-		if sim.carry[i] != Catalog.CARRY_NONE:
-			var carry_kind := int(sim.carry[i])
-			var carry_icon := _carry_icon(carry_kind)
-			var carry_scale := Catalog.item_sprite_scale(_carry_item(carry_kind))
-			_push_iso(draws, pos, _prop_frame(carry_icon), Color.WHITE, 12.0, carry_scale, sort_y)
-		if not sim.frozen and doing == ThrongletSimServer.ACT_WASH:
-			var bubble_fps := float(AnimTune.get_tune("bubble").get("fps", 8.0))
-			var bubble_idx := int(time * bubble_fps) % maxi(AssetFrames.BUBBLE_N, 1)
-			var bubble := AssetFrames.frame(AssetFrames.BUBBLE, AssetFrames.BUBBLE_N, bubble_idx)
-			if bubble < 0:
-				bubble = _prop_frame(Catalog.ICON_SPONGE)
-			var wash_tune: Dictionary = EffectTune.get_tune("act:sponge")
-			var bubble_scale := float(wash_tune.get("scale", 1.0)) * AnimTune.frame_scale("bubble", bubble_idx)
-			var bubble_off := Vector2(float(wash_tune.get("fx_x", 0.0)), float(wash_tune.get("fx_y", 0.0))) + AnimTune.frame_offset("bubble", bubble_idx)
-			_push_iso(draws, pos + bubble_off, bubble, Color(1, 1, 1, 0.85), 8.0, bubble_scale, sort_y, Color.TRANSPARENT, Vector2.ZERO, AnimTune.frame_rot("bubble", bubble_idx))
+						var tub_origin := Vector2(float(tub.x), float(tub.y))
+						pos = tub_origin + Catalog.TUB_SEAT_OFF
+						var age := float(tub.get("bath_t", 0.0))
+						if age < 0.0:
+							lift = Catalog.TUB_ENTER_LIFT
+						elif age < ThrongletSimServer.BATH_ENTER_T:
+							lift = lerpf(Catalog.TUB_ENTER_LIFT, Catalog.TUB_SOAK_LIFT, age / ThrongletSimServer.BATH_ENTER_T)
+						else:
+							lift = Catalog.TUB_SOAK_LIFT
+						prop_anchor = _building_draw_at(Catalog.BLD_TUB, tub_origin)
+				elif doing == ThrongletSimServer.ACT_WASH:
+					lift = 0.0
+				elif doing == ThrongletSimServer.ACT_WORK:
+					lift = 0.0
+				elif sim.act_t[i] > 0.0:
+					lift = sin(time * 16.0 + float(i)) * 3.5
+			if prop_anchor.x == INF:
+				prop_anchor = _use_prop_anchor(pos)
+			if is_nan(sort_y):
+				sort_y = NAN if prop_anchor.x == INF else _prop_front_sort_y(prop_anchor)
+			var throng_frame := _frame_lod(i, time, far_view)
+			var throng_look := _throng_sprite_look(throng_frame)
+			var throng_scale := float(throng_look.scale)
+			var throng_off: Vector2 = throng_look.off
+			var throng_at := pos if riding else pos + throng_off
+			var throng_sort_y := sort_y if not is_nan(sort_y) else cam_rig.to_iso(pos).y
+			var throng_outline := Color.TRANSPARENT
+			if outlined_throng_ids.has(i):
+				throng_outline = Color(0.35, 1.0, 0.45, 1.0)
+			_push_iso(draws, throng_at, throng_frame, tint, lift, throng_scale, throng_sort_y, throng_outline)
+			draws[draws.size() - 1]["flip"] = _throng_flip(i)
+			draws[draws.size() - 1]["dirty"] = 0.0 if far_view else _throng_dirty(sim.clean[i])
+			if sim.carry[i] != Catalog.CARRY_NONE:
+				var carry_kind := int(sim.carry[i])
+				var carry_icon := _carry_icon(carry_kind)
+				var carry_scale := Catalog.item_sprite_scale(_carry_item(carry_kind))
+				_push_iso(draws, pos, _prop_frame(carry_icon), Color.WHITE, 12.0, carry_scale, sort_y)
+			if not sim.frozen and doing == ThrongletSimServer.ACT_WASH:
+				var bubble_fps := float(AnimTune.get_tune("bubble").get("fps", 8.0))
+				var bubble_idx := int(time * bubble_fps) % maxi(AssetFrames.BUBBLE_N, 1)
+				var bubble := AssetFrames.frame(AssetFrames.BUBBLE, AssetFrames.BUBBLE_N, bubble_idx)
+				if bubble < 0:
+					bubble = _prop_frame(Catalog.ICON_SPONGE)
+				var wash_tune: Dictionary = EffectTune.get_tune("act:sponge")
+				var bubble_scale := float(wash_tune.get("scale", 1.0)) * AnimTune.frame_scale("bubble", bubble_idx)
+				var bubble_off := Vector2(float(wash_tune.get("fx_x", 0.0)), float(wash_tune.get("fx_y", 0.0))) + AnimTune.frame_offset("bubble", bubble_idx)
+				_push_iso(draws, pos + bubble_off, bubble, Color(1, 1, 1, 0.85), 8.0, bubble_scale, sort_y, Color.TRANSPARENT, Vector2.ZERO, AnimTune.frame_rot("bubble", bubble_idx))
 	if sim.held_kind == "thronglet" and sim.held_ref >= 0 and sim.held_ref < sim.slot_count:
 		var hi: int = sim.held_ref
 		var htint: Color = Catalog.TINTS[int(sim.tint[hi]) % Catalog.TINTS.size()]
@@ -1523,6 +1657,207 @@ func _sync_actors() -> void:
 		_write_mesh(void_back_mesh, void_back_draws)
 
 
+
+func _ensure_crowd_frames() -> void:
+	if _crowd_default_frame >= 0:
+		return
+	_crowd_default_frame = ThrongClips.frame_at("ThrongA_Default", 0)
+	_crowd_walk_frame = ThrongClips.frame_at("Throng_Walk_Anim_Spritesheet", 0)
+	_crowd_sad_frame = ThrongClips.frame_at("ThrongA_Sad", 0)
+
+
+func _clear_throng_crowd() -> void:
+	if throng_crowd_mesh == null:
+		return
+	throng_crowd_mesh.visible_instance_count = 0
+	if throng_crowd != null:
+		throng_crowd.visible = false
+
+
+func _feat_is_batchable(kind: int) -> bool:
+	# Quiet rooted props. Fire/monolith stay on the dynamic path.
+	return kind != Catalog.FEAT_FIRE and kind != Catalog.FEAT_MONOLITH
+
+
+func _push_far_feat_overlays(draws: Array, view: Rect2, time_pre: float) -> void:
+	# Far: bodies are in feat_static. Only animate fire and outline a few ids.
+	var sim: ThrongletSim = ThrongletSimServer
+	for feat in sim.fires:
+		if feat.is_empty() or feat.dead or bool(feat.get("lifted", false)):
+			continue
+		if not sim.chunk_shown(sim._ck(int(feat.cx), int(feat.cy))):
+			continue
+		var p := Vector2(float(feat.x), float(feat.y))
+		var feat_at := _feature_draw_at(Catalog.FEAT_FIRE, p, 0)
+		if not (view.has_point(p) or view.has_point(feat_at)):
+			continue
+		var feat_anim := _feature_anim(Catalog.FEAT_FIRE, time_pre, 0)
+		var feat_frame := int(feat_anim.get("frame", -1))
+		var feat_scale := Catalog.feature_sprite_scale(Catalog.FEAT_FIRE, 0)
+		var feat_off := Vector2.ZERO
+		var feat_rot := 0.0
+		if feat_frame < 0:
+			feat_frame = _prop_frame(Catalog.icon_for_feature(Catalog.FEAT_FIRE, 0))
+		elif not feat_anim.is_empty():
+			var feat_tune_id := str(feat_anim.get("id", ""))
+			var feat_idx := int(feat_anim.get("idx", 0))
+			feat_scale *= AnimTune.frame_scale(feat_tune_id, feat_idx)
+			feat_off = AnimTune.frame_offset(feat_tune_id, feat_idx)
+			feat_rot = AnimTune.frame_rot(feat_tune_id, feat_idx)
+		_push_iso(draws, feat_at, feat_frame, Color.WHITE, 0.0, feat_scale, NAN, Color.TRANSPARENT, feat_off, feat_rot)
+	var outline_ids: Array = outlined_feat_ids.keys()
+	if tool_charge > 0.02 and str(tool_charge_key).begins_with("feat:"):
+		outline_ids.append(int(str(tool_charge_key).substr(5)))
+	for raw_id in outline_ids:
+		var fid := int(raw_id)
+		var feat = sim.feature_by_id.get(fid, {})
+		if feat.is_empty() or feat.dead or bool(feat.get("lifted", false)):
+			continue
+		var feat_kind := int(feat.kind)
+		if feat_kind == Catalog.FEAT_FIRE or feat_kind == Catalog.FEAT_MONOLITH:
+			continue
+		if not sim.chunk_shown(sim._ck(int(feat.cx), int(feat.cy))):
+			continue
+		var p2 := Vector2(float(feat.x), float(feat.y))
+		var feat_at2 := _feature_draw_at(feat_kind, p2, int(feat.ore))
+		if not (view.has_point(p2) or view.has_point(feat_at2)):
+			continue
+		var feat_scale2 := Catalog.feature_sprite_scale(feat_kind, int(feat.ore))
+		var feat_frame2 := _prop_frame(Catalog.icon_for_feature(feat_kind, int(feat.ore)))
+		var feat_sort_y := NAN
+		if sim._ore_tier(feat_kind) > 0:
+			feat_sort_y = -1000000.0
+		_push_iso(draws, feat_at2, feat_frame2, Color.WHITE, 0.0, feat_scale2, feat_sort_y, Color(0.35, 1.0, 0.45, 1.0))
+	# Keep already-tracked monolith sprites alive; discovery happens in near view.
+	for mid in _monoliths.keys():
+		var mfeat = sim.feature_by_id.get(int(mid), {})
+		if mfeat.is_empty() or mfeat.dead:
+			continue
+		var mp := Vector2(float(mfeat.x), float(mfeat.y))
+		_sync_monolith(int(mid), mp + Catalog.feature_draw_off(Catalog.FEAT_MONOLITH), mfeat, time_pre)
+
+
+func _clear_feat_static() -> void:
+	_feat_static_active = false
+	if feat_static_mesh != null:
+		feat_static_mesh.visible_instance_count = 0
+	if feat_static != null:
+		feat_static.visible = false
+
+
+func _ensure_feat_static() -> void:
+	var sim: ThrongletSim = ThrongletSimServer
+	if feat_static_mesh == null:
+		return
+	if _feat_static_active and _feat_static_epoch == sim.feat_mesh_epoch:
+		return
+	_feat_static_epoch = sim.feat_mesh_epoch
+	_feat_static_active = true
+	var written := 0
+	var need := 0
+	for feat in sim.features:
+		if feat.dead or bool(feat.get("lifted", false)):
+			continue
+		if not _feat_is_batchable(int(feat.kind)):
+			continue
+		if not sim.chunk_shown(sim._ck(int(feat.cx), int(feat.cy))):
+			continue
+		need += 1
+	var old_vis := feat_static_mesh.visible_instance_count
+	if feat_static_mesh.instance_count < need:
+		feat_static_mesh.instance_count = maxi(16, need)
+	var xf := Transform2D()
+	var hide_xf := Transform2D(0.0, Vector2.ZERO, 0.0, Vector2(-100000.0, -100000.0))
+	for feat in sim.features:
+		if feat.dead or bool(feat.get("lifted", false)):
+			continue
+		var kind := int(feat.kind)
+		if not _feat_is_batchable(kind):
+			continue
+		if not sim.chunk_shown(sim._ck(int(feat.cx), int(feat.cy))):
+			continue
+		var ore := int(feat.ore)
+		var origin := Vector2(float(feat.x), float(feat.y))
+		var at := cam_rig.to_iso(_feature_draw_at(kind, origin, ore))
+		var sprite_scale := Catalog.feature_sprite_scale(kind, ore)
+		var frame := _prop_frame(Catalog.icon_for_feature(kind, ore))
+		var center := Vector2(0, -WORLD_CELL * 0.5 * sprite_scale)
+		xf = Transform2D(0.0, Vector2(sprite_scale, sprite_scale), 0.0, at + center)
+		feat_static_mesh.set_instance_transform_2d(written, xf)
+		feat_static_mesh.set_instance_custom_data(written, Color(float(frame), 0.0, 0.0, 0.0))
+		feat_static_mesh.set_instance_color(written, Color.WHITE)
+		written += 1
+	# Park shrunk slots off-screen — some drivers ignore visible_instance_count.
+	for leftover in range(written, maxi(written, old_vis)):
+		feat_static_mesh.set_instance_transform_2d(leftover, hide_xf)
+	feat_static_mesh.visible_instance_count = written
+	feat_static.visible = written > 0
+
+
+func _push_throng_crowd_draws(draws: Array, ids: Array, time: float, far_view: bool) -> void:
+	# Cheap thronglet LOD into the shared prop draw list (y-sorted; every id is in-view).
+	_ensure_crowd_frames()
+	var sim: ThrongletSim = ThrongletSimServer
+	var tint_n := Catalog.TINTS.size()
+	var walk_tick := int(time * 8.0)
+	for raw in ids:
+		var i := int(raw)
+		if sim.held_kind == "thronglet" and i == sim.held_ref:
+			continue
+		if _throng_hidden_indoors(sim, i):
+			continue
+		var pos := Vector2(sim.pos_x[i], sim.pos_y[i])
+		var frame := _crowd_default_frame
+		if sim.state[i] == Catalog.ST_DEAD:
+			frame = ThrongClips.frame_at("ThrongA_Dead_001" if sim.dir_x[i] >= 0.0 else "ThrongA_Dead_002", 0)
+		elif absf(sim.dir_x[i]) + absf(sim.dir_y[i]) >= 0.01:
+			frame = ThrongClips.frame_at("Throng_Walk_Anim_Spritesheet", walk_tick + i) if not far_view else _crowd_walk_frame
+		elif sim.clean[i] < 12.0 or sim.fed[i] < 25.0:
+			frame = _crowd_sad_frame
+		var tint: Color = Color.WHITE if sim.state[i] == Catalog.ST_DEAD else Catalog.TINTS[int(sim.tint[i]) % tint_n]
+		var flip := 1.0
+		if not far_view and absf(sim.dir_x[i]) > absf(sim.dir_y[i]) and sim.dir_x[i] < 0.0:
+			flip = -1.0
+		_push_iso(draws, pos, frame, tint, 0.0, THRONG_SPRITE_SCALE)
+		draws[draws.size() - 1]["flip"] = flip
+		# Carry must stay readable at any zoom — haul feedback is core gameplay.
+		if sim.state[i] == Catalog.ST_LIVING and sim.carry[i] != Catalog.CARRY_NONE:
+			var carry_kind := int(sim.carry[i])
+			var carry_icon := _carry_icon(carry_kind)
+			var carry_scale := Catalog.item_sprite_scale(_carry_item(carry_kind))
+			_push_iso(draws, pos, _prop_frame(carry_icon), Color.WHITE, 12.0, carry_scale)
+
+
+func _throng_hidden_indoors(sim: ThrongletSim, i: int) -> bool:
+	# Inside a visit building (home / theatre / mine). Tub and roundabout stay visible.
+	if i < 0 or i >= sim.slot_count or sim.state[i] != Catalog.ST_LIVING:
+		return false
+	if sim.has_method("indoors"):
+		return bool(sim.indoors(i))
+	return false
+
+
+func _frame_lod(i: int, time: float, far_view: bool) -> int:
+	if not far_view:
+		return _frame(i, time)
+	var sim: ThrongletSim = ThrongletSimServer
+	if sim.state[i] == Catalog.ST_DEAD:
+		return ThrongClips.frame_at("ThrongA_Dead_001" if sim.dir_x[i] >= 0.0 else "ThrongA_Dead_002", 0)
+	if sim.mito_t[i] > 0.0 or sim.mito_charge[i] > 0.0:
+		return _frame(i, time)
+	var doing := int(sim.act[i])
+	var moving := absf(sim.dir_x[i]) + absf(sim.dir_y[i]) >= 0.01
+	if doing == ThrongletSimServer.ACT_BATH or doing == ThrongletSimServer.ACT_PLAY:
+		return _frame(i, time)
+	if moving:
+		if absf(sim.dir_y[i]) > absf(sim.dir_x[i]) and sim.dir_y[i] < 0.0:
+			return ThrongClips.frame_at("Throng_WalkBack_Anim_Spritesheet", int(time * 8.0 + float(i)))
+		return ThrongClips.frame_at("Throng_Walk_Anim_Spritesheet", int(time * 8.0 + float(i)))
+	if sim.clean[i] < 12.0 or sim.fed[i] < 25.0:
+		return ThrongClips.frame_at("ThrongA_Sad", 0)
+	return ThrongClips.frame_at("ThrongA_Default", 0)
+
+
 func _frame(i: int, time: float) -> int:
 	var sim: ThrongletSim = ThrongletSimServer
 	if sim.state[i] == Catalog.ST_DEAD:
@@ -1558,7 +1893,7 @@ func _frame(i: int, time: float) -> int:
 	if doing == ThrongletSimServer.ACT_WASH:
 		return ThrongClips.frame_at("ThrongA_Happy", int(time * 6.0))
 	if doing == ThrongletSimServer.ACT_PLAY:
-		if not sim.ball_of(i).is_empty():
+		if sim.has_ball(i):
 			if moving:
 				if absf(sim.dir_y[i]) > absf(sim.dir_x[i]) and sim.dir_y[i] < 0.0:
 					return ThrongClips.frame_at("Throng_WalkBack_Anim_Spritesheet", int(time * 8.0 + float(i)))
@@ -1612,7 +1947,7 @@ func _throng_flip(i: int) -> float:
 	var moving := absf(sim.dir_x[i]) + absf(sim.dir_y[i]) >= 0.01
 	if doing == ThrongletSimServer.ACT_EAT or doing == ThrongletSimServer.ACT_BATH or doing == ThrongletSimServer.ACT_WASH:
 		return 1.0
-	if doing == ThrongletSimServer.ACT_PLAY and sim.ball_of(i).is_empty():
+	if doing == ThrongletSimServer.ACT_PLAY and not sim.has_ball(i):
 		return 1.0
 	if doing == ThrongletSimServer.ACT_WORK and not moving:
 		return 1.0
@@ -1623,12 +1958,35 @@ func _throng_flip(i: int) -> float:
 	return 1.0
 
 
-func _clip_pool(pool: Array, index: int, time: float, hold: float, fallback: String) -> int:
+func _ensure_clip_pools() -> void:
+	if _clip_pools_ready:
+		return
+	_calm_pool = _filter_clip_pool(CALM)
+	_sing_pool = _filter_clip_pool(SING)
+	_talk_pool = _filter_clip_pool(ThrongClips.TALK)
+	_clip_pools_ready = true
+
+
+func _filter_clip_pool(pool: Array) -> Array[String]:
 	var usable: Array[String] = []
 	for raw in pool:
 		var clip := str(raw)
 		if ThrongClips.has_clip(clip):
 			usable.append(clip)
+	return usable
+
+
+func _clip_pool(pool: Array, index: int, time: float, hold: float, fallback: String) -> int:
+	_ensure_clip_pools()
+	var usable: Array[String]
+	if pool == CALM:
+		usable = _calm_pool
+	elif pool == SING:
+		usable = _sing_pool
+	elif pool == ThrongClips.TALK:
+		usable = _talk_pool
+	else:
+		usable = _filter_clip_pool(pool)
 	if usable.is_empty():
 		return ThrongClips.frame_at(fallback, int(time * 6.0))
 	return ThrongClips.pick(usable, index, time, hold)
@@ -1828,6 +2186,168 @@ func _hide_place_marks() -> void:
 		edge.visible = false
 
 
+func _ensure_hitbox_marks(n: int) -> void:
+	while hitbox_fills.size() < n:
+		var fill := Polygon2D.new()
+		fill.z_index = 5
+		hitbox_marks.add_child(fill)
+		hitbox_fills.append(fill)
+		var edge := Line2D.new()
+		edge.z_index = 5
+		edge.width = 1.5
+		edge.joint_mode = Line2D.LINE_JOINT_ROUND
+		edge.begin_cap_mode = Line2D.LINE_CAP_ROUND
+		edge.end_cap_mode = Line2D.LINE_CAP_ROUND
+		hitbox_marks.add_child(edge)
+		hitbox_edges.append(edge)
+
+
+func _hide_hitboxes() -> void:
+	if hitbox_marks == null:
+		return
+	for fill in hitbox_fills:
+		fill.visible = false
+	for edge in hitbox_edges:
+		edge.visible = false
+
+
+func _hide_agent_debug() -> void:
+	if agent_path_line != null:
+		agent_path_line.visible = false
+	if agent_task_panel != null:
+		agent_task_panel.visible = false
+
+
+func _ensure_task_rows(n: int) -> void:
+	while agent_task_rows.size() < n:
+		var row := Label.new()
+		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_theme_font_size_override("font_size", 13)
+		row.add_theme_color_override("font_color", Color(0.92, 0.94, 1.0))
+		row.add_theme_color_override("font_outline_color", Color.BLACK)
+		row.add_theme_constant_override("outline_size", 2)
+		agent_task_panel.get_node("body").add_child(row)
+		agent_task_rows.append(row)
+
+
+func _sync_agent_debug() -> void:
+	if agent_path_line == null or agent_task_panel == null:
+		return
+	var sim: ThrongletSim = ThrongletSimServer
+	var show := show_hitboxes and not in_title \
+		and selected >= 0 and selected < sim.slot_count and sim.state[selected] != Catalog.ST_VACANT
+	if not show:
+		_hide_agent_debug()
+		return
+	var world_pts := sim.debug_agent_path(selected)
+	if world_pts.size() < 2:
+		agent_path_line.visible = false
+	else:
+		var iso_pts := PackedVector2Array()
+		for p in world_pts:
+			iso_pts.append(cam_rig.to_iso(p))
+		agent_path_line.points = iso_pts
+		agent_path_line.visible = true
+	var tasks: Array = sim.debug_agent_tasks(selected)
+	_ensure_task_rows(tasks.size())
+	agent_task_title.text = "TAREAS #%d" % selected
+	for i in agent_task_rows.size():
+		if i >= tasks.size():
+			agent_task_rows[i].visible = false
+			continue
+		var task: Dictionary = tasks[i]
+		var mark := ">" if bool(task.active) else " "
+		agent_task_rows[i].text = "%s %-11s %6.1f" % [mark, str(task.label), float(task.priority)]
+		agent_task_rows[i].add_theme_color_override(
+			"font_color",
+			Color(1.0, 0.92, 0.35) if bool(task.active) else Color(0.85, 0.88, 0.95)
+		)
+		agent_task_rows[i].visible = true
+	agent_task_panel.reset_size()
+	var panel_size := agent_task_panel.get_combined_minimum_size()
+	agent_task_panel.size = panel_size
+	var view := get_viewport().get_visible_rect().size
+	agent_task_panel.position = Vector2(view.x - panel_size.x - 24.0, 72.0)
+	agent_task_panel.visible = true
+
+
+func _hitbox_push(marks: Array, pos: Vector2, fill_c: Color, edge_c: Color, scale: float = 1.0) -> void:
+	if marks.size() >= HITBOX_MARK_CAP:
+		return
+	marks.append({"pos": pos, "fill": fill_c, "edge": edge_c, "scale": scale})
+
+
+func _sync_hitboxes() -> void:
+	if hitbox_marks == null:
+		return
+	if not show_hitboxes or in_title:
+		_hide_hitboxes()
+		return
+	var sim: ThrongletSim = ThrongletSimServer
+	var view := cam_rig.world_view().grow(32.0)
+	var marks: Array = []
+	var poly := _place_cell_poly()
+	for feat in sim.features:
+		if feat.dead:
+			continue
+		var kind := int(feat.kind)
+		if not Catalog.feature_blocks(kind):
+			continue
+		var origin := Vector2(float(feat.x), float(feat.y))
+		if not view.has_point(origin):
+			continue
+		var fill_c := Color(0.15, 0.95, 0.45, 0.4)
+		var edge_c := Color(0.55, 1.0, 0.7, 0.95)
+		if kind == Catalog.FEAT_TREE:
+			pass
+		elif kind == Catalog.FEAT_ROCK or kind == Catalog.FEAT_BIGROCK:
+			fill_c = Color(1.0, 0.55, 0.15, 0.35)
+			edge_c = Color(1.0, 0.75, 0.35, 0.95)
+		else:
+			fill_c = Color(0.85, 0.25, 1.0, 0.35)
+			edge_c = Color(0.95, 0.55, 1.0, 0.95)
+		for spot in sim.footprint_world(kind, origin.x, origin.y, false):
+			_hitbox_push(marks, cam_rig.to_iso(spot), fill_c, edge_c)
+		# Yellow outline at sprite draw point — mismatch vs green cell = visual walk-through.
+		if kind == Catalog.FEAT_TREE:
+			var draw_at := cam_rig.to_iso(_feature_draw_at(kind, origin, int(feat.ore)))
+			_hitbox_push(marks, draw_at, Color(1.0, 0.95, 0.2, 0.12), Color(1.0, 0.9, 0.1, 0.95), 0.55)
+	for b in sim.buildings:
+		if b.dead or not Catalog.building_blocks(int(b.kind)):
+			continue
+		var origin := Vector2(float(b.x), float(b.y))
+		if not view.has_point(origin):
+			continue
+		for spot in sim.footprint_world(int(b.kind), origin.x, origin.y, true):
+			_hitbox_push(marks, cam_rig.to_iso(spot), Color(0.25, 0.45, 1.0, 0.3), Color(0.55, 0.75, 1.0, 0.9))
+	for i in sim.slot_count:
+		if sim.state[i] == Catalog.ST_VACANT:
+			continue
+		var at := Vector2(sim.pos_x[i], sim.pos_y[i])
+		if not view.has_point(at):
+			continue
+		_hitbox_push(marks, cam_rig.to_iso(at), Color(1.0, 0.2, 0.75, 0.55), Color(1.0, 0.55, 0.9, 1.0), 0.35)
+	_ensure_hitbox_marks(marks.size())
+	for i in hitbox_fills.size():
+		if i >= marks.size():
+			hitbox_fills[i].visible = false
+			hitbox_edges[i].visible = false
+			continue
+		var mark: Dictionary = marks[i]
+		var s := float(mark.scale)
+		var scaled := PackedVector2Array()
+		for p in poly:
+			scaled.append(p * s)
+		hitbox_fills[i].polygon = scaled
+		hitbox_fills[i].color = mark.fill
+		hitbox_fills[i].position = mark.pos
+		hitbox_fills[i].visible = true
+		hitbox_edges[i].points = scaled + PackedVector2Array([scaled[0]])
+		hitbox_edges[i].default_color = mark.edge
+		hitbox_edges[i].position = mark.pos
+		hitbox_edges[i].visible = true
+
+
 func _sync_place_mark() -> void:
 	if place_marks == null:
 		return
@@ -1841,7 +2361,16 @@ func _sync_place_mark() -> void:
 	var info := _place_footprint_kind()
 	var kind: int = int(info.kind)
 	var ok := false
-	if placing >= 0:
+	if not kit_drag.is_empty() and str(kit_drag.get("type", "")) == "prop":
+		var prop := str(kit_drag.get("prop", ""))
+		var tile := sim._tile_at(at.x, at.y)
+		if prop == "water" or prop == "grass":
+			ok = tile != Catalog.TILE_VOID and tile != Catalog.TILE_FOG
+		elif prop == "thronglet":
+			ok = not Catalog.tile_blocks(tile) and sim._land_inland(at.x, at.y)
+		else:
+			ok = not Catalog.tile_blocks(tile) and sim._feature_at(at.x, at.y, 8.0).is_empty()
+	elif placing >= 0:
 		ok = sim.can_place_building(placing, at.x, at.y)
 	elif kind >= 0 and bool(info.building):
 		ok = sim.spot_ok(at.x, at.y, building_id, ignore_item, kind)
@@ -1924,27 +2453,15 @@ func _sync_charge_mark(delta: float = 0.0) -> void:
 				ty = at.y
 	var center := cam_rig.to_iso(Vector2(tx, ty))
 	var show_area := preview_tool != Catalog.TOOL_SPONGE and preview_tool >= 0 and area_r > 0.0
-	if not show_area:
-		charge_area.visible = false
-		charge_area_key = ""
-		# Keep outlines/affectables only when we have an actual area preview.
-		if used < 0:
-			outlined_feat_ids.clear()
-			outlined_item_ids.clear()
-			outlined_throng_ids.clear()
-			outlined_bld_ids.clear()
-	else:
-		var key := "tool:%d" % preview_tool
-		if charge_area_key != key:
-			charge_area_key = key
-			charge_area_anim = 0.0
-		charge_area_anim = minf(1.0, charge_area_anim + delta / 0.16)
-		var anim_scale := lerpf(0.9, 1.0, smoothstep(0.0, 1.0, charge_area_anim))
-		var hits: Array = sim.area_tool_hits(preview_tool, tx, ty)
-		outlined_feat_ids.clear()
-		outlined_item_ids.clear()
-		outlined_throng_ids.clear()
-		outlined_bld_ids.clear()
+	# Area tools outline via radius hits; single-target tools (axe/hammer) via charge target.
+	var outline_from_hits := show_area or (preview_tool >= 0 and not target.is_empty())
+	outlined_feat_ids.clear()
+	outlined_item_ids.clear()
+	outlined_throng_ids.clear()
+	outlined_bld_ids.clear()
+	var hits: Array = []
+	if outline_from_hits:
+		hits = sim.area_tool_hits(preview_tool, tx, ty)
 		for h in hits:
 			var what := str(h.get("what", ""))
 			if what == "feat" and h.has("id"):
@@ -1955,6 +2472,16 @@ func _sync_charge_mark(delta: float = 0.0) -> void:
 				outlined_throng_ids[int(h.id)] = true
 			elif what == "bld" and h.has("id"):
 				outlined_bld_ids[int(h.id)] = true
+	if not show_area:
+		charge_area.visible = false
+		charge_area_key = ""
+	else:
+		var key := "tool:%d" % preview_tool
+		if charge_area_key != key:
+			charge_area_key = key
+			charge_area_anim = 0.0
+		charge_area_anim = minf(1.0, charge_area_anim + delta / 0.16)
+		var anim_scale := lerpf(0.9, 1.0, smoothstep(0.0, 1.0, charge_area_anim))
 		var affectable := not hits.is_empty()
 		var area_color := Color(0.35, 1.0, 0.45, 1.0) if affectable else Color.WHITE
 		# Elliptical dashed area preview in world space.
@@ -1984,10 +2511,16 @@ func _iso_circle_points(world_center: Vector2, radius: float, steps: int) -> Pac
 
 func _iso_ellipse_points(world_center: Vector2, rx: float, ry: float, steps: int) -> PackedVector2Array:
 	var pts := PackedVector2Array()
+	if not is_finite(world_center.x) or not is_finite(world_center.y):
+		return pts
+	if not is_finite(rx) or not is_finite(ry) or steps < 2:
+		return pts
 	for i in steps + 1:
 		var ang := TAU * float(i) / float(steps)
 		var world := world_center + Vector2(cos(ang) * rx, sin(ang) * ry)
-		pts.append(cam_rig.to_iso(world))
+		var iso := cam_rig.to_iso(world)
+		if is_finite(iso.x) and is_finite(iso.y):
+			pts.append(iso)
 	return pts
 
 
@@ -2195,6 +2728,14 @@ func _building_draw_at(kind: int, origin: Vector2) -> Vector2:
 	return origin + Catalog.footprint_center(size) + _pad_nudge(frame, scale, size) + Catalog.building_draw_off(kind)
 
 
+# Active/occupied sprite: same pad anchor as idle, but its own offset (not building_draw_off).
+func _building_active_draw_at(kind: int, origin: Vector2) -> Vector2:
+	var size := Catalog.footprint_for_building(kind)
+	var frame := _prop_frame(Catalog.icon_for_building(kind))
+	var scale := Catalog.building_sprite_scale(kind)
+	return origin + Catalog.footprint_center(size) + _pad_nudge(frame, scale, size) + Catalog.active_building_draw_off(kind)
+
+
 func _feature_draw_at(kind: int, origin: Vector2, ore: int = 0) -> Vector2:
 	var size := Catalog.footprint_for_feature(kind)
 	var frame := FIRE_ANIM if kind == Catalog.FEAT_FIRE else _prop_frame(Catalog.icon_for_feature(kind, ore))
@@ -2258,26 +2799,24 @@ const _BIG := {
 	Catalog.ICON_FACTORY: 12,
 	Catalog.ICON_FACTORY2: 13,
 	Catalog.ICON_THEATRE: 14,
-	Catalog.ICON_MARKET: 16,
-	Catalog.ICON_MONOLITH: 17,
-	Catalog.ICON_STATUE: 18,
-	Catalog.ICON_GOO: 19,
-	Catalog.ICON_BIGROCK: 20,
-	Catalog.ICON_COSMETIC: 21,
-	Catalog.ICON_COSMETIC_BAD: 22,
-	Catalog.ICON_ORE_MEGA: 23,
-	Catalog.ICON_ORE_SUPER: 24,
-	Catalog.ICON_ORE_ULTRA: 25,
-	Catalog.ICON_WOOD_STATUE: 26,
-	Catalog.ICON_FIRE: 27,
-	Catalog.ICON_TOTEM: 28,
-	Catalog.ICON_CURER: 29,
-	Catalog.ICON_JACK: 30,
-	Catalog.ICON_SUPERBUG: 31,
-	Catalog.ICON_THEATRE2: 32,
-	Catalog.ICON_MAW: 33,
-	Catalog.ICON_MSTUMP: 34,
-	Catalog.ICON_MNODE: 35,
+	Catalog.ICON_MARKET: 15,
+	Catalog.ICON_MONOLITH: 16,
+	Catalog.ICON_STATUE: 17,
+	Catalog.ICON_GOO: 18,
+	Catalog.ICON_BIGROCK: 19,
+	Catalog.ICON_COSMETIC: 20,
+	Catalog.ICON_COSMETIC_BAD: 21,
+	Catalog.ICON_ORE_MEGA: 22,
+	Catalog.ICON_ORE_SUPER: 23,
+	Catalog.ICON_ORE_ULTRA: 24,
+	Catalog.ICON_WOOD_STATUE: 25,
+	Catalog.ICON_FIRE: 26,
+	Catalog.ICON_TOTEM: 27,
+	Catalog.ICON_CURER: 28,
+	Catalog.ICON_JACK: 29,
+	Catalog.ICON_SUPERBUG: 30,
+	Catalog.ICON_MSTUMP: 31,
+	Catalog.ICON_MNODE: 32,
 }
 
 
@@ -2285,30 +2824,33 @@ func _throng_dirty(clean: float) -> float:
 	return 1.0 - clampf(clean / 100.0, 0.0, 1.0)
 
 
-func _throng_sprite_scale(frame: int) -> float:
+func _throng_sprite_look(frame: int) -> Dictionary:
 	if frame == 652 or frame == 653:
-		return 0.7
-	var info: Dictionary = ThrongClips.info_at(frame)
-	if not info.is_empty():
-		return ThrongTune.frame_scale(str(info.clip), int(info.index))
-	return THRONG_SPRITE_SCALE
+		return {"scale": 0.7, "off": Vector2.ZERO}
+	var clip := ThrongClips.clip_name_at(frame)
+	if clip != "":
+		var idx := ThrongClips.clip_index_at(frame)
+		return {"scale": ThrongTune.frame_scale(clip, idx), "off": ThrongTune.frame_offset(clip, idx)}
+	var off := Vector2.ZERO
+	if frame >= 229 and frame <= 262:
+		off = Vector2(21.0, 21.0)
+	elif frame >= 263 and frame <= 298:
+		off = Vector2(24.0, 24.0)
+	elif frame >= 342 and frame <= 349:
+		off = Vector2(15.0, 15.0)
+	elif frame >= 492 and frame <= 494:
+		off = Vector2(3.0, 3.0)
+	elif frame >= 540 and frame <= 547:
+		off = Vector2(-8.0, -4.0)
+	return {"scale": THRONG_SPRITE_SCALE, "off": off}
+
+
+func _throng_sprite_scale(frame: int) -> float:
+	return float(_throng_sprite_look(frame).scale)
 
 
 func _throng_sprite_off(frame: int) -> Vector2:
-	var info: Dictionary = ThrongClips.info_at(frame)
-	if not info.is_empty():
-		return ThrongTune.frame_offset(str(info.clip), int(info.index))
-	if frame >= 229 and frame <= 262:
-		return Vector2(21.0, 21.0)
-	if frame >= 263 and frame <= 298:
-		return Vector2(24.0, 24.0)
-	if frame >= 342 and frame <= 349:
-		return Vector2(15.0, 15.0)
-	if frame >= 492 and frame <= 494:
-		return Vector2(3.0, 3.0)
-	if frame >= 540 and frame <= 547:
-		return Vector2(-8.0, -4.0)
-	return Vector2.ZERO
+	return _throng_sprite_look(frame).off
 
 
 func _sync_monolith(id: int, world_pos: Vector2, feat: Dictionary, t: float) -> void:
@@ -2346,7 +2888,7 @@ func _active_structure_texture(kind: int) -> Texture2D:
 	return tex
 
 
-func _sync_active_building_sprite(id: int, kind: int, draw_at: Vector2, sprite_scale: float, sort_y: float) -> void:
+func _sync_active_building_sprite(id: int, kind: int, origin: Vector2, sprite_scale: float, sort_y: float) -> void:
 	var tex := _active_structure_texture(kind)
 	if tex == null:
 		_hide_active_building_sprite(id)
@@ -2360,7 +2902,7 @@ func _sync_active_building_sprite(id: int, kind: int, draw_at: Vector2, sprite_s
 		_building_active_sprites[id] = node
 	node.texture = tex
 	node.scale = Vector2(sprite_scale, sprite_scale)
-	var screen_p := cam_rig.to_iso(draw_at)
+	var screen_p := cam_rig.to_iso(_building_active_draw_at(kind, origin))
 	node.position = screen_p + Vector2(0, -WORLD_CELL * 0.5 * sprite_scale)
 	var sy := sort_y if not is_nan(sort_y) else screen_p.y
 	node.set_meta("sy", sy)
@@ -2414,6 +2956,17 @@ func _paint_props(draws: Array) -> void:
 		bnode.set_meta("seen", false)
 		var bsy := float(bnode.get_meta("sy", bnode.position.y))
 		live.append({"sy": bsy, "node": bnode})
+	if live.is_empty():
+		var sole := _prop_band(0)
+		_write_mesh(sole.multimesh, draws)
+		sole.visible = true
+		for j in range(1, _prop_bands.size()):
+			if _prop_bands[j].visible or _prop_bands[j].multimesh.visible_instance_count != 0:
+				_write_mesh(_prop_bands[j].multimesh, [])
+				_prop_bands[j].visible = false
+		if world_layer.get_child_count() > 0 and world_layer.get_child(0) != sole:
+			world_layer.move_child(sole, 0)
+		return
 	live.sort_custom(func(a, b): return float(a.sy) < float(b.sy))
 	var cursor := 0
 	var order: Array = []
@@ -2440,7 +2993,8 @@ func _paint_props(draws: Array) -> void:
 		_write_mesh(_prop_bands[j].multimesh, [])
 		_prop_bands[j].visible = false
 	for i in order.size():
-		world_layer.move_child(order[i], i)
+		if world_layer.get_child(i) != order[i]:
+			world_layer.move_child(order[i], i)
 
 
 func _prop_band(index: int) -> MultiMeshInstance2D:
@@ -2455,38 +3009,47 @@ func _prop_band(index: int) -> MultiMeshInstance2D:
 
 
 func _write_mesh(mesh: MultiMesh, draws: Array) -> void:
-	var expanded: Array = []
+	const OUTLINE_OFFS := [
+		Vector2(-1, 0), Vector2(1, 0), Vector2(0, -1), Vector2(0, 1),
+		Vector2(-1, -1), Vector2(1, -1), Vector2(-1, 1), Vector2(1, 1),
+	]
+	var n := 0
 	for d in draws:
-		if d.has("outline"):
-			var oc: Color = d["outline"]
-			var os := float(d.get("scale", 1.0))
-			var off := 1.0
-			# 1px outline surrounding sprite silhouette.
-			for o in [
-				Vector2(-off, 0), Vector2(off, 0), Vector2(0, -off), Vector2(0, off),
-				Vector2(-off, -off), Vector2(off, -off), Vector2(-off, off), Vector2(off, off),
-			]:
-				expanded.append({
-					"p": d.p + o, "sy": d.get("sy", d.p.y), "icon": d.icon,
-					"tint": oc, "scale": os, "flip": float(d.get("flip", 1.0)),
-					"rot": float(d.get("rot", 0.0)), "dirty": 0.0, "ol": 1.0,
-				})
-		expanded.append(d)
-	var n := expanded.size()
+		n += 9 if d.has("outline") else 1
 	if mesh.instance_count < n:
 		mesh.instance_count = maxi(16, n)
 	mesh.visible_instance_count = n
 	var xf := Transform2D()
-	for i in n:
-		var e: Dictionary = expanded[i]
-		var sprite_scale := float(e.get("scale", 1.0))
-		var flip := float(e.get("flip", 1.0))
-		var rot := deg_to_rad(float(e.get("rot", 0.0)))
+	var i := 0
+	for d in draws:
+		var sprite_scale := float(d.get("scale", 1.0))
+		var flip := float(d.get("flip", 1.0))
+		var rot := deg_to_rad(float(d.get("rot", 0.0)))
 		var center := Vector2(0, -WORLD_CELL * 0.5 * sprite_scale).rotated(rot)
-		xf = Transform2D(rot, Vector2(sprite_scale * flip, sprite_scale), 0.0, e.p + center)
+		if d.has("outline"):
+			var oc: Color = d["outline"]
+			for o in OUTLINE_OFFS:
+				xf = Transform2D(rot, Vector2(sprite_scale * flip, sprite_scale), 0.0, d.p + o + center)
+				mesh.set_instance_transform_2d(i, xf)
+				mesh.set_instance_custom_data(i, Color(float(d.icon), 0.0, 1.0, 0))
+				mesh.set_instance_color(i, oc)
+				i += 1
+		xf = Transform2D(rot, Vector2(sprite_scale * flip, sprite_scale), 0.0, d.p + center)
 		mesh.set_instance_transform_2d(i, xf)
-		mesh.set_instance_custom_data(i, Color(float(e.icon), float(e.get("dirty", 0.0)), float(e.get("ol", 0.0)), 0))
-		mesh.set_instance_color(i, e.tint)
+		mesh.set_instance_custom_data(i, Color(float(d.icon), float(d.get("dirty", 0.0)), 0.0, 0))
+		mesh.set_instance_color(i, d.tint)
+		i += 1
+
+
+func _fit_gem_plaque() -> void:
+	if gem_panel == null or gem_label == null:
+		return
+	const PLAQUE_H := 36
+	var text_w := gem_label.get_minimum_size().x
+	var width := int(ceil(10.0 + 17.0 + 10.0 + text_w + 14.0))
+	width = maxi(width, 96)
+	gem_panel.custom_minimum_size = Vector2(width, PLAQUE_H)
+	gem_panel.size = Vector2(width, PLAQUE_H)
 
 
 func _sync_hud(delta: float) -> void:
@@ -2509,6 +3072,13 @@ func _sync_hud(delta: float) -> void:
 		pop_face.texture = ui_assets.tex(POP_FACES[face_key])
 	gem_panel.visible = sim.part_two
 	gem_label.text = str(sim.gems)
+	_fit_gem_plaque()
+	# Task banner sits beside the badge at x=72; shift right when the gem slot appears.
+	var task_x := 72.0
+	if gem_panel.visible:
+		task_x = 72.0 + gem_panel.get_combined_minimum_size().x + 6.0
+	task_panel.position.x = task_x
+	# count_item is generation-cached; one ensure covers wood/bone/ore for this HUD pass.
 	goal_label.text = sim.goal_line()
 	res_label.text = "MADERA %d   HUESO %d   MINERAL %d" % [
 		sim.count_item(Catalog.ITEM_WOOD),
@@ -2524,7 +3094,8 @@ func _sync_hud(delta: float) -> void:
 		info = "MANO  SUELTA PARA ESPARCIR  x%d" % (sim.scoop_item_ids.size() + sim.scoop_dead_ids.size())
 	elif not kit_drag.is_empty():
 		var drag_id := int(kit_drag.get("id", -1))
-		if _is_charge_tool(drag_id):
+		var drag_is_tool := str(kit_drag.get("type", "")) == "tool"
+		if drag_is_tool and _is_charge_tool(drag_id):
 			if drag_id == Catalog.TOOL_GRAB:
 				info = "MANO  MANTEN SOBRE OBJETOS DEL SUELO"
 				if tool_charge > 0.0:
@@ -2891,6 +3462,8 @@ func _sync_gaze() -> void:
 		shown_event = ""
 		shown_seq = 0
 		console_line = ""
+		console_reveal = 0
+		console_shown = ""
 		return
 	var event := str(sim.modal.event)
 	var seq := int(sim.modal.get("seq", 1))
@@ -2901,18 +3474,21 @@ func _sync_gaze() -> void:
 			media.play("dialogue_in")
 		else:
 			media.play("console")
-		shown_event = event
-		shown_seq = seq
-		for child in gaze_box.get_children():
-			child.queue_free()
 		var session := {
 			"tree": str(sim.modal.get("tree", "")),
 			"node": str(sim.modal.get("node", "")),
 			"log": sim.modal.get("log", []),
 			"seq": seq,
 		}
-		console_line = sim.address(DialogueBook.log_text(session)).replace("[", "(").replace("]", ")")
-		console_reveal = 1
+		var next_line := sim.address(DialogueBook.log_text(session)).replace("[", "(").replace("]", ")")
+		var keep_prefix := event == shown_event and console_line != "" and next_line.begins_with(console_line)
+		console_reveal = console_line.length() if keep_prefix else 0
+		console_line = next_line
+		console_shown = ""
+		shown_event = event
+		shown_seq = seq
+		for child in gaze_box.get_children():
+			child.queue_free()
 		var line_talk: bool = sim.modal.has("lines")
 		if gaze_face != null:
 			gaze_face.visible = not line_talk
@@ -2989,11 +3565,15 @@ func _sync_gaze() -> void:
 			slot.add_child(button)
 			gaze_box.add_child(slot)
 	if console_line != "":
-		console_reveal = mini(console_line.length(), console_reveal + 4)
-		gaze_text.clear()
-		gaze_text.add_theme_font_size_override("normal_font_size", 16)
-		gaze_text.add_theme_color_override("default_color", Color(0.22, 0.86, 0.28))
-		gaze_text.append_text(console_line.substr(0, console_reveal))
+		if console_reveal < console_line.length():
+			console_reveal = mini(console_line.length(), console_reveal + 4)
+		var shown := console_line.substr(0, console_reveal)
+		if shown != console_shown:
+			console_shown = shown
+			gaze_text.clear()
+			gaze_text.add_theme_font_size_override("normal_font_size", 16)
+			gaze_text.add_theme_color_override("default_color", Color(0.22, 0.86, 0.28))
+			gaze_text.append_text(shown)
 	if not console_glyphs.is_empty():
 		var tick := int(anim_time * 1000.0 / 160.0)
 		var alive: Array[TextureRect] = []
@@ -3007,6 +3587,8 @@ func _sync_gaze() -> void:
 		console_corner_glyphs = alive
 	gaze_panel.visible = true
 	_layout_console()
+	if console_line != "" and gaze_text.get_line_count() > 0:
+		gaze_text.scroll_to_line(gaze_text.get_line_count() - 1)
 
 
 func _layout_console() -> void:
@@ -3280,7 +3862,8 @@ func _focus_draws() -> Array:
 		if sim.state[i] == Catalog.ST_DEAD:
 			tint = Color.WHITE
 		var throng_frame := _frame(i, time)
-		_push_iso(draws, pos + _throng_sprite_off(throng_frame), throng_frame, tint, 0.0, _throng_sprite_scale(throng_frame))
+		var throng_look := _throng_sprite_look(throng_frame)
+		_push_iso(draws, pos + throng_look.off, throng_frame, tint, 0.0, float(throng_look.scale))
 		draws[draws.size() - 1]["flip"] = _throng_flip(i)
 		draws[draws.size() - 1]["dirty"] = _throng_dirty(sim.clean[i])
 	draws.sort_custom(func(a, b): return float(a.get("sy", a.p.y)) < float(b.get("sy", b.p.y)))
@@ -3301,14 +3884,41 @@ func _set_box(node: Control, rect: Rect2) -> void:
 
 
 func _kit_tabs() -> Array:
-	return [
-		{"label": "CUIDA", "title": "CUIDADOS", "tools": [Catalog.TOOL_APPLE, Catalog.TOOL_BALL, Catalog.TOOL_SPONGE], "builds": []},
-		{"label": "UTIL", "title": "HERRAMIENTAS", "tools": [Catalog.TOOL_AXE, Catalog.TOOL_HAMMER, Catalog.TOOL_PICK, Catalog.TOOL_SAW, Catalog.TOOL_GRAB, Catalog.TOOL_MOP], "builds": []},
-		{"label": "HOGAR", "title": "CUIDADOS EXTRA", "tools": [], "builds": [Catalog.BLD_TUB, Catalog.BLD_APPLE, Catalog.BLD_ROUND]},
-		{"label": "OBRA", "title": "CONSTRUCCION", "tools": [], "builds": [Catalog.BLD_DWELL, Catalog.BLD_FANCY, Catalog.BLD_MINE, Catalog.BLD_MINE2, Catalog.BLD_FACTORY, Catalog.BLD_FACTORY2, Catalog.BLD_THEATRE, Catalog.BLD_MARKET]},
-		{"label": "DECOR", "title": "DECORACION", "tools": [], "builds": [Catalog.BLD_FLOWER, Catalog.BLD_STATUE]},
-		{"label": "BUGS", "title": "ESPECIALES", "tools": [Catalog.TOOL_BUG, Catalog.TOOL_SWARM, Catalog.TOOL_TNT, Catalog.TOOL_NUKE], "builds": []},
+	var tabs: Array = [
+		{"label": "CUIDA", "title": "CUIDADOS", "tools": [Catalog.TOOL_APPLE, Catalog.TOOL_BALL, Catalog.TOOL_SPONGE], "builds": [], "props": []},
+		{"label": "UTIL", "title": "HERRAMIENTAS", "tools": [Catalog.TOOL_AXE, Catalog.TOOL_HAMMER, Catalog.TOOL_PICK, Catalog.TOOL_SAW, Catalog.TOOL_GRAB, Catalog.TOOL_MOP], "builds": [], "props": []},
+		{"label": "HOGAR", "title": "CUIDADOS EXTRA", "tools": [], "builds": [Catalog.BLD_TUB, Catalog.BLD_APPLE, Catalog.BLD_ROUND], "props": []},
+		{"label": "OBRA", "title": "CONSTRUCCION", "tools": [], "builds": [Catalog.BLD_DWELL, Catalog.BLD_FANCY, Catalog.BLD_MINE, Catalog.BLD_MINE2, Catalog.BLD_FACTORY, Catalog.BLD_FACTORY2, Catalog.BLD_THEATRE, Catalog.BLD_MARKET], "props": []},
+		{"label": "DECOR", "title": "DECORACION", "tools": [], "builds": [Catalog.BLD_FLOWER, Catalog.BLD_STATUE], "props": []},
+		{"label": "BUGS", "title": "ESPECIALES", "tools": [Catalog.TOOL_BUG, Catalog.TOOL_SWARM, Catalog.TOOL_TNT, Catalog.TOOL_NUKE], "builds": [], "props": []},
 	]
+	if ThrongletSimServer.sandbox_mode:
+		tabs.append({
+			"label": "MAPA",
+			"title": "TERRENO",
+			"tools": [],
+			"builds": [],
+			"props": ["tree", "rock", "ore", "water", "grass", "thronglet"],
+		})
+	return tabs
+
+
+func _sandbox_prop_info(prop: String) -> Dictionary:
+	match prop:
+		"tree":
+			return {"label": "ARBOL", "icon": Catalog.ICON_TREE}
+		"rock":
+			return {"label": "ROCA", "icon": Catalog.ICON_ROCK}
+		"ore":
+			return {"label": "MINERAL", "icon": Catalog.ICON_ORE_ROCK}
+		"water":
+			return {"label": "AGUA", "icon": Catalog.ICON_SPONGE}
+		"grass":
+			return {"label": "HIERBA", "icon": Catalog.ICON_FLOWER}
+		"thronglet":
+			return {"label": "THRONGLET", "icon": Catalog.ICON_EGG}
+		_:
+			return {}
 
 
 func _tool_entry(id: int) -> Dictionary:
@@ -3320,6 +3930,8 @@ func _tool_entry(id: int) -> Dictionary:
 
 func _tab_ready(tab: Dictionary) -> bool:
 	var sim: ThrongletSim = ThrongletSimServer
+	if not tab.get("props", []).is_empty() and sim.sandbox_mode:
+		return true
 	for id in tab.tools:
 		var entry := _tool_entry(int(id))
 		if not entry.is_empty():
@@ -3346,6 +3958,8 @@ func _ready_tabs() -> Array:
 
 func _tab_icon(label: String) -> String:
 	match label:
+		"MAPA":
+			return "res://resources/ui/tab_build.png"
 		"CUIDA":
 			return "res://resources/ui/tab_care.png"
 		"UTIL":
@@ -3513,6 +4127,12 @@ func _rebuild_bars() -> void:
 			continue
 		pending.append({"kind": "build", "id": build_id, "icon": int(info.icon)})
 		count += 1
+	for prop in page.get("props", []):
+		var pinfo := _sandbox_prop_info(str(prop))
+		if pinfo.is_empty():
+			continue
+		pending.append({"kind": "prop", "prop": str(prop), "icon": int(pinfo.icon)})
+		count += 1
 	var tab_n := ready.size() if kit_tabs.visible else 0
 	var tab_w := _row_span(tab_n, 44.0)
 	var item_w := _row_span(maxi(count, 1), 54.0)
@@ -3532,20 +4152,23 @@ func _rebuild_bars() -> void:
 	for item in pending:
 		var face := _tray_cell(int(item.icon), 54.0, 44.0, "all")
 		var cell: Panel = face.get_parent()
-		var item_id := int(item.id)
-		if str(item.kind) == "tool":
-			face.button_down.connect(_begin_kit_drag.bind("tool", item_id))
-			tool_buttons[item_id] = face
+		if str(item.kind) == "prop":
+			face.button_down.connect(_begin_kit_prop_drag.bind(str(item.prop)))
 		else:
-			face.button_down.connect(_begin_kit_drag.bind("build", item_id))
-			build_buttons[item_id] = face
-			var info: Dictionary = Catalog.BUILD_INFO.get(item_id, {})
-			var pid := str(info.get("unlock", ""))
-			if pid != "":
-				var cost := ProgressionManager.placement_cost(sim, pid)
-				var resource := str(cost.get("resource", ""))
-				if resource == "gem" or resource == "wood":
-					_tray_price_row(cell, resource, int(cost.get("amount", 0)))
+			var item_id := int(item.id)
+			if str(item.kind) == "tool":
+				face.button_down.connect(_begin_kit_drag.bind("tool", item_id))
+				tool_buttons[item_id] = face
+			else:
+				face.button_down.connect(_begin_kit_drag.bind("build", item_id))
+				build_buttons[item_id] = face
+				var info: Dictionary = Catalog.BUILD_INFO.get(item_id, {})
+				var pid := str(info.get("unlock", ""))
+				if pid != "":
+					var cost := ProgressionManager.placement_cost(sim, pid)
+					var resource := str(cost.get("resource", ""))
+					if resource == "gem" or resource == "wood":
+						_tray_price_row(cell, resource, int(cost.get("amount", 0)))
 		kit_icons.add_child(cell)
 	var edge := -60.0
 	var tab_h := 44.0
@@ -3564,6 +4187,17 @@ func _rebuild_bars() -> void:
 func _set_kit_tab(index: int) -> void:
 	kit_tab = index
 	_rebuild_bars()
+
+
+func _begin_kit_prop_drag(prop: String) -> void:
+	if ThrongletSimServer.frozen or ThrongletSimServer.paused:
+		return
+	if not ThrongletSimServer.sandbox_mode:
+		return
+	_clear_tool_charge()
+	kit_drag = {"type": "prop", "prop": prop}
+	placing = -1
+	tool = Catalog.TOOL_EYE
 
 
 func _begin_kit_drag(kind: String, id: int) -> void:
@@ -3603,14 +4237,25 @@ func _end_kit_drag() -> void:
 		return
 	var kind := str(kit_drag.get("type", ""))
 	var id := int(kit_drag.get("id", -1))
+	var prop := str(kit_drag.get("prop", ""))
 	kit_drag = {}
 	placing = -1
-	var was_charge := _is_charge_tool(id)
-	if id == Catalog.TOOL_GRAB and ThrongletSimServer.has_scoop():
+	# Building ids collide with tool ids (factory==saw=8). Only tools charge.
+	var was_charge := kind == "tool" and _is_charge_tool(id)
+	if kind == "tool" and id == Catalog.TOOL_GRAB and ThrongletSimServer.has_scoop():
 		_drop_scoop()
 		return
 	_clear_tool_charge()
-	if id < 0 or ThrongletSimServer.frozen or ThrongletSimServer.paused:
+	if ThrongletSimServer.frozen or ThrongletSimServer.paused:
+		tool = Catalog.TOOL_EYE
+		return
+	if kind == "prop":
+		if prop != "" and _drop_on_island():
+			var at := cam_rig.grid_pointer_world()
+			ThrongletSimServer.sandbox_place_prop(prop, at.x, at.y)
+		tool = Catalog.TOOL_EYE
+		return
+	if id < 0:
 		tool = Catalog.TOOL_EYE
 		return
 	if was_charge:
@@ -3619,7 +4264,7 @@ func _end_kit_drag() -> void:
 	if not _drop_on_island():
 		tool = Catalog.TOOL_EYE
 		return
-	var place := id == Catalog.TOOL_TNT or kind == "build"
+	var place := (kind == "tool" and id == Catalog.TOOL_TNT) or kind == "build"
 	var at := cam_rig.grid_pointer_world() if place else cam_rig.pointer_world()
 	if kind == "build":
 		ThrongletSimServer.place_building(id, at.x, at.y)
@@ -3634,18 +4279,22 @@ func _end_kit_drag() -> void:
 func _kit_drag_icon() -> int:
 	if kit_drag.is_empty():
 		return -1
+	if str(kit_drag.get("type", "")) == "prop":
+		return int(_sandbox_prop_info(str(kit_drag.get("prop", ""))).get("icon", -1))
 	if str(kit_drag.get("type", "")) == "build":
-		var info: Dictionary = Catalog.BUILD_INFO.get(int(kit_drag.id), {})
+		var info: Dictionary = Catalog.BUILD_INFO.get(int(kit_drag.get("id", -1)), {})
 		return int(info.get("icon", -1))
-	var entry := _tool_entry(int(kit_drag.id))
+	var entry := _tool_entry(int(kit_drag.get("id", -1)))
 	return int(entry.get("icon", -1))
 
 
 func _kit_drag_label() -> String:
 	if kit_drag.is_empty():
 		return ""
+	if str(kit_drag.get("type", "")) == "prop":
+		return str(_sandbox_prop_info(str(kit_drag.get("prop", ""))).get("label", ""))
 	if str(kit_drag.get("type", "")) == "build":
-		var info: Dictionary = Catalog.BUILD_INFO.get(int(kit_drag.id), {})
+		var info: Dictionary = Catalog.BUILD_INFO.get(int(kit_drag.get("id", -1)), {})
 		var pid := str(info.get("unlock", ""))
 		var cost := ProgressionManager.placement_cost(ThrongletSimServer, pid)
 		var amount := int(cost.get("amount", 0))
@@ -3657,7 +4306,7 @@ func _kit_drag_label() -> String:
 				return "%s  (GRATIS)" % str(info.get("label", ""))
 			return "%s  (%d MADERA)" % [str(info.get("label", "")), amount]
 		return "%s  (GRATIS)" % str(info.get("label", ""))
-	var entry := _tool_entry(int(kit_drag.id))
+	var entry := _tool_entry(int(kit_drag.get("id", -1)))
 	return str(entry.get("label", ""))
 
 
@@ -3724,10 +4373,11 @@ func _mark_selected() -> void:
 	var drag_tool := -1
 	var drag_build := -1
 	if not kit_drag.is_empty():
-		if str(kit_drag.get("type", "")) == "tool":
-			drag_tool = int(kit_drag.id)
-		else:
-			drag_build = int(kit_drag.id)
+		var drag_type := str(kit_drag.get("type", ""))
+		if drag_type == "tool":
+			drag_tool = int(kit_drag.get("id", -1))
+		elif drag_type == "build":
+			drag_build = int(kit_drag.get("id", -1))
 	for id in tool_buttons.keys():
 		var button: Button = tool_buttons[id]
 		button.modulate = Color(1, 1, 1) if int(id) == drag_tool else Color(0.7, 0.7, 0.75)
@@ -3798,6 +4448,7 @@ func _build_marks() -> void:
 		label.add_theme_color_override("font_color", Color.WHITE)
 		add_child(label)
 		full_labels.append(label)
+	_build_capacity_bars(24)
 	for _i in 12:
 		var dash := Line2D.new()
 		dash.width = 1.5
@@ -3829,8 +4480,13 @@ func _hide_marks() -> void:
 		tail.visible = false
 	for label in full_labels:
 		label.visible = false
+	for track in cap_tracks:
+		track.visible = false
+	for fill in cap_fills:
+		fill.visible = false
 	for line in ring_lines:
 		line.visible = false
+	_hide_factory_marks()
 
 
 func _sync_marks() -> void:
@@ -3867,41 +4523,32 @@ func _sync_marks() -> void:
 		tail.visible = false
 		glyph.custom_minimum_size = Vector2(16, 16)
 		glyph.size = Vector2(16, 16)
-		glyph.texture = _bark_icon(icon)
+		var icon_changed := int(glyph.get_meta("bark_icon", -999)) != icon
+		if icon_changed:
+			glyph.texture = _bark_icon(icon)
+			glyph.set_meta("bark_icon", icon)
 		glyph.visible = true
 		var frame := int(anim_time * 1000.0 / 160.0 + int(bark.get("id", 0))) % 5
-		ui_assets.apply_bubble_frame(panel, frame)
-		panel.reset_size()
-		var size := panel.get_combined_minimum_size()
-		# Keep near native Unity frame size so the hooked pico is not 9-slice-stretched.
-		size.x = maxf(size.x, 38.0)
-		size.y = maxf(size.y, 40.0)
-		panel.size = size
+		var frame_changed := int(panel.get_meta("bark_frame", -1)) != frame
+		if frame_changed:
+			ui_assets.apply_bubble_frame(panel, frame)
+			panel.set_meta("bark_frame", frame)
+		var size: Vector2
+		if icon_changed or frame_changed or not panel.has_meta("bark_size"):
+			panel.reset_size()
+			size = panel.get_combined_minimum_size()
+			# Keep near native Unity frame size so the hooked pico is not 9-slice-stretched.
+			size.x = maxf(size.x, 38.0)
+			size.y = maxf(size.y, 40.0)
+			panel.size = size
+			panel.set_meta("bark_size", size)
+		else:
+			size = panel.get_meta("bark_size") as Vector2
 		# tip = bottom of pico (points at thronglet head).
 		var tip := cam_rig.to_iso(at) + Vector2(0, -14)
 		panel.position = Vector2(tip.x - size.x * 0.5, tip.y - size.y)
 		panel.visible = true
-	var full_n := 0
-	for b in sim.buildings:
-		if full_n >= full_labels.size():
-			break
-		if b.dead:
-			continue
-		var cap_text: String = sim.occupancy_text(b)
-		if cap_text == "":
-			continue
-		if not sim.chunk_shown(sim.chunk_key_at(float(b.x), float(b.y))):
-			continue
-		var at := Vector2(float(b.x), float(b.y))
-		if not view.has_point(at):
-			continue
-		var label: Label = full_labels[full_n]
-		label.visible = true
-		label.text = cap_text
-		label.position = cam_rig.to_iso(at) + Vector2(-12, -28)
-		full_n += 1
-	for i in range(full_n, full_labels.size()):
-		full_labels[i].visible = false
+	_sync_capacity_marks(sim, view)
 	var bld: Dictionary = sim.building_by_id.get(selected_bld, {})
 	var show_ring := not bld.is_empty() and not bool(bld.get("dead", true))
 	if show_ring:
@@ -3920,7 +4567,91 @@ func _sync_marks() -> void:
 	_sync_building_alert(sim)
 
 
-func _build_factory_slices() -> void:
+func _build_capacity_bars(n: int) -> void:
+	var gauge_tex := ui_assets.tex_rgba("res://resources/ui/tooltip_gauge.png")
+	cap_tracks.clear()
+	cap_fills.clear()
+	for _i in n:
+		var track := NinePatchRect.new()
+		track.texture = gauge_tex
+		track.patch_margin_left = 4
+		track.patch_margin_right = 4
+		track.size = Vector2(52, 10)
+		track.visible = false
+		track.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		track.z_index = 7
+		track.modulate = Color(0.15, 0.15, 0.18, 0.92)
+		add_child(track)
+		cap_tracks.append(track)
+		var fill := NinePatchRect.new()
+		fill.texture = gauge_tex
+		fill.patch_margin_left = 4
+		fill.patch_margin_right = 4
+		fill.size = Vector2(52, 10)
+		fill.visible = false
+		fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		fill.z_index = 8
+		add_child(fill)
+		cap_fills.append(fill)
+
+
+func _sync_capacity_marks(sim: ThrongletSim, view: Rect2) -> void:
+	var full_n := 0
+	var bar_n := 0
+	const BAR_W := 52.0
+	const BAR_H := 10.0
+	for b in sim.buildings:
+		if b.dead:
+			continue
+		if not sim.has_method("capacity_info"):
+			continue
+		var info: Dictionary = sim.capacity_info(b)
+		if info.is_empty():
+			continue
+		if not sim.chunk_shown(sim.chunk_key_at(float(b.x), float(b.y))):
+			continue
+		var at := Vector2(float(b.x), float(b.y))
+		if not view.has_point(at):
+			continue
+		var screen := cam_rig.to_iso(at) + Vector2(0, -30)
+		var cap := maxi(1, int(info.cap))
+		var n := clampi(int(info.n), 0, cap)
+		var full := bool(info.full)
+		var mine := bool(info.get("mine", false))
+		# Mines always show the stock bar; houses/theatre show bar when occupied or full.
+		var show_bar := mine or n > 0 or full
+		if show_bar and bar_n < cap_tracks.size():
+			var track: NinePatchRect = cap_tracks[bar_n]
+			var fill: NinePatchRect = cap_fills[bar_n]
+			track.position = screen + Vector2(-BAR_W * 0.5, -6.0)
+			track.size = Vector2(BAR_W, BAR_H)
+			track.visible = true
+			var amount := float(n) / float(cap)
+			var width := BAR_W * amount
+			if amount > 0.0:
+				width = maxf(width, 10.0)
+			fill.position = track.position
+			fill.size = Vector2(width, BAR_H)
+			fill.visible = amount >= 0.02
+			fill.modulate = Color(0.95, 0.28, 0.28) if full else Color(91.0 / 255.0, 198.0 / 255.0, 230.0 / 255.0)
+			bar_n += 1
+		var cap_text: String = sim.occupancy_text(b)
+		if cap_text != "" and full_n < full_labels.size():
+			var label: Label = full_labels[full_n]
+			label.visible = true
+			label.text = cap_text
+			label.position = screen + Vector2(-12, -22.0 if show_bar else -8.0)
+			full_n += 1
+	for i in range(bar_n, cap_tracks.size()):
+		cap_tracks[i].visible = false
+		cap_fills[i].visible = false
+	for i in range(full_n, full_labels.size()):
+		full_labels[i].visible = false
+
+
+func _ensure_factory_slice_texs() -> void:
+	if not _factory_slice_texs.is_empty():
+		return
 	var src := ui_assets.tex("res://resources/ui/factory_slice.png")
 	if src == null:
 		return
@@ -3947,48 +4678,91 @@ func _build_factory_slices() -> void:
 				deg += 360.0
 			var sector := int((deg + step * 0.5) / step) % count
 			parts[sector].set_pixel(x, y, px)
-	var fill_scale := 0.55 * (19.0 / 16.87)
 	for part in parts:
+		_factory_slice_texs.append(ImageTexture.create_from_image(part))
+
+
+func _make_factory_mark() -> Dictionary:
+	_ensure_factory_slice_texs()
+	var fill_scale := 0.55 * (19.0 / 16.87)
+	var frame := Sprite2D.new()
+	frame.texture = ui_assets.tex("res://resources/ui/factory_frame.png")
+	frame.visible = false
+	frame.z_index = 6
+	frame.scale = Vector2(0.55, 0.55)
+	frame.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	add_child(frame)
+	var slices: Array[Sprite2D] = []
+	for tex in _factory_slice_texs:
 		var slice := Sprite2D.new()
-		slice.texture = ImageTexture.create_from_image(part)
+		slice.texture = tex
 		slice.visible = false
 		slice.z_index = 6
 		slice.scale = Vector2(fill_scale, fill_scale)
 		slice.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		add_child(slice)
-		factory_slices.append(slice)
+		slices.append(slice)
+	return {"frame": frame, "slices": slices, "id": -1}
+
+
+func _hide_factory_marks() -> void:
+	factory_slices = []
+	for mark in factory_marks:
+		var frame: Sprite2D = mark.frame
+		frame.visible = false
+		mark.id = -1
+		for slice in mark.slices:
+			(slice as Sprite2D).visible = false
 
 
 func _sync_factory_mark(sim: ThrongletSim) -> void:
-	if factory_frame == null:
-		return
-	var b: Dictionary = sim.building_by_id.get(selected_bld, {})
-	var kind := int(b.get("kind", -1))
-	var show := not b.is_empty() and not bool(b.get("dead", true)) and (kind == Catalog.BLD_FACTORY or kind == Catalog.BLD_FACTORY2)
-	if not show:
-		for other in sim.buildings:
-			if other.dead:
-				continue
-			var other_kind := int(other.kind)
-			if other_kind != Catalog.BLD_FACTORY and other_kind != Catalog.BLD_FACTORY2:
-				continue
-			if int(other.get("buffer", 0)) <= 0:
-				continue
-			b = other
-			show = true
-			break
-	factory_frame.visible = show
-	var filled := 0
-	if show:
-		filled = mini(int(b.get("buffer", 0)), ThrongletSimServer.FACTORY_WEDGES)
-	for i in factory_slices.size():
-		factory_slices[i].visible = show and i < filled
-	if not show:
-		return
-	var at := cam_rig.to_iso(Vector2(float(b.x), float(b.y))) + Vector2(0, -28)
-	factory_frame.position = at
-	for slice in factory_slices:
-		slice.position = at
+	_ensure_factory_slice_texs()
+	var view := cam_rig.world_view()
+	var cull_view := view.size.x > 1.0 and view.size.y > 1.0
+	var used := 0
+	factory_slices = []
+	for b in sim.buildings:
+		if b.dead:
+			continue
+		var kind := int(b.kind)
+		if kind != Catalog.BLD_FACTORY and kind != Catalog.BLD_FACTORY2:
+			continue
+		# Every factory shows its own frame; wedges fill with process time.
+		var at_world := Vector2(float(b.x), float(b.y))
+		if not sim.chunk_shown(sim.chunk_key_at(at_world.x, at_world.y)):
+			continue
+		if cull_view and not view.has_point(at_world):
+			continue
+		while factory_marks.size() <= used:
+			factory_marks.append(_make_factory_mark())
+		var mark: Dictionary = factory_marks[used]
+		var frame: Sprite2D = mark.frame
+		var slices: Array = mark.slices
+		var progress := 0.0
+		if sim.has_method("factory_process_progress"):
+			progress = float(sim.factory_process_progress(b))
+		var filled := clampi(
+			int(floor(progress * float(ThrongletSimServer.FACTORY_WEDGES) + 0.001)),
+			0,
+			ThrongletSimServer.FACTORY_WEDGES
+		)
+		var at := cam_rig.to_iso(at_world) + Vector2(0, -28)
+		frame.position = at
+		frame.visible = true
+		mark.id = int(b.id)
+		for i in slices.size():
+			var slice: Sprite2D = slices[i]
+			slice.position = at
+			slice.visible = i < filled
+		if factory_slices.is_empty():
+			factory_slices = slices
+		used += 1
+	for i in range(used, factory_marks.size()):
+		var spare: Dictionary = factory_marks[i]
+		(spare.frame as Sprite2D).visible = false
+		spare.id = -1
+		for slice in spare.slices:
+			(slice as Sprite2D).visible = false
 
 
 func _sync_building_alert(sim: ThrongletSim) -> void:
@@ -4017,6 +4791,38 @@ func _sync_glitch(delta: float) -> void:
 		glitch_overlay.visible = on
 		if on and glitch_mat != null:
 			glitch_mat.set_shader_parameter("intensity", clampf(sim.glitch_t / 1.4, 0.35, 1.0))
+
+
+func _build_task_panel(root: Control) -> void:
+	agent_task_rows.clear()
+	agent_task_panel = PanelContainer.new()
+	agent_task_panel.visible = false
+	agent_task_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	agent_task_panel.z_index = 18
+	agent_task_panel.custom_minimum_size = Vector2(188, 0)
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.02, 0.04, 0.1, 0.82)
+	style.border_color = Color(0.35, 0.85, 1.0, 0.9)
+	style.set_border_width_all(2)
+	style.content_margin_left = 10
+	style.content_margin_right = 10
+	style.content_margin_top = 8
+	style.content_margin_bottom = 8
+	agent_task_panel.add_theme_stylebox_override("panel", style)
+	var body := VBoxContainer.new()
+	body.name = "body"
+	body.add_theme_constant_override("separation", 3)
+	body.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	agent_task_panel.add_child(body)
+	agent_task_title = Label.new()
+	agent_task_title.text = "TAREAS"
+	agent_task_title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	agent_task_title.add_theme_font_size_override("font_size", 14)
+	agent_task_title.add_theme_color_override("font_color", Color(0.55, 0.95, 1.0))
+	agent_task_title.add_theme_color_override("font_outline_color", Color.BLACK)
+	agent_task_title.add_theme_constant_override("outline_size", 2)
+	body.add_child(agent_task_title)
+	root.add_child(agent_task_panel)
 
 
 func _build_need_card(root: Control) -> void:
@@ -4173,30 +4979,41 @@ func _sync_need_bars() -> void:
 
 
 func _atlas_icon(icon: int) -> AtlasTexture:
+	if _atlas_tex_cache.has(icon):
+		return _atlas_tex_cache[icon]
 	var atlas := AtlasTexture.new()
 	atlas.atlas = ui_assets.tex("res://resources/structures/structures_tileset.png")
 	var col := icon % Catalog.ATLAS_COLUMNS
 	var row := int(icon / Catalog.ATLAS_COLUMNS)
 	atlas.region = Rect2(col * 16, row * 16, 16, 16)
+	_atlas_tex_cache[icon] = atlas
 	return atlas
 
 
 func _bark_icon(icon: int) -> Texture2D:
+	if _bark_tex_cache.has(icon):
+		return _bark_tex_cache[icon]
+	var tex: Texture2D
 	if not Catalog.BARK_ICON_RECT.has(icon):
-		return _atlas_icon(icon)
-	# Load source pixels from disk so CompressedTexture2D.get_image() is not required.
-	var path := ProjectSettings.globalize_path(Catalog.BARK_ICON_ATLAS)
-	var src := Image.load_from_file(path)
-	if src == null or src.is_empty():
-		var atlas := AtlasTexture.new()
-		atlas.atlas = ui_assets.tex(Catalog.BARK_ICON_ATLAS)
-		atlas.region = Catalog.BARK_ICON_RECT[icon]
-		return atlas
-	var region: Rect2 = Catalog.BARK_ICON_RECT[icon]
-	var crop := src.get_region(Rect2i(region))
-	const BARK_GLYPH := 16
-	crop.resize(BARK_GLYPH, BARK_GLYPH, Image.INTERPOLATE_NEAREST)
-	return ImageTexture.create_from_image(crop)
+		tex = _atlas_icon(icon)
+	else:
+		# Load source pixels once so CompressedTexture2D.get_image() is not required.
+		if _bark_atlas_img == null or _bark_atlas_img.is_empty():
+			var path := ProjectSettings.globalize_path(Catalog.BARK_ICON_ATLAS)
+			_bark_atlas_img = Image.load_from_file(path)
+		if _bark_atlas_img == null or _bark_atlas_img.is_empty():
+			var atlas := AtlasTexture.new()
+			atlas.atlas = ui_assets.tex(Catalog.BARK_ICON_ATLAS)
+			atlas.region = Catalog.BARK_ICON_RECT[icon]
+			tex = atlas
+		else:
+			var region: Rect2 = Catalog.BARK_ICON_RECT[icon]
+			var crop := _bark_atlas_img.get_region(Rect2i(region))
+			const BARK_GLYPH := 16
+			crop.resize(BARK_GLYPH, BARK_GLYPH, Image.INTERPOLATE_NEAREST)
+			tex = ImageTexture.create_from_image(crop)
+	_bark_tex_cache[icon] = tex
+	return tex
 
 
 func _market_has_stock(sim: ThrongletSim) -> bool:
@@ -4265,14 +5082,7 @@ func _build_world() -> void:
 	market_signs = Node2D.new()
 	market_signs.z_index = 8
 	add_child(market_signs)
-	factory_frame = Sprite2D.new()
-	factory_frame.texture = ui_assets.tex("res://resources/ui/factory_frame.png")
-	factory_frame.visible = false
-	factory_frame.z_index = 6
-	factory_frame.scale = Vector2(0.55, 0.55)
-	factory_frame.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	add_child(factory_frame)
-	_build_factory_slices()
+	_ensure_factory_slice_texs()
 	pollution_mark = Sprite2D.new()
 	pollution_mark.texture = ui_assets.tex("res://resources/ui/pollution_throng.png")
 	pollution_mark.visible = false
@@ -4288,6 +5098,18 @@ func _build_world() -> void:
 	place_marks = Node2D.new()
 	place_marks.z_index = 1
 	add_child(place_marks)
+	hitbox_marks = Node2D.new()
+	hitbox_marks.z_index = 5
+	add_child(hitbox_marks)
+	agent_path_line = Line2D.new()
+	agent_path_line.z_index = 6
+	agent_path_line.width = 2.5
+	agent_path_line.default_color = Color(0.15, 0.95, 1.0, 0.95)
+	agent_path_line.joint_mode = Line2D.LINE_JOINT_ROUND
+	agent_path_line.begin_cap_mode = Line2D.LINE_CAP_ROUND
+	agent_path_line.end_cap_mode = Line2D.LINE_CAP_ROUND
+	agent_path_line.visible = false
+	add_child(agent_path_line)
 	charge_area = _DashArea.new()
 	charge_area.z_index = 3
 	charge_area.visible = false
@@ -4300,16 +5122,34 @@ func _build_world() -> void:
 	charge_ring.end_cap_mode = Line2D.LINE_CAP_ROUND
 	charge_ring.visible = false
 	add_child(charge_ring)
+	# Static quiet features sit under world_layer so far-view thronglets read on top.
+	feat_static = MultiMeshInstance2D.new()
+	feat_static.z_index = 2
+	feat_static.material = _material(16, ThrongClips.SHEET_ROWS)
+	feat_static.texture = ui_assets.tex("res://resources/sprites/world_iso.png")
+	feat_static_mesh = _mesh(true, Vector2(WORLD_CELL, WORLD_CELL))
+	feat_static.multimesh = feat_static_mesh
+	feat_static_mesh.visible_instance_count = 0
+	feat_static.visible = false
+	add_child(feat_static)
 	world_layer = Node2D.new()
 	world_layer.z_index = 2
 	add_child(world_layer)
 	world = MultiMeshInstance2D.new()
-	world.material = _material(16, ThrongClips.SHEET_ROWS)
-	world.texture = ui_assets.tex("res://resources/sprites/world_iso.png")
+	world.material = feat_static.material
+	world.texture = feat_static.texture
 	world_mesh = _mesh(true, Vector2(WORLD_CELL, WORLD_CELL))
 	world.multimesh = world_mesh
 	world_layer.add_child(world)
 	_prop_bands = [world]
+	throng_crowd = MultiMeshInstance2D.new()
+	throng_crowd.z_index = 3
+	throng_crowd.material = feat_static.material
+	throng_crowd.texture = feat_static.texture
+	throng_crowd_mesh = _mesh(true, Vector2(WORLD_CELL, WORLD_CELL))
+	throng_crowd.multimesh = throng_crowd_mesh
+	throng_crowd_mesh.visible_instance_count = 0
+	add_child(throng_crowd)
 	void_back = MultiMeshInstance2D.new()
 	void_back.z_index = -1
 	void_back.material = world.material
@@ -4343,6 +5183,9 @@ func _sync_water_animation() -> void:
 	if water_cells.is_empty() or tilemap == null:
 		return
 	var frame := posmod(int(anim_time * WATER_ANIM_SPEED), WATER_FRAMES)
+	if frame == _water_frame:
+		return
+	_water_frame = frame
 	for cell in water_cells.keys():
 		tilemap.set_cell(cell, 0, Vector2i(RIVER_ATLAS + frame, 0))
 
@@ -4414,6 +5257,7 @@ func _build_ui() -> void:
 	var top_row := HBoxContainer.new()
 	top_row.position = Vector2(6, 6)
 	top_row.add_theme_constant_override("separation", 6)
+	top_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	top_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud_top.add_child(top_row)
 	var badge := Control.new()
@@ -4457,20 +5301,63 @@ func _build_ui() -> void:
 	pop_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	badge.add_child(pop_label)
 	top_row.add_child(badge)
-	gem_panel = PanelContainer.new()
-	gem_panel.add_theme_stylebox_override("panel", ui_assets.slot_style())
+	# Plaque scales above the native 28px cell; badge is 60px so keep SHRINK_CENTER.
+	gem_panel = Control.new()
+	gem_panel.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	gem_panel.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	gem_panel.custom_minimum_size = Vector2(96, 36)
+	gem_panel.size = Vector2(96, 36)
+	gem_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	gem_panel.visible = false
+	var gem_bg := NinePatchRect.new()
+	gem_bg.texture = ui_assets.tex("res://resources/ui/gem_frame.png")
+	gem_bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	gem_bg.patch_margin_left = 17
+	gem_bg.patch_margin_right = 19
+	gem_bg.patch_margin_top = 5
+	gem_bg.patch_margin_bottom = 5
+	gem_bg.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	gem_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	gem_panel.add_child(gem_bg)
 	var gem_row := HBoxContainer.new()
-	gem_row.add_theme_constant_override("separation", 4)
-	var gem_icon := TextureRect.new()
-	gem_icon.texture = _atlas_icon(Catalog.ICON_GEM)
-	gem_icon.custom_minimum_size = Vector2(16, 16)
-	gem_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	gem_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	gem_row.add_child(gem_icon)
+	gem_row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	gem_row.offset_left = 10
+	gem_row.offset_top = 0
+	gem_row.offset_right = -14
+	gem_row.offset_bottom = 0
+	gem_row.add_theme_constant_override("separation", 10)
+	gem_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	gem_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var gem_icon_slot := CenterContainer.new()
+	gem_icon_slot.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	gem_icon_slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	gem_icon_rect = TextureRect.new()
+	gem_icon_rect.texture = ui_assets.tex("res://resources/ui/gem_icon.png")
+	gem_icon_rect.custom_minimum_size = Vector2(17, 18)
+	gem_icon_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	gem_icon_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	gem_icon_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	gem_icon_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	gem_icon_slot.add_child(gem_icon_rect)
+	gem_row.add_child(gem_icon_slot)
+	var gem_label_slot := CenterContainer.new()
+	gem_label_slot.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	gem_label_slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	gem_label = Label.new()
 	gem_label.text = "0"
-	gem_row.add_child(gem_label)
+	gem_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	gem_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	gem_label.add_theme_font_size_override("font_size", 18)
+	gem_label.add_theme_constant_override("line_spacing", -2)
+	gem_label.add_theme_color_override("font_color", Color.WHITE)
+	gem_label.add_theme_color_override("font_outline_color", Color.BLACK)
+	gem_label.add_theme_constant_override("outline_size", 2)
+	gem_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 1))
+	gem_label.add_theme_constant_override("shadow_offset_x", 1)
+	gem_label.add_theme_constant_override("shadow_offset_y", 1)
+	gem_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	gem_label_slot.add_child(gem_label)
+	gem_row.add_child(gem_label_slot)
 	gem_panel.add_child(gem_row)
 	top_row.add_child(gem_panel)
 	# Banner is positioned beside the badge (not inside the HBox) so it keeps original height.
@@ -4607,6 +5494,7 @@ func _build_ui() -> void:
 	market_panel.add_child(market_list)
 	root.add_child(market_panel)
 	_build_need_card(root)
+	_build_task_panel(root)
 
 	focus_dim = ColorRect.new()
 	focus_dim.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -4708,7 +5596,8 @@ func _build_ui() -> void:
 	gaze_text = RichTextLabel.new()
 	gaze_text.bbcode_enabled = true
 	gaze_text.fit_content = false
-	gaze_text.scroll_active = false
+	gaze_text.scroll_active = true
+	gaze_text.scroll_following = true
 	gaze_text.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	gaze_text.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	gaze_text.add_theme_font_size_override("normal_font_size", 16)
@@ -4720,6 +5609,9 @@ func _build_ui() -> void:
 	gaze_col.add_theme_constant_override("separation", 4)
 	gaze_text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	gaze_col.add_child(gaze_text)
+	var gaze_scroll := gaze_text.get_v_scroll_bar()
+	gaze_scroll.modulate.a = 0.0
+	gaze_scroll.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	name_edit = LineEdit.new()
 	name_edit.visible = false
 	name_edit.max_length = 24
@@ -5024,6 +5916,7 @@ func _load_prefs() -> void:
 	media.captions_on = bool(cfg.get_value("opening", "captions", true))
 	crt_on = bool(cfg.get_value("opening", "crt", true))
 	show_fps = bool(cfg.get_value("opening", "show_fps", false))
+	show_hitboxes = bool(cfg.get_value("opening", "show_hitboxes", false))
 	media.sfx_vol = clampf(float(cfg.get_value("opening", "sfx", 1.0)), 0.0, 1.0)
 	media.music_vol = clampf(float(cfg.get_value("opening", "music", 1.0)), 0.0, 1.0)
 	var lang := str(cfg.get_value("opening", "lang", settings_lang))
@@ -5036,6 +5929,7 @@ func _save_prefs() -> void:
 	cfg.set_value("opening", "captions", media.captions_on)
 	cfg.set_value("opening", "crt", crt_on)
 	cfg.set_value("opening", "show_fps", show_fps)
+	cfg.set_value("opening", "show_hitboxes", show_hitboxes)
 	cfg.set_value("opening", "sfx", media.sfx_vol)
 	cfg.set_value("opening", "music", media.music_vol)
 	cfg.set_value("opening", "lang", settings_lang)
@@ -5690,6 +6584,7 @@ func _fill_settings_edit() -> void:
 	settings_body.add_child(_settings_check_row(LineBook.row("SYS.SETTINGS", 13), media.captions_on, _toggle_captions))
 	settings_body.add_child(_settings_check_row(LineBook.row("SYS.SETTINGS", 14), crt_on, _toggle_crt))
 	settings_body.add_child(_settings_check_row("FPS", show_fps, _toggle_show_fps))
+	settings_body.add_child(_settings_check_row("Hitboxes", show_hitboxes, _toggle_show_hitboxes))
 	var lang := HBoxContainer.new()
 	lang.add_theme_constant_override("separation", 12)
 	lang.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -5796,6 +6691,15 @@ func _toggle_crt() -> void:
 func _toggle_show_fps() -> void:
 	show_fps = not show_fps
 	_apply_show_fps()
+	_save_prefs()
+	_fill_settings()
+
+
+func _toggle_show_hitboxes() -> void:
+	show_hitboxes = not show_hitboxes
+	if not show_hitboxes:
+		_hide_hitboxes()
+		_hide_agent_debug()
 	_save_prefs()
 	_fill_settings()
 
@@ -5943,6 +6847,10 @@ func _build_title_hud(root: Control) -> void:
 	title_hud.add_child(title_bars)
 	title_start = _title_wood_button(_title_press_start)
 	title_hud.add_child(title_start)
+	title_sandbox = _title_wood_button(_title_press_sandbox)
+	title_sandbox.text = "Sandbox"
+	title_sandbox.add_theme_font_size_override("font_size", 16)
+	title_hud.add_child(title_sandbox)
 	title_video = _title_icon_button("res://resources/ui/menu/video.png", _title_press_video, false)
 	title_video.flat = false
 	# Same OldOS cyan 9-slice used by the task banner (UI_OldOS_Button).
@@ -6015,6 +6923,10 @@ func _title_press_start() -> void:
 	if _continue_game():
 		return
 	_start_new_game()
+
+
+func _title_press_sandbox() -> void:
+	_start_sandbox_game()
 
 
 func _title_press_video() -> void:
@@ -6130,6 +7042,39 @@ func _start_new_game() -> void:
 	_enter_game()
 
 
+func _start_sandbox_game() -> void:
+	ThrongletSimServer.new_sandbox_game()
+	_reset_world_paint()
+	_reset_camera()
+	_enter_game()
+
+
+func _reset_world_paint() -> void:
+	painted.clear()
+	seen_epoch = -1
+	_feat_static_epoch = -1
+	_clear_feat_static()
+	if tilemap != null:
+		tilemap.clear()
+		water_cells.clear()
+	_paint_props([])
+
+
+func _sandbox_resize(delta: int) -> void:
+	var sim: ThrongletSim = ThrongletSimServer
+	if not sim.sandbox_mode:
+		return
+	var before := sim.land_tier
+	if delta > 0:
+		sim.sandbox_grow()
+	elif delta < 0:
+		sim.sandbox_shrink()
+	if sim.land_tier == before:
+		return
+	_reset_world_paint()
+	_close_slots()
+
+
 func _enter_dev() -> void:
 	if dev_on and dev_bench != null:
 		return
@@ -6155,6 +7100,7 @@ func _enter_dev() -> void:
 		charge_area.visible = false
 	if need_card != null:
 		need_card.visible = false
+	_hide_agent_debug()
 	_hide_marks()
 	for plate in biome_plates:
 		plate.visible = false
@@ -6178,6 +7124,8 @@ func _leave_dev() -> void:
 	_paint_props([])
 	painted.clear()
 	seen_epoch = -1
+	_feat_static_epoch = -1
+	_clear_feat_static()
 	if tilemap:
 		tilemap.clear()
 		water_cells.clear()
@@ -6216,6 +7164,13 @@ func _sync_title_hud(area: Vector2) -> void:
 	var start_s := Vector2(area.x * 0.265, area.y * 0.155)
 	title_start.size = start_s
 	title_start.position = Vector2(area.x * 0.383, area.y * 0.755)
+	if title_sandbox != null:
+		var sand_s := Vector2(area.x * 0.18, area.y * 0.08)
+		title_sandbox.size = sand_s
+		title_sandbox.position = Vector2(
+			title_start.position.x + (start_s.x - sand_s.x) * 0.5,
+			title_start.position.y + start_s.y + area.y * 0.012
+		)
 	var video_s := Vector2(area.x * 0.128, area.y * 0.150)
 	title_video.size = video_s
 	title_video.position = Vector2(area.x * 0.795, area.y * 0.725)
@@ -6294,6 +7249,10 @@ func _show_menu() -> void:
 	_clear_menu(slots_list)
 	_menu_label(slots_list, "PAUSA")
 	_menu_button(slots_list, "CONTINUAR", _close_slots)
+	if ThrongletSimServer.sandbox_mode:
+		_menu_label(slots_list, "ISLA %d" % ThrongletSimServer.land_tier)
+		_menu_button(slots_list, "ISLA +", _sandbox_resize.bind(1))
+		_menu_button(slots_list, "ISLA -", _sandbox_resize.bind(-1))
 	_menu_button(slots_list, "SALIR DE LA PARTIDA", _leave_to_title)
 	_menu_button(slots_list, "SALIR DEL JUEGO", _quit_game)
 
@@ -6450,56 +7409,34 @@ class _DashArea extends Node2D:
 		pts = p
 		color = c
 		dashed = d
-		zoom_scale = maxf(z, 0.001)
+		# Keep dashes in a stable world-space band; extreme zoom used to make the
+		# custom dash stepper run unbounded when a point went non-finite.
+		zoom_scale = clampf(z, 0.25, 8.0)
 		queue_redraw()
 
 	func _draw() -> void:
 		if pts.size() < 2:
 			return
+		var clean := PackedVector2Array()
+		clean.resize(pts.size())
+		var n := 0
+		for p in pts:
+			if is_finite(p.x) and is_finite(p.y):
+				clean[n] = p
+				n += 1
+		clean.resize(n)
+		if clean.size() < 2:
+			return
 		var w: float = maxf(1.0, 2.0 / zoom_scale)
 		if not dashed:
-			draw_polyline(pts, color, w, true)
+			draw_polyline(clean, color, w, true)
 			return
-		var dash_len: float = 10.0 / zoom_scale
-		var gap_len: float = 7.0 / zoom_scale
-		var cycle: float = dash_len + gap_len
-		var total := 0.0
-		var seg_lens: PackedFloat32Array = PackedFloat32Array()
-		seg_lens.resize(pts.size() - 1)
-		for i in range(pts.size() - 1):
-			var l := pts[i].distance_to(pts[i + 1])
-			seg_lens[i] = l
-			total += l
-		if total <= 0.001:
-			return
-		var dist := 0.0
-		var i := 0
-		var seg_pos := 0.0
-		while dist < total and i < seg_lens.size():
-			var seg_len: float = seg_lens[i]
-			if seg_len <= 0.001:
-				i += 1
-				seg_pos = 0.0
+		# Engine dashed stroke (finite-only). Avoids a custom while-loop that can
+		# hang forever if total length becomes INF/NaN (silent hard exit on macOS).
+		var dash_len: float = clampf(10.0 / zoom_scale, 2.0, 48.0)
+		for i in range(clean.size() - 1):
+			var a: Vector2 = clean[i]
+			var b: Vector2 = clean[i + 1]
+			if a.distance_squared_to(b) < 0.0001:
 				continue
-			var in_cycle := fmod(dist, cycle)
-			if in_cycle < dash_len:
-				var remain_dash := dash_len - in_cycle
-				var seg_remain := seg_len - seg_pos
-				var step := minf(remain_dash, seg_remain)
-				if step > 0.0:
-					var a := pts[i].lerp(pts[i + 1], seg_pos / seg_len)
-					var b := pts[i].lerp(pts[i + 1], (seg_pos + step) / seg_len)
-					draw_line(a, b, color, w, true)
-					dist += step
-					seg_pos += step
-				else:
-					dist += 0.001
-			else:
-				var remain_gap := cycle - in_cycle
-				var seg_remain := seg_len - seg_pos
-				var step := minf(remain_gap, seg_remain)
-				dist += maxf(step, 0.001)
-				seg_pos += maxf(step, 0.0)
-			if seg_pos >= seg_len - 0.001:
-				i += 1
-				seg_pos = 0.0
+			draw_dashed_line(a, b, color, w, dash_len, false, true)

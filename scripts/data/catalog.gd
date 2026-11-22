@@ -8,7 +8,13 @@ const CHUNK := 32
 const HASH_CELL := 64.0
 const HASH_SIZE := 4096
 const MAX_SLOTS := 120000
-const SLICE := 2500
+# Presentation: above this many on-screen thronglets, switch to cheap crowd LOD
+# (still draws every thronglet in the viewport — no density hiding).
+const DRAW_THRONG_DETAIL := 420
+# Seconds before a thronglet re-evaluates speech-bubble desire icons.
+const BARK_COOL := 1.6
+# How long a thronglet keeps walking toward a remembered seek target.
+const SEEK_HOLD := 0.55
 # Walkable land tiles needed before another thronglet can split.
 const SPACE_PER_THRONG := 14
 # Soft local pile limit: mitosis waits if this many already sit nearby.
@@ -368,6 +374,9 @@ static func footprint_for_building(kind: int) -> Vector2i:
 
 # World ellipse axes for thronglet approach / enter. Centered on the footprint mid.
 static func building_reach(kind: int) -> Vector2:
+	match kind:
+		BLD_APPLE:
+			return Vector2(10.0, 10.0)
 	var size := footprint_for_building(kind)
 	var pad := 10.0
 	match kind:
@@ -377,7 +386,7 @@ static func building_reach(kind: int) -> Vector2:
 			pad = 14.0
 		BLD_MINE, BLD_MINE2:
 			pad = 12.0
-		BLD_TUB, BLD_APPLE, BLD_FLOWER, BLD_STATUE, BLD_WOOD:
+		BLD_TUB, BLD_FLOWER, BLD_STATUE, BLD_WOOD:
 			pad = 10.0
 		_:
 			pad = 10.0
@@ -461,11 +470,28 @@ static func building_draw_off(kind: int) -> Vector2:
 		BLD_FACTORY, BLD_FACTORY2:
 			return Vector2(-14.0, -14.0)
 		BLD_THEATRE:
-			return Vector2(-18.0, -4.0)
+			return Vector2(-12.0, -12.0)
 		BLD_MARKET:
 			return Vector2(-12.0, -12.0)
 		_:
 			return Vector2.ZERO
+
+
+# Extra world offset for occupied/active building sprites (dwell/fancy/theatre).
+static func active_building_draw_off(kind: int) -> Vector2:
+	match kind:
+		BLD_DWELL:
+			return Vector2(22.8, 23.3)
+		BLD_FANCY:
+			return Vector2(18.8, 19.3)
+		BLD_THEATRE:
+			return Vector2(0.5, -0.5)
+		_:
+			return Vector2.ZERO
+
+
+static func building_has_active(kind: int) -> bool:
+	return kind == BLD_DWELL or kind == BLD_FANCY or kind == BLD_THEATRE
 
 
 static func feature_draw_off(kind: int, ore: int = 0) -> Vector2:
@@ -578,6 +604,7 @@ const GAZE := {
 	"nuke": {"kind": "confirm", "tree": "confirm_nuke", "allow": [0, 1]},
 	"learn_self": {"kind": "reflect", "tree": "CH02_S03_010INT1", "allow": [0, 1, 2]},
 	"what_is_care": {"kind": "reflect", "tree": "CH01_S06_WHATISLOVE", "allow": [0, 1, 2]},
+	"work_life": {"kind": "reflect", "tree": "CH02_SEE_300WORKLIF", "allow": [0, 1, 2]},
 	"monolith_appear": {"kind": "reflect", "tree": "", "allow": [0]},
 	"act3_maw": {"kind": "reflect", "tree": "ACT3_S020_GAPINGMAW", "allow": [0, 1, 2]},
 }
