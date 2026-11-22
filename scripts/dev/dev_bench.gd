@@ -25,9 +25,12 @@ var reach_y: SpinBox
 var scale_box: SpinBox
 var off_x: SpinBox
 var off_y: SpinBox
+var active_x: SpinBox
+var active_y: SpinBox
 var z_box: SpinBox
 var rot_box: SpinBox
 var quit_button: Button
+var active_button: Button
 var buttons := {}
 var armed := ""
 var drag_id := ""
@@ -37,10 +40,13 @@ var placed: Array = []
 var selected_uids: Array = []
 var next_uid := 1
 var nodes := {}
+var _node_used := {}
 var _fill := false
+var show_active := false
 var throng_mode := false
 var effect_mode := false
 var lab_mode := false
+const EFFECT_ACTIVE_UID := -2
 var throng_rail: PanelContainer
 var throng_bar: PanelContainer
 var effect_rail: PanelContainer
@@ -232,7 +238,7 @@ func tick() -> void:
 		queue_redraw()
 		return
 	var draws: Array = []
-	var used := {}
+	_node_used = {}
 	var throng_inst := {}
 	for inst in placed:
 		if effect_mode and str(inst.id) == THRONG_ID:
@@ -241,18 +247,18 @@ func tick() -> void:
 		var row := _row_for(str(inst.id))
 		if row.is_empty():
 			continue
-		_paint_inst(draws, row, _live_at(inst), 1.0, int(inst.uid), used)
+		_paint_inst(draws, row, _live_at(inst), 1.0, int(inst.uid), _node_used)
 	if effect_mode and not throng_inst.is_empty():
 		_paint_effect_throng(draws, _live_at(throng_inst), 1.0)
 	if _show_ghost():
 		var ghost := _row_for(drag_id)
 		if not ghost.is_empty():
 			var origin := Catalog.cell_world(_cursor_cell())
-			_paint_inst(draws, ghost, origin, 0.45, -1, used)
+			_paint_inst(draws, ghost, origin, 0.45, -1, _node_used)
 	draws.sort_custom(func(a, b): return float(a.sy) < float(b.sy))
 	main._paint_props(draws)
 	_lift_nodes()
-	_drop_nodes(used)
+	_drop_nodes(_node_used)
 	if throng_mode:
 		_sync_playhead()
 	if effect_mode:
@@ -650,6 +656,10 @@ func _paint_inst(draws: Array, row: Dictionary, origin: Vector2, alpha: float, u
 		node.visible = true
 		used[uid] = true
 		return
+	var kind := int(row.get("kind", -1))
+	if str(row.get("group", "")) == "building" and _want_active_sprite(kind):
+		_paint_active_building(draws, kind, origin, alpha, uid, used, tune)
+		return
 	var frame := _frame_of(row)
 	var at: Vector2 = _anchor(row, origin, tune, frame)
 	main._push_iso(draws, at, frame, Color(1, 1, 1, alpha), 0.0, float(tune.scale))
@@ -690,12 +700,69 @@ func _frame_of(row: Dictionary) -> int:
 
 
 func _take_node(uid: int) -> Node2D:
-	if nodes.has(uid) and is_instance_valid(nodes[uid]):
+	if nodes.has(uid) and is_instance_valid(nodes[uid]) and not (nodes[uid] is Sprite2D):
 		return nodes[uid]
+	if nodes.has(uid) and is_instance_valid(nodes[uid]):
+		nodes[uid].queue_free()
+		nodes.erase(uid)
 	var node: Node2D = (load("res://scripts/presentation/props/monolith_prop.gd") as GDScript).new()
 	main.world_layer.add_child(node)
 	nodes[uid] = node
 	return node
+
+
+func _want_active_sprite(kind: int) -> bool:
+	if not Catalog.building_has_active(kind):
+		return false
+	if show_active:
+		return true
+	return effect_mode and str(effect_id).begins_with("visit:")
+
+
+func _take_active_sprite(uid: int, kind: int) -> Sprite2D:
+	var tex: Texture2D = main._active_structure_texture(kind)
+	if nodes.has(uid) and is_instance_valid(nodes[uid]) and nodes[uid] is Sprite2D:
+		var kept: Sprite2D = nodes[uid]
+		kept.texture = tex
+		return kept
+	if nodes.has(uid) and is_instance_valid(nodes[uid]):
+		nodes[uid].queue_free()
+		nodes.erase(uid)
+	var node := Sprite2D.new()
+	node.centered = true
+	node.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	node.texture = tex
+	main.world_layer.add_child(node)
+	nodes[uid] = node
+	return node
+
+
+func _paint_active_building(
+	_draws: Array,
+	kind: int,
+	origin: Vector2,
+	alpha: float,
+	uid: int,
+	used: Dictionary,
+	tune: Dictionary
+) -> void:
+	var tex: Texture2D = main._active_structure_texture(kind)
+	if tex == null:
+		return
+	# Active offset is independent of the idle/default offset.
+	var frame: int = main._prop_frame(Catalog.icon_for_building(kind))
+	var size: Vector2i = tune.get("footprint", Vector2i(1, 1))
+	var sprite_scale := float(tune.scale)
+	var active_off: Vector2 = tune.active_offset if tune.has("active_offset") else Vector2.ZERO
+	var at: Vector2 = origin + Catalog.footprint_center(size) + main._pad_nudge(frame, sprite_scale, size) + active_off
+	var screen_p: Vector2 = main.cam_rig.to_iso(at)
+	var node: Sprite2D = _take_active_sprite(uid, kind)
+	node.scale = Vector2(sprite_scale, sprite_scale)
+	node.rotation_degrees = float(tune.rot)
+	node.modulate = Color(1, 1, 1, alpha)
+	node.position = screen_p + Vector2(0, -main.WORLD_CELL * 0.5 * sprite_scale)
+	node.visible = true
+	used[uid] = true
 
 
 func _lift_nodes() -> void:
@@ -712,7 +779,7 @@ func _drop_nodes(used: Dictionary) -> void:
 	for uid in nodes.keys():
 		if used.has(uid):
 			continue
-		if int(uid) == -1:
+		if int(uid) < 0:
 			if is_instance_valid(nodes[uid]):
 				nodes[uid].visible = false
 			continue
@@ -907,7 +974,7 @@ func _build_ui() -> void:
 	bar = PanelContainer.new()
 	bar.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	bar.offset_left = 60
-	bar.offset_top = -158
+	bar.offset_top = -178
 	bar.offset_right = -4
 	bar.offset_bottom = -4
 	bar.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -916,7 +983,7 @@ func _build_ui() -> void:
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 2)
 	var hint := Label.new()
-	hint.text = "SHIFT+CLICK MULTI. SHIFT+CMD+CLICK RANGO. LOS CAMBIOS VAN A TODOS. SAVE ESCRIBE prop_tune, throng_tune, anim_tune Y effect_tune. RX/RY ES LA ELIPSE DE INTERACCION DE LOS THRONGLETS."
+	hint.text = "SHIFT+CLICK MULTI. SHIFT+CMD+CLICK RANGO. LOS CAMBIOS VAN A TODOS. SAVE ESCRIBE prop_tune, throng_tune, anim_tune Y effect_tune. RX/RY ES LA ELIPSE DE INTERACCION. AX/AY MUEVE EL SPRITE ACTIVE (CASA/TEATRO). ACTIVE PREVISUALIZA ESA VERSION."
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(hint)
 	name_label = Label.new()
@@ -931,6 +998,8 @@ func _build_ui() -> void:
 	scale_box = _spin(0.01, 3.0, 0.05)
 	off_x = _spin(-160, 160, 1)
 	off_y = _spin(-160, 160, 1)
+	active_x = _spin(-160, 160, 1)
+	active_y = _spin(-160, 160, 1)
 	z_box = _spin(-40, 40, 1)
 	rot_box = _spin(-180, 180, 1)
 	grid_x.tooltip_text = "Celdas que ocupa en X"
@@ -938,8 +1007,10 @@ func _build_ui() -> void:
 	reach_x.tooltip_text = "Eje X de la elipse de interaccion (pixeles de mundo). Los thronglets se acercan por este anillo."
 	reach_y.tooltip_text = "Eje Y de la elipse de interaccion (pixeles de mundo). Los thronglets se acercan por este anillo."
 	scale_box.tooltip_text = "Escala del sprite"
-	off_x.tooltip_text = "Mueve el sprite en X, pixeles de mundo"
-	off_y.tooltip_text = "Mueve el sprite en Y, pixeles de mundo"
+	off_x.tooltip_text = "Offset X. Con ACTIVE OFF: sprite idle. Con ACTIVE ON: solo el sprite occupied."
+	off_y.tooltip_text = "Offset Y. Con ACTIVE OFF: sprite idle. Con ACTIVE ON: solo el sprite occupied."
+	active_x.tooltip_text = "Offset X solo del sprite active/ocupado (mismo valor que X con ACTIVE ON)."
+	active_y.tooltip_text = "Offset Y solo del sprite active/ocupado (mismo valor que Y con ACTIVE ON)."
 	z_box.tooltip_text = "Orden. Mas alto queda delante. En el monolito es el z_index."
 	rot_box.tooltip_text = "Rotacion en grados. Positivo gira a la derecha, alrededor del ancla."
 	_pair(metrics, "GX", grid_x)
@@ -949,6 +1020,8 @@ func _build_ui() -> void:
 	_pair(metrics, "SC", scale_box)
 	_pair(metrics, "X", off_x)
 	_pair(metrics, "Y", off_y)
+	_pair(metrics, "AX", active_x)
+	_pair(metrics, "AY", active_y)
 	_pair(metrics, "Z", z_box)
 	_pair(metrics, "R", rot_box)
 	box.add_child(metrics)
@@ -957,6 +1030,9 @@ func _build_ui() -> void:
 	actions.add_child(_text_button("RESET", _reset_kind))
 	quit_button = _text_button("QUITAR", _remove_selected)
 	actions.add_child(quit_button)
+	active_button = _text_button("ACTIVE", _toggle_active_preview)
+	active_button.tooltip_text = "Mostrar la version occupied/active del edificio (casa, lujo, teatro)"
+	actions.add_child(active_button)
 	actions.add_child(_text_button("SAVE & RESTART", _save_restart))
 	actions.add_child(_text_button("ANIM", _show_throng))
 	actions.add_child(_text_button("EFFECTS", _show_effects))
@@ -977,8 +1053,11 @@ func _build_ui() -> void:
 	scale_box.value_changed.connect(_on_scale)
 	off_x.value_changed.connect(_on_offset)
 	off_y.value_changed.connect(_on_offset)
+	active_x.value_changed.connect(_on_active_offset)
+	active_y.value_changed.connect(_on_active_offset)
 	z_box.value_changed.connect(_on_z)
 	rot_box.value_changed.connect(_on_rot)
+	_sync_active_button()
 	_build_throng_ui(theme, root)
 	_build_effect_ui(theme, root)
 	_build_lab_ui(theme, root)
@@ -1103,9 +1182,20 @@ func _clear_edit() -> void:
 func _set_edit_enabled(on: bool) -> void:
 	for box in [grid_x, grid_y, scale_box, off_x, off_y, z_box, rot_box]:
 		box.editable = on
-	var building := on and str(PropTune.entry(armed).get("group", "")) == "building"
+	var row: Dictionary = PropTune.entry(armed) if on else {}
+	var building := on and str(row.get("group", "")) == "building"
 	reach_x.editable = building
 	reach_y.editable = building
+	var has_active := building and Catalog.building_has_active(int(row.get("kind", -1)))
+	active_x.editable = has_active
+	active_y.editable = has_active
+
+
+func _editing_active_offset() -> bool:
+	if not show_active:
+		return false
+	var row: Dictionary = PropTune.entry(armed)
+	return not row.is_empty() and Catalog.building_has_active(int(row.get("kind", -1)))
 
 
 func _fill_inspector() -> void:
@@ -1116,10 +1206,13 @@ func _fill_inspector() -> void:
 	var size: Vector2i = tune.footprint
 	var off: Vector2 = tune.offset
 	var reach: Vector2 = tune.reach
+	var active_off: Vector2 = tune.active_offset if tune.has("active_offset") else Vector2.ZERO
 	var title := "%s   %s" % [str(row.label), str(row.constant)]
 	var kinds := _edit_ids()
 	if kinds.size() > 1:
 		title = "%s  +%d" % [title, kinds.size() - 1]
+	if Catalog.building_has_active(int(row.get("kind", -1))):
+		title = "%s  [%s]" % [title, "ACTIVE" if show_active else "IDLE"]
 	name_label.text = title
 	_fill = true
 	grid_x.set_value_no_signal(size.x)
@@ -1127,12 +1220,20 @@ func _fill_inspector() -> void:
 	reach_x.set_value_no_signal(reach.x)
 	reach_y.set_value_no_signal(reach.y)
 	scale_box.set_value_no_signal(float(tune.scale))
-	off_x.set_value_no_signal(off.x)
-	off_y.set_value_no_signal(off.y)
+	# With ACTIVE ON, X/Y dial the active sprite; idle offset stays in AX/AY mirrors.
+	if _editing_active_offset():
+		off_x.set_value_no_signal(active_off.x)
+		off_y.set_value_no_signal(active_off.y)
+	else:
+		off_x.set_value_no_signal(off.x)
+		off_y.set_value_no_signal(off.y)
+	active_x.set_value_no_signal(active_off.x)
+	active_y.set_value_no_signal(active_off.y)
 	z_box.set_value_no_signal(float(tune.z))
 	rot_box.set_value_no_signal(float(tune.rot))
 	_fill = false
 	_set_edit_enabled(true)
+	_sync_active_button()
 
 
 func _mark_buttons() -> void:
@@ -1213,10 +1314,49 @@ func _on_offset(_v: float) -> void:
 	var ids := _edit_ids()
 	if ids.is_empty():
 		return
-	for id in ids:
-		PropTune.set_offset(str(id), off_x.value, off_y.value)
+	if _editing_active_offset():
+		for id in ids:
+			PropTune.set_active_offset(str(id), off_x.value, off_y.value)
+		_fill = true
+		active_x.set_value_no_signal(off_x.value)
+		active_y.set_value_no_signal(off_y.value)
+		_fill = false
+	else:
+		for id in ids:
+			PropTune.set_offset(str(id), off_x.value, off_y.value)
 	_mark_buttons()
 	_refresh_status()
+
+
+func _on_active_offset(_v: float) -> void:
+	if _fill:
+		return
+	var ids := _edit_ids()
+	if ids.is_empty():
+		return
+	for id in ids:
+		PropTune.set_active_offset(str(id), active_x.value, active_y.value)
+	if _editing_active_offset():
+		_fill = true
+		off_x.set_value_no_signal(active_x.value)
+		off_y.set_value_no_signal(active_y.value)
+		_fill = false
+	_mark_buttons()
+	_refresh_status()
+
+
+func _toggle_active_preview() -> void:
+	show_active = not show_active
+	_sync_active_button()
+	if armed != "" and not PropTune.entry(armed).is_empty():
+		_fill_inspector()
+
+
+func _sync_active_button() -> void:
+	if active_button == null:
+		return
+	active_button.modulate = Color(0.55, 1.0, 0.7) if show_active else Color.WHITE
+	active_button.text = "ACTIVE ON" if show_active else "ACTIVE"
 
 
 func _on_z(v: float) -> void:
@@ -2444,6 +2584,9 @@ func _paint_building(draws: Array, kind: int, origin: Vector2, alpha: float, fra
 	if row.is_empty():
 		return
 	var tune: Dictionary = PropTune.get_tune(str(row.id))
+	if _want_active_sprite(kind):
+		_paint_active_building(draws, kind, origin, alpha, EFFECT_ACTIVE_UID, _node_used, tune)
+		return
 	var frame := frame_override
 	if frame < 0:
 		frame = _frame_of(row)
