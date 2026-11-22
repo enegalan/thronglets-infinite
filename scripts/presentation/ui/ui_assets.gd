@@ -70,6 +70,22 @@ func slot_style() -> StyleBoxTexture:
 	return box_style("res://resources/ui/ui_slot.png", 4, 3)
 
 
+func gem_style() -> StyleBoxTexture:
+	var style := StyleBoxTexture.new()
+	style.texture = tex("res://resources/ui/gem_frame.png")
+	style.texture_margin_left = 17
+	style.texture_margin_right = 19
+	style.texture_margin_top = 5
+	style.texture_margin_bottom = 5
+	style.axis_stretch_horizontal = StyleBoxTexture.AXIS_STRETCH_MODE_STRETCH
+	style.axis_stretch_vertical = StyleBoxTexture.AXIS_STRETCH_MODE_STRETCH
+	style.content_margin_left = 6
+	style.content_margin_right = 8
+	style.content_margin_top = 2
+	style.content_margin_bottom = 2
+	return style
+
+
 func choice_box(fill: Color, edge: Color) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
 	style.bg_color = fill
