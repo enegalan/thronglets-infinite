@@ -2,7 +2,7 @@ class_name ProgressionCatalog
 
 # Progression catalog for infinite mode. Unlock keys align with existing Catalog/sim keys.
 
-enum ConditionType { POPULATION, GEMS_EARNED, METRIC_THRESHOLD, UNLOCKED }
+enum ConditionType { POPULATION, GEMS_EARNED, METRIC_THRESHOLD, UNLOCKED, BUILDING_PLACED }
 
 static func cond_population(min_pop: int) -> Dictionary:
 	return {"type": ConditionType.POPULATION, "min": min_pop}
@@ -15,6 +15,9 @@ static func cond_metric(metric: String, min_value: float) -> Dictionary:
 
 static func cond_unlocked(item_id: String) -> Dictionary:
 	return {"type": ConditionType.UNLOCKED, "itemId": item_id}
+
+static func cond_building_placed(item_id: String) -> Dictionary:
+	return {"type": ConditionType.BUILDING_PLACED, "itemId": item_id}
 
 static func entry(id: String, name: String, category: String, unlock_conditions: Array, base_gem_cost: int, cost_multiplier: float, area_radius: int, replaces: String = "") -> Dictionary:
 	var e := {
@@ -35,12 +38,12 @@ static var CATALOG: Array = [
 	entry("ball", "Pelota", "tool", [], 0, 1.0, 0),
 	entry("sponge", "Esponja", "tool", [], 0, 1.0, 0),
 	entry("bathtub", "Bañera", "building", [cond_population(6)], 0, 1.4, 1),
-	entry("apple_tree", "Manzano", "building", [cond_population(10)], 0, 1.5, 2),
-	entry("roundabout", "Carrusel", "building", [cond_population(15)], 0, 1.5, 2),
+	entry("apple_tree", "Manzano", "building", [cond_building_placed("bathtub")], 0, 1.5, 2),
+	entry("roundabout", "Carrusel", "building", [cond_building_placed("apple_tree")], 0, 1.5, 2),
 	entry("hammer", "Martillo", "tool", [cond_metric("trees_cut", 1)], 0, 1.0, 0),
 	entry("axe", "Hacha", "tool", [cond_population(6)], 0, 1.0, 0),
 	entry("bug", "El Bug", "tool", [cond_unlocked("__monolith_tier1__")], 0, 1.0, 0),
-	entry("pickaxe", "Pico", "tool", [cond_unlocked("hammer"), cond_gems(15)], 15, 1.0, 2, "hammer"),
+	entry("pickaxe", "Pico", "tool", [cond_unlocked("hammer"), cond_gems(15)], 15, 1.0, 2),
 	entry("mine", "Mina", "building", [cond_unlocked("pickaxe")], 0, 1.0, 1),
 	entry("dwelling", "Vivienda", "building", [cond_gems(200)], 10, 1.0, 2),
 	entry("factory", "Fábrica", "building", [cond_gems(300)], 20, 1.0, 2),

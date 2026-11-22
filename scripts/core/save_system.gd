@@ -174,6 +174,7 @@ func save_game() -> bool:
 		"total_gems_earned": sim.total_gems_earned,
 		"deaths_total": sim.deaths_total,
 		"land_tier": sim.land_tier,
+		"sandbox_mode": sim.sandbox_mode,
 		"glitch_seen": sim.glitch_seen,
 		"unlocks": sim.unlocks.duplicate(true),
 		"ethics": sim.ethics.duplicate(true),
@@ -256,6 +257,7 @@ func load_game() -> bool:
 	sim.total_gems_earned = maxi(int(data.get("total_gems_earned", sim.gems_peak)), sim.gems_peak)
 	sim.deaths_total = int(data.get("deaths_total", 0))
 	sim.land_tier = int(data.get("land_tier", 0))
+	sim.sandbox_mode = bool(data.get("sandbox_mode", false))
 	sim.unlocks = data.get("unlocks", sim.unlocks)
 	sim.glitch_seen = bool(data.get("glitch_seen", false))
 	sim.ethics = data.get("ethics", [])
