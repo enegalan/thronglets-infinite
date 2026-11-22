@@ -13,7 +13,7 @@ const DEFAULTS := {
 	"need": {"ok": 85.0, "hungry": 75.0, "seek": 40.0, "fun": 82.0},
 	"visit:dwell": {"cap": 4.0, "stay": 18.0, "cool": 14.0, "fed": 6.0, "clean": 8.0, "fun": 0.0},
 	"visit:fancy": {"cap": 10.0, "stay": 24.0, "cool": 12.0, "fed": 7.0, "clean": 12.0, "fun": 0.0},
-	"visit:theatre": {"cap": 18.0, "stay": 14.0, "cool": 10.0, "fed": 0.0, "clean": 0.0, "fun": 9.0},
+	"visit:theatre": {"cap": 18.0, "stay": 30.0, "cool": 10.0, "fed": 0.0, "clean": 0.0, "fun": 9.0},
 	"aura:flower": {"radius": 28.0, "limit": 3.0, "fun": 3.5, "buff": 0.0},
 	"aura:statue": {"radius": 36.0, "limit": 4.0, "fun": 5.0, "buff": 0.8},
 	"aura:wood": {"radius": 36.0, "limit": 4.0, "fun": 5.0, "buff": 0.8},

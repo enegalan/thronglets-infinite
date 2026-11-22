@@ -70,6 +70,13 @@ static func set_reach(id: String, x: float, y: float) -> void:
 	_assign(id, "reach", at)
 
 
+static func set_active_offset(id: String, x: float, y: float) -> void:
+	if not Catalog.building_has_active(int(entry(id).get("kind", -1))):
+		return
+	var at := Vector2(snappedf(clampf(x, -160.0, 160.0), 0.01), snappedf(clampf(y, -160.0, 160.0), 0.01))
+	_assign(id, "active_offset", at)
+
+
 static func reset(id: String) -> void:
 	overrides.erase(id)
 
@@ -229,6 +236,7 @@ static func _defaults(row: Dictionary) -> Dictionary:
 	var scale := 1.0
 	var offset := Vector2.ZERO
 	var reach := Vector2.ZERO
+	var active_offset := Vector2.ZERO
 	if not row.is_empty():
 		var group := str(row.group)
 		var kind := int(row.kind)
@@ -238,6 +246,7 @@ static func _defaults(row: Dictionary) -> Dictionary:
 			scale = Catalog.building_sprite_scale(kind)
 			offset = Catalog.building_draw_off(kind)
 			reach = Catalog.building_reach(kind)
+			active_offset = Catalog.active_building_draw_off(kind)
 		elif group == "feature":
 			size = Catalog.footprint_for_feature(kind)
 			scale = Catalog.feature_sprite_scale(kind, ore)
@@ -245,7 +254,15 @@ static func _defaults(row: Dictionary) -> Dictionary:
 		elif group == "item":
 			scale = Catalog.item_sprite_scale(kind)
 			offset = Catalog.item_draw_off(kind)
-	return {"footprint": size, "scale": scale, "offset": offset, "z": 0.0, "rot": 0.0, "reach": reach}
+	return {
+		"footprint": size,
+		"scale": scale,
+		"offset": offset,
+		"z": 0.0,
+		"rot": 0.0,
+		"reach": reach,
+		"active_offset": active_offset,
+	}
 
 
 static func _assign(id: String, key: String, value) -> void:
@@ -268,7 +285,7 @@ static func _assign(id: String, key: String, value) -> void:
 static func _same(key: String, a, b) -> bool:
 	if key == "footprint":
 		return a == b
-	if key == "offset" or key == "reach":
+	if key == "offset" or key == "reach" or key == "active_offset":
 		return (a as Vector2).is_equal_approx(b)
 	return is_equal_approx(float(a), float(b))
 
@@ -276,7 +293,7 @@ static func _same(key: String, a, b) -> bool:
 static func _read_value(key: String, raw):
 	if raw == null:
 		return null
-	if key == "footprint" or key == "offset" or key == "reach":
+	if key == "footprint" or key == "offset" or key == "reach" or key == "active_offset":
 		if typeof(raw) != TYPE_ARRAY or raw.size() < 2:
 			return null
 		if key == "footprint":
@@ -310,7 +327,9 @@ static func _document() -> Dictionary:
 		var tune := get_tune(id)
 		var base := _defaults(row)
 		var fields := {}
-		for key in ["footprint", "scale", "offset", "z", "rot", "reach"]:
+		for key in ["footprint", "scale", "offset", "z", "rot", "reach", "active_offset"]:
+			if not base.has(key) or not tune.has(key):
+				continue
 			if _same(key, base[key], tune[key]):
 				continue
 			fields[key] = {
@@ -341,6 +360,7 @@ static func _document() -> Dictionary:
 			"z": "sprite: added to sort y, higher draws in front. node: Node2D z_index",
 			"rot": "degrees, clockwise, around the anchor. 0 leaves the sprite unrotated",
 			"reach": "world ellipse axes [rx, ry] centered on the footprint mid. Thronglets approach and enter on this ring",
+			"active_offset": "extra world pixels [x, y] on the occupied/active building sprite only (dwell/fancy/theatre)",
 		},
 		"changes": changes,
 	}
@@ -350,7 +370,7 @@ static func _json_value(key: String, value):
 	if key == "footprint":
 		var size: Vector2i = value
 		return [size.x, size.y]
-	if key == "offset" or key == "reach":
+	if key == "offset" or key == "reach" or key == "active_offset":
 		var at: Vector2 = value
 		return [snappedf(at.x, 0.01), snappedf(at.y, 0.01)]
 	if key == "scale":
@@ -414,6 +434,8 @@ static func _apply_in(row: Dictionary, key: String) -> String:
 		return only + " Degrees, clockwise, around the anchor after footprint_center, _pad_nudge, and the extra offset. Main._write_mesh reads the draw key rot and spins the quad around p. Set rot on this prop's draws in _sync_actors, the carried ghost, the kit ghost, and the focus draw. 0 means leave the key unset. Do not rotate other props."
 	if key == "reach":
 		return only + " Change that match arm in Catalog.building_reach. If it falls through to the footprint+pad formula, give it its own arm with Vector2(rx, ry) in world pixels. ThrongletSimServer._approach_building and enter checks already call Catalog.building_reach."
+	if key == "active_offset":
+		return only + " Change that match arm in Catalog.active_building_draw_off. Main._building_active_draw_at uses this instead of building_draw_off. Idle/default offset is untouched. Only occupied dwell/fancy/theatre sprites use it."
 	if bool(row.node):
 		return only + " Set z_index on the monolith Node2D in Main._sync_monolith. 0 means leave it unset."
 	return only + " Add this number to that prop's draw sy after _push_iso. Higher draws in front. Multimesh props have no z_index. Do not set one."
@@ -432,5 +454,6 @@ static func _how() -> String:
 		"z on a sprite is a sort-y bias. z on a node is z_index.",
 		"rot is degrees clockwise around the anchor. 0 means no rotation.",
 		"reach is the thronglet interaction ellipse [rx, ry] on the footprint mid. Change Catalog.building_reach.",
+		"active_offset is extra world pixels for the occupied/active sprite only. Change Catalog.active_building_draw_off.",
 		"Do not change costs, unlocks, or unlisted props.",
 	]))
