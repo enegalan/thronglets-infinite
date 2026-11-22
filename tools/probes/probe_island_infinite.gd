@@ -1,0 +1,51 @@
+extends SceneTree
+
+const SimScript := preload("res://scripts/core/ThrongletSimServer.gd")
+
+
+func _init() -> void:
+	call_deferred("_run")
+
+
+func _run() -> void:
+	var sim = SimScript.new()
+	sim.testing = true
+	sim.smoke_hold = true
+	sim.world_seed = 7777
+	seed(7777)
+	root.add_child(sim)
+	await process_frame
+	await process_frame
+	sim.testing = true
+	sim.smoke_hold = true
+	sim.frozen = false
+	if not sim.chunks.has("0,0"):
+		sim._bootstrap_new()
+	var r0: float = sim._island_reach()
+	var land0 := _count_land(sim)
+	print("tier0 reach=", r0, " land=", land0, " chunks=", sim.chunks.size())
+	sim.land_tier = 3
+	var added3: int = sim._shape_island()
+	var r3: float = sim._island_reach()
+	var land3 := _count_land(sim)
+	print("tier3 reach=", r3, " land=", land3, " added=", added3, " chunks=", sim.chunks.keys())
+	sim.land_tier = 8
+	var added8: int = sim._shape_island()
+	var r8: float = sim._island_reach()
+	var land8 := _count_land(sim)
+	print("tier8 reach=", r8, " land=", land8, " added=", added8, " chunks=", sim.chunks.size(), " keys=", sim.chunks.keys())
+	print("milestone8=", sim._milestone_at(8), " milestone9=", sim._milestone_at(9))
+	var ok: bool = r0 == 170.0 and r3 > 252.0 and r8 > r3 and land8 > land3 and sim.chunks.size() > 1
+	print("PASS" if ok else "FAIL")
+	quit(0 if ok else 1)
+
+
+func _count_land(sim) -> int:
+	var n := 0
+	for ck in sim.chunks.keys():
+		var tiles = sim.chunks[ck].tiles
+		for i in tiles.size():
+			var t := int(tiles[i])
+			if t != Catalog.TILE_VOID and t != Catalog.TILE_FOG:
+				n += 1
+	return n
