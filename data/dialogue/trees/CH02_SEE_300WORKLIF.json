@@ -1,43 +1,60 @@
 {
- "id": "CH02_SEE_300WORKLIF",
- "source": "CH02_SEE_300WORKLIF",
- "status": "draft",
- "start": "n0",
- "nodes": {
-  "n0": {
-   "lines": [
-    {
-     "who": "them",
-     "text": ", ¿podemos hacerte una pregunta?"
+  "id": "CH02_SEE_300WORKLIF",
+  "source": "CH02_SEE_300WORKLIF",
+  "status": "curated",
+  "start": "n0",
+  "nodes": {
+    "n0": {
+      "lines": [
+        {"who": "them", "text": ", ¿podemos hacerte una pregunta?"}
+      ],
+      "choices": [
+        {"label": "No tengo tiempo.", "next": "", "moral": 0, "mutate": ""},
+        {"label": "¿Ajá?", "next": "n_ask", "moral": 0, "mutate": ""},
+        {"label": "Genial. ¿Es todo?", "next": "n_ask", "moral": 0, "mutate": ""}
+      ]
     },
-    {
-     "who": "them",
-     "text": "Nos haces una consulta. Interesante."
+    "n_ask": {
+      "lines": [
+        {"who": "them", "text": "Descubrimos que tenemos la capacidad de ajustar valores en ciertas estructuras."},
+        {"who": "them", "text": "En particular para las viviendas."},
+        {"who": "them", "text": "Ahora, los trabajadores pasan un tiempo X en las viviendas antes de volver al trabajo."},
+        {"who": "them", "text": "Podemos reducir el valor de X."},
+        {"who": "them", "text": "¿Qué preferirías?"}
+      ],
+      "choices": [
+        {"label": "Sí, menos tiempo en las viviendas.", "next": "n_less", "moral": 0, "mutate": ""},
+        {"label": "Creo que hay que mantenerlo igual.", "next": "n_keep", "moral": 0, "mutate": ""},
+        {"label": "Eh, ¿qué significa eso?", "next": "n_explain", "moral": 0, "mutate": ""}
+      ]
+    },
+    "n_explain": {
+      "lines": [
+        {"who": "them", "text": "Para lo mismo, ¿te gustaría que pasáramos menos tiempo en las viviendas?"},
+        {"who": "them", "text": "Esto debería ayudar con tanto trabajo."}
+      ],
+      "choices": [
+        {"label": "Sí, menos tiempo en las viviendas.", "next": "n_less", "moral": 0, "mutate": ""},
+        {"label": "Creo que hay que mantenerlo igual.", "next": "n_keep", "moral": 0, "mutate": ""}
+      ]
+    },
+    "n_less": {
+      "lines": [
+        {"who": "them", "text": "¿Más trabajo y menos descanso? ¡Genial!"},
+        {"who": "them", "text": "Entendido."}
+      ],
+      "choices": [
+        {"label": "Adelante.", "next": "", "moral": -1, "mutate": "short_rest"}
+      ]
+    },
+    "n_keep": {
+      "lines": [
+        {"who": "them", "text": "Entendemos."},
+        {"who": "them", "text": "Entendido."}
+      ],
+      "choices": [
+        {"label": "Que descansen.", "next": "", "moral": 1, "mutate": "care"}
+      ]
     }
-   ],
-   "choices": [
-    {
-     "label": "No tengo tiempo.",
-     "next": "",
-     "moral": 1,
-     "mutate": "care"
-    },
-    {
-     "label": "¿Ajá?",
-     "next": "",
-     "moral": 0,
-     "mutate": ""
-    },
-    {
-     "label": "Genial. ¿Es todo?",
-     "next": "",
-     "moral": -1,
-     "mutate": "numb"
-    }
-   ]
   }
- },
- "lines_in": 24,
- "lines_used": 5,
- "part": null
 }

@@ -399,7 +399,7 @@ The share button, the Netflix account, the recorder's label, this playthrough's 
 
 ### World and tools
 
-- [ ] Fix Energy frame, it is positioned right behind the tasks frame, in a buggy way.
+- [x] Fix Energy frame, it is positioned right behind the tasks frame, in a buggy way.
 - [ ] Pointing hand of the tutorial: a big white hand (`UI_Tutorial_HandPointA.json`, `UI_Tutorial_HandPointB.json`, `UI_Tutorial_HandTouch.json`, `UI_Tutorial_TouchRings_1..2.json` in `sactx-0-128x128-ASTC 4x4-Sprites-UITutorial-d57718eb.png`) that points at the thronglet and asks for the first click. (capturas: [3:30](video-frames/t003-30.jpg))
   - [ ] Adding to this, I would make changes related to what is given to the user initially. Right now we are giving him apple, sponge and ball. We should give first an apple (triggers `ThrongA_Eat_001..002` + `Prop_Apple_Bite_1..3` -> `ThrongA_Celebrate_Spritesheet_*`), then the ball (triggers `ThrongA_Jump_VariantA_*` -> `celebrate`), then sponge (triggers `FX_CleanSparkles_Spritesheet` / `FX_SoapBubbles_Spritesheet` -> `ThrongA_Mitosis_*` / sign progression). Confirm exact sequence against `SEQ_1.json`–`SEQ_8.json`.
 - [x] White arc while dragging the hammer, and a green box on the rock or the trunk. (capturas: [11:00](video-frames/t011-00.jpg), [17:00](video-frames/t017-00.jpg), [37:00](video-frames/t037-00.jpg))
