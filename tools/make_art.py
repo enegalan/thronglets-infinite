@@ -1677,8 +1677,9 @@ def _write_asset_frames(slots):
     lines.append("\t\treturn -1")
     lines.append("\treturn start + posmod(tick, count)")
     lines.append("")
-    with open(OUT("asset_frames.gd"), "w") as handle:
-        handle.write("\n".join(lines) + "\n")
+    for rel in ("asset_frames.gd", os.path.join("scripts", "data", "asset_frames.gd")):
+        with open(OUT(rel), "w") as handle:
+            handle.write("\n".join(lines) + "\n")
 
 
 def _trim_frame(img):
@@ -1811,9 +1812,10 @@ def _stamp_fx_and_biomes(sheet, cols, index):
             index += 1
         slots.append((name, start, len(frames)))
 
-    take("BUBBLE", "FX_SoapBubbles_Spritesheet.png", (28, 28))
-    take("BUBBLE_LIGHT", "FX_SoapBubblesLight_Spritesheet.png", (28, 28), 0)
-    take("CLEAN", "FX_CleanSparkles_Spritesheet.png", (28, 28))
+    take("BUBBLE", "FX_SoapBubbles_Spritesheet.png", (28, 28), 3)
+    take("BUBBLE_LIGHT", "FX_SoapBubblesLight_Spritesheet.png", (28, 28), 3)
+    # Two sparkle poses side-by-side in the Unity sheet (not one fitted burst).
+    take("CLEAN", "FX_CleanSparkles_Spritesheet.png", (28, 28), 2)
     take("SPLASH", "FX_WaterSplash_Spritesheet.png", (48, 36), 0)
     take("SMOKE", "T_PixelSmoke.png", (28, 28))
     take("AURA", "T_AuraSmoke.png", (36, 36))
@@ -1856,18 +1858,47 @@ def _stamp_fx_and_biomes(sheet, cols, index):
     return index
 
 
+# Opaque feet sit here across throng body clips (2px pad so the cell edge never clips).
+THRONG_FOOT_Y = CELL_H - 2
+
+
+def _throng_skip_home(name):
+    # Cinematics / props keep hand-tuned FRAME_OFF placement in throng_tune.gd.
+    if name.startswith("Throng_Egg") or "Prop_" in name or "Outline" in name:
+        return True
+    if "Mitosis" in name or "FallInBath" in name or "Roundabout" in name:
+        return True
+    return False
+
+
+def _throng_preserve_air(name):
+    # Keep relative hop/swing inside the clip; everything else locks feet per frame.
+    keys = ("Celebrate", "Jump", "Flying", "Pickaxe", "LiftProp", "DropProp")
+    return any(key in name for key in keys)
+
+
 def _throng_fit(frames):
     # Keep the Unity pixels. Scale a clip only when it does not fit in the cell.
+    # Empty frames (e.g. FreakOut 10–11) must not inflate the shared pivot anchor.
     limit = float(CELL_W - 4)
     max_w = 1
     max_h = 1
-    for img, _dirt, _pivot in frames:
+    usable = []
+    for img, dirt, pivot in frames:
+        if img is None or img.getbbox() is None:
+            continue
+        usable.append((img, dirt, pivot))
         max_w = max(max_w, img.size[0])
         max_h = max(max_h, img.size[1])
+    if not usable:
+        usable = [(img, dirt, pivot) for img, dirt, pivot in frames if img is not None]
+        for img, _dirt, _pivot in usable:
+            max_w = max(max_w, img.size[0])
+            max_h = max(max_h, img.size[1])
     scale = min(1.0, limit / float(max_w), limit / float(max_h))
     anchor = 0.0
-    for img, _dirt, pivot in frames:
-        anchor = max(anchor, pivot[1] * img.size[1] * scale)
+    for img, _dirt, pivot in usable:
+        anchor = max(anchor, float(pivot[1]) * img.size[1] * scale)
     return scale, min(anchor, float(CELL_H - 4))
 
 
@@ -1885,6 +1916,53 @@ def _unity_throng_cell(img, pivot, scale, anchor):
     pivot_y = (1.0 - pivot[1]) * height
     _blit(cell, img, CELL_W * 0.5 - pivot_x, (CELL_H - anchor) - pivot_y)
     return cell
+
+
+def _shift_cell(cell, dx, dy):
+    if dx == 0 and dy == 0:
+        return cell
+    out = new(CELL_W, CELL_H)
+    _blit(out, cell, dx, dy)
+    return out
+
+
+def _home_shift_for_cells(cells, foot_y=THRONG_FOOT_Y, preserve_air=True):
+    """Shared (dx, dy) from body cells. Dirt must reuse this so layers stay locked."""
+    mids = []
+    foots = []
+    for cell in cells:
+        box = cell.getbbox()
+        if not box:
+            foots.append(None)
+            continue
+        foots.append(box[3])
+        mids.append((box[0] + box[2]) * 0.5)
+    dx = 0
+    if mids:
+        dx = int(round(CELL_W * 0.5 - sorted(mids)[len(mids) // 2]))
+    grounded = [foot for foot in foots if foot is not None]
+    if not grounded:
+        return [(dx, 0) for _ in cells]
+    if preserve_air:
+        dy = int(foot_y) - max(grounded)
+        return [(dx, dy) for _ in cells]
+    shifts = []
+    for foot in foots:
+        if foot is None:
+            shifts.append((dx, 0))
+        else:
+            shifts.append((dx, int(foot_y) - foot))
+    return shifts
+
+
+def _home_throng_cells(cells, foot_y=THRONG_FOOT_Y, preserve_air=True, shifts=None):
+    """Put opaque feet on foot_y. preserve_air keeps hop/swing relative to the clip."""
+    if shifts is None:
+        shifts = _home_shift_for_cells(cells, foot_y, preserve_air)
+    out = []
+    for cell, (dx, dy) in zip(cells, shifts):
+        out.append(_shift_cell(cell, dx, dy) if dx or dy else cell)
+    return out
 
 
 def _blit(base, img, x, y):
@@ -1979,9 +2057,16 @@ def _stamp_throng_anims(sheet, cols):
         frames = clips[name]
         start = index
         scale, anchor = _throng_fit(frames)
-        for frame, dirt, pivot in frames:
-            _stamp_cell(sheet, cols, index, _unity_throng_cell(frame, pivot, scale, anchor))
-            _stamp_cell(dirt_sheet, cols, index, _unity_throng_cell(dirt, pivot, scale, anchor))
+        bodies = [_unity_throng_cell(frame, pivot, scale, anchor) for frame, _dirt, pivot in frames]
+        dirts = [_unity_throng_cell(dirt, pivot, scale, anchor) for _frame, dirt, pivot in frames]
+        if not _throng_skip_home(name):
+            keep_air = _throng_preserve_air(name)
+            shifts = _home_shift_for_cells(bodies, preserve_air=keep_air)
+            bodies = _home_throng_cells(bodies, preserve_air=keep_air, shifts=shifts)
+            dirts = _home_throng_cells(dirts, preserve_air=keep_air, shifts=shifts)
+        for body, dirt in zip(bodies, dirts):
+            _stamp_cell(sheet, cols, index, body)
+            _stamp_cell(dirt_sheet, cols, index, dirt)
             index += 1
         entries.append((name, start, len(frames)))
     index = _stamp_loose_clips(sheet, dirt_sheet, cols, index, entries)

@@ -154,17 +154,28 @@ def main() -> None:
     sheet = Image.open(WORLD).convert("RGBA")
     dirt_sheet = Image.open(DIRT).convert("RGBA") if os.path.isfile(DIRT) else Image.new("RGBA", sheet.size, (0, 0, 0, 0))
     gd = open(CLIPS_GD).read()
+    # Always append after throng clips AND AssetFrames FX — never overwrite HAND/BUBBLE/etc.
     index = _max_clip_end(gd)
-    # Skip if already packed (idempotent): if ThrongA_FreakOut present, rebuild from current end of base clips.
+    af_path = os.path.join(ROOT, "scripts", "data", "asset_frames.gd")
+    if os.path.isfile(af_path):
+        af_ends = [
+            int(start) + int(count)
+            for start, count in re.findall(
+                r"const \w+ := (\d+)\nconst \w+_N := (\d+)", open(af_path).read()
+            )
+        ]
+        if af_ends:
+            index = max(index, max(af_ends))
     if 'ThrongA_FreakOut"' in gd:
-        # Remove trailing extra cells by restoring index to first EXTRA start if tagged.
         m = re.search(r'"ThrongA_PanicRun": Vector2i\((\d+),', gd)
         if m:
-            index = int(m.group(1))
-            # Crop sheet height to that row start for clean re-append.
-            row0 = index // COLS
-            sheet = sheet.crop((0, 0, sheet.size[0], max(sheet.size[1], (row0 + 1) * CELL)))
-            dirt_sheet = dirt_sheet.crop((0, 0, dirt_sheet.size[0], sheet.size[1]))
+            # Rebuild extras in place only when they already sit past the FX band.
+            extra_start = int(m.group(1))
+            if extra_start >= index:
+                index = extra_start
+                row0 = index // COLS
+                sheet = sheet.crop((0, 0, sheet.size[0], max(sheet.size[1], (row0 + 1) * CELL)))
+                dirt_sheet = dirt_sheet.crop((0, 0, dirt_sheet.size[0], sheet.size[1]))
     entries = []
     manifest_path = os.path.join(RES_DIR, "manifest.json")
     manifest = json.load(open(manifest_path)) if os.path.isfile(manifest_path) else {"clips": {}, "strip_dir": "res://resources/sprites/throng_anims/"}
@@ -180,7 +191,14 @@ def main() -> None:
         manifest["clips"][clip] = {"file": safe, "frames": len(frames), "cell_w": cw, "cell_h": ch}
         scale, anchor = make_art._throng_fit(frames)
         start = index
-        for body, dirt, pivot in frames:
+        bodies = [make_art._unity_throng_cell(body, pivot, scale, anchor) for body, _dirt, pivot in frames]
+        dirts = [make_art._unity_throng_cell(dirt, pivot, scale, anchor) for _body, dirt, pivot in frames]
+        if not make_art._throng_skip_home(clip):
+            keep_air = make_art._throng_preserve_air(clip)
+            shifts = make_art._home_shift_for_cells(bodies, preserve_air=keep_air)
+            bodies = make_art._home_throng_cells(bodies, preserve_air=keep_air, shifts=shifts)
+            dirts = make_art._home_throng_cells(dirts, preserve_air=keep_air, shifts=shifts)
+        for cell, dcell in zip(bodies, dirts):
             need_rows = (index // COLS) + 1
             need_h = need_rows * CELL
             if sheet.size[1] < need_h:
@@ -190,8 +208,6 @@ def main() -> None:
                 bigger_d = Image.new("RGBA", sheet.size, (0, 0, 0, 0))
                 bigger_d.alpha_composite(dirt_sheet, (0, 0))
                 dirt_sheet = bigger_d
-            cell = make_art._unity_throng_cell(body, pivot, scale, anchor)
-            dcell = make_art._unity_throng_cell(dirt, pivot, scale, anchor)
             make_art._stamp_cell(sheet, COLS, index, cell)
             make_art._stamp_cell(dirt_sheet, COLS, index, dcell)
             index += 1
