@@ -2,7 +2,7 @@ class_name ThrongClips
 extends Object
 
 const SHEET_COLS := 16
-const SHEET_ROWS := 46
+const SHEET_ROWS := 51
 const BASE := 144
 
 const CLIPS := {
@@ -148,6 +148,14 @@ const MOOD_SAD := [
 		"ThrongA_Sad",
 ]
 
+# Thought-bubble bark: random Sing B–E while the bocadillo is up (not peer duet).
+const BARK_SING := [
+		"Throng_SingB_Spritesheet",
+		"Throng_SingC_Spritesheet",
+		"Throng_SingD_Spritesheet",
+		"Throng_SingE_Spritesheet",
+]
+
 const SING_PEER := [
 		"Throng_Sing_Spritesheet",
 		"Throng_SingB_Spritesheet",
@@ -201,15 +209,12 @@ const POSSESSED := [
 
 const CELEBRATE := [
 		"ThrongA_Celebrate_Spritesheet",
-		"ThrongA_Jump",
-		"ThrongA_Jump-EarWiggle",
 ]
 
 const PANIC := [
-		"ThrongA_ReactToKill",
 		"ThrongA_FreakOut",
-		"ThrongA_PanicRun",
 		"ThrongA_PanicRunFire",
+		"ThrongA_ReactToKill",
 ]
 
 const STRIP_DIR := "res://resources/sprites/throng_anims/"

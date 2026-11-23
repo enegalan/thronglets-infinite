@@ -76,7 +76,6 @@ func _spawn(x: float, y: float, fed_v: float, fun_v: float, clean_v: float) -> i
 	sim.peer_of[id] = -1
 	sim.peer_sing[id] = 0
 	sim.drop_t[id] = 0.0
-	sim.rotund_t[id] = 0.0
 	sim.penned_flag[id] = 0
 	sim.carry[id] = Catalog.CARRY_NONE
 	return id
@@ -140,6 +139,12 @@ func _run_all() -> void:
 	print("==== 4 Console dialogue stare (no peer / no possessed) ====")
 	_reset()
 	a = _spawn(200.0, 200.0, 95.0, 95.0, 95.0)
+	sim.glitch_t = 0.0
+	sim._begin_gaze()
+	if float(sim.glitch_t) > 0.0:
+		_fail("_begin_gaze must not set glitch_t (got %.2f)" % float(sim.glitch_t))
+	else:
+		_pass("_begin_gaze leaves glitch_t=0")
 	sim.frozen = true
 	sim.glitch_t = 0.0
 	sim.mood_face = "base"
@@ -252,7 +257,7 @@ func _run_all() -> void:
 	else:
 		_fail("_try_peer_social failed to pair (started=%s peer_of=%s)" % [started, int(sim.peer_of[a]) if a < sim.peer_of.size() else -1])
 
-	print("==== 6 Unlock celebrate + eat cheer ====")
+	print("==== 6 Unlock celebrate + post-eat calm ====")
 	_reset()
 	a = _spawn(200.0, 200.0, 95.0, 95.0, 95.0)
 	var granted: bool = bool(sim._grant("probe_unlock_key", "", false))
@@ -277,12 +282,16 @@ func _run_all() -> void:
 		_fail("ACT_EAT → '%s'" % eat)
 	sim.act[a] = 0
 	sim.act_t[a] = 0.0
-	sim.cheer_t[a] = float(sim.CHEER_DUR)
-	var cheer := _clip(a, 0.2)
-	if cheer == "ThrongA_Celebrate_Spritesheet":
-		_pass("eat cheer → Celebrate_Spritesheet")
+	sim.cheer_t[a] = 0.0
+	sim.fed[a] = 100.0
+	sim.amused[a] = 100.0
+	sim.clean[a] = 100.0
+	# Video post-bite: Happy stand (t068-03), not Celebrate / Rotund.
+	var after_eat := _clip(a, 0.2)
+	if after_eat == "ThrongA_Happy" or after_eat in ThrongClips.IDLE_CALM:
+		_pass("post-eat → calm/Happy ('%s')" % after_eat)
 	else:
-		_fail("eat cheer → '%s'" % cheer)
+		_fail("post-eat → '%s' expected Happy/IDLE_CALM" % after_eat)
 
 	print("==== 7 Death react + near fire ====")
 	_reset()
@@ -366,7 +375,6 @@ func _run_all() -> void:
 	_spawn(210.0, 205.0, 95.0, 95.0, 95.0)
 	sim.dir_x[a] = 1.0
 	sim.penned_flag[a] = 1
-	sim.cheer_t[a] = 1.0
 	if not bool(sim.grab_thronglet(a)):
 		_fail("grab_thronglet failed")
 	else:
@@ -390,22 +398,12 @@ func _run_all() -> void:
 	sim.cancel_hold()
 	# Grab clears per-agent one-shots; penned body stays a single clip.
 	sim.penned_flag[a] = 1
-	sim.cheer_t[a] = 0.0
 	sim.react_t[a] = 0.0
 	var after := _clip(a, 1.0)
 	if after == "ThrongA_FreakOut":
 		_pass("after hold, penned still FreakOut-only")
 	else:
 		_fail("after hold penned → '%s'" % after)
-	# Grab must have cleared cheer that was set before grab.
-	_reset()
-	a = _spawn(200.0, 200.0, 95.0, 95.0, 95.0)
-	sim.cheer_t[a] = float(sim.CHEER_DUR)
-	sim.grab_thronglet(a)
-	if float(sim.cheer_t[a]) == 0.0:
-		_pass("grab clears cheer_t")
-	else:
-		_fail("grab left cheer_t=%.2f" % float(sim.cheer_t[a]))
 
 	print("==== 11 Far LOD + sticky acts (Eat-class drop) ====")
 	_reset()
@@ -437,13 +435,13 @@ func _run_all() -> void:
 		_fail("far carry → '%s' expected LiftPropWalk" % far_haul)
 	sim.carry[a] = Catalog.CARRY_NONE
 	sim.dir_x[a] = 0.0
-	sim.cheer_t[a] = float(sim.CHEER_DUR)
-	var far_cheer: String = ThrongClips.clip_name_at(int(main._frame_lod(a, 0.2, true)))
-	if far_cheer == "ThrongA_Celebrate_Spritesheet":
-		_pass("far cheer → Celebrate")
+	sim.celebrate_t = float(sim.CELEBRATE_DUR)
+	var far_cel: String = ThrongClips.clip_name_at(int(main._frame_lod(a, 0.2, true)))
+	if far_cel == "ThrongA_Celebrate_Spritesheet":
+		_pass("far celebrate → Celebrate")
 	else:
-		_fail("far cheer → '%s'" % far_cheer)
-	sim.cheer_t[a] = 0.0
+		_fail("far celebrate → '%s'" % far_cel)
+	sim.celebrate_t = 0.0
 	sim.penned_flag[a] = 1
 	var far_pen: String = ThrongClips.clip_name_at(int(main._frame_lod(a, 0.2, true)))
 	if far_pen == "ThrongA_FreakOut":
@@ -472,7 +470,7 @@ func _run_all() -> void:
 	else:
 		_fail("sticky ACT_PLAY cleared to %d" % int(sim.act[a]))
 
-	print("==== 12 DropProp / Rotund / mine Twiddle ====")
+	print("==== 12 DropProp / mine Twiddle ====")
 	_reset()
 	a = _spawn(200.0, 200.0, 95.0, 95.0, 95.0)
 	sim.carry[a] = Catalog.CARRY_ORE
@@ -489,19 +487,6 @@ func _run_all() -> void:
 		_fail("drop_t → '%s' expected DropProp" % drop_c)
 	sim.drop_t[a] = 0.0
 	sim.cheer_t[a] = 0.0
-	sim.rotund_t[a] = float(sim.ROTUND_DUR)
-	sim.dir_x[a] = 0.0
-	var rot_stand := _clip(a, 0.4)
-	if rot_stand == "ThrongA_Rotund_Spritesheet":
-		_pass("rotund stand → Rotund")
-	else:
-		_fail("rotund stand → '%s'" % rot_stand)
-	sim.dir_x[a] = 1.0
-	var rot_walk := _clip(a, 0.4)
-	if rot_walk == "ThrongA_Rotund_Spritesheet":
-		_pass("rotund walk → Rotund")
-	else:
-		_fail("rotund walk → '%s'" % rot_walk)
 	# Mine guest: Pickaxe swing then Twiddle wait.
 	_reset()
 	a = _spawn(200.0, 200.0, 95.0, 95.0, 95.0)

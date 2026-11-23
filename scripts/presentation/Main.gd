@@ -492,7 +492,10 @@ func _process(delta: float) -> void:
 	var view := cam_rig.world_view()
 	sim.view_rect = view
 	sim.explore_rect(view.grow(8.0))
-	if tool == Catalog.TOOL_SPONGE and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and not sim.frozen and get_viewport().gui_get_hovered_control() == null:
+	# Kit-drag sponge still scrubs over the world even if a Control was under the press.
+	var sponge_held := tool == Catalog.TOOL_SPONGE and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and not sim.frozen
+	var sponge_over_ui := get_viewport().gui_get_hovered_control() != null and kit_drag.is_empty()
+	if sponge_held and not sponge_over_ui:
 		var at := cam_rig.pointer_world()
 		var stroke := 0.0
 		if sponge_tracking:
@@ -500,9 +503,13 @@ func _process(delta: float) -> void:
 		else:
 			sponge_tracking = true
 		sponge_last = at
-		sim.scrub(at.x, at.y, stroke, stroke >= 0.5)
+		# Bubbles + clean gain when agitating; hold still keeps Happy + suds if already washing.
+		sim.scrub(at.x, at.y, stroke, stroke >= ThrongletSimServer.SCRUB_STROKE_MIN)
 	else:
-		sponge_tracking = false
+		if sponge_tracking and not sim.shot_mode:
+			sim.sponge_release()
+		if not sim.shot_mode:
+			sponge_tracking = false
 	if sim.hand_id != -1:
 		var cur_w := cam_rig.pointer_world()
 		if hand_vel_init:
@@ -517,6 +524,9 @@ func _process(delta: float) -> void:
 		hand_vel_init = false
 	_tick_tool_charge(delta)
 	_tick_hand_hold(delta)
+	# Shot harness mutates pose/FX before the draw sync.
+	if sim.shot_mode and not shot_capture.done:
+		shot_capture.tick_shot()
 	_sync_world()
 	_sync_charge_mark(delta)
 	_sync_actors()
@@ -534,8 +544,6 @@ func _process(delta: float) -> void:
 	_sync_focus(delta)
 	for name in sim.take_sfx():
 		media.play(str(name))
-	if sim.shot_mode and not shot_capture.done:
-		shot_capture.tick_shot()
 
 
 func _process_perf(delta: float) -> void:
@@ -1561,22 +1569,16 @@ func _sync_actors() -> void:
 				throng_outline = Color(0.35, 1.0, 0.45, 1.0)
 			_push_iso(draws, throng_at, throng_frame, tint, lift, throng_scale, throng_sort_y, throng_outline)
 			draws[draws.size() - 1]["flip"] = _throng_flip(i)
-			draws[draws.size() - 1]["dirty"] = 0.0 if far_view else _throng_dirty(sim.clean[i])
+			# Dirt is a needs signal — keep it at every zoom (far_view only LODs the clip).
+			draws[draws.size() - 1]["dirty"] = _throng_dirty(sim.clean[i])
+			# Suds only on the thronglet currently under the sponge (not prior wash targets).
+			if not sim.frozen and sponge_tracking and i == sim.sponge_id and sim.sponge_hold > 0.0:
+				_paint_sponge_suds(draws, throng_at, throng_sort_y + 1.0, time)
 			if sim.carry[i] != Catalog.CARRY_NONE:
 				var carry_kind := int(sim.carry[i])
 				var carry_icon := _carry_icon(carry_kind)
 				var carry_scale := Catalog.item_sprite_scale(_carry_item(carry_kind))
 				_push_iso(draws, pos, _prop_frame(carry_icon), Color.WHITE, 12.0, carry_scale, sort_y)
-			if not sim.frozen and doing == ThrongletSimServer.ACT_WASH:
-				var bubble_fps := float(AnimTune.get_tune("bubble").get("fps", 8.0))
-				var bubble_idx := int(time * bubble_fps) % maxi(AssetFrames.BUBBLE_N, 1)
-				var bubble := AssetFrames.frame(AssetFrames.BUBBLE, AssetFrames.BUBBLE_N, bubble_idx)
-				if bubble < 0:
-					bubble = _prop_frame(Catalog.ICON_SPONGE)
-				var wash_tune: Dictionary = EffectTune.get_tune("act:sponge")
-				var bubble_scale := float(wash_tune.get("scale", 1.0)) * AnimTune.frame_scale("bubble", bubble_idx)
-				var bubble_off := Vector2(float(wash_tune.get("fx_x", 0.0)), float(wash_tune.get("fx_y", 0.0))) + AnimTune.frame_offset("bubble", bubble_idx)
-				_push_iso(draws, pos + bubble_off, bubble, Color(1, 1, 1, 0.85), 8.0, bubble_scale, sort_y, Color.TRANSPARENT, Vector2.ZERO, AnimTune.frame_rot("bubble", bubble_idx))
 	if sim.held_kind == "thronglet" and sim.held_ref >= 0 and sim.held_ref < sim.slot_count:
 		var hi: int = sim.held_ref
 		var htint: Color = Catalog.TINTS[int(sim.tint[hi]) % Catalog.TINTS.size()]
@@ -1606,16 +1608,16 @@ func _sync_actors() -> void:
 				"rot": AnimTune.frame_rot("hand", hand_idx_h),
 			})
 	var bath_exit_tune: Dictionary = EffectTune.get_tune("act:bath_exit")
-	var bath_exit_scale := float(bath_exit_tune.get("scale", 1.0))
-	var bath_exit_off := Vector2(float(bath_exit_tune.get("fx_x", 0.0)), float(bath_exit_tune.get("fx_y", 0.0)))
+	var wash_sparkle_tune: Dictionary = EffectTune.get_tune("act:wash_sparkle")
 	for pop in sim.pops:
-		var fade := clampf(float(pop.t) / 0.55, 0.0, 1.0)
+		var pop_life := float(pop.get("life", 0.55))
+		var fade := clampf(float(pop.t) / maxf(pop_life, 0.01), 0.0, 1.0)
 		var picon := int(pop.icon)
 		var frame := _pop_frame(picon)
 		var pop_scale := float(pop.get("scale", 1.0))
 		var pop_off := Vector2.ZERO
 		var pop_rot := 0.0
-		var pop_elapsed := 0.55 - float(pop.t)
+		var pop_elapsed := pop_life - float(pop.t)
 		if picon == AssetFrames.SPLASH:
 			var splash_fps := float(AnimTune.get_tune("splash").get("fps", 8.0))
 			var splash_idx := int(pop_elapsed * splash_fps) % maxi(AssetFrames.SPLASH_N, 1)
@@ -1625,16 +1627,20 @@ func _sync_actors() -> void:
 				pop_off = AnimTune.frame_offset("splash", splash_idx)
 				pop_rot = AnimTune.frame_rot("splash", splash_idx)
 		elif picon == AssetFrames.CLEAN:
-			var clean_fps := float(AnimTune.get_tune("clean").get("fps", 8.0))
-			var clean_idx := int(pop_elapsed * clean_fps) % maxi(AssetFrames.CLEAN_N, 1)
-			frame = AssetFrames.frame(AssetFrames.CLEAN, AssetFrames.CLEAN_N, clean_idx)
+			# Play sparkle strip once over the pop life (wash finish / bath exit).
+			var clean_n := maxi(AssetFrames.CLEAN_N, 1)
+			var clean_idx := clampi(int(pop_elapsed / maxf(pop_life, 0.01) * float(clean_n)), 0, clean_n - 1)
+			frame = AssetFrames.frame(AssetFrames.CLEAN, clean_n, clean_idx)
+			var sparkle_tune: Dictionary = wash_sparkle_tune if str(pop.get("kind", "")) == "wash" else bath_exit_tune
+			var sparkle_scale := float(sparkle_tune.get("scale", 0.55))
+			var sparkle_off := Vector2(float(sparkle_tune.get("fx_x", 0.0)), float(sparkle_tune.get("fx_y", -4.0)))
 			if frame >= 0:
-				pop_scale = bath_exit_scale * AnimTune.frame_scale("clean", clean_idx)
-				pop_off = bath_exit_off + AnimTune.frame_offset("clean", clean_idx)
+				pop_scale = sparkle_scale * AnimTune.frame_scale("clean", clean_idx)
+				pop_off = sparkle_off + AnimTune.frame_offset("clean", clean_idx)
 				pop_rot = AnimTune.frame_rot("clean", clean_idx)
 			else:
-				pop_scale = bath_exit_scale
-				pop_off = bath_exit_off
+				pop_scale = sparkle_scale
+				pop_off = sparkle_off
 		_push_iso(draws, Vector2(float(pop.x), float(pop.y)) + pop_off, frame, Color(1, 1, 1, fade), float(pop.lift), pop_scale, NAN, Color.TRANSPARENT, Vector2.ZERO, pop_rot)
 	draws.sort_custom(func(a, b): return float(a.get("sy", a.p.y)) < float(b.get("sy", b.p.y)))
 	draws.append_array(egg_front)
@@ -1810,6 +1816,7 @@ func _push_throng_crowd_draws(draws: Array, ids: Array, time: float, far_view: b
 			flip = -1.0
 		_push_iso(draws, pos, frame, tint, 0.0, THRONG_SPRITE_SCALE)
 		draws[draws.size() - 1]["flip"] = flip
+		draws[draws.size() - 1]["dirty"] = _throng_dirty(sim.clean[i])
 		# Carry must stay readable at any zoom — haul feedback is core gameplay.
 		if sim.state[i] == Catalog.ST_LIVING and sim.carry[i] != Catalog.CARRY_NONE:
 			var carry_kind := int(sim.carry[i])
@@ -1838,8 +1845,6 @@ func _throng_special_body(sim: ThrongletSim, i: int) -> bool:
 	# Situations that must not collapse to Default/Walk under far/crowd LOD.
 	if sim.frozen or sim.celebrate_t > 0.0:
 		return true
-	if i < sim.cheer_t.size() and sim.cheer_t[i] > 0.0:
-		return true
 	if i < sim.react_t.size() and sim.react_t[i] > 0.0:
 		return true
 	if i < sim.sleep_t.size() and sim.sleep_t[i] > 0.0:
@@ -1847,8 +1852,6 @@ func _throng_special_body(sim: ThrongletSim, i: int) -> bool:
 	if i < sim.peer_t.size() and sim.peer_t[i] > 0.0:
 		return true
 	if i < sim.drop_t.size() and sim.drop_t[i] > 0.0:
-		return true
-	if i < sim.rotund_t.size() and sim.rotund_t[i] > 0.0:
 		return true
 	if sim.mito_t[i] > 0.0 or sim.mito_charge[i] > 0.0:
 		return true
@@ -1900,12 +1903,13 @@ func _frame(i: int, time: float) -> int:
 			return _clip_pool(ThrongClips.TALK_REACT, i, stare_t, 1.2, "ThrongA_LooktAtPlayerHappyNod_Spritesheet")
 		return _clip_pool(ThrongClips.TALK_CONSOLE, i, stare_t, 2.4, "ThrongA_Talk")
 	if sim.celebrate_t > 0.0:
-		# One celebrate body — Jump accents stay in the pool for shots/bench, not live mix.
+		# Unlock swarm only — Jump accents are asset/shots, not live-mixed.
 		return ThrongClips.frame_at("ThrongA_Celebrate_Spritesheet", int(time * 8.0 + float(i)))
-	if i < sim.cheer_t.size() and sim.cheer_t[i] > 0.0:
-		return ThrongClips.frame_at("ThrongA_Celebrate_Spritesheet", int((ThrongletSimServer.CHEER_DUR - sim.cheer_t[i]) * 8.0))
 	if i < sim.react_t.size() and sim.react_t[i] > 0.0:
 		return ThrongClips.frame_at("ThrongA_ReactToKill", int((ThrongletSimServer.REACT_DUR - sim.react_t[i]) * 8.0))
+	# Just finished a wash: stand still on Happy (not walk).
+	if i < sim.cheer_t.size() and sim.cheer_t[i] > 0.0:
+		return ThrongClips.frame_at("ThrongA_Happy", int(time * 6.0))
 	if i < sim.peer_t.size() and sim.peer_t[i] > 0.0:
 		if i < sim.peer_sing.size() and sim.peer_sing[i] != 0:
 			return _clip_pool(ThrongClips.SING_PEER, i, time, 1.6, "Throng_Sing_Spritesheet")
@@ -1943,7 +1947,8 @@ func _frame(i: int, time: float) -> int:
 			return ThrongClips.frame_along("Throng_FallInBath_Spritesheet", (age / enter_t) * (5.0 / 8.0))
 		return ThrongClips.frame_at("Throng_FallInBath_Spritesheet", 5 + int((age - enter_t) * 2.5) % 3)
 	if doing == ThrongletSimServer.ACT_WASH:
-		return ThrongClips.frame_at("ThrongA_Happy", int(time * 6.0))
+		# Stable Happy loop while scrubbing — do not restart from act_t pulses.
+		return ThrongClips.frame_at("ThrongA_Happy", int(time * 6.0 + float(i) * 0.37))
 	if doing == ThrongletSimServer.ACT_PLAY:
 		if sim.has_ball(i):
 			if moving:
@@ -1984,6 +1989,15 @@ func _frame(i: int, time: float) -> int:
 		if ThrongClips.has_clip("ThrongA_LiftProp"):
 			return ThrongClips.frame_at("ThrongA_LiftProp", int(time * 6.0))
 		return ThrongClips.frame_at("Throng_Think_Spritesheet", int(time * 6.0))
+	# Thought bubble up: one-shot Sing B–E from bark start; stand until it ends.
+	var bark: Dictionary = sim.bark_of(i)
+	var bark_sing := str(bark.get("sing", ""))
+	if bark_sing != "" and ThrongClips.has_clip(bark_sing):
+		var bark_life := maxf(float(bark.get("life", float(bark.get("t", 1.0)))), 0.01)
+		var bark_elapsed := bark_life - float(bark.get("t", 0.0))
+		var bark_n := maxi(ThrongClips.frame_count(bark_sing), 1)
+		var bark_idx := clampi(int(bark_elapsed * 8.0), 0, bark_n - 1)
+		return ThrongClips.frame_at(bark_sing, bark_idx)
 	if moving:
 		return _walk_clip(i, time, sim)
 	if sim.clean[i] < 12.0 or sim.fed[i] < 25.0:
@@ -1992,8 +2006,6 @@ func _frame(i: int, time: float) -> int:
 		return _clip_pool(ThrongClips.MOOD_BORED, i, time, 2.2, "ThrongA_Bored_KickRock")
 	if i < sim.sleep_t.size() and sim.sleep_t[i] > 0.0:
 		return _clip_pool(ThrongClips.IDLE_SLEEP, i, time, 2.5, "Throng_Idle_AntennaSpin_EyesClosed_Spritesheet")
-	if i < sim.rotund_t.size() and sim.rotund_t[i] > 0.0:
-		return ThrongClips.frame_at("ThrongA_Rotund_Spritesheet", int(time * 6.0))
 	var content := sim.fed[i] >= Catalog.NEED_OK and sim.amused[i] >= Catalog.NEED_OK and sim.clean[i] >= Catalog.NEED_OK
 	if content:
 		return _clip_pool(ThrongClips.IDLE_CALM, i, time, 2.2, "ThrongA_Happy")
@@ -2006,8 +2018,6 @@ func _walk_clip(i: int, time: float, sim: ThrongletSim) -> int:
 		return ThrongClips.frame_at("Throng_WalkBack_Anim_Spritesheet", tick)
 	if sim.approaching_home(i) and ThrongClips.has_clip("Throng_Walk_Homed_Spritesheet"):
 		return ThrongClips.frame_at("Throng_Walk_Homed_Spritesheet", tick)
-	if i < sim.rotund_t.size() and sim.rotund_t[i] > 0.0:
-		return ThrongClips.frame_at("ThrongA_Rotund_Spritesheet", tick)
 	var sad_move := sim.clean[i] < 12.0 or sim.fed[i] < 25.0
 	var happy_move := sim.fed[i] >= Catalog.NEED_OK and sim.amused[i] >= Catalog.NEED_OK and sim.clean[i] >= Catalog.NEED_OK
 	if sad_move and ThrongClips.has_clip("ThrongA_Sad_Walk"):
@@ -2649,6 +2659,22 @@ func _paint_suds(draws: Array, pos: Vector2, sort_y: float, time: float, s: floa
 		var scale := (0.85 + 0.1 * float(i % 2)) * s * AnimTune.frame_scale(frame_id, frame_idx)
 		var off := wob + AnimTune.frame_offset(frame_id, frame_idx)
 		_push_iso(draws, pos + off, frame, Color(1, 1, 1, alpha), 6.0 + float(i) * 2.0, scale, sort_y, Color.TRANSPARENT, Vector2.ZERO, AnimTune.frame_rot(frame_id, frame_idx))
+
+
+func _paint_sponge_suds(draws: Array, pos: Vector2, sort_y: float, time: float) -> void:
+	# One atlas cell is already a full bubble cluster — do not stack several cells.
+	var wash_tune: Dictionary = EffectTune.get_tune("act:sponge")
+	var s := float(wash_tune.get("scale", 0.55))
+	var tip := Vector2(float(wash_tune.get("fx_x", 0.0)), float(wash_tune.get("fx_y", 0.0)))
+	var body_lift := 6.0 + float(wash_tune.get("lift", 0.0))
+	var bubble_fps := float(AnimTune.get_tune("bubble").get("fps", 8.0))
+	var idx := posmod(int(time * bubble_fps), maxi(AssetFrames.BUBBLE_N, 1))
+	var cluster := AssetFrames.frame(AssetFrames.BUBBLE, AssetFrames.BUBBLE_N, idx)
+	if cluster < 0:
+		cluster = AssetFrames.frame(AssetFrames.BUBBLE_LIGHT, AssetFrames.BUBBLE_LIGHT_N, idx)
+	if cluster < 0:
+		return
+	_push_iso(draws, pos + tip, cluster, Color(1, 1, 1, 0.92), body_lift, s, sort_y)
 
 
 # World offset that puts the opaque middle of a frame on the anchor.
@@ -4333,7 +4359,8 @@ func _end_kit_drag() -> void:
 		ThrongletSimServer.place_building(id, at.x, at.y)
 	elif kind == "tool":
 		if id == Catalog.TOOL_SPONGE:
-			ThrongletSimServer.scrub(at.x, at.y, 18.0)
+			# Hold already scrubbed via _process; release ends suds and pops sparkles if cleaned.
+			ThrongletSimServer.sponge_release()
 		else:
 			ThrongletSimServer.use_tool(id, at.x, at.y)
 	tool = Catalog.TOOL_EYE

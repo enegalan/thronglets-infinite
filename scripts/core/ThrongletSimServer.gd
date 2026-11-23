@@ -119,6 +119,9 @@ var shot_round := false
 var shot_apple := false
 var shot_needs := false
 var shot_anims := false
+var shot_dirt := false
+var shot_ball := false
+var shot_wash := false
 var shot_focus := Vector2(256, 256)
 var shot_span := 210.0
 var shot_throng := -1
@@ -163,6 +166,8 @@ var _name_chars := ""
 var _name_bans: PackedStringArray = PackedStringArray()
 var sponge_id := -1
 var sponge_hold := 0.0
+## Thronglets cleaned while scrubbing; sparkle+Happy fire on mouse/kit release.
+var wash_fx_pending: Array = []
 
 var buildings: Array = []
 var building_by_id := {}
@@ -204,9 +209,8 @@ var sleep_t := PackedFloat32Array()
 var peer_t := PackedFloat32Array()
 var peer_of := PackedInt32Array()
 var peer_sing := PackedByteArray()
-## One-shot DropProp after putting down a haul; Rotund post-feed body flavor.
+## One-shot DropProp after putting down a haul.
 var drop_t := PackedFloat32Array()
-var rotund_t := PackedFloat32Array()
 var state := PackedInt32Array()
 var carry := PackedInt32Array()
 var carry_value := PackedInt32Array()
@@ -227,10 +231,14 @@ const REACT_KILL_R := 72.0
 const REACT_DUR := 0.85
 const CHEER_DUR := 0.9
 const CELEBRATE_DUR := 1.4
+## One ThrongA_Happy loop @ 6fps (5 frames) — matches CLEAN sparkle life.
+const WASH_FX_LIFE := 5.0 / 6.0
+## World units of sponge motion per frame to count as scrub (clean gain + start wash).
+## Kept low: at zoom 2 a gentle rub is often < 1.0 world/frame; 2.0 never lit suds in play.
+const SCRUB_STROKE_MIN := 0.35
 const SLEEP_DUR := 3.2
 const PEER_DUR := 2.4
 const DROP_DUR := 0.5
-const ROTUND_DUR := 5.0
 ## Mine dig body: pickaxe swing then Twiddle wait (seconds each).
 const MINE_SWING_T := 0.7
 const MINE_WAIT_T := 0.55
@@ -315,7 +323,7 @@ func _ready() -> void:
 	var args := OS.get_cmdline_user_args()
 	perf_mode = args.has("--perf")
 	save_perf_mode = args.has("--save-perf")
-	shot_mode = args.has("--shot") or args.has("--shot-fx") or args.has("--shot-carry") or args.has("--shot-round") or args.has("--shot-apple") or args.has("--shot-needs") or args.has("--shot-anims")
+	shot_mode = args.has("--shot") or args.has("--shot-fx") or args.has("--shot-carry") or args.has("--shot-round") or args.has("--shot-apple") or args.has("--shot-needs") or args.has("--shot-anims") or args.has("--shot-dirt") or args.has("--shot-ball") or args.has("--shot-wash")
 	var pick_zoom_repro := args.has("--pick-zoom-repro")
 	testing = args.has("--smoke") or shot_mode or perf_mode or pick_zoom_repro or save_perf_mode
 	if args.has("--shot-fx"):
@@ -330,6 +338,12 @@ func _ready() -> void:
 		shot_needs = true
 	if args.has("--shot-anims"):
 		shot_anims = true
+	if args.has("--shot-dirt"):
+		shot_dirt = true
+	if args.has("--shot-ball"):
+		shot_ball = true
+	if args.has("--shot-wash"):
+		shot_wash = true
 	if testing and not save_perf_mode:
 		# Keep smoke/shot/perf saves inside the project so headless CI sandboxes can write.
 		save_path = ProjectSettings.globalize_path("res://shots/thronglets_smoke.save")
@@ -383,6 +397,12 @@ func _begin_smoke() -> void:
 			_prep_shot_apple()
 		elif shot_needs:
 			_prep_shot_needs()
+		elif shot_dirt:
+			_prep_shot_dirt()
+		elif shot_ball:
+			_prep_shot_ball()
+		elif shot_wash:
+			_prep_shot_wash()
 		else:
 			_prep_shot_world()
 		return
@@ -784,12 +804,18 @@ func _tick_life(i: int, dt: float, decay: float) -> bool:
 		react_t[i] = maxf(0.0, react_t[i] - dt)
 	if cheer_t[i] > 0.0:
 		cheer_t[i] = maxf(0.0, cheer_t[i] - dt)
+		dir_x[i] = 0.0
+		dir_y[i] = 0.0
+	# Sing bark: stay put until the bocadillo (and its one-shot clip) ends.
+	if bark_sing_of(i) != "":
+		dir_x[i] = 0.0
+		dir_y[i] = 0.0
+		if i < seek_t.size():
+			seek_t[i] = 0.0
 	if drop_t[i] > 0.0:
 		drop_t[i] = maxf(0.0, drop_t[i] - dt)
 		dir_x[i] = 0.0
 		dir_y[i] = 0.0
-	if rotund_t[i] > 0.0:
-		rotund_t[i] = maxf(0.0, rotund_t[i] - dt)
 	if peer_t[i] > 0.0:
 		peer_t[i] = maxf(0.0, peer_t[i] - dt)
 		if peer_t[i] <= 0.0:
@@ -811,9 +837,20 @@ func _tick_life(i: int, dt: float, decay: float) -> bool:
 		shake_t[i] = maxf(0.0, shake_t[i] - dt)
 		act[i] = ACT_WASH
 		act_t[i] = 0.2
-	if act[i] == ACT_WASH:
-		return false
+	# Re-assert wash for the whole sponge hold (even if act_t just hit 0 above).
 	if i == sponge_id and sponge_hold > 0.0:
+		act[i] = ACT_WASH
+		act_t[i] = maxf(act_t[i], 0.35)
+		dir_x[i] = 0.0
+		dir_y[i] = 0.0
+		return false
+	if act[i] == ACT_WASH:
+		dir_x[i] = 0.0
+		dir_y[i] = 0.0
+		return false
+	if cheer_t[i] > 0.0:
+		return false
+	if bark_sing_of(i) != "":
 		return false
 	cool[i] = maxf(0.0, cool[i] - dt)
 	return true
@@ -823,8 +860,7 @@ func _act_is_sticky(i: int) -> bool:
 	match int(act[i]):
 		ACT_EAT:
 			return true
-		ACT_WASH:
-			return true
+		# WASH is refreshed by scrub/shake act_t — never sticky or it loops forever.
 		ACT_BATH:
 			return (i < link_tub.size() and link_tub[i] >= 0) \
 				or (i < link_guest.size() and link_guest[i] >= 0)
@@ -845,6 +881,12 @@ func _tick_busy_or_coast(i: int, dt: float) -> void:
 	if i < drop_t.size() and drop_t[i] > 0.0:
 		dir_x[i] = 0.0
 		dir_y[i] = 0.0
+		return
+	if bark_sing_of(i) != "":
+		dir_x[i] = 0.0
+		dir_y[i] = 0.0
+		if i < seek_t.size():
+			seek_t[i] = 0.0
 		return
 	if i < peer_t.size() and peer_t[i] > 0.0:
 		dir_x[i] = 0.0
@@ -1188,7 +1230,7 @@ func _claimed_apple(i: int) -> Dictionary:
 
 
 func _chew_apple(i: int, apple: Dictionary, dt: float) -> void:
-	# Eat loop while biting; Celebrate (cheer_t) fires when a bite lands.
+	# Eat while biting; on bite land return to idle (video: Happy stand, not Celebrate/Rotund).
 	act[i] = ACT_EAT
 	act_t[i] = 0.55
 	dir_x[i] = 0.0
@@ -1201,9 +1243,6 @@ func _chew_apple(i: int, apple: Dictionary, dt: float) -> void:
 	var left := int(apple.get("bites_left", 1)) - 1
 	apple.bites_left = left
 	fed[i] = 100.0
-	_ensure_agent_timers(i)
-	cheer_t[i] = CHEER_DUR
-	rotund_t[i] = ROTUND_DUR
 	act[i] = 0
 	act_t[i] = 0.0
 	sfx_queue.append("apple")
@@ -1522,7 +1561,7 @@ func _finish_bath(i: int, b: Dictionary) -> void:
 	_set_agent_pos(i, float(rim.x), float(rim.y))
 	act[i] = ACT_BATH
 	act_t[i] = 0.35
-	_pop(pos_x[i], pos_y[i], AssetFrames.CLEAN, 1.0, i)
+	_pop(pos_x[i], pos_y[i], AssetFrames.CLEAN, 1.0, i, 0.9, "bath")
 
 
 func _nearest_roundabout(i: int, max_dist: float) -> Dictionary:
@@ -2859,13 +2898,65 @@ func _maybe_bark(i: int) -> void:
 			return
 	elif randf() > 0.0003:
 		return
+	var sing := ""
+	var life := 1.2 if urgent else 1.4
+	if bark_can_sing(i) and not ThrongClips.BARK_SING.is_empty():
+		sing = str(ThrongClips.BARK_SING[randi() % ThrongClips.BARK_SING.size()])
+		# Hold still for exactly one playthrough of the picked Sing clip @ 8fps.
+		var frames_n := maxi(ThrongClips.frame_count(sing), 1)
+		life = float(frames_n) / 8.0
+		dir_x[i] = 0.0
+		dir_y[i] = 0.0
+		if i < seek_t.size():
+			seek_t[i] = 0.0
 	barks.append({
 		"id": i,
 		"icon": icon,
-		"t": 1.2 if urgent else 1.4,
+		"t": life,
+		"life": life,
 		"x": pos_x[i],
 		"y": pos_y[i],
+		"sing": sing,
 	})
+
+
+func bark_of(i: int) -> Dictionary:
+	for bark in barks:
+		if int(bark.get("id", -1)) == i:
+			return bark
+	return {}
+
+
+func bark_sing_of(i: int) -> String:
+	return str(bark_of(i).get("sing", ""))
+
+
+func bark_can_sing(i: int) -> bool:
+	# Sing B–E only when free enough for a thought bubble (not bath/theatre/carry/…).
+	if i < 0 or i >= slot_count or state[i] != Catalog.ST_LIVING:
+		return false
+	if held_kind == "thronglet" and held_ref == i:
+		return false
+	if mito_t[i] > 0.0 or mito_charge[i] > 0.0:
+		return false
+	if carry[i] != Catalog.CARRY_NONE:
+		return false
+	if indoors(i):
+		return false
+	if near_fire(i):
+		return false
+	if i < penned_flag.size() and penned_flag[i] != 0:
+		return false
+	if i < cheer_t.size() and cheer_t[i] > 0.0:
+		return false
+	if i < peer_t.size() and peer_t[i] > 0.0:
+		return false
+	if i < drop_t.size() and drop_t[i] > 0.0:
+		return false
+	match int(act[i]):
+		ACT_EAT, ACT_BATH, ACT_WASH, ACT_PLAY, ACT_WORK:
+			return false
+	return true
 
 
 func _tick_voice(delta: float) -> void:
@@ -4210,7 +4301,10 @@ func _mop(x: float, y: float) -> void:
 	for id in ids:
 		var tid := int(id)
 		if state[tid] == Catalog.ST_LIVING and mito_t[tid] <= 0.0:
+			var was_dirty := clean[tid] < 100.0
 			clean[tid] = 100.0
+			if was_dirty:
+				_finish_wash(tid)  # mop has no hold — sparkle immediately
 	sfx_queue.append("mop")
 
 
@@ -4219,43 +4313,118 @@ func scrub(x: float, y: float, stroke: float, rubbing: bool = false) -> void:
 		return
 	var ids := query_radius(x, y, Catalog.SPONGE_RADIUS)
 	if ids.is_empty():
+		# Left every thronglet — drop wash pose; pending sparkles wait for release.
+		if sponge_id >= 0:
+			_clear_wash_pose(sponge_id)
+			sponge_id = -1
+		sponge_hold = 0.0
 		return
-	sponge_hold = 0.45
-	sponge_id = -1
-	# stroke = path since last sample while rubbing, or an instant stroke (e.g. drop).
-	if stroke < 0.5 and not rubbing:
+	sponge_hold = 0.55
+	var scrubbing := rubbing or stroke >= SCRUB_STROKE_MIN
+	var target := _scrub_pick_target(ids)
+	if target < 0:
+		if sponge_id >= 0:
+			_clear_wash_pose(sponge_id)
+			sponge_id = -1
+		return
+	# Only the thronglet under the sponge shows suds; leave prior targets.
+	if sponge_id >= 0 and sponge_id != target:
+		_clear_wash_pose(sponge_id)
+	sponge_id = target
+	act[target] = ACT_WASH
+	dir_x[target] = 0.0
+	dir_y[target] = 0.0
+	if not scrubbing:
+		act_t[target] = maxf(act_t[target], 0.35)
 		return
 	_know_count()
-	var gain := minf(stroke, 22.0) * 2.0 if stroke >= 0.5 else 0.0
+	var gain := minf(stroke, 6.0) * 1.25
+	if clean[target] < 100.0:
+		clean[target] = minf(100.0, clean[target] + gain)
+		if clean[target] >= 100.0:
+			_queue_wash_fx(target)
+	act_t[target] = 0.85
+	if int(frame_i) % 3 == 0:
+		sfx_queue.append("scrub")
+
+
+func _scrub_pick_target(ids: Array) -> int:
+	# Prefer current sponge_id if still in range; else nearest living thronglet.
 	for raw in ids:
 		var id := int(raw)
-		if state[id] != Catalog.ST_LIVING:
+		if id == sponge_id and state[id] == Catalog.ST_LIVING and mito_t[id] <= 0.0:
+			return id
+	for raw2 in ids:
+		var id2 := int(raw2)
+		if state[id2] != Catalog.ST_LIVING or mito_t[id2] > 0.0:
 			continue
-		if mito_t[id] > 0.0:
-			continue
-		if clean[id] >= 100.0:
-			_stop_wash(id)
-			continue
-		if gain > 0.0:
-			clean[id] = minf(100.0, clean[id] + gain)
-		sponge_id = id
-		act[id] = ACT_WASH
-		act_t[id] = 0.7 if gain > 0.0 else 0.35
-		if clean[id] >= 100.0:
-			act_t[id] = 0.35
-		if gain > 0.0 and int(frame_i) % 3 == 0:
-			sfx_queue.append("scrub")
+		return id2
+	return -1
 
 
-func _stop_wash(id: int) -> void:
+func _wash_fx_queued(id: int) -> bool:
+	for pending in wash_fx_pending:
+		if int(pending) == id:
+			return true
+	return false
+
+
+func _queue_wash_fx(id: int) -> void:
+	_ensure_agent_timers(id)
+	dir_x[id] = 0.0
+	dir_y[id] = 0.0
+	if _wash_fx_queued(id):
+		return
+	wash_fx_pending.append(id)
+
+
+func sponge_release() -> void:
+	# End scrub pose; sparkles for every thronglet cleaned during this hold.
+	var pending: Array = wash_fx_pending.duplicate()
+	wash_fx_pending.clear()
+	if sponge_id >= 0:
+		_clear_wash_pose(sponge_id)
+		sponge_id = -1
+	sponge_hold = 0.0
+	for raw in pending:
+		_finish_wash(int(raw))
+
+
+func _finish_wash(id: int) -> void:
+	_clear_wash_pose(id)
+	if sponge_id == id:
+		sponge_id = -1
+		sponge_hold = 0.0
+	_ensure_agent_timers(id)
+	_pop_wash_sparkle(id)
+	cheer_t[id] = WASH_FX_LIFE
+	dir_x[id] = 0.0
+	dir_y[id] = 0.0
+
+
+func _pop_wash_sparkle(id: int) -> void:
+	if id < 0 or id >= slot_count:
+		return
+	for pop in pops:
+		if str(pop.get("kind", "")) == "wash" and int(pop.get("throng_id", -1)) == id:
+			return
+	_pop(pos_x[id], pos_y[id], AssetFrames.CLEAN, 1.0, id, WASH_FX_LIFE, "wash")
+
+
+func _clear_wash_pose(id: int) -> void:
 	if id < 0 or id >= slot_count:
 		return
 	shake_t[id] = 0.0
 	if act[id] == ACT_WASH:
 		act[id] = 0
 		act_t[id] = 0.0
+
+
+func _stop_wash(id: int) -> void:
+	_clear_wash_pose(id)
 	if sponge_id == id:
 		sponge_id = -1
+		sponge_hold = 0.0
 
 
 func eye_use(x: float, y: float) -> Dictionary:
@@ -4366,7 +4535,7 @@ func is_holding() -> bool:
 
 func _ensure_agent_timers(i: int) -> void:
 	# TODO: May be removed
-	# Old saves lack react/cheer/sleep/peer/drop/rotund/penned arrays; grow on demand.
+	# Old saves lack react/cheer/sleep/peer/drop/penned arrays; grow on demand.
 	while react_t.size() <= i:
 		react_t.append(0.0)
 	while cheer_t.size() <= i:
@@ -4381,8 +4550,6 @@ func _ensure_agent_timers(i: int) -> void:
 		peer_sing.append(0)
 	while drop_t.size() <= i:
 		drop_t.append(0.0)
-	while rotund_t.size() <= i:
-		rotund_t.append(0.0)
 	while penned_flag.size() <= i:
 		penned_flag.append(0)
 
@@ -4406,7 +4573,6 @@ func grab_thronglet(id: int) -> bool:
 	cheer_t[id] = 0.0
 	react_t[id] = 0.0
 	drop_t[id] = 0.0
-	rotund_t[id] = 0.0
 	_clear_peer_social(id)
 	clear_bark(id)
 	return true
@@ -5751,15 +5917,17 @@ const ACT_BATH := 4
 const ACT_WORK := 5
 
 
-func _pop(x: float, y: float, icon: int, sprite_scale: float = 1.0, throng_id: int = -1) -> void:
+func _pop(x: float, y: float, icon: int, sprite_scale: float = 1.0, throng_id: int = -1, life: float = 0.55, kind: String = "") -> void:
 	pops.append({
 		"x": x,
 		"y": y,
-		"t": 0.55,
+		"t": life,
+		"life": life,
 		"icon": icon,
 		"lift": 0.0,
 		"scale": sprite_scale,
 		"throng_id": throng_id,
+		"kind": kind,
 	})
 
 
@@ -6401,8 +6569,9 @@ func _schedule_talk_tree(event: String, action: Dictionary, tree_id: String) -> 
 
 
 func _begin_gaze() -> void:
+	# Dialogue freeze only — do not force glitch_t (that drove POSSESSED on every talk).
+	# Screen/body glitch stays for monolith / late package paths that set glitch_t themselves.
 	frozen = true
-	glitch_t = 1.4
 	_clear_action_motion()
 	_line_up_gaze()
 	sfx_queue.append("talk")
@@ -7195,6 +7364,7 @@ func _reset_world() -> void:
 	glitch_t = 0.0
 	gaze_home.clear()
 	barks.clear()
+	wash_fx_pending.clear()
 	wear.clear()
 	wear_from.clear()
 	trees_chopped = 0
@@ -7243,7 +7413,6 @@ func _reset_world() -> void:
 	peer_of = PackedInt32Array()
 	peer_sing = PackedByteArray()
 	drop_t = PackedFloat32Array()
-	rotund_t = PackedFloat32Array()
 	state = PackedInt32Array()
 	carry = PackedInt32Array()
 	carry_value = PackedInt32Array()
@@ -7254,6 +7423,7 @@ func _reset_world() -> void:
 	act_t = PackedFloat32Array()
 	tick_stamp = PackedInt32Array()
 	pops.clear()
+	wash_fx_pending.clear()
 	celebrate_t = 0.0
 	hash_next = PackedInt32Array()
 	hash_cell = PackedInt32Array()
@@ -7322,7 +7492,6 @@ func _push_slot_quiet(x: float, y: float, fed_v: float, fun_v: float, clean_v: f
 	peer_of.append(-1)
 	peer_sing.append(0)
 	drop_t.append(0.0)
-	rotund_t.append(0.0)
 	state.append(Catalog.ST_LIVING)
 	carry.append(Catalog.CARRY_NONE)
 	carry_value.append(0)
@@ -8829,6 +8998,119 @@ func _as_i32(value) -> PackedInt32Array:
 		out.append(int(v))
 	return out
 
+
+
+func _prep_shot_wash() -> void:
+	_clear_shot_props()
+	# Left: ACT_WASH + bubbles on body. Right: post-wash Happy stand + one CLEAN burst.
+	var ax := 256.0
+	var ay := 256.0
+	var scrub_id := _push_slot(ax - 36.0, ay, 90.0, 90.0, 20.0, 90.0, 0)
+	var done_id := _push_slot(ax + 36.0, ay, 90.0, 90.0, 100.0, 90.0, 1)
+	if scrub_id >= 0:
+		dir_x[scrub_id] = 0.0
+		dir_y[scrub_id] = 0.0
+		act[scrub_id] = ACT_WASH
+		act_t[scrub_id] = 0.85
+		clean[scrub_id] = 40.0
+		sponge_id = scrub_id
+		sponge_hold = 1.0
+	if done_id >= 0:
+		dir_x[done_id] = 0.0
+		dir_y[done_id] = 0.0
+		act[done_id] = 0
+		clean[done_id] = 100.0
+		_ensure_agent_timers(done_id)
+		cheer_t[done_id] = WASH_FX_LIFE
+		_pop_wash_sparkle(done_id)
+	peak = maxi(peak, 2)
+	shot_focus = Vector2(ax, ay)
+	shot_span = 72.0
+	view_rect = Rect2(shot_focus.x - shot_span, shot_focus.y - shot_span, shot_span * 2.0, shot_span * 2.0)
+	unlocks.sponge = true
+	smoke_hold = true
+	_rebuild_hash()
+	print("SHOT WASH READY scrub=%s done=%s" % [scrub_id, done_id])
+
+
+func _prep_shot_ball() -> void:
+	_clear_shot_props()
+	# Left: Default stand. Mid: content Happy_Walk + ball claim (bug was 1.0 scale).
+	# Right: kick pop of ICON_BALL beside still Happy.
+	var ax := 256.0
+	var ay := 256.0
+	var stand_id := _push_slot(ax - 48.0, ay, 95.0, 95.0, 95.0, 95.0, 0)
+	var walk_id := _push_slot(ax, ay, 95.0, 95.0, 95.0, 95.0, 1)
+	var kick_id := _push_slot(ax + 48.0, ay, 95.0, 95.0, 95.0, 95.0, 2)
+	var ball := _add_item(Catalog.ITEM_BALL, ax + 10.0, ay - 8.0, 1)
+	if stand_id >= 0:
+		dir_x[stand_id] = 0.0
+		dir_y[stand_id] = 0.0
+		act[stand_id] = 0
+	if walk_id >= 0:
+		dir_x[walk_id] = 1.0
+		dir_y[walk_id] = 0.0
+		act[walk_id] = ACT_PLAY
+		act_t[walk_id] = 0.55
+		if not ball.is_empty():
+			_claim_ball(walk_id, ball)
+	if kick_id >= 0:
+		dir_x[kick_id] = 0.0
+		dir_y[kick_id] = 0.0
+		act[kick_id] = ACT_PLAY
+		act_t[kick_id] = 0.55
+		if not ball.is_empty():
+			link_ball[kick_id] = int(ball.id)
+		_pop(pos_x[kick_id], pos_y[kick_id] - 6.0, Catalog.ICON_BALL, Catalog.BALL_SPRITE_SCALE)
+	peak = maxi(peak, 3)
+	shot_focus = Vector2(ax, ay)
+	shot_span = 80.0
+	view_rect = Rect2(shot_focus.x - shot_span, shot_focus.y - shot_span, shot_span * 2.0, shot_span * 2.0)
+	unlocks.ball = true
+	smoke_hold = true
+	_rebuild_hash()
+	print("SHOT BALL READY stand=%s walk=%s kick=%s ball=%s" % [
+		stand_id, walk_id, kick_id, int(ball.get("id", -1)) if not ball.is_empty() else -1,
+	])
+
+
+func _prep_shot_dirt() -> void:
+	_clear_shot_props()
+	# Two filthy thronglets at default zoom: left walks, right is held (Default body).
+	var ax := 256.0
+	var ay := 256.0
+	var walk_id := _push_slot(ax - 28.0, ay, 90.0, 90.0, 0.0, 0.0, 0)
+	var held_id := _push_slot(ax + 28.0, ay, 90.0, 90.0, 0.0, 0.0, 1)
+	if walk_id >= 0:
+		fed[walk_id] = 90.0
+		amused[walk_id] = 90.0
+		clean[walk_id] = 0.0
+		dir_x[walk_id] = 1.0
+		dir_y[walk_id] = 0.0
+		act[walk_id] = 0
+		act_t[walk_id] = 0.0
+	if held_id >= 0:
+		fed[held_id] = 90.0
+		amused[held_id] = 90.0
+		clean[held_id] = 0.0
+		dir_x[held_id] = 0.0
+		dir_y[held_id] = 0.0
+		act[held_id] = 0
+		act_t[held_id] = 0.0
+		held_kind = "thronglet"
+		held_ref = held_id
+		shot_throng = held_id
+	peak = maxi(peak, 2)
+	shot_focus = Vector2(ax, ay)
+	shot_span = 64.0
+	view_rect = Rect2(shot_focus.x - shot_span, shot_focus.y - shot_span, shot_span * 2.0, shot_span * 2.0)
+	smoke_hold = true
+	_rebuild_hash()
+	print("SHOT DIRT READY walk=%s held=%s clean_w=%.0f clean_h=%.0f" % [
+		walk_id, held_id,
+		clean[walk_id] if walk_id >= 0 else -1.0,
+		clean[held_id] if held_id >= 0 else -1.0,
+	])
 
 
 func _prep_shot_needs() -> void:

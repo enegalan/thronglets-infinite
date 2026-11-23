@@ -36,25 +36,36 @@ const SCALE := {
 	"ThrongA_Eat": 0.4,
 	"ThrongA_Grumpy": 0.4,
 	"ThrongA_Happy": 0.4,
+	"ThrongA_Happy_Walk": 0.4,
 	"ThrongA_ImpactfulExplanation_Spritesheet": 0.4,
+	"ThrongA_InAwe": 0.4,
 	"ThrongA_Jump": 0.4,
 	"ThrongA_Jump-EarWiggle": 0.4,
 	"ThrongA_JumpBlink": 0.4,
 	"ThrongA_Jump_High": 0.4,
 	"ThrongA_Jump_VariantA_Spritesheet": 0.4,
+	"ThrongA_LiftProp": 0.4,
+	"ThrongA_LiftPropWalk": 0.4,
+	"ThrongA_DropProp": 0.4,
 	"ThrongA_LooktAtPlayerHappyNod_Spritesheet": 0.4,
 	"ThrongA_MitosisCutscene_NoBlood_Spritesheet": 0.4,
 	"ThrongA_Mitosis_Spritesheet": 0.4,
+	"ThrongA_PanicRun": 0.4,
+	"ThrongA_PanicRunFire": 0.4,
+	"ThrongA_FreakOut": 0.4,
 	"ThrongA_Pickaxe_Spritesheet": 0.4,
 	"ThrongA_Possessed_AntennaSpinEar_Spritesheet": 0.4,
 	"ThrongA_Possessed_AntennaSpinTalk_Spritesheet": 0.4,
 	"ThrongA_Possessed_AntennaSpin_Spritesheet": 0.4,
 	"ThrongA_Possessed_EarRaise_Spritesheet": 0.4,
+	"ThrongA_PuppyDogEyes": 0.4,
 	"ThrongA_ReactToKill": 0.4,
 	"ThrongA_Rotund_Spritesheet": 0.4,
 	"ThrongA_Roundabout_SpriteSheet": 0.4,
 	"ThrongA_Sad": 0.4,
+	"ThrongA_Sad_Walk": 0.4,
 	"ThrongA_Shrug": 0.4,
+	"ThrongA_Deflesh": 0.4,
 	"ThrongA_SingToThronglet_Spritesheet2": 0.4,
 	"ThrongA_SkepticalToPlayer_Spritesheet": 0.4,
 	"ThrongA_Sophisticated": 0.4,
@@ -388,9 +399,12 @@ static func default_fps(clip: String) -> float:
 
 
 static func default_scale(clip: String) -> float:
-	if not SCALE.has(clip):
-		return 1.0
-	return float(SCALE[clip])
+	if SCALE.has(clip):
+		return float(SCALE[clip])
+	# Pack-extra / new body clips must match THRONG_SPRITE_SCALE (0.4), never 1.0.
+	if clip.begins_with("Throng"):
+		return 0.4
+	return 1.0
 
 
 static func default_frame_scale(clip: String) -> Dictionary:

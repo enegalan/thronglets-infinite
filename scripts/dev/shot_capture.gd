@@ -20,7 +20,7 @@ var fx_i := 0
 var round_ids: Array = []
 var round_mark := -1
 var round_hold := 0
-var board: SubViewport
+var board: Node
 var video_saved := false
 var title_saved := false
 var apple_phase := 0
@@ -38,6 +38,15 @@ func setup(p_main: Node2D) -> void:
 func tick_shot() -> void:
 	if sim.shot_anims:
 		_tick_shot_anims()
+		return
+	if sim.shot_dirt:
+		_tick_shot_dirt()
+		return
+	if sim.shot_ball:
+		_tick_shot_ball()
+		return
+	if sim.shot_wash:
+		_tick_shot_wash()
 		return
 	if sim.shot_fx:
 		_tick_shot_fx()
@@ -781,6 +790,271 @@ func _tick_shot_anims() -> void:
 	main.get_tree().quit(0)
 
 
+func _tick_shot_wash() -> void:
+	# Left: bubbles from live scrub path (small strokes). Right: CLEAN + Happy.
+	if frames == 0:
+		if main.ui != null:
+			main.ui.visible = false
+		main.kit_open = false
+		if main.has_method("_set_kit_shown"):
+			main._set_kit_shown(false)
+		if main.task_panel != null:
+			main.task_panel.visible = false
+		main.crt_on = false
+		if main.has_method("_apply_crt"):
+			main._apply_crt()
+		main.tool = Catalog.TOOL_SPONGE
+		main.cam_rig.set_zoom(3.0)
+		main.camera.position = main.cam_rig.to_iso(sim.shot_focus)
+		print("SHOT WASH SCALE sponge_suds=%.2f sparkle=%.2f stroke_min=%.2f" % [
+			float(EffectTune.get_tune("act:sponge").get("scale", 0.0)),
+			float(EffectTune.get_tune("act:wash_sparkle").get("scale", 0.0)),
+			ThrongletSimServer.SCRUB_STROKE_MIN,
+		])
+	frames += 1
+	main.sponge_tracking = true
+	# Simulate gentle rub (was failing when stroke_min was 2.0).
+	var scrub_at := Vector2(sim.shot_focus.x - 36.0 + sin(float(frames) * 0.9) * 3.0, sim.shot_focus.y)
+	var stroke := 0.0 if frames <= 1 else scrub_at.distance_to(main.sponge_last)
+	main.sponge_last = scrub_at
+	sim.scrub(scrub_at.x, scrub_at.y, stroke, stroke >= ThrongletSimServer.SCRUB_STROKE_MIN)
+	for i in sim.slot_count:
+		if sim.state[i] != Catalog.ST_LIVING:
+			continue
+		if float(sim.cheer_t[i]) > 0.0:
+			sim.cheer_t[i] = maxf(float(sim.cheer_t[i]), 0.55)
+			sim.dir_x[i] = 0.0
+			sim.dir_y[i] = 0.0
+	for pop in sim.pops:
+		if str(pop.get("kind", "")) == "wash":
+			pop.t = maxf(float(pop.t), 0.55)
+			pop.life = ThrongletSimServer.WASH_FX_LIFE
+			pop.lift = 6.0
+	var wash_act := 0
+	for i in sim.slot_count:
+		if int(sim.act[i]) == ThrongletSimServer.ACT_WASH:
+			wash_act += 1
+	# Prove suds persist across many scrub frames (was 1-frame flicker).
+	if frames == 8:
+		print("SHOT WASH MID act_wash=%d sponge_hold=%.2f" % [wash_act, sim.sponge_hold])
+	if frames < 28:
+		return
+	RenderingServer.force_draw()
+	if not save_shot(main.get_viewport(), "res://shots/wash_scrub_vs_sparkle.png"):
+		main.get_tree().quit(1)
+		return
+	done = true
+	print("SHOT WASH DONE act_wash=%d sponge_id=%d hold=%.2f suds_scale=%.2f" % [
+		wash_act,
+		sim.sponge_id,
+		sim.sponge_hold,
+		float(EffectTune.get_tune("act:sponge").get("scale", 0.0)),
+	])
+	main.get_tree().quit(0)
+
+
+func _tick_shot_ball() -> void:
+	# Live world: Default | Happy_Walk+ball | kick Happy+ball pop — scales must match.
+	if frames == 0:
+		if main.ui != null:
+			main.ui.visible = false
+		main.kit_open = false
+		if main.has_method("_set_kit_shown"):
+			main._set_kit_shown(false)
+		if main.task_panel != null:
+			main.task_panel.visible = false
+		main.crt_on = false
+		if main.has_method("_apply_crt"):
+			main._apply_crt()
+		main.cam_rig.set_zoom(3.0)
+		main.camera.position = main.cam_rig.to_iso(sim.shot_focus)
+		var hw := ThrongClips.frame_at("ThrongA_Happy_Walk", 0)
+		var df := ThrongClips.frame_at("ThrongA_Default", 0)
+		print("SHOT BALL SCALE Default=%.2f Happy_Walk=%.2f pop_ball=%.2f" % [
+			main._throng_sprite_scale(df),
+			main._throng_sprite_scale(hw),
+			Catalog.BALL_SPRITE_SCALE,
+		])
+	frames += 1
+	# Keep pop alive across the capture window.
+	for pop in sim.pops:
+		pop.t = 0.55
+		pop.lift = 8.0
+	if frames < 10:
+		return
+	# Freeze walkers mid-step so Happy_Walk stays selected.
+	for i in sim.slot_count:
+		if sim.state[i] != Catalog.ST_LIVING:
+			continue
+		if absf(sim.dir_x[i]) + absf(sim.dir_y[i]) >= 0.01:
+			sim.dir_x[i] = 1.0
+			sim.dir_y[i] = 0.0
+			sim.act[i] = ThrongletSimServer.ACT_PLAY
+			sim.act_t[i] = 0.55
+	RenderingServer.force_draw()
+	if not save_shot(main.get_viewport(), "res://shots/ball_kick_scale.png"):
+		main.get_tree().quit(1)
+		return
+	var hw2: int = ThrongClips.frame_at("ThrongA_Happy_Walk", 0)
+	var sc: float = float(main._throng_sprite_scale(hw2))
+	if absf(sc - 0.4) > 0.01:
+		print("SHOT BALL FAIL Happy_Walk scale=%.3f expected 0.4" % sc)
+		main.get_tree().quit(1)
+		return
+	done = true
+	print("SHOT BALL DONE Happy_Walk_scale=%.2f" % sc)
+	main.get_tree().quit(0)
+
+
+func _tick_shot_dirt() -> void:
+	# Screen-space board through the real thronglet shader (no headless SubViewport).
+	if frames == 0:
+		if main.ui != null:
+			main.ui.visible = false
+		main.kit_open = false
+		if main.has_method("_set_kit_shown"):
+			main._set_kit_shown(false)
+		if main.task_panel != null:
+			main.task_panel.visible = false
+		main.crt_on = false
+		if main.has_method("_apply_crt"):
+			main._apply_crt()
+		# Hide island thronglets — board owns the proof sprites.
+		sim.held_kind = ""
+		sim.held_ref = -1
+		for i in sim.slot_count:
+			if sim.state[i] == Catalog.ST_LIVING:
+				sim.state[i] = Catalog.ST_VACANT
+		main.cam_rig.set_zoom(2.0)
+		main.camera.position = main.cam_rig.to_iso(sim.shot_focus)
+		_build_dirt_screen_board()
+	frames += 1
+	if frames < 8:
+		return
+	var far: bool = main.cam_rig.zoom_level < 2.5
+	print("SHOT DIRT PROBE zoom=%.2f far=%s board=%s" % [
+		main.cam_rig.zoom_level, str(far), str(board != null),
+	])
+	RenderingServer.force_draw()
+	if not save_shot(main.get_viewport(), "res://shots/dirt_walk_vs_held.png"):
+		main.get_tree().quit(1)
+		return
+	done = true
+	print("SHOT DIRT DONE zoom=%.2f far=%s" % [main.cam_rig.zoom_level, str(far)])
+	main.get_tree().quit(0)
+
+
+func _build_dirt_screen_board() -> void:
+	var samples: Array = [
+		["clean Default", "ThrongA_Default", 0, 0.0],
+		["dirty Default", "ThrongA_Default", 0, 1.0],
+		["dirty Walk0", "Throng_Walk_Anim_Spritesheet", 0, 1.0],
+		["dirty Walk2", "Throng_Walk_Anim_Spritesheet", 2, 1.0],
+		["dirty Homed", "Throng_Walk_Homed_Spritesheet", 2, 1.0],
+		["held=Default", "ThrongA_Default", 0, 1.0],
+	]
+	var layer := CanvasLayer.new()
+	layer.layer = 80
+	main.add_child(layer)
+	var root := Control.new()
+	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(root)
+	var bg := ColorRect.new()
+	bg.color = Color(0.14, 0.36, 0.18)
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.add_child(bg)
+	var title := Label.new()
+	title.text = "Dirt @ zoom 2.0 far_view — Walk/Homed must match held Default"
+	title.position = Vector2(16, 10)
+	title.size = Vector2(900, 24)
+	root.add_child(title)
+	var sheet := MultiMeshInstance2D.new()
+	sheet.texture = main.world.texture
+	sheet.material = main.world.material
+	sheet.multimesh = main._mesh(true, Vector2(main.WORLD_CELL, main.WORLD_CELL))
+	sheet.z_index = 1
+	root.add_child(sheet)
+	board = sheet
+	var scale := 1.15
+	var draws: Array = []
+	var cols := 3
+	for i in samples.size():
+		var sample: Array = samples[i]
+		var clip := str(sample[1])
+		if not ThrongClips.has_clip(clip):
+			print("SHOT DIRT SKIP missing %s" % clip)
+			continue
+		var col := i % cols
+		var row := int(i / cols)
+		var center := Vector2(140.0 + float(col) * 200.0, 120.0 + float(row) * 160.0)
+		var frame := ThrongClips.frame_at(clip, int(sample[2]))
+		draws.append({
+			"p": center + Vector2(0.0, main.WORLD_CELL * 0.5 * scale),
+			"icon": frame,
+			"tint": Color.WHITE,
+			"scale": scale,
+			"dirty": float(sample[3]),
+		})
+		var tag := Label.new()
+		tag.text = "%s  f=%d d=%.0f" % [str(sample[0]), frame, float(sample[3])]
+		tag.position = center + Vector2(-70, 58)
+		tag.size = Vector2(160, 18)
+		tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		root.add_child(tag)
+	main._write_mesh(sheet.multimesh, draws)
+	print("SHOT DIRT BOARD n=%d zoom=%.2f" % [draws.size(), main.cam_rig.zoom_level])
+
+
+func build_dirt_review_shot() -> void:
+	# Atlas board kept for offline debug; live --shot-dirt uses _tick_shot_dirt.
+	main.cam_rig.set_zoom(2.0)
+	var samples: Array = [
+		["clean Default", "ThrongA_Default", 0, 0.0],
+		["dirty Default", "ThrongA_Default", 0, 1.0],
+		["dirty Walk0", "Throng_Walk_Anim_Spritesheet", 0, 1.0],
+		["dirty Walk2", "Throng_Walk_Anim_Spritesheet", 2, 1.0],
+		["dirty Homed", "Throng_Walk_Homed_Spritesheet", 2, 1.0],
+		["held=Default", "ThrongA_Default", 0, 1.0],
+	]
+	var cols := 3
+	var rows := int((samples.size() + cols - 1) / cols)
+	var board_vp := SubViewport.new()
+	board_vp.size = Vector2i(cols * 150 + 40, rows * 150 + 70)
+	board_vp.disable_3d = true
+	board_vp.transparent_bg = false
+	board_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	main.add_child(board_vp)
+	board = board_vp
+	var bg := ColorRect.new()
+	bg.color = Color(0.18, 0.42, 0.22)
+	bg.size = Vector2(board_vp.size)
+	board_vp.add_child(bg)
+	var sheet := MultiMeshInstance2D.new()
+	sheet.texture = main.world.texture
+	sheet.material = main.world.material
+	sheet.multimesh = main._mesh(true, Vector2(main.WORLD_CELL, main.WORLD_CELL))
+	board_vp.add_child(sheet)
+	var scale := 0.9
+	var draws: Array = []
+	for i in samples.size():
+		var sample: Array = samples[i]
+		var clip := str(sample[1])
+		if not ThrongClips.has_clip(clip):
+			continue
+		var col := i % cols
+		var row := int(i / cols)
+		var center := Vector2(75 + col * 150, 75 + row * 150)
+		draws.append({
+			"p": center + Vector2(0, main.WORLD_CELL * 0.5 * scale),
+			"icon": ThrongClips.frame_at(clip, int(sample[2])),
+			"tint": Color.WHITE,
+			"scale": scale,
+			"dirty": float(sample[3]),
+		})
+	main._write_mesh(sheet.multimesh, draws)
+
+
 func _anim_review_samples() -> Array:
 	return [
 		["1 idle", "ThrongA_Default", 0, 0.0],
@@ -801,8 +1075,8 @@ func _anim_review_samples() -> Array:
 		["4b poss", "ThrongA_Possessed_AntennaSpin_Spritesheet", 2, 0.0],
 		["5 sing", "Throng_Sing_Spritesheet", 2, 0.0],
 		["5 peer", "ThrongA_TalkToOtherThronglet_Spritesheet2", 1, 0.0],
-		["6 celeb", "ThrongA_Celebrate_Spritesheet", 4, 0.0],
-		["6 jump", "ThrongA_Jump-EarWiggle", 2, 0.0],
+		["6 celeb0", "ThrongA_Celebrate_Spritesheet", 0, 0.0],
+		["6 celeb5", "ThrongA_Celebrate_Spritesheet", 5, 0.0],
 		["7 reactK", "ThrongA_ReactToKill", 2, 0.0],
 		["8 homed", "Throng_Walk_Homed_Spritesheet", 2, 0.0],
 		["8 happyW", "ThrongA_Happy_Walk", 0, 0.0],

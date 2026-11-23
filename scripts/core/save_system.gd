@@ -258,7 +258,6 @@ func save_game() -> bool:
 		"peer_of": sim.peer_of,
 		"peer_sing": sim.peer_sing,
 		"drop_t": sim.drop_t,
-		"rotund_t": sim.rotund_t,
 		"state": sim.state,
 		"carry": sim.carry,
 		"carry_value": sim.carry_value,
@@ -357,7 +356,6 @@ func load_game() -> bool:
 	for raw_sing in data.get("peer_sing", []):
 		sim.peer_sing.append(int(raw_sing))
 	sim.drop_t = sim._as_f32(data.get("drop_t", []))
-	sim.rotund_t = sim._as_f32(data.get("rotund_t", []))
 	sim.state = sim._as_i32(data.state)
 	sim.carry = sim._as_i32(data.carry)
 	sim.carry_value = sim._as_i32(data.carry_value)
@@ -398,8 +396,6 @@ func load_game() -> bool:
 			sim.peer_sing[s] = int(old_sing[s])
 	while sim.drop_t.size() < sim.slot_count:
 		sim.drop_t.append(0.0)
-	while sim.rotund_t.size() < sim.slot_count:
-		sim.rotund_t.append(0.0)
 	sim.penned_flag = PackedByteArray()
 	sim.penned_flag.resize(sim.slot_count)
 	sim.penned_flag.fill(0)

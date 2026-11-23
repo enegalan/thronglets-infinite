@@ -26,7 +26,7 @@ const DEFAULTS := {
 	"act:play": {"fun": 6.0},
 	"act:ball": {"fun": 8.0},
 	"act:round": {"fun": 2.5},
-	"act:sponge": {"radius": 30.0, "stroke_min": 2.0, "stroke_cap": 22.0, "gain": 2.0},
+	"act:sponge": {"radius": 30.0, "stroke_min": 0.35, "stroke_cap": 22.0, "gain": 2.0},
 	"act:mop": {"radius": 48.0, "clean": 100.0},
 }
 
@@ -46,12 +46,14 @@ const LOOK := {
 	"aura:ball": {"clip": "ThrongA_Jump_VariantA_Spritesheet", "fx": "none", "lift": 0.0, "bob": 2.0, "orbit": 14.0},
 	"act:eat": {"clip": "ThrongA_Eat", "fx": "none", "lift": 0.0, "bob": 5.0, "orbit": 0.0},
 	"act:bath": {"clip": "Throng_FallInBath_Spritesheet", "fx": "splash", "lift": 0.0, "bob": 0.0, "orbit": 0.0},
-	"act:bath_exit": {"clip": "ThrongA_Happy", "fx": "clean", "lift": 0.0, "bob": 0.0, "orbit": 0.0, "scale": 0.3, "fx_x": 3.0, "fx_y": 3.0},
+	"act:bath_exit": {"clip": "ThrongA_Happy", "fx": "clean", "lift": 0.0, "bob": 0.0, "orbit": 0.0, "scale": 0.55, "fx_x": 0.0, "fx_y": -4.0},
+	"act:wash_sparkle": {"clip": "ThrongA_Happy", "fx": "clean", "lift": 0.0, "bob": 0.0, "orbit": 0.0, "scale": 0.28, "fx_x": 0.0, "fx_y": -4.0},
 	"act:play": {"clip": "ThrongA_Jump_VariantA_Spritesheet", "fx": "none", "lift": 0.0, "bob": 3.0, "orbit": 10.0},
 	"act:ball": {"clip": "ThrongA_Jump_VariantA_Spritesheet", "fx": "none", "lift": 0.0, "bob": 0.0, "orbit": 14.0},
 	"act:round": {"clip": "ThrongA_Roundabout_SpriteSheet", "fx": "none", "lift": 1.5, "bob": 10.0, "orbit": 0.0},
-	"act:sponge": {"clip": "ThrongA_Happy", "fx": "suds", "lift": 0.0, "bob": 0.0, "orbit": 0.0, "scale": 0.4, "fx_x": 7.0, "fx_y": 7.0},
-	"act:mop": {"clip": "ThrongA_Happy", "fx": "suds", "lift": 0.0, "bob": 0.0, "orbit": 0.0, "scale": 1.0, "fx_x": 0.0, "fx_y": 0.0},
+	# Soap foam on the thronglet body while scrubbing ([4:42](video-frames)).
+	"act:sponge": {"clip": "ThrongA_Happy", "fx": "suds", "lift": 0.0, "bob": 0.0, "orbit": 0.0, "scale": 0.55, "fx_x": 0.0, "fx_y": 0.0},
+	"act:mop": {"clip": "ThrongA_Happy", "fx": "suds", "lift": 0.0, "bob": 0.0, "orbit": 0.0, "scale": 0.28, "fx_x": 0.0, "fx_y": 0.0},
 }
 
 static var _rows: Array = []
@@ -248,6 +250,7 @@ static func _build() -> void:
 	_push("ACTION", "act:eat", "COMER", ["bite", "fed"])
 	_push("ACTION", "act:bath", "BANERA", ["clean", "done", "min_stay", "enter"])
 	_push("ACTION", "act:bath_exit", "SALIDA BANERA", [])
+	_push("ACTION", "act:wash_sparkle", "CHISPA LAVADO", [])
 	_push("ACTION", "act:play", "JUGAR", ["fun"])
 	_push("ACTION", "act:ball", "PATADA BALON", ["fun"])
 	_push("ACTION", "act:round", "TIOVIVO", ["fun"])

@@ -30,9 +30,10 @@ void fragment() {
 	} else {
 		float dirty = clamp(custom_data.y, 0.0, 1.0);
 		if (dirty > 0.001) {
+			// Unity Venice dirt: lerp toward DirtTex.rgb (not multiply).
 			vec4 dirt = texture(dirt_tex, sample_uv);
-			float factor = dirt.a * dirty;
-			tex.rgb = mix(tex.rgb, tex.rgb * dirt.rgb, factor);
+			float factor = clamp(dirt.a * dirty, 0.0, 1.0);
+			tex.rgb = mix(tex.rgb, dirt.rgb, factor);
 		}
 		COLOR = (current_frame < 24 || current_frame >= 144) ? tex : tex * inst_color;
 	}
