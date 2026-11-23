@@ -475,50 +475,77 @@ func shape_island() -> int:
 			continue
 		keep_cell(keep, sim.pos_x[i], sim.pos_y[i])
 	for b in sim.buildings:
-		if not b.dead:
-			keep_cell(keep, float(b.x), float(b.y))
+		if b.dead:
+			continue
+		var foot: Vector2i = Catalog.footprint_for_building(int(b.kind))
+		for cell in sim._footprint_cells(float(b.x), float(b.y), foot):
+			keep["%d,%d" % [cell.x, cell.y]] = true
 	var changed := false
 	var fresh: Array[Vector2] = []
 	var new_chunks: Array[Vector2i] = []
 	var touched: Array[Vector2i] = []
+	# Disk scan creates/updates land; also revisit every existing chunk so shrinks void stale land.
+	var scan: Array[Vector2i] = []
+	var seen_ck := {}
 	for cy in range(y0, y1 + 1):
 		for cx in range(x0, x1 + 1):
 			if not chunk_intersects_disk(cx, cy, mid, reach + pad):
 				continue
-			var ck: String = sim._ck(cx, cy)
-			var was_new: bool = not sim.chunks.has(ck)
+			var key := "%d,%d" % [cx, cy]
+			seen_ck[key] = true
+			scan.append(Vector2i(cx, cy))
+	for ck_existing in sim.chunks.keys():
+		if seen_ck.has(ck_existing):
+			continue
+		var parts: PackedStringArray = str(ck_existing).split(",")
+		if parts.size() < 2:
+			continue
+		seen_ck[str(ck_existing)] = true
+		scan.append(Vector2i(int(parts[0]), int(parts[1])))
+	for coord in scan:
+		var cx: int = coord.x
+		var cy: int = coord.y
+		var in_disk := chunk_intersects_disk(cx, cy, mid, reach + pad)
+		var ck: String = sim._ck(cx, cy)
+		var was_new: bool = not sim.chunks.has(ck)
+		if was_new and not in_disk:
+			continue
+		if in_disk:
 			sim._reveal(cx, cy)
 			if was_new:
 				new_chunks.append(Vector2i(cx, cy))
-			var tiles = sim.chunks[ck].tiles
-			var chunk_changed := false
-			for ly in Catalog.CHUNK:
-				for lx in Catalog.CHUNK:
-					var gx := cx * Catalog.CHUNK + lx
-					var gy := cy * Catalog.CHUNK + ly
-					var wx := float(gx * Catalog.TILE + 8)
-					var wy := float(gy * Catalog.TILE + 8)
-					var land := disk_land(wx, wy, mid, reach, phase)
-					var idx := ly * Catalog.CHUNK + lx
-					var tile := int(tiles[idx])
-					var gkey := "%d,%d" % [gx, gy]
-					if land:
-						if tile == Catalog.TILE_VOID:
-							tiles[idx] = Catalog.TILE_GRASS
-							fresh.append(Vector2(wx, wy))
-							chunk_changed = true
-					elif not keep.has(gkey) and tile != Catalog.TILE_VOID:
-						tiles[idx] = Catalog.TILE_VOID
+		var tiles = sim.chunks[ck].tiles
+		var chunk_changed := false
+		for ly in Catalog.CHUNK:
+			for lx in Catalog.CHUNK:
+				var gx := cx * Catalog.CHUNK + lx
+				var gy := cy * Catalog.CHUNK + ly
+				var wx := float(gx * Catalog.TILE + 8)
+				var wy := float(gy * Catalog.TILE + 8)
+				var land := in_disk and disk_land(wx, wy, mid, reach, phase)
+				var idx := ly * Catalog.CHUNK + lx
+				var tile := int(tiles[idx])
+				var gkey := "%d,%d" % [gx, gy]
+				if land:
+					if tile == Catalog.TILE_VOID:
+						tiles[idx] = Catalog.TILE_GRASS
+						fresh.append(Vector2(wx, wy))
 						chunk_changed = true
-			if chunk_changed or was_new:
-				if cx == 0 and cy == 0 and not bool(sim.sandbox_mode):
-					tiles = paint_water(tiles, 0, 0)
-				sim.chunks[ck].tiles = tiles
-				sim.chunks[ck].base = tiles.duplicate()
-				sim._mark_dirty(ck)
-				touched.append(Vector2i(cx, cy))
-				if chunk_changed:
-					changed = true
+				elif not keep.has(gkey) and tile != Catalog.TILE_VOID:
+					tiles[idx] = Catalog.TILE_VOID
+					chunk_changed = true
+		if chunk_changed or was_new:
+			if cx == 0 and cy == 0 and not bool(sim.sandbox_mode):
+				tiles = paint_water(tiles, 0, 0)
+			sim.chunks[ck].tiles = tiles
+			sim.chunks[ck].base = tiles.duplicate()
+			sim._mark_dirty(ck)
+			touched.append(Vector2i(cx, cy))
+			if chunk_changed:
+				changed = true
+	if changed:
+		sim.inland_cache.clear()
+		sim._invalidate_walk_cells()
 	if not changed:
 		sim._shaping_island = false
 		return 0

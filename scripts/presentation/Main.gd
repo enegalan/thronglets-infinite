@@ -1830,11 +1830,18 @@ func _push_throng_crowd_draws(draws: Array, ids: Array, time: float, far_view: b
 
 func _throng_hidden_indoors(sim: ThrongletSim, i: int) -> bool:
 	# Inside a visit building (home / theatre / mine). Tub and roundabout stay visible.
+	# Crowd path: O(1) guest link only — do not scan every building per agent.
 	if i < 0 or i >= sim.slot_count or sim.state[i] != Catalog.ST_LIVING:
 		return false
-	if sim.has_method("indoors"):
-		return bool(sim.indoors(i))
-	return false
+	if i >= sim.link_guest.size():
+		return false
+	var bid := int(sim.link_guest[i])
+	if bid < 0:
+		return false
+	var visit = sim.building_by_id.get(bid, {})
+	if visit.is_empty() or visit.dead:
+		return false
+	return not sim._visit_rule(int(visit.kind)).is_empty()
 
 
 func _frame_lod(i: int, time: float, far_view: bool) -> int:

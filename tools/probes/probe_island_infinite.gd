@@ -9,7 +9,7 @@ func _init() -> void:
 
 func _run() -> void:
 	var sim = SimScript.new()
-	sim.testing = true
+	# Do not set testing before add_child — _ready() would start the smoke suite.
 	sim.smoke_hold = true
 	sim.world_seed = 7777
 	seed(7777)
@@ -19,8 +19,13 @@ func _run() -> void:
 	sim.testing = true
 	sim.smoke_hold = true
 	sim.frozen = false
+	sim.world_seed = 7777
+	seed(7777)
 	if not sim.chunks.has("0,0"):
 		sim._bootstrap_new()
+	elif sim.land_tier != 0:
+		sim.land_tier = 0
+		sim._shape_island()
 	var r0: float = sim._island_reach()
 	var land0 := _count_land(sim)
 	print("tier0 reach=", r0, " land=", land0, " chunks=", sim.chunks.size())

@@ -63,6 +63,7 @@ func tick(delta: float) -> void:
 			if phase_t >= 1.0:
 				print("PICK ZOOM REPRO OK frames=%d fps=%s" % [frames, Engine.get_frames_per_second()])
 				phase = "quit"
+				get_tree().quit(0)
 		"quit":
 			get_tree().quit(0)
 

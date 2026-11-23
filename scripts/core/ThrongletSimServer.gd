@@ -530,9 +530,8 @@ func _tick_agents(delta: float) -> void:
 				seek_left -= 1
 				_sample_mood(i)
 			else:
-				if tick_stamp[i] != frame_i:
-					tick_stamp[i] = frame_i
-					_tick_busy_or_coast(i, delta)
+				# Life still advances when seek budget is exhausted; only AI seeks are deferred.
+				_tick_one(i, delta, decay, false)
 				_agent_done_frame[i] = frame_i
 	# 3) Far / overflow: fixed rotating budgets — cost flat at 50k-120k.
 	# Re-read living_ids.size() — sticky/near ticks can kill and shrink the list.
@@ -551,6 +550,8 @@ func _tick_agents(delta: float) -> void:
 				break
 			var i2 := int(living_ids[(base + j2) % live_n2])
 			if i2 < 0 or i2 >= slot_count or state[i2] != Catalog.ST_LIVING:
+				continue
+			if held_kind == "thronglet" and i2 == held_ref:
 				continue
 			_ensure_agent_done_frame()
 			if _agent_done_frame[i2] == frame_i:
@@ -577,6 +578,8 @@ func _tick_agents(delta: float) -> void:
 				break
 			var i3 := int(living_ids[(cbase + j3) % live_n3])
 			if i3 < 0 or i3 >= slot_count or state[i3] != Catalog.ST_LIVING:
+				continue
+			if held_kind == "thronglet" and i3 == held_ref:
 				continue
 			_ensure_agent_done_frame()
 			if _agent_done_frame[i3] == frame_i:
@@ -1313,11 +1316,9 @@ func _do_bath(i: int, b: Dictionary, dt: float) -> void:
 	if i < seek_t.size():
 		seek_t[i] = 0.0
 	var seat := Vector2(float(b.x), float(b.y)) + Catalog.TUB_SEAT_OFF
-	pos_x[i] = seat.x
-	pos_y[i] = seat.y
+	_set_agent_pos(i, seat.x, seat.y)
 	dir_x[i] = 0.0
 	dir_y[i] = 0.0
-	_hash_relocate(i)
 	b.active = true
 	clean[i] = minf(100.0, clean[i] + BATH_CLEAN_RATE * dt)
 	if clean[i] >= BATH_DONE and float(b.bath_t) >= BATH_MIN_STAY:
@@ -1329,8 +1330,7 @@ func _finish_bath(i: int, b: Dictionary) -> void:
 	_release_claim(i)
 	if i < seek_t.size():
 		seek_t[i] = 0.0
-	pos_x[i] = float(rim.x)
-	pos_y[i] = float(rim.y)
+	_set_agent_pos(i, float(rim.x), float(rim.y))
 	act[i] = ACT_BATH
 	act_t[i] = 0.35
 	_pop(pos_x[i], pos_y[i], AssetFrames.CLEAN, 1.0, i)
@@ -1542,8 +1542,7 @@ func _place_on_ride_slot(i: int, b: Dictionary, slot: int) -> bool:
 	if _ride_spot_blocked(seat.x, seat.y, b):
 		return false
 	var ang := _ride_slot_ang(b, slot)
-	pos_x[i] = seat.x
-	pos_y[i] = seat.y
+	_set_agent_pos(i, seat.x, seat.y)
 	dir_x[i] = cos(ang + PI * 0.5)
 	dir_y[i] = sin(ang + PI * 0.5)
 	return true
@@ -1561,8 +1560,7 @@ func _leave_ride(i: int, b: Dictionary) -> void:
 		rim = _approach_spot(float(b.x), float(b.y), _ride_radius(b) + 10.0, i)
 	if _move_blocked(float(rim.x), float(rim.y)):
 		return
-	pos_x[i] = float(rim.x)
-	pos_y[i] = float(rim.y)
+	_set_agent_pos(i, float(rim.x), float(rim.y))
 	dir_x[i] = 0.0
 	dir_y[i] = 0.0
 
@@ -2914,8 +2912,7 @@ func _push_out(b: Dictionary, i: int) -> void:
 	var nx := pos_x[i] + cos(ang) * 22.0
 	var ny := pos_y[i] + sin(ang) * 22.0
 	if not _move_blocked(nx, ny):
-		pos_x[i] = nx
-		pos_y[i] = ny
+		_set_agent_pos(i, nx, ny)
 	if int(b.kind) == Catalog.BLD_TUB:
 		sfx_queue.append("tub_out")
 
@@ -4262,13 +4259,11 @@ func release_at(x: float, y: float, short_click: bool, _allow_use: bool = true, 
 	if kind == "thronglet" and id >= 0 and id < slot_count and state[id] == Catalog.ST_LIVING:
 		if short_click:
 			if _thronglet_ground_ok(px, py):
-				pos_x[id] = px
-				pos_y[id] = py
+				_set_agent_pos(id, px, py)
 		else:
 			var drop_tile := _tile_at(px, py)
 			if drop_tile == Catalog.TILE_VOID or drop_tile == Catalog.TILE_FOG:
-				pos_x[id] = px
-				pos_y[id] = py
+				_set_agent_pos(id, px, py)
 				_fall_void(px, py)
 				_vacate(id)
 			elif drop_tile == Catalog.TILE_WATER or not _thronglet_ground_ok(px, py):
@@ -4276,23 +4271,18 @@ func release_at(x: float, y: float, short_click: bool, _allow_use: bool = true, 
 				if is_inf(safe.x):
 					safe = _find_safe_thronglet_spot(held_x, held_y)
 				if not is_inf(safe.x):
-					pos_x[id] = safe.x
-					pos_y[id] = safe.y
+					_set_agent_pos(id, safe.x, safe.y)
 				elif drop_tile == Catalog.TILE_VOID or drop_tile == Catalog.TILE_FOG:
-					pos_x[id] = px
-					pos_y[id] = py
+					_set_agent_pos(id, px, py)
 					_fall_void(px, py)
 					_vacate(id)
 				else:
 					if _thronglet_ground_ok(held_x, held_y):
-						pos_x[id] = held_x
-						pos_y[id] = held_y
+						_set_agent_pos(id, held_x, held_y)
 					else:
-						pos_x[id] = px
-						pos_y[id] = py
+						_set_agent_pos(id, px, py)
 			else:
-				pos_x[id] = px
-				pos_y[id] = py
+				_set_agent_pos(id, px, py)
 	elif kind == "rock":
 		var feat = feature_by_id.get(id, {})
 		if not feat.is_empty() and not feat.dead:
@@ -4466,8 +4456,9 @@ func _building_spot_free(id: int, x: float, y: float, kind: int = -1) -> bool:
 		var mine_feat = feature_by_id.get(mine_feat_id, {})
 		if mine_feat.is_empty() or mine_feat.dead or _ore_tier(int(mine_feat.kind)) == 0:
 			mine_feat_id = -1
-		# Fresh mines must sit on an ore node; relocated mines already consumed theirs.
-		if id < 0 and mine_feat_id < 0:
+		# Fresh campaign mines must sit on an ore node; sandbox may place freely.
+		# Relocated mines already consumed theirs.
+		if not sandbox_mode and id < 0 and mine_feat_id < 0:
 			return false
 	for cell in cells:
 		var at := _cell_world(cell)
@@ -5421,9 +5412,14 @@ func query_rect(rect: Rect2, limit: int = 0) -> Array:
 	var x1 := int(floor((rect.end.x + pad) / Catalog.HASH_CELL))
 	var y1 := int(floor((rect.end.y + pad) / Catalog.HASH_CELL))
 	var hit := Rect2(rect.position - Vector2(pad, pad), rect.size + Vector2(pad * 2.0, pad * 2.0))
+	var seen_bucket := {}
 	for oy in range(y0, y1 + 1):
 		for ox in range(x0, x1 + 1):
-			var i := hash_head[_bucket_cell(ox, oy)]
+			var bucket := _bucket_cell(ox, oy)
+			if seen_bucket.has(bucket):
+				continue
+			seen_bucket[bucket] = true
+			var i := hash_head[bucket]
 			var guard := 0
 			while i != -1 and guard < slot_count + 2:
 				guard += 1
@@ -5444,9 +5440,14 @@ func query_radius(x: float, y: float, radius: float) -> Array:
 	var cx := int(floor(x / Catalog.HASH_CELL))
 	var cy := int(floor(y / Catalog.HASH_CELL))
 	var r2 := radius * radius
+	var seen_bucket := {}
 	for oy in range(cy - reach, cy + reach + 1):
 		for ox in range(cx - reach, cx + reach + 1):
-			var i := hash_head[_bucket_cell(ox, oy)]
+			var bucket := _bucket_cell(ox, oy)
+			if seen_bucket.has(bucket):
+				continue
+			seen_bucket[bucket] = true
+			var i := hash_head[bucket]
 			var guard := 0
 			while i != -1 and guard < slot_count + 2:
 				guard += 1
@@ -5571,8 +5572,9 @@ func new_game() -> void:
 
 
 func new_sandbox_game(tier: int = SANDBOX_START_TIER) -> void:
-	save_system.clear_saves()
-	current_slot = SaveSystem.LIVE_SLOT
+	save_system.clear_sandbox_save()
+	current_slot = -1
+	save_path = save_system.sandbox_path()
 	ethics = []
 	world_seed = randi()
 	if world_seed == 0:
@@ -5588,8 +5590,8 @@ func set_sandbox_land_tier(tier: int) -> void:
 	if next == land_tier:
 		return
 	land_tier = next
+	# Shape removes props that lost land; do not strip player-placed features on resize.
 	_shape_island()
-	_sandbox_strip_props()
 	notes.append("ISLA %d" % land_tier)
 
 
@@ -5661,6 +5663,8 @@ func _deflesh(id: int, count_use: bool) -> void:
 	var x := pos_x[id]
 	var y := pos_y[id]
 	var was_living := state[id] == Catalog.ST_LIVING
+	var was_dead := state[id] == Catalog.ST_DEAD
+	_release_mine_job(id)
 	_release_claim(id)
 	_release_item_claims(id)
 	_drop_carried(id)
@@ -5669,6 +5673,9 @@ func _deflesh(id: int, count_use: bool) -> void:
 		living -= 1
 		deaths_total += 1
 		_living_remove(id)
+	elif was_dead:
+		dead_n = maxi(0, dead_n - 1)
+		_dead_remove(id)
 	state[id] = Catalog.ST_VACANT
 	_hash_unlink(id)
 	var bone_it := _add_item(Catalog.ITEM_BONE, x, y, 1)
@@ -5768,6 +5775,7 @@ func _become_corpse(i: int) -> void:
 	else:
 		dir_x[i] = 1.0 if dir_x[i] >= 0.0 else -1.0
 	dir_y[i] = 0.0
+	_release_mine_job(i)
 	_release_claim(i)
 	_release_item_claims(i)
 	_clear_ride(i)
@@ -5823,6 +5831,7 @@ func _vacate(i: int) -> void:
 		_dead_remove(i)
 	_set_carry(i, Catalog.CARRY_NONE)
 	state[i] = Catalog.ST_VACANT
+	_release_mine_job(i)
 	_release_claim(i)
 	_release_item_claims(i)
 	_clear_ride(i)
@@ -5845,6 +5854,13 @@ func _enter_game_over() -> void:
 
 
 func _confirm(event: String, action: Dictionary) -> void:
+	# Sandbox has no ethics dialogue; apply destructive tools immediately.
+	if sandbox_mode:
+		if not action.is_empty():
+			_apply_action(action)
+		return
+	if not Catalog.GAZE.has(event):
+		return
 	var prev := _ethics_choice(event)
 	var allow: Array = Catalog.GAZE[event].allow
 	if prev != -1 and allow.has(prev):
@@ -6281,6 +6297,8 @@ func _grant(key: String, message: String = "", talk: bool = true) -> bool:
 
 func _refresh_pop_gates(announce: bool = true) -> void:
 	ProgressionManager.evaluate_unlocks(self, announce)
+	if sandbox_mode:
+		return
 	ProgressionManager.apply_progression_hooks(self, announce)
 
 
@@ -7971,6 +7989,14 @@ func _hash_relocate(i: int) -> void:
 	_hash_link(i)
 
 
+func _set_agent_pos(i: int, x: float, y: float) -> void:
+	if i < 0 or i >= slot_count:
+		return
+	pos_x[i] = x
+	pos_y[i] = y
+	_hash_relocate(i)
+
+
 func _rebuild_hash() -> void:
 	if hash_cell.size() != slot_count:
 		hash_cell.resize(slot_count)
@@ -8888,7 +8914,7 @@ func _check_factory_fill(errors: Array) -> void:
 			shown_mid += 1
 	if shown_mid != FACTORY_WEDGES / 2:
 		errors.append("factory fill: expected %d slices at mid-cycle got %d" % [FACTORY_WEDGES / 2, shown_mid])
-	factory.timer = 0.01
+	factory.timer = 0.0
 	main._sync_factory_mark(self)
 	var shown_end := 0
 	for slice in main.factory_slices:
@@ -9101,7 +9127,6 @@ func _run_checks() -> void:
 	if bool(unlocks.apple_tree):
 		errors.append("apple before tub")
 	peak = 12
-	living = 12
 	_refresh_pop_gates(false)
 	if bool(unlocks.apple_tree) or bool(unlocks.roundabout):
 		errors.append("care builds from peak")
@@ -9153,6 +9178,7 @@ func _run_checks() -> void:
 	if ore_node.is_empty():
 		errors.append("no ore node for mine")
 	else:
+		unlocks["mine"] = true
 		# Keep wood outside the 6x5 mine footprint so _item_spot_free passes.
 		_add_item(Catalog.ITEM_WOOD, float(ore_node.x) + 112.0, float(ore_node.y) + 96.0, 1)
 		_add_item(Catalog.ITEM_WOOD, float(ore_node.x) + 128.0, float(ore_node.y) + 96.0, 1)
@@ -9284,15 +9310,16 @@ func _run_checks() -> void:
 					act[helper] = 0
 					act_t[helper] = 0.0
 					_set_mine_job(helper, -1)
+				var stock_before := int(dug.get("buffer", 0))
 				dug.timer = 0.01
-				var ore_before := _count_items_near(Catalog.ITEM_ORE, drop.x, drop.y, 24.0)
 				_tick_buildings(0.05)
-				var ore_after := _count_items_near(Catalog.ITEM_ORE, drop.x, drop.y, 24.0)
 				if int(act[0]) != ACT_WORK:
 					errors.append("mine worker lost before ore drop")
-				elif ore_after <= ore_before:
-					errors.append("mine did not drop ore")
+				elif int(dug.get("buffer", 0)) <= stock_before:
+					errors.append("mine did not stock ore")
 				else:
+					# Mines stock into buffer; seed a ground pile for haul-path coverage.
+					_add_item(Catalog.ITEM_ORE, drop.x, drop.y, 1)
 					var factory := {}
 					var factory_free := 0
 					for ly in range(3, Catalog.CHUNK - 3):

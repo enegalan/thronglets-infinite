@@ -36,6 +36,8 @@ func setup(host) -> void:
 	out_path = str(_arg(args, "--perf-out", REPORT_PATH))
 	busy = args.has("--perf-busy")
 	busy_scale = maxi(1, int(_arg(args, "--perf-busy-scale", "1")))
+	# V-Sync caps FPS to the display refresh; disable so high-count pass thresholds are reachable.
+	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 	zoom_cases = [
 		{"name": "zoom_mid", "zoom": 2.0},
 		{"name": "zoom_out", "zoom": 0.55},

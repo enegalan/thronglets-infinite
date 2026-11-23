@@ -3,6 +3,7 @@ class_name SaveSystem
 
 const SLOT_COUNT := 4
 const LIVE_SLOT := 0
+const SANDBOX_PATH := "user://thronglets_sandbox.save"
 
 var _sim
 
@@ -13,6 +14,10 @@ func _init(sim) -> void:
 
 func slot_path(index: int) -> String:
 	return "user://thronglets_slot_%d.save" % index
+
+
+func sandbox_path() -> String:
+	return SANDBOX_PATH
 
 
 func read_meta() -> Dictionary:
@@ -38,6 +43,13 @@ func last_slot() -> int:
 	return int(meta.get("last", -1))
 
 
+func clear_sandbox_save() -> void:
+	var dir := DirAccess.open("user://")
+	var path := sandbox_path()
+	if dir != null and FileAccess.file_exists(path):
+		dir.remove(path.get_file())
+
+
 func clear_saves() -> void:
 	var sim = _sim
 	var dir := DirAccess.open("user://")
@@ -45,6 +57,7 @@ func clear_saves() -> void:
 		var path := slot_path(i)
 		if dir != null and FileAccess.file_exists(path):
 			dir.remove(path.get_file())
+	clear_sandbox_save()
 	write_meta({})
 	sim.current_slot = -1
 	sim.session_live = false
@@ -68,6 +81,14 @@ func save_slot(index: int) -> bool:
 
 
 func save_progress() -> bool:
+	var sim = _sim
+	# Sandbox keeps its own file so campaign slots / autosave history stay intact.
+	if bool(sim.sandbox_mode):
+		sim.current_slot = -1
+		sim.save_path = sandbox_path()
+		var ok := save_game()
+		sim.autosave_t = 0.0
+		return ok
 	return save_slot(LIVE_SLOT)
 
 
@@ -79,6 +100,9 @@ func tick_autosave(delta: float) -> void:
 	if sim.autosave_t < sim.autosave_interval:
 		return
 	sim.autosave_t = 0.0
+	if bool(sim.sandbox_mode):
+		save_progress()
+		return
 	rotate_autosave_history()
 	save_progress()
 
