@@ -55,10 +55,6 @@ var _active_structure_tex := {}
 var _bark_tex_cache := {}
 var _bark_atlas_img: Image
 var _atlas_tex_cache := {}
-var _calm_pool: Array[String] = []
-var _sing_pool: Array[String] = []
-var _talk_pool: Array[String] = []
-var _clip_pools_ready := false
 var _water_frame := -1
 var place_marks: Node2D
 var place_fills: Array[Polygon2D] = []
@@ -105,15 +101,6 @@ const WATER_ANIM_SPEED := 6.0
 const PATH_PIECE := [
 	"0h", "6rv", "6h", "5h", "6r", "4rv", "5hv", "2rrr",
 	"6", "5", "4", "2", "5r", "2rv", "2rrh", "1",
-]
-const CALM: Array[String] = [
-	"ThrongA_Default", "ThrongA_Default Blink", "ThrongA_Happy", "ThrongA_EarWiggleLow",
-	"ThrongA_Celebrate_Spritesheet", "ThrongA_Shrug", "Throng_Think_Spritesheet",
-	"ThrongA_Jump", "ThrongA_Bored_KickRock", "ThrongA_Default_Ghost",
-]
-const SING: Array[String] = [
-	"Throng_Sing_Spritesheet", "Throng_SingB_Spritesheet", "Throng_SingC_Spritesheet",
-	"ThrongA_SingToThronglet_Spritesheet2",
 ]
 # Matches tools/make_art.py CELL. The quad is the whole cell; sprites sit on its bottom edge.
 const WORLD_CELL := 128.0
@@ -1796,6 +1783,7 @@ func _ensure_feat_static() -> void:
 
 func _push_throng_crowd_draws(draws: Array, ids: Array, time: float, far_view: bool) -> void:
 	# Cheap thronglet LOD into the shared prop draw list (y-sorted; every id is in-view).
+	# Special bodies (act / carry / timers / panic) still go through _frame_lod.
 	_ensure_crowd_frames()
 	var sim: ThrongletSim = ThrongletSimServer
 	var tint_n := Catalog.TINTS.size()
@@ -1810,6 +1798,8 @@ func _push_throng_crowd_draws(draws: Array, ids: Array, time: float, far_view: b
 		var frame := _crowd_default_frame
 		if sim.state[i] == Catalog.ST_DEAD:
 			frame = ThrongClips.frame_at("ThrongA_Dead_001" if sim.dir_x[i] >= 0.0 else "ThrongA_Dead_002", 0)
+		elif _throng_special_body(sim, i):
+			frame = _frame_lod(i, time, far_view)
 		elif absf(sim.dir_x[i]) + absf(sim.dir_y[i]) >= 0.01:
 			frame = ThrongClips.frame_at("Throng_Walk_Anim_Spritesheet", walk_tick + i) if not far_view else _crowd_walk_frame
 		elif sim.clean[i] < 12.0 or sim.fed[i] < 25.0:
@@ -1844,18 +1834,45 @@ func _throng_hidden_indoors(sim: ThrongletSim, i: int) -> bool:
 	return not sim._visit_rule(int(visit.kind)).is_empty()
 
 
+func _throng_special_body(sim: ThrongletSim, i: int) -> bool:
+	# Situations that must not collapse to Default/Walk under far/crowd LOD.
+	if sim.frozen or sim.celebrate_t > 0.0:
+		return true
+	if i < sim.cheer_t.size() and sim.cheer_t[i] > 0.0:
+		return true
+	if i < sim.react_t.size() and sim.react_t[i] > 0.0:
+		return true
+	if i < sim.sleep_t.size() and sim.sleep_t[i] > 0.0:
+		return true
+	if i < sim.peer_t.size() and sim.peer_t[i] > 0.0:
+		return true
+	if i < sim.drop_t.size() and sim.drop_t[i] > 0.0:
+		return true
+	if i < sim.rotund_t.size() and sim.rotund_t[i] > 0.0:
+		return true
+	if sim.mito_t[i] > 0.0 or sim.mito_charge[i] > 0.0:
+		return true
+	if sim.near_fire(i):
+		return true
+	if i < sim.penned_flag.size() and sim.penned_flag[i] != 0:
+		return true
+	if int(sim.act[i]) != 0:
+		return true
+	if int(sim.carry[i]) != Catalog.CARRY_NONE:
+		return true
+	return false
+
+
 func _frame_lod(i: int, time: float, far_view: bool) -> int:
 	if not far_view:
 		return _frame(i, time)
 	var sim: ThrongletSim = ThrongletSimServer
 	if sim.state[i] == Catalog.ST_DEAD:
 		return ThrongClips.frame_at("ThrongA_Dead_001" if sim.dir_x[i] >= 0.0 else "ThrongA_Dead_002", 0)
-	if sim.mito_t[i] > 0.0 or sim.mito_charge[i] > 0.0:
+	# Far view may simplify ambient idle/walk only — never drop act/timer/critical bodies.
+	if _throng_special_body(sim, i):
 		return _frame(i, time)
-	var doing := int(sim.act[i])
 	var moving := absf(sim.dir_x[i]) + absf(sim.dir_y[i]) >= 0.01
-	if doing == ThrongletSimServer.ACT_BATH or doing == ThrongletSimServer.ACT_PLAY:
-		return _frame(i, time)
 	if moving:
 		if absf(sim.dir_y[i]) > absf(sim.dir_x[i]) and sim.dir_y[i] < 0.0:
 			return ThrongClips.frame_at("Throng_WalkBack_Anim_Spritesheet", int(time * 8.0 + float(i)))
@@ -1870,8 +1887,32 @@ func _frame(i: int, time: float) -> int:
 	if sim.state[i] == Catalog.ST_DEAD:
 		var clip := "ThrongA_Dead_001" if sim.dir_x[i] >= 0.0 else "ThrongA_Dead_002"
 		return ThrongClips.frame_at(clip, 0)
+	# Held: one stable body at the cursor — do not keep cycling situation pools.
+	if sim.held_kind == "thronglet" and i == sim.held_ref:
+		return ThrongClips.frame_at("ThrongA_Default", 0)
 	if sim.frozen:
-		return _clip_pool(ThrongClips.TALK, i, time, 2.4, "ThrongA_Talk")
+		# 0–300 ms stagger by index (cinematic §2).
+		var stare_t := time + float(i) * 0.03
+		if sim.glitch_t > 0.45:
+			return _clip_pool(ThrongClips.POSSESSED, i, stare_t, 2.0, "ThrongA_Possessed_AntennaSpinTalk_Spritesheet")
+		# Mood accents when swarm mood is tagged; otherwise console talk loop.
+		if sim.mood_face != "base" and posmod(i + int(stare_t * 3.0), 5) == 0:
+			return _clip_pool(ThrongClips.TALK_REACT, i, stare_t, 1.2, "ThrongA_LooktAtPlayerHappyNod_Spritesheet")
+		return _clip_pool(ThrongClips.TALK_CONSOLE, i, stare_t, 2.4, "ThrongA_Talk")
+	if sim.celebrate_t > 0.0:
+		# One celebrate body — Jump accents stay in the pool for shots/bench, not live mix.
+		return ThrongClips.frame_at("ThrongA_Celebrate_Spritesheet", int(time * 8.0 + float(i)))
+	if i < sim.cheer_t.size() and sim.cheer_t[i] > 0.0:
+		return ThrongClips.frame_at("ThrongA_Celebrate_Spritesheet", int((ThrongletSimServer.CHEER_DUR - sim.cheer_t[i]) * 8.0))
+	if i < sim.react_t.size() and sim.react_t[i] > 0.0:
+		return ThrongClips.frame_at("ThrongA_ReactToKill", int((ThrongletSimServer.REACT_DUR - sim.react_t[i]) * 8.0))
+	if i < sim.peer_t.size() and sim.peer_t[i] > 0.0:
+		if i < sim.peer_sing.size() and sim.peer_sing[i] != 0:
+			return _clip_pool(ThrongClips.SING_PEER, i, time, 1.6, "Throng_Sing_Spritesheet")
+		return _clip_pool(ThrongClips.TALK_PEER, i, time, 1.8, "ThrongA_TalkToOtherThronglet_Spritesheet2")
+	if i < sim.drop_t.size() and sim.drop_t[i] > 0.0:
+		var drop_along := 1.0 - clampf(sim.drop_t[i] / ThrongletSimServer.DROP_DUR, 0.0, 1.0)
+		return ThrongClips.frame_along("ThrongA_DropProp", drop_along)
 	if sim.mito_t[i] > 0.0 or sim.mito_charge[i] > 0.0:
 		var along := 0.0
 		if sim.mito_t[i] > 0.0:
@@ -1880,8 +1921,14 @@ func _frame(i: int, time: float) -> int:
 		else:
 			along = clampf(sim.mito_charge[i] / ThrongletSimServer.MITOSIS_CHARGE, 0.0, 1.0) * ThrongletSimServer.MITOSIS_SPLIT_ALONG
 		return ThrongClips.frame_along("ThrongA_Mitosis_Spritesheet", along)
+	# Critical bodies use one clip each — never mix the whole PANIC pool live.
+	if sim.near_fire(i):
+		return ThrongClips.frame_at("ThrongA_PanicRunFire", int(time * 10.0 + float(i)))
+	if i < sim.penned_flag.size() and sim.penned_flag[i] != 0:
+		return ThrongClips.frame_at("ThrongA_FreakOut", int(time * 10.0 + float(i)))
 	var doing := int(sim.act[i])
 	var moving := absf(sim.dir_x[i]) + absf(sim.dir_y[i]) >= 0.01
+	var carrying := int(sim.carry[i]) != Catalog.CARRY_NONE
 	if doing == ThrongletSimServer.ACT_EAT:
 		return ThrongClips.frame_at("ThrongA_Eat", int(time * 6.0))
 	if doing == ThrongletSimServer.ACT_BATH:
@@ -1893,18 +1940,14 @@ func _frame(i: int, time: float) -> int:
 		if age < 0.0:
 			return ThrongClips.frame_at("Throng_FallInBath_Spritesheet", 0)
 		if age < enter_t:
-			# Frames 0-4: climb / fall into the water.
 			return ThrongClips.frame_along("Throng_FallInBath_Spritesheet", (age / enter_t) * (5.0 / 8.0))
-		# Frames 5-7: soak loop (head above water, eyes closed).
 		return ThrongClips.frame_at("Throng_FallInBath_Spritesheet", 5 + int((age - enter_t) * 2.5) % 3)
 	if doing == ThrongletSimServer.ACT_WASH:
 		return ThrongClips.frame_at("ThrongA_Happy", int(time * 6.0))
 	if doing == ThrongletSimServer.ACT_PLAY:
 		if sim.has_ball(i):
 			if moving:
-				if absf(sim.dir_y[i]) > absf(sim.dir_x[i]) and sim.dir_y[i] < 0.0:
-					return ThrongClips.frame_at("Throng_WalkBack_Anim_Spritesheet", int(time * 8.0 + float(i)))
-				return ThrongClips.frame_at("Throng_Walk_Anim_Spritesheet", int(time * 8.0 + float(i)))
+				return _walk_clip(i, time, sim)
 			return ThrongClips.frame_at("ThrongA_Happy", int(time * 6.0))
 		var ride: Dictionary = sim.ride_of(i)
 		if not ride.is_empty():
@@ -1925,23 +1968,53 @@ func _frame(i: int, time: float) -> int:
 			else:
 				idx = posmod(int(car.get("sprite_dir_offset", 0)), maxi(1, nframes))
 			return ThrongClips.frame_at(clip, idx)
-		var play := "ThrongA_Jump_VariantA_Spritesheet"
-		return ThrongClips.frame_at(play, int(time * 8.0))
+		return ThrongClips.frame_at("ThrongA_Jump_VariantA_Spritesheet", int(time * 8.0))
 	if doing == ThrongletSimServer.ACT_WORK and not moving:
+		if sim.is_mining(i):
+			var cycle := ThrongletSimServer.MINE_SWING_T + ThrongletSimServer.MINE_WAIT_T
+			var beat := fposmod(time + float(i) * 0.37, cycle)
+			if beat >= ThrongletSimServer.MINE_SWING_T:
+				return ThrongClips.frame_at("Throng_Think_TwiddleThumbs_Spritesheet", int(time * 6.0))
 		return ThrongClips.frame_at("ThrongA_Pickaxe_Spritesheet", int(time * 8.0))
+	if carrying:
+		if moving:
+			if ThrongClips.has_clip("ThrongA_LiftPropWalk"):
+				return ThrongClips.frame_at("ThrongA_LiftPropWalk", int(time * 8.0 + float(i)))
+			return _walk_clip(i, time, sim)
+		if ThrongClips.has_clip("ThrongA_LiftProp"):
+			return ThrongClips.frame_at("ThrongA_LiftProp", int(time * 6.0))
+		return ThrongClips.frame_at("Throng_Think_Spritesheet", int(time * 6.0))
 	if moving:
-		if absf(sim.dir_y[i]) > absf(sim.dir_x[i]) and sim.dir_y[i] < 0.0:
-			return ThrongClips.frame_at("Throng_WalkBack_Anim_Spritesheet", int(time * 8.0 + float(i)))
-		return ThrongClips.frame_at("Throng_Walk_Anim_Spritesheet", int(time * 8.0 + float(i)))
+		return _walk_clip(i, time, sim)
 	if sim.clean[i] < 12.0 or sim.fed[i] < 25.0:
-		return ThrongClips.frame_at("ThrongA_Sad", int(time * 6.0))
+		return _clip_pool(ThrongClips.MOOD_SAD, i, time, 2.0, "ThrongA_Sad")
 	if sim.amused[i] < 25.0:
-		return ThrongClips.frame_at("ThrongA_Grumpy", 0)
-	if sim.fed[i] >= Catalog.NEED_OK and sim.amused[i] >= Catalog.NEED_OK and sim.clean[i] >= Catalog.NEED_OK:
-		if posmod(i + int(time), 9) < 3:
-			return _clip_pool(SING, i, time, 1.6, "ThrongA_Happy")
-		return _clip_pool(CALM, i, time, 2.2, "ThrongA_Happy")
-	return _clip_pool(CALM, i, time, 2.8, "ThrongA_Default")
+		return _clip_pool(ThrongClips.MOOD_BORED, i, time, 2.2, "ThrongA_Bored_KickRock")
+	if i < sim.sleep_t.size() and sim.sleep_t[i] > 0.0:
+		return _clip_pool(ThrongClips.IDLE_SLEEP, i, time, 2.5, "Throng_Idle_AntennaSpin_EyesClosed_Spritesheet")
+	if i < sim.rotund_t.size() and sim.rotund_t[i] > 0.0:
+		return ThrongClips.frame_at("ThrongA_Rotund_Spritesheet", int(time * 6.0))
+	var content := sim.fed[i] >= Catalog.NEED_OK and sim.amused[i] >= Catalog.NEED_OK and sim.clean[i] >= Catalog.NEED_OK
+	if content:
+		return _clip_pool(ThrongClips.IDLE_CALM, i, time, 2.2, "ThrongA_Happy")
+	return _clip_pool(ThrongClips.IDLE_CALM, i, time, 2.8, "ThrongA_Default")
+
+
+func _walk_clip(i: int, time: float, sim: ThrongletSim) -> int:
+	var tick := int(time * 8.0 + float(i))
+	if absf(sim.dir_y[i]) > absf(sim.dir_x[i]) and sim.dir_y[i] < 0.0:
+		return ThrongClips.frame_at("Throng_WalkBack_Anim_Spritesheet", tick)
+	if sim.approaching_home(i) and ThrongClips.has_clip("Throng_Walk_Homed_Spritesheet"):
+		return ThrongClips.frame_at("Throng_Walk_Homed_Spritesheet", tick)
+	if i < sim.rotund_t.size() and sim.rotund_t[i] > 0.0:
+		return ThrongClips.frame_at("ThrongA_Rotund_Spritesheet", tick)
+	var sad_move := sim.clean[i] < 12.0 or sim.fed[i] < 25.0
+	var happy_move := sim.fed[i] >= Catalog.NEED_OK and sim.amused[i] >= Catalog.NEED_OK and sim.clean[i] >= Catalog.NEED_OK
+	if sad_move and ThrongClips.has_clip("ThrongA_Sad_Walk"):
+		return ThrongClips.frame_at("ThrongA_Sad_Walk", tick)
+	if happy_move and ThrongClips.has_clip("ThrongA_Happy_Walk"):
+		return ThrongClips.frame_at("ThrongA_Happy_Walk", tick)
+	return ThrongClips.frame_at("Throng_Walk_Anim_Spritesheet", tick)
 
 
 func _throng_flip(i: int) -> float:
@@ -1950,6 +2023,10 @@ func _throng_flip(i: int) -> float:
 		return 1.0
 	if sim.mito_t[i] > 0.0 or sim.mito_charge[i] > 0.0:
 		return 1.0
+	if i < sim.peer_t.size() and sim.peer_t[i] > 0.0 and i < sim.peer_of.size():
+		var other := int(sim.peer_of[i])
+		if other >= 0 and other < sim.slot_count and sim.state[other] == Catalog.ST_LIVING:
+			return -1.0 if sim.pos_x[other] < sim.pos_x[i] else 1.0
 	var doing := int(sim.act[i])
 	var moving := absf(sim.dir_x[i]) + absf(sim.dir_y[i]) >= 0.01
 	if doing == ThrongletSimServer.ACT_EAT or doing == ThrongletSimServer.ACT_BATH or doing == ThrongletSimServer.ACT_WASH:
@@ -1965,35 +2042,12 @@ func _throng_flip(i: int) -> float:
 	return 1.0
 
 
-func _ensure_clip_pools() -> void:
-	if _clip_pools_ready:
-		return
-	_calm_pool = _filter_clip_pool(CALM)
-	_sing_pool = _filter_clip_pool(SING)
-	_talk_pool = _filter_clip_pool(ThrongClips.TALK)
-	_clip_pools_ready = true
-
-
-func _filter_clip_pool(pool: Array) -> Array[String]:
+func _clip_pool(pool: Array, index: int, time: float, hold: float, fallback: String) -> int:
 	var usable: Array[String] = []
 	for raw in pool:
 		var clip := str(raw)
 		if ThrongClips.has_clip(clip):
 			usable.append(clip)
-	return usable
-
-
-func _clip_pool(pool: Array, index: int, time: float, hold: float, fallback: String) -> int:
-	_ensure_clip_pools()
-	var usable: Array[String]
-	if pool == CALM:
-		usable = _calm_pool
-	elif pool == SING:
-		usable = _sing_pool
-	elif pool == ThrongClips.TALK:
-		usable = _talk_pool
-	else:
-		usable = _filter_clip_pool(pool)
 	if usable.is_empty():
 		return ThrongClips.frame_at(fallback, int(time * 6.0))
 	return ThrongClips.pick(usable, index, time, hold)
@@ -3859,6 +3913,8 @@ func _focus_draws() -> Array:
 			_push_iso(draws, draw_at, focus_frame, Color.WHITE, 0.0, Catalog.building_sprite_scale(b_kind), focus_sort_y)
 	for i in sim.slot_count:
 		if sim.state[i] == Catalog.ST_VACANT:
+			continue
+		if sim.held_kind == "thronglet" and i == sim.held_ref:
 			continue
 		if talk and not sim.gaze_home.has(i):
 			continue

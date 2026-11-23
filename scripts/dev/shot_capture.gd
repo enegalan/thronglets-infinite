@@ -36,6 +36,9 @@ func setup(p_main: Node2D) -> void:
 
 
 func tick_shot() -> void:
+	if sim.shot_anims:
+		_tick_shot_anims()
+		return
 	if sim.shot_fx:
 		_tick_shot_fx()
 		return
@@ -756,6 +759,165 @@ func save_shot(source: Viewport, path: String) -> bool:
 	return err == OK
 
 
+func _tick_shot_anims() -> void:
+	if board == null:
+		if main.ui != null:
+			main.ui.visible = false
+		build_anim_review_shot()
+		frames = 0
+		return
+	frames += 1
+	if frames < 10:
+		return
+	if not save_shot(board, "res://shots/anim_review.png"):
+		main.get_tree().quit(1)
+		return
+	# Also dump each situation as its own strip sheet for closer inspection.
+	if not _save_anim_strip_shots():
+		main.get_tree().quit(1)
+		return
+	done = true
+	print("SHOT ANIMS DONE")
+	main.get_tree().quit(0)
+
+
+func _anim_review_samples() -> Array:
+	return [
+		["1 idle", "ThrongA_Default", 0, 0.0],
+		["1 happy", "ThrongA_Happy", 2, 0.0],
+		["1 blink", "ThrongA_Default Blink", 0, 0.0],
+		["1 antenna", "Throng_Idle_AntennaSpin_Spritesheet", 2, 0.0],
+		["2 bored", "ThrongA_Bored_KickRock", 6, 0.0],
+		["2 puppy", "ThrongA_PuppyDogEyes", 2, 0.0],
+		["2 grumpy", "Throng_Grumpy_Sheet", 1, 0.0],
+		["2 sad", "ThrongA_Sad", 3, 0.0],
+		["3 freak", "ThrongA_FreakOut", 4, 0.0],
+		["3 panic", "ThrongA_PanicRun", 1, 0.0],
+		["3 fire", "ThrongA_PanicRunFire", 1, 0.0],
+		["4 talk", "ThrongA_Talk", 2, 0.0],
+		["4 blink", "ThrongA_Talk_Blink_Spritesheet", 2, 0.0],
+		["4 react", "ThrongA_LooktAtPlayerHappyNod_Spritesheet", 4, 0.0],
+		["4 awe", "ThrongA_InAwe", 2, 0.0],
+		["4b poss", "ThrongA_Possessed_AntennaSpin_Spritesheet", 2, 0.0],
+		["5 sing", "Throng_Sing_Spritesheet", 2, 0.0],
+		["5 peer", "ThrongA_TalkToOtherThronglet_Spritesheet2", 1, 0.0],
+		["6 celeb", "ThrongA_Celebrate_Spritesheet", 4, 0.0],
+		["6 jump", "ThrongA_Jump-EarWiggle", 2, 0.0],
+		["7 reactK", "ThrongA_ReactToKill", 2, 0.0],
+		["8 homed", "Throng_Walk_Homed_Spritesheet", 2, 0.0],
+		["8 happyW", "ThrongA_Happy_Walk", 0, 0.0],
+		["8 sadW", "ThrongA_Sad_Walk", 0, 0.0],
+		["8 haul", "ThrongA_LiftPropWalk", 0, 0.0],
+		["8 lift", "ThrongA_LiftProp", 3, 0.0],
+		["9 sleep", "Throng_Idle_AntennaSpin_EyesClosed_Spritesheet", 1, 0.0],
+		["dirty", "ThrongA_Default", 0, 1.0],
+	]
+
+
+func build_anim_review_shot() -> void:
+	var samples: Array = _anim_review_samples()
+	var cols := 7
+	var rows := int((samples.size() + cols - 1) / cols)
+	var board_vp := SubViewport.new()
+	board_vp.size = Vector2i(cols * 140 + 40, rows * 130 + 60)
+	board_vp.disable_3d = true
+	board_vp.transparent_bg = false
+	board_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	main.add_child(board_vp)
+	board = board_vp
+	var bg := ColorRect.new()
+	bg.color = Color(0.12, 0.14, 0.16)
+	bg.size = Vector2(board_vp.size)
+	board_vp.add_child(bg)
+	var sheet := MultiMeshInstance2D.new()
+	sheet.texture = main.world.texture
+	sheet.material = main.world.material
+	sheet.multimesh = main._mesh(true, Vector2(main.WORLD_CELL, main.WORLD_CELL))
+	board_vp.add_child(sheet)
+	var labels := CanvasLayer.new()
+	board_vp.add_child(labels)
+	var root := Control.new()
+	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	labels.add_child(root)
+	var theme := Theme.new()
+	var font: Font = main.ui_assets.ui_font() as Font
+	if font != null:
+		theme.default_font = font
+		theme.default_font_size = 14
+	root.theme = theme
+	var title := Label.new()
+	title.text = "Thronglet anim review (#37) — check atlas cells"
+	title.position = Vector2(16, 8)
+	title.size = Vector2(board_vp.size.x - 32, 24)
+	root.add_child(title)
+	var scale := 0.85
+	var draws: Array = []
+	for i in samples.size():
+		var sample: Array = samples[i]
+		var clip := str(sample[1])
+		if not ThrongClips.has_clip(clip):
+			print("SHOT ANIMS SKIP missing %s" % clip)
+			continue
+		var col := i % cols
+		var row := int(i / cols)
+		var center := Vector2(70 + col * 140, 70 + row * 130)
+		var frame := ThrongClips.frame_at(clip, int(sample[2]))
+		draws.append({
+			"p": center + Vector2(0, main.WORLD_CELL * 0.5 * scale),
+			"icon": frame,
+			"tint": Color.WHITE,
+			"scale": scale,
+			"dirty": float(sample[3]),
+		})
+		var tag := Label.new()
+		tag.text = str(sample[0])
+		tag.position = center + Vector2(-56, 40)
+		tag.size = Vector2(112, 16)
+		tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		root.add_child(tag)
+	main._write_mesh(sheet.multimesh, draws)
+
+
+func _save_anim_strip_shots() -> bool:
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://shots"))
+	var wanted := [
+		["anim_idle.png", "ThrongA_Default"],
+		["anim_bored.png", "ThrongA_Bored_KickRock"],
+		["anim_puppy.png", "ThrongA_PuppyDogEyes"],
+		["anim_freak.png", "ThrongA_FreakOut"],
+		["anim_panic.png", "ThrongA_PanicRun"],
+		["anim_panic_fire.png", "ThrongA_PanicRunFire"],
+		["anim_talk.png", "ThrongA_Talk"],
+		["anim_possessed.png", "ThrongA_Possessed_AntennaSpin_Spritesheet"],
+		["anim_sing.png", "Throng_Sing_Spritesheet"],
+		["anim_peer_talk.png", "ThrongA_TalkToOtherThronglet_Spritesheet2"],
+		["anim_celebrate.png", "ThrongA_Celebrate_Spritesheet"],
+		["anim_react_kill.png", "ThrongA_ReactToKill"],
+		["anim_walk_homed.png", "Throng_Walk_Homed_Spritesheet"],
+		["anim_happy_walk.png", "ThrongA_Happy_Walk"],
+		["anim_sad_walk.png", "ThrongA_Sad_Walk"],
+		["anim_haul.png", "ThrongA_LiftPropWalk"],
+		["anim_lift.png", "ThrongA_LiftProp"],
+		["anim_sleep.png", "Throng_Idle_AntennaSpin_EyesClosed_Spritesheet"],
+		["anim_inawe.png", "ThrongA_InAwe"],
+	]
+	for row in wanted:
+		var path := "res://shots/%s" % str(row[0])
+		var clip := str(row[1])
+		var strip_path := ThrongClips.strip_path(clip)
+		var abs_src := ProjectSettings.globalize_path(strip_path)
+		if not FileAccess.file_exists(strip_path) and not FileAccess.file_exists(abs_src):
+			print("SHOT FAIL missing strip %s" % strip_path)
+			return false
+		var abs_dst := ProjectSettings.globalize_path(path)
+		var err := DirAccess.copy_absolute(abs_src, abs_dst)
+		print("SHOT %s path=%s" % ["OK" if err == OK else "FAIL", path])
+		if err != OK:
+			return false
+	return true
+
+
 func build_asset_shot() -> void:
 	var board_vp := SubViewport.new()
 	board_vp.size = Vector2i(960, 980)
@@ -776,7 +938,17 @@ func build_asset_shot() -> void:
 		["bones", ThrongClips.frame_at("ThrongA_Bones", 0), 0.0],
 		["sing", ThrongClips.frame_at("Throng_Sing_Spritesheet", 2), 0.0],
 		["kick", ThrongClips.frame_at("ThrongA_Bored_KickRock", 6), 0.0],
-		["ghost", ThrongClips.frame_at("ThrongA_Default_Ghost", 0), 0.0],
+		["freak", ThrongClips.frame_at("ThrongA_FreakOut", 4), 0.0],
+		["panic", ThrongClips.frame_at("ThrongA_PanicRun", 1), 0.0],
+		["react", ThrongClips.frame_at("ThrongA_ReactToKill", 2), 0.0],
+		["possessed", ThrongClips.frame_at("ThrongA_Possessed_AntennaSpin_Spritesheet", 2), 0.0],
+		["sleep", ThrongClips.frame_at("Throng_Idle_AntennaSpin_EyesClosed_Spritesheet", 1), 0.0],
+		["homed", ThrongClips.frame_at("Throng_Walk_Homed_Spritesheet", 2), 0.0],
+		["haul", ThrongClips.frame_at("ThrongA_LiftPropWalk", 0), 0.0],
+		["happyW", ThrongClips.frame_at("ThrongA_Happy_Walk", 0), 0.0],
+		["sadW", ThrongClips.frame_at("ThrongA_Sad_Walk", 0), 0.0],
+		["puppy", ThrongClips.frame_at("ThrongA_PuppyDogEyes", 2), 0.0],
+		["inawe", ThrongClips.frame_at("ThrongA_InAwe", 2), 0.0],
 		["outline", ThrongClips.frame_at("Thronglet_Outline", 0), 0.0],
 		["celebrate", ThrongClips.frame_at("ThrongA_Celebrate_Spritesheet", 4), 0.0],
 		["shrug", ThrongClips.frame_at("ThrongA_Shrug", 1), 0.0],

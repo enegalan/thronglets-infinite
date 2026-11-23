@@ -2,6 +2,10 @@
 
 ## [Unreleased](https://github.com/enegalan/thronglets-infinite/compare/v2.7.5...HEAD)
 
+### 2026-11-23
+
+- Thronglet animations follow situation pools (idle / mood / peer talk-sing / console stare / possessed / celebrate / panic) with a tiered `_frame` selector; Unity panic, carry, mood-walk, puppy, and awe sheets are packed into the atlas and wired.
+
 ### 2026-11-22
 
 - Zooming out keeps performance steadier: distant thronglets and static props use lighter rendering paths, simulation ticks batch living agents and throttle compaction, and idle ground items skip unnecessary physics checks.

@@ -781,7 +781,7 @@ static func _fps_where(clip: String) -> String:
 		"ThrongA_Eat":
 			return "Main._frame ACT_EAT calls frame_at(clip, int(time * 6.0))."
 		"ThrongA_Happy":
-			return "Main._frame calls frame_at(clip, int(time * 6.0)) for an empty bath and for ACT_WASH. CALM and SING also reach it through ThrongClips.pick, which uses 8."
+			return "Main._frame calls frame_at(clip, int(time * 6.0)) for an empty bath and for ACT_WASH. IDLE_CALM / SING_PEER also reach it through ThrongClips.pick, which uses 8."
 		"ThrongA_Sad":
 			return "Main._frame calls frame_at(clip, int(time * 6.0)) when fed or clean is low."
 		"Throng_Walk_Anim_Spritesheet":
@@ -795,7 +795,7 @@ static func _fps_where(clip: String) -> String:
 		"ThrongA_Pickaxe_Spritesheet":
 			return "Main._frame ACT_WORK calls frame_at(clip, int(time * 8.0)) while standing."
 		_:
-			return "No direct frame_at rate. ThrongClips.pick plays a pooled clip at int(local * 8.0). Idle chatter uses Main.CALM, singing uses Main.SING, frozen talk uses ThrongClips.TALK."
+			return "No direct frame_at rate. ThrongClips.pick plays a pooled clip at int(local * 8.0). Idle uses IDLE_CALM, singing SING_PEER near peers, frozen talk uses TALK_CONSOLE."
 
 
 static func _json_rot(value) -> Dictionary:

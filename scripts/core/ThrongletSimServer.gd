@@ -118,6 +118,7 @@ var shot_carry := false
 var shot_round := false
 var shot_apple := false
 var shot_needs := false
+var shot_anims := false
 var shot_focus := Vector2(256, 256)
 var shot_span := 210.0
 var shot_throng := -1
@@ -196,6 +197,16 @@ var mito_t := PackedFloat32Array()
 var mito_charge := PackedFloat32Array()
 var shake_t := PackedFloat32Array()
 var buff_t := PackedFloat32Array()
+var react_t := PackedFloat32Array()
+var cheer_t := PackedFloat32Array()
+var sleep_t := PackedFloat32Array()
+## Peer social beat: stand, face partner, talk or sing body clips.
+var peer_t := PackedFloat32Array()
+var peer_of := PackedInt32Array()
+var peer_sing := PackedByteArray()
+## One-shot DropProp after putting down a haul; Rotund post-feed body flavor.
+var drop_t := PackedFloat32Array()
+var rotund_t := PackedFloat32Array()
 var state := PackedInt32Array()
 var carry := PackedInt32Array()
 var carry_value := PackedInt32Array()
@@ -209,6 +220,20 @@ var pops: Array = []
 var current_slot := -1
 var paused := false
 var game_over := false
+## Swarm celebration window after unlock / milestone (seconds).
+var celebrate_t := 0.0
+const PEER_R := 40.0
+const REACT_KILL_R := 72.0
+const REACT_DUR := 0.85
+const CHEER_DUR := 0.9
+const CELEBRATE_DUR := 1.4
+const SLEEP_DUR := 3.2
+const PEER_DUR := 2.4
+const DROP_DUR := 0.5
+const ROTUND_DUR := 5.0
+## Mine dig body: pickaxe swing then Twiddle wait (seconds each).
+const MINE_SWING_T := 0.7
+const MINE_WAIT_T := 0.55
 # Seconds between autosaves. A later settings screen can change this. Zero turns it off.
 var autosave_interval := 60.0
 var autosave_t := 0.0
@@ -225,6 +250,8 @@ var link_ball := PackedInt32Array()
 var living_ids := PackedInt32Array()
 var living_at := PackedInt32Array()
 var bark_cool := PackedFloat32Array()
+## Cached penned flag (expensive probe); refreshed on the same cadence as rock bark.
+var penned_flag := PackedByteArray()
 var fires: Array = []
 # Features keyed by chunk ("cx,cy") so draw/sync only walks visible chunks.
 var features_by_chunk := {}
@@ -288,7 +315,7 @@ func _ready() -> void:
 	var args := OS.get_cmdline_user_args()
 	perf_mode = args.has("--perf")
 	save_perf_mode = args.has("--save-perf")
-	shot_mode = args.has("--shot") or args.has("--shot-fx") or args.has("--shot-carry") or args.has("--shot-round") or args.has("--shot-apple") or args.has("--shot-needs")
+	shot_mode = args.has("--shot") or args.has("--shot-fx") or args.has("--shot-carry") or args.has("--shot-round") or args.has("--shot-apple") or args.has("--shot-needs") or args.has("--shot-anims")
 	var pick_zoom_repro := args.has("--pick-zoom-repro")
 	testing = args.has("--smoke") or shot_mode or perf_mode or pick_zoom_repro or save_perf_mode
 	if args.has("--shot-fx"):
@@ -301,6 +328,8 @@ func _ready() -> void:
 		shot_apple = true
 	if args.has("--shot-needs"):
 		shot_needs = true
+	if args.has("--shot-anims"):
+		shot_anims = true
 	if testing and not save_perf_mode:
 		# Keep smoke/shot/perf saves inside the project so headless CI sandboxes can write.
 		save_path = ProjectSettings.globalize_path("res://shots/thronglets_smoke.save")
@@ -364,6 +393,8 @@ func _step(delta: float) -> void:
 	frame_i += 1
 	if frame_i > 1000000:
 		frame_i = 1
+	if celebrate_t > 0.0:
+		celebrate_t = maxf(0.0, celebrate_t - delta)
 	if sponge_hold > 0.0:
 		sponge_hold = maxf(0.0, sponge_hold - delta)
 		if sponge_hold <= 0.0:
@@ -748,9 +779,33 @@ func _tick_life(i: int, dt: float, decay: float) -> bool:
 		bark_cool[i] = maxf(0.0, bark_cool[i] - dt)
 	elif ((frame_i + i) & 15) == 0:
 		_maybe_bark(i)
+	_ensure_agent_timers(i)
+	if react_t[i] > 0.0:
+		react_t[i] = maxf(0.0, react_t[i] - dt)
+	if cheer_t[i] > 0.0:
+		cheer_t[i] = maxf(0.0, cheer_t[i] - dt)
+	if drop_t[i] > 0.0:
+		drop_t[i] = maxf(0.0, drop_t[i] - dt)
+		dir_x[i] = 0.0
+		dir_y[i] = 0.0
+	if rotund_t[i] > 0.0:
+		rotund_t[i] = maxf(0.0, rotund_t[i] - dt)
+	if peer_t[i] > 0.0:
+		peer_t[i] = maxf(0.0, peer_t[i] - dt)
+		if peer_t[i] <= 0.0:
+			_clear_peer_social(i)
+		else:
+			dir_x[i] = 0.0
+			dir_y[i] = 0.0
+	if sleep_t[i] > 0.0:
+		sleep_t[i] = maxf(0.0, sleep_t[i] - dt)
+	elif act[i] == 0 and peer_t[i] <= 0.0 and drop_t[i] <= 0.0 and fed[i] >= Catalog.NEED_OK and amused[i] >= Catalog.NEED_OK and clean[i] >= Catalog.NEED_OK:
+		if ((frame_i + i) % 180) == 0 and randf() < 0.08:
+			sleep_t[i] = SLEEP_DUR
 	if act_t[i] > 0.0:
 		act_t[i] = maxf(0.0, act_t[i] - dt)
-		if act_t[i] <= 0.0:
+		# Sticky acts are held by claim/seat/job — cheap/far ticks must not wipe the body clip.
+		if act_t[i] <= 0.0 and not _act_is_sticky(i):
 			act[i] = 0
 	if shake_t[i] > 0.0:
 		shake_t[i] = maxf(0.0, shake_t[i] - dt)
@@ -764,7 +819,41 @@ func _tick_life(i: int, dt: float, decay: float) -> bool:
 	return true
 
 
+func _act_is_sticky(i: int) -> bool:
+	match int(act[i]):
+		ACT_EAT:
+			return true
+		ACT_WASH:
+			return true
+		ACT_BATH:
+			return (i < link_tub.size() and link_tub[i] >= 0) \
+				or (i < link_guest.size() and link_guest[i] >= 0)
+		ACT_PLAY:
+			if i < link_ball.size() and int(link_ball[i]) >= 0:
+				return true
+			return (i < link_ride.size() and link_ride[i] >= 0) \
+				or (i < link_guest.size() and link_guest[i] >= 0)
+		ACT_WORK:
+			return (i < link_guest.size() and link_guest[i] >= 0) \
+				or (i < mine_job.size() and int(mine_job[i]) >= 0)
+		_:
+			return false
+
+
 func _tick_busy_or_coast(i: int, dt: float) -> void:
+	# Cheap ticks still advance sticky interactions so body clips do not flicker to idle/walk.
+	if i < drop_t.size() and drop_t[i] > 0.0:
+		dir_x[i] = 0.0
+		dir_y[i] = 0.0
+		return
+	if i < peer_t.size() and peer_t[i] > 0.0:
+		dir_x[i] = 0.0
+		dir_y[i] = 0.0
+		return
+	if act[i] == ACT_EAT and _continue_eat(i, dt):
+		return
+	if _continue_sticky_play_or_work(i, dt):
+		return
 	# Most agents are free walkers: skip tub/ride/guest scans via O(1) link checks.
 	var linked := (i < link_tub.size() and link_tub[i] >= 0) \
 		or (i < link_ride.size() and link_ride[i] >= 0) \
@@ -895,6 +984,14 @@ func _snap_dir_cardinal(i: int) -> void:
 
 
 func _tick_decide(i: int, dt: float) -> void:
+	if i < drop_t.size() and drop_t[i] > 0.0:
+		dir_x[i] = 0.0
+		dir_y[i] = 0.0
+		return
+	if i < peer_t.size() and peer_t[i] > 0.0:
+		dir_x[i] = 0.0
+		dir_y[i] = 0.0
+		return
 	var speed := MOVE_SPEED
 	if buff_t[i] > 0.0:
 		speed = 36.0
@@ -965,6 +1062,12 @@ func _tick_decide(i: int, dt: float) -> void:
 		_release_claim(i)
 	_release_mine_job(i)
 	_release_item_claims(i)
+	if i < peer_t.size() and peer_t[i] > 0.0:
+		dir_x[i] = 0.0
+		dir_y[i] = 0.0
+		return
+	if _try_peer_social(i):
+		return
 	_wander(i, speed, dt)
 
 
@@ -1064,26 +1167,112 @@ func _seek_food(i: int, speed: float, dt: float) -> bool:
 	var tx := float(apple.x)
 	var ty := float(apple.y)
 	if apple_d < 12.0:
-		act[i] = ACT_EAT
-		act_t[i] = 0.25
-		var progress := float(apple.get("bite", 0.0)) + dt
-		apple.bite = progress
-		if progress >= 0.45:
-			apple.bite = 0.0
-			var left := int(apple.get("bites_left", 1)) - 1
-			apple.bites_left = left
-			fed[i] = 100.0
-			sfx_queue.append("apple")
-			hungry_t[i] = 0.0
-			_release_apple_claim(i)
-			if left <= 0:
-				apple.dead = true
-				apple.claimer = -1
-			else:
-				apple.claimer = -1
+		_chew_apple(i, apple, dt)
 		return true
 	_walk(i, tx, ty, speed, dt)
 	return true
+
+
+func _claimed_apple(i: int) -> Dictionary:
+	if i < 0 or i >= link_claim.size():
+		return {}
+	var iid := int(link_claim[i])
+	if iid < 0:
+		return {}
+	var it: Dictionary = item_by_id.get(iid, {})
+	if it.is_empty() or it.dead or int(it.kind) != Catalog.ITEM_APPLE:
+		return {}
+	if int(it.get("claimer", -1)) != i:
+		return {}
+	return it
+
+
+func _chew_apple(i: int, apple: Dictionary, dt: float) -> void:
+	# Eat loop while biting; Celebrate (cheer_t) fires when a bite lands.
+	act[i] = ACT_EAT
+	act_t[i] = 0.55
+	dir_x[i] = 0.0
+	dir_y[i] = 0.0
+	var progress := float(apple.get("bite", 0.0)) + dt
+	apple.bite = progress
+	if progress < 0.45:
+		return
+	apple.bite = 0.0
+	var left := int(apple.get("bites_left", 1)) - 1
+	apple.bites_left = left
+	fed[i] = 100.0
+	_ensure_agent_timers(i)
+	cheer_t[i] = CHEER_DUR
+	rotund_t[i] = ROTUND_DUR
+	act[i] = 0
+	act_t[i] = 0.0
+	sfx_queue.append("apple")
+	hungry_t[i] = 0.0
+	_release_apple_claim(i)
+	if left <= 0:
+		apple.dead = true
+		apple.claimer = -1
+	else:
+		apple.claimer = -1
+
+
+func _continue_eat(i: int, dt: float) -> bool:
+	var apple := _claimed_apple(i)
+	if apple.is_empty():
+		act[i] = 0
+		act_t[i] = 0.0
+		return false
+	if _dist_i(i, float(apple.x), float(apple.y)) >= 12.0:
+		return false
+	_chew_apple(i, apple, dt)
+	return true
+
+
+func _continue_sticky_play_or_work(i: int, dt: float) -> bool:
+	# Keep ACT_PLAY / ACT_WORK body clips alive when seek budget skips full AI.
+	var ball := _linked_ball(i)
+	if not ball.is_empty():
+		act[i] = ACT_PLAY
+		act_t[i] = maxf(act_t[i], 0.35)
+		var bd := _dist_i(i, float(ball.x), float(ball.y))
+		if bd >= 16.0:
+			_walk(i, float(ball.x), float(ball.y), MOVE_SPEED, dt)
+		else:
+			dir_x[i] = 0.0
+			dir_y[i] = 0.0
+			amused[i] = minf(100.0, amused[i] + PLAY_AURA_FUN * dt)
+		return true
+	if i < mine_job.size() and int(mine_job[i]) >= 0 and carry[i] == Catalog.CARRY_NONE:
+		var mine: Dictionary = building_by_id.get(int(mine_job[i]), {})
+		if mine.is_empty() or mine.dead:
+			_release_mine_job(i)
+			return false
+		act[i] = ACT_WORK
+		act_t[i] = maxf(act_t[i], 0.35)
+		if _inside_building_reach(pos_x[i], pos_y[i], mine) or _is_guest(mine, i):
+			dir_x[i] = 0.0
+			dir_y[i] = 0.0
+			return true
+		var spot := _approach_building(mine, i)
+		_walk(i, float(spot.x), float(spot.y), MOVE_SPEED, dt)
+		return true
+	return false
+
+
+func _linked_ball(i: int) -> Dictionary:
+	if i < 0 or i >= link_ball.size():
+		return {}
+	var iid := int(link_ball[i])
+	if iid < 0:
+		return {}
+	var it: Dictionary = item_by_id.get(iid, {})
+	if it.is_empty() or it.dead or int(it.kind) != Catalog.ITEM_BALL:
+		link_ball[i] = -1
+		return {}
+	if int(it.get("claimer", -1)) != i:
+		link_ball[i] = -1
+		return {}
+	return it
 
 
 func _approach_home_visit(i: int, home: Dictionary, speed: float, dt: float) -> bool:
@@ -2583,7 +2772,10 @@ func _thought_icon(i: int) -> int:
 			if _dist_i(i, float(feat.x), float(feat.y)) < 48.0:
 				return Catalog.ICON_FIRE
 	# Penned check is expensive (8 blocked probes); sample infrequently.
-	if posmod(frame_i + i, 45) == 0 and _is_penned(i):
+	_ensure_agent_timers(i)
+	if posmod(frame_i + i, 45) == 0:
+		penned_flag[i] = 1 if _is_penned(i) else 0
+	if penned_flag[i] != 0:
 		return Catalog.ICON_ROCK
 	var tile := _tile_at(pos_x[i], pos_y[i])
 	if tile == Catalog.TILE_GOO:
@@ -4172,6 +4364,29 @@ func is_holding() -> bool:
 	return held_kind != "" or hand_id != -1 or has_scoop()
 
 
+func _ensure_agent_timers(i: int) -> void:
+	# TODO: May be removed
+	# Old saves lack react/cheer/sleep/peer/drop/rotund/penned arrays; grow on demand.
+	while react_t.size() <= i:
+		react_t.append(0.0)
+	while cheer_t.size() <= i:
+		cheer_t.append(0.0)
+	while sleep_t.size() <= i:
+		sleep_t.append(0.0)
+	while peer_t.size() <= i:
+		peer_t.append(0.0)
+	while peer_of.size() <= i:
+		peer_of.append(-1)
+	while peer_sing.size() <= i:
+		peer_sing.append(0)
+	while drop_t.size() <= i:
+		drop_t.append(0.0)
+	while rotund_t.size() <= i:
+		rotund_t.append(0.0)
+	while penned_flag.size() <= i:
+		penned_flag.append(0)
+
+
 func grab_thronglet(id: int) -> bool:
 	if frozen or is_holding():
 		return false
@@ -4183,6 +4398,16 @@ func grab_thronglet(id: int) -> bool:
 	held_ref = id
 	held_x = pos_x[id]
 	held_y = pos_y[id]
+	dir_x[id] = 0.0
+	dir_y[id] = 0.0
+	act[id] = 0
+	act_t[id] = 0.0
+	_ensure_agent_timers(id)
+	cheer_t[id] = 0.0
+	react_t[id] = 0.0
+	drop_t[id] = 0.0
+	rotund_t[id] = 0.0
+	_clear_peer_social(id)
 	clear_bark(id)
 	return true
 
@@ -5035,10 +5260,17 @@ func _set_carry(i: int, kind: int, value: int = 0) -> void:
 		return
 	if int(carry[i]) == kind and (kind == Catalog.CARRY_NONE or int(carry_value[i]) == value):
 		return
+	var was_carrying := int(carry[i]) != Catalog.CARRY_NONE
 	_carry_dec(i)
 	carry[i] = kind
 	carry_value[i] = value if kind != Catalog.CARRY_NONE else 0
 	_carry_inc(i)
+	# DropProp one-shot when a haul leaves the hands.
+	if was_carrying and kind == Catalog.CARRY_NONE:
+		_ensure_agent_timers(i)
+		drop_t[i] = DROP_DUR
+		dir_x[i] = 0.0
+		dir_y[i] = 0.0
 
 
 func _rebuild_carry_counts() -> void:
@@ -5681,6 +5913,8 @@ func _deflesh(id: int, count_use: bool) -> void:
 	var bone_it := _add_item(Catalog.ITEM_BONE, x, y, 1)
 	item_physics.launch_item(bone_it, 6.0, randf_range(80.0, 110.0), randf_range(-30.0, 30.0), randf_range(-30.0, 30.0))
 	_pop(x, y, ThrongClips.frame_at("ThrongA_Bones", 0))
+	if was_living:
+		_pulse_react_near(x, y, id)
 	if count_use and part_two:
 		bug_uses += 1
 		if bug_uses >= 3:
@@ -5762,6 +5996,8 @@ func _die_neglect(i: int) -> void:
 func _become_corpse(i: int) -> void:
 	if state[i] != Catalog.ST_LIVING:
 		return
+	var x := pos_x[i]
+	var y := pos_y[i]
 	state[i] = Catalog.ST_DEAD
 	living -= 1
 	dead_n += 1
@@ -5779,8 +6015,156 @@ func _become_corpse(i: int) -> void:
 	_release_claim(i)
 	_release_item_claims(i)
 	_clear_ride(i)
+	_pulse_react_near(x, y, i)
 	if living <= 0:
 		_enter_game_over()
+
+
+func _pulse_react_near(x: float, y: float, skip: int = -1) -> void:
+	for id in query_radius(x, y, REACT_KILL_R):
+		var j := int(id)
+		if j == skip or j < 0 or j >= slot_count:
+			continue
+		if state[j] != Catalog.ST_LIVING:
+			continue
+		_ensure_agent_timers(j)
+		react_t[j] = REACT_DUR
+
+
+func has_living_peer(i: int, radius: float = PEER_R) -> bool:
+	if i < 0 or i >= slot_count or state[i] != Catalog.ST_LIVING:
+		return false
+	for id in query_radius(pos_x[i], pos_y[i], radius):
+		var j := int(id)
+		if j != i and j >= 0 and j < slot_count and state[j] == Catalog.ST_LIVING:
+			return true
+	return false
+
+
+func is_mining(i: int) -> bool:
+	# Guest of a mine / mine2 — dig stay uses Pickaxe ↔ Twiddle.
+	if i < 0 or i >= link_guest.size():
+		return false
+	var bid := int(link_guest[i])
+	if bid < 0:
+		return false
+	var b: Dictionary = building_by_id.get(bid, {})
+	if b.is_empty() or b.dead:
+		return false
+	return _is_mine_kind(int(b.kind))
+
+
+func _peer_content(i: int) -> bool:
+	return fed[i] >= Catalog.NEED_OK and amused[i] >= Catalog.NEED_OK and clean[i] >= Catalog.NEED_OK
+
+
+func _peer_free(i: int) -> bool:
+	if i < 0 or i >= slot_count or state[i] != Catalog.ST_LIVING:
+		return false
+	if act[i] != 0 or carry[i] != Catalog.CARRY_NONE:
+		return false
+	if mito_t[i] > 0.0 or mito_charge[i] > 0.0:
+		return false
+	if i < peer_t.size() and peer_t[i] > 0.0:
+		return false
+	if i < sleep_t.size() and sleep_t[i] > 0.0:
+		return false
+	if i < cheer_t.size() and cheer_t[i] > 0.0:
+		return false
+	if i < react_t.size() and react_t[i] > 0.0:
+		return false
+	if i < link_guest.size() and link_guest[i] >= 0:
+		return false
+	if i < link_tub.size() and link_tub[i] >= 0:
+		return false
+	if i < link_ride.size() and link_ride[i] >= 0:
+		return false
+	return true
+
+
+func _nearest_peer_partner(i: int) -> int:
+	var best := -1
+	var best_d := PEER_R
+	for id in query_radius(pos_x[i], pos_y[i], PEER_R):
+		var j := int(id)
+		if j == i or j < 0 or j >= slot_count:
+			continue
+		if not _peer_free(j) or not _peer_content(j):
+			continue
+		var d := _dist_i(i, pos_x[j], pos_y[j])
+		if d < best_d:
+			best_d = d
+			best = j
+	return best
+
+
+func _try_peer_social(i: int) -> bool:
+	# Content thronglets stop, face a free peer, and hold a talk/sing beat.
+	_ensure_agent_timers(i)
+	if not _peer_free(i) or not _peer_content(i):
+		return false
+	# Sparse attempts so the colony does not freeze in chat clusters.
+	if ((frame_i + i) % 75) != 0 or randf() > 0.35:
+		return false
+	var j := _nearest_peer_partner(i)
+	if j < 0:
+		return false
+	_ensure_agent_timers(j)
+	var sing := 1 if randf() < 0.55 else 0
+	peer_t[i] = PEER_DUR
+	peer_t[j] = PEER_DUR
+	peer_of[i] = j
+	peer_of[j] = i
+	peer_sing[i] = sing
+	peer_sing[j] = sing
+	dir_x[i] = 0.0
+	dir_y[i] = 0.0
+	dir_x[j] = 0.0
+	dir_y[j] = 0.0
+	if i < seek_t.size():
+		seek_t[i] = 0.0
+	if j < seek_t.size():
+		seek_t[j] = 0.0
+	return true
+
+
+func _clear_peer_social(i: int) -> void:
+	if i < 0 or i >= peer_t.size():
+		return
+	var j := int(peer_of[i]) if i < peer_of.size() else -1
+	peer_t[i] = 0.0
+	peer_of[i] = -1
+	if i < peer_sing.size():
+		peer_sing[i] = 0
+	if j >= 0 and j < peer_of.size() and int(peer_of[j]) == i:
+		peer_t[j] = 0.0
+		peer_of[j] = -1
+		if j < peer_sing.size():
+			peer_sing[j] = 0
+
+
+func near_fire(i: int, radius: float = 48.0) -> bool:
+	if i < 0 or i >= slot_count:
+		return false
+	for feat in fires:
+		if feat.dead or int(feat.kind) != Catalog.FEAT_FIRE:
+			continue
+		if _dist_i(i, float(feat.x), float(feat.y)) < radius:
+			return true
+	return false
+
+
+func approaching_home(i: int) -> bool:
+	if i < 0 or i >= slot_count or state[i] != Catalog.ST_LIVING:
+		return false
+	if link_guest[i] >= 0:
+		return false
+	for b in blds_home:
+		if b.dead:
+			continue
+		if _dist_i(i, float(b.x), float(b.y)) < 88.0:
+			return true
+	return false
 
 
 func _tick_corpses(dt: float) -> void:
@@ -6287,6 +6671,7 @@ func _grant(key: String, message: String = "", talk: bool = true) -> bool:
 		return false
 	unlocks[key] = true
 	unlock_serial += 1
+	celebrate_t = CELEBRATE_DUR
 	sfx_queue.append("unlock_" + key)
 	if talk and Catalog.UNLOCK_TALK.has(key):
 		_queue_talk(str(Catalog.UNLOCK_TALK[key]), {})
@@ -6851,6 +7236,14 @@ func _reset_world() -> void:
 	mito_charge = PackedFloat32Array()
 	shake_t = PackedFloat32Array()
 	buff_t = PackedFloat32Array()
+	react_t = PackedFloat32Array()
+	cheer_t = PackedFloat32Array()
+	sleep_t = PackedFloat32Array()
+	peer_t = PackedFloat32Array()
+	peer_of = PackedInt32Array()
+	peer_sing = PackedByteArray()
+	drop_t = PackedFloat32Array()
+	rotund_t = PackedFloat32Array()
 	state = PackedInt32Array()
 	carry = PackedInt32Array()
 	carry_value = PackedInt32Array()
@@ -6861,6 +7254,7 @@ func _reset_world() -> void:
 	act_t = PackedFloat32Array()
 	tick_stamp = PackedInt32Array()
 	pops.clear()
+	celebrate_t = 0.0
 	hash_next = PackedInt32Array()
 	hash_cell = PackedInt32Array()
 	link_tub = PackedInt32Array()
@@ -6871,6 +7265,7 @@ func _reset_world() -> void:
 	living_ids = PackedInt32Array()
 	living_at = PackedInt32Array()
 	bark_cool = PackedFloat32Array()
+	penned_flag = PackedByteArray()
 	fires.clear()
 	items_apple.clear()
 	items_ball.clear()
@@ -6920,6 +7315,14 @@ func _push_slot_quiet(x: float, y: float, fed_v: float, fun_v: float, clean_v: f
 	mito_charge.append(0.0)
 	shake_t.append(0.0)
 	buff_t.append(0.0)
+	react_t.append(0.0)
+	cheer_t.append(0.0)
+	sleep_t.append(0.0)
+	peer_t.append(0.0)
+	peer_of.append(-1)
+	peer_sing.append(0)
+	drop_t.append(0.0)
+	rotund_t.append(0.0)
 	state.append(Catalog.ST_LIVING)
 	carry.append(Catalog.CARRY_NONE)
 	carry_value.append(0)
@@ -6938,6 +7341,7 @@ func _push_slot_quiet(x: float, y: float, fed_v: float, fun_v: float, clean_v: f
 	link_ball.append(-1)
 	living_at.append(-1)
 	bark_cool.append(0.0)
+	penned_flag.append(0)
 	seek_x.append(0.0)
 	seek_y.append(0.0)
 	seek_t.append(0.0)

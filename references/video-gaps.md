@@ -347,6 +347,8 @@ Things that were invisible at the whole-minute marks, or that the first pass rea
 
 ## Thronglet animations & sprites catalog (`references/` mapping)
 
+**R&D map for issue #37:** situation → clips, playback order, priority tiers, video evidence, and current `Main._frame` mismatches live in [`thronglet-animations.md`](thronglet-animations.md). Per-animation strips live in `resources/sprites/throng_anims/` (`ThrongClips.frame_at` / `strip_frame` / `sprite_frames`); `make_art` packs those strips into `world_iso.png` for MultiMesh.
+
 All character sprites are packed inside `references/Assets/Texture2D/sactx-0-2048x2048-Uncompressed-Sprites-Thronglets-fc0e3430.png` (dirt overlay in `..._DirtTex.png`) and indexed by `references/Assets/SpriteAtlas/Sprites-Thronglets.json`. Frame rects (`m_Rect` / `m_RD.textureRect`) and foot anchors (`m_Pivot`) live in `references/Assets/Sprite/*.json` (note: Unity's `y=0` is bottom-left, so convert to Canvas/WebGL top-left via `2048 - textureRect.y - textureRect.height`). Cutscene timelines are stored in `references/Assets/ScriptableObjectGroup/` (`ThrongletTalkTimeline.json`, `ThrongletEmergeTimeline.json`, `SEQ_1.json`–`SEQ_8.json`).
 
 | Category | State / Clip | `references/Assets/Sprite/` JSON prefix | Frames | Priority |
@@ -387,15 +389,17 @@ The share button, the Netflix account, the recorder's label, this playthrough's 
 
 ### Thronglet animations & cutscene system
 
-- [ ] **Atlas extraction & coordinate normalization**: parse `references/Assets/Sprite/Throng*.json` and `Char_Throng*.json` against `sactx-0-2048x2048-Uncompressed-Sprites-Thronglets-fc0e3430.png`, flipping Unity's bottom-left Y axis (`2048 - textureRect.y - textureRect.height`) and preserving `m_Pivot` for isometric Y-sorting.
-- [ ] **Priority-based Animation FSM (`ThrongletAnimator`)**: separate entity logic state from sprite frame playback with a 4-tier interrupt hierarchy (`1: Base/Needs` -> `2: Direct Interaction` -> `3: Critical/One-shot` -> `4: Cutscene Override`), supporting both looping (`idle`, `walk`, `walk_homed`, `sing`) and one-shot (`eat`, `mitosis`, `egg_hatch`, `deflesh`) cycles with `onComplete` callbacks.
-- [ ] **Cutscene Director (`CutsceneDirector`)**: global controller referencing `references/Assets/ScriptableObjectGroup/` timelines (`ThrongletTalkTimeline.json`, `ThrongletEmergeTimeline.json`, `SEQ_1.json`–`SEQ_8.json`) that pauses autonomous AI (`aiPaused = true`) for scripted events:
-  - [ ] `triggerDialogueStare()`: freezes all living thronglets and switches them to `ThrongA_Talk_*` / `ThrongA_LooktAtPlayerHappyNod_*` / `ThrongA_DeepThought_*` (with a 0–300 ms stagger) whenever a console dialogue/choice opens.
-  - [ ] `triggerCelebration()`: triggers `ThrongA_Celebrate_Spritesheet_*` jumps across the swarm on milestone/unlock cards.
-- [ ] **Spatial & local event reactions**:
-  - [ ] Proximity `Char_ThrongA_PanicRun_*` / `Char_ThrongA_FreakOut_*` / `ThrongA_ReactToKill_*` burst when a thronglet dies nearby or destructive tools (`HAMMER`, `AXE`, `CHAINSAW`) strike within range.
-  - [ ] Exact frame-synced `ThrongA_Mitosis_Spritesheet_*` split (spawning the new thronglet/egg on the final frame of the 36-frame division animation).
-- [ ] **Dirt & cosmetic overlays**: apply `..._DirtTex.png` mask (from `Shader_VeniceSprites.json`) when cleanliness drops, and layer `THEATRE` masks over base animations once unlocked ([73:30](video-frames/t073-30.jpg)).
+Situation → animation for issue #37 is **shipped** in [`thronglet-animations.md`](thronglet-animations.md) (pools, tiered `Main._frame`, strips, mismatch N/As). Full SEQ timeline player remains out of scope.
+
+- [x] **Atlas extraction & coordinate normalization**: Unity sheets → strip PNGs + `world_iso` pack (incl. panic, freak, carry, happy/sad walk, puppy, in-awe, deflesh sheet). Deflesh kill path N/A (Dead sheets).
+- [x] **Priority-based animation selection**: 4-tier interrupt in `Main._frame` with situation pools (`IDLE_CALM`, `MOOD_*`, `SING_PEER`, `TALK_*`, `POSSESSED`, `CELEBRATE`, `PANIC`). No separate `ThrongletAnimator` node; MultiMesh + `ThrongClips.frame_at`.
+- [x] **Cutscene overrides** (sim flags, not a full SEQ `CutsceneDirector`):
+  - [x] Dialogue stare: `frozen` → `TALK_CONSOLE` (+ `TALK_REACT` mood accents), 0–300 ms stagger; `POSSESSED` when `glitch_t`.
+  - [x] Celebration: unlock/`celebrate_t` + eat `cheer_t` → `CELEBRATE` pool.
+- [x] **Spatial & local event reactions**:
+  - [x] Panic/FreakOut/ReactToKill via penned, near fire, neighbor death (`react_t`).
+  - [x] Mitosis frames along charge/split (`frame_along`).
+- [x] **Dirt**: DirtTex shader when clean drops. Theatre body masks **N/A** (no cosmetics layer yet; [73:30](video-frames/t073-30.jpg) remains open for overlays elsewhere).
 
 ### World and tools
 

@@ -1557,60 +1557,43 @@ def _grow_sheet(sheet, cols, rows):
     return bigger
 
 
-def _write_throng_clips(entries, rows, talk, idle):
-    def strings(names):
-        return ",\n".join('\t\t"%s"' % name.replace('"', "") for name in names)
-    body = []
-    body.append("class_name ThrongClips")
-    body.append("extends Object")
-    body.append("")
-    body.append("const SHEET_COLS := %d" % 16)
-    body.append("const SHEET_ROWS := %d" % rows)
-    body.append("const BASE := %d" % THRONG_BASE)
-    body.append("")
-    body.append("const CLIPS := {")
-    for name, start, count in entries:
-        body.append('\t"%s": Vector2i(%d, %d),' % (name.replace('"', ""), start, count))
-    body.append("}")
-    body.append("")
-    body.append("const TALK := [")
-    body.append(strings(talk))
-    body.append("]")
-    body.append("")
-    body.append("const IDLE := [")
-    body.append(strings(idle))
-    body.append("]")
-    body.append("")
-    body.append("static func has_clip(clip: String) -> bool:")
-    body.append("\treturn CLIPS.has(clip)")
-    body.append("")
-    body.append("static func frame_at(clip: String, tick: int) -> int:")
-    body.append("\tvar box: Vector2i = CLIPS.get(clip, Vector2i(20, 1))")
-    body.append("\tif box.y <= 1:")
-    body.append("\t\treturn box.x")
-    body.append("\treturn box.x + posmod(tick, box.y)")
-    body.append("")
-    body.append("static func frame_along(clip: String, along: float) -> int:")
-    body.append("\tvar box: Vector2i = CLIPS.get(clip, Vector2i(20, 1))")
-    body.append("\tvar n := maxi(box.y, 1)")
-    body.append("\treturn box.x + clampi(int(clampf(along, 0.0, 0.999) * float(n)), 0, n - 1)")
-    body.append("")
-    body.append("static func pick(pool: Array, index: int, time: float, hold: float) -> int:")
-    body.append("\tif pool.is_empty():")
-    body.append("\t\treturn 20")
-    body.append("\tvar which := int(time / hold) + index")
-    body.append("\tvar name := str(pool[posmod(which, pool.size())])")
-    body.append("\tvar local := time - float(int(time / hold)) * hold")
-    body.append("\treturn frame_at(name, int(local * 8.0))")
-    body.append("")
-    body.append("static func info_at(frame: int) -> Dictionary:")
-    body.append("\tfor clip in CLIPS.keys():")
-    body.append("\t\tvar box: Vector2i = CLIPS[clip]")
-    body.append("\t\tif frame >= box.x and frame < box.x + box.y:")
-    body.append('\t\t\treturn {"clip": str(clip), "index": frame - box.x}')
-    body.append("\treturn {}")
-    body.append("")
+def _write_throng_clips(entries, rows):
     path = OUT("scripts", "data", "throng_clips.gd")
+    existing = open(path).read() if os.path.isfile(path) else ""
+    clips_block = ["const CLIPS := {"]
+    for name, start, count in entries:
+        clips_block.append('\t"%s": Vector2i(%d, %d),' % (name.replace('"', ""), start, count))
+    clips_block.append("}")
+    if "const CLIPS := {" in existing and "static func has_clip" in existing:
+        import re as _re
+        text = existing
+        text = _re.sub(
+            r"const SHEET_ROWS := \d+",
+            "const SHEET_ROWS := %d" % rows,
+            text,
+            count=1,
+        )
+        text = _re.sub(
+            r"const CLIPS := \{.*?\n\}",
+            "\n".join(clips_block),
+            text,
+            count=1,
+            flags=_re.S,
+        )
+        with open(path, "w") as handle:
+            handle.write(text)
+        return
+    body = [
+        "class_name ThrongClips",
+        "extends Object",
+        "",
+        "const SHEET_COLS := 16",
+        "const SHEET_ROWS := %d" % rows,
+        "const BASE := %d" % THRONG_BASE,
+        "",
+        "\n".join(clips_block),
+        "",
+    ]
     with open(path, "w") as handle:
         handle.write("\n".join(body) + "\n")
 
@@ -1652,7 +1635,7 @@ def _split_strip(img, count):
     return frames
 
 
-def _stamp_loose_clips(sheet, dirt_sheet, cols, index, entries, idle):
+def _stamp_loose_clips(sheet, dirt_sheet, cols, index, entries):
     singles = (
         ("ThrongA_Default_Ghost", "Char_ThrongA_Default_Ghost.png"),
         ("Thronglet_Outline", "T_ThrongletOutline.png"),
@@ -1669,8 +1652,6 @@ def _stamp_loose_clips(sheet, dirt_sheet, cols, index, entries, idle):
         _stamp_frame(sheet, cols, index, body)
         _stamp_frame(dirt_sheet, cols, index, new(1, 1))
         entries.append((clip, index, 1))
-        if clip == "ThrongA_Default_Ghost":
-            idle.append(clip)
         index += 1
     return index
 
@@ -1925,29 +1906,74 @@ def _stamp_cell(sheet, cols, index, cell):
     sheet.alpha_composite(cell, ((index % cols) * CELL_W, (index // cols) * CELL_H))
 
 
+def _load_throng_strip_bodies():
+    """Body frames from resources/sprites/throng_anims strips (one PNG per clip)."""
+    man_path = OUT("resources", "sprites", "throng_anims", "manifest.json")
+    folder = OUT("resources", "sprites", "throng_anims")
+    if not os.path.isfile(man_path):
+        return {}
+    manifest = json.load(open(man_path))
+    clips = {}
+    for name, meta in (manifest.get("clips") or {}).items():
+        path = os.path.join(folder, meta["file"])
+        if not os.path.isfile(path):
+            continue
+        sheet = Image.open(path).convert("RGBA")
+        count = max(1, int(meta.get("frames", 1)))
+        cell_w = max(1, int(meta.get("cell_w", sheet.size[0] // count)))
+        cell_h = max(1, int(meta.get("cell_h", sheet.size[1])))
+        frames = []
+        for i in range(count):
+            cell = sheet.crop((i * cell_w, 0, (i + 1) * cell_w, cell_h))
+            box = cell.getbbox()
+            frame = cell.crop(box) if box else cell
+            frames.append(frame)
+        clips[name] = frames
+    return clips
+
+
+def _clips_prefer_strips(unity_clips):
+    """Use strip PNGs as body source when present; keep Unity dirt + pivot."""
+    strips = _load_throng_strip_bodies()
+    if not strips:
+        return unity_clips
+    merged = {}
+    for name, frames in unity_clips.items():
+        bodies = strips.get(name)
+        if not bodies or len(bodies) != len(frames):
+            merged[name] = frames
+            continue
+        out = []
+        for i, (_body, dirt, pivot) in enumerate(frames):
+            out.append((bodies[i], dirt, pivot))
+        merged[name] = out
+    for name, bodies in strips.items():
+        if name in merged:
+            continue
+        # Strip-only clips (e.g. loose singles): no dirt mask.
+        merged[name] = [
+            (body, new(body.size[0], body.size[1]), (0.5, 0.0)) for body in bodies
+        ]
+    print("throng strips wired", len(strips), "of", len(merged), "clips")
+    return merged
+
+
 def _stamp_throng_anims(sheet, cols):
-    clips = _load_throng_clips()
+    # Strips under resources/sprites/throng_anims are the per-animation source sheets.
+    # Export first if missing so packing and runtime SpriteFrames stay aligned.
+    man_path = OUT("resources", "sprites", "throng_anims", "manifest.json")
+    if not os.path.isfile(man_path):
+        try:
+            from export_throng_anims import export as _export_strips
+            _export_strips()
+        except Exception as err:
+            print("throng strip export skipped:", err)
+    clips = _clips_prefer_strips(_load_throng_clips())
     total = sum(len(frames) for frames in clips.values())
     rows = (THRONG_BASE + total + 160 + cols - 1) // cols
     sheet = _grow_sheet(sheet, cols, rows)
     dirt_sheet = new(sheet.size[0], sheet.size[1])
-    reserved = {
-        "Throng_Walk_Anim_Spritesheet",
-        "Throng_WalkBack_Anim_Spritesheet",
-        "ThrongA_Eat",
-        "ThrongA_Pickaxe_Spritesheet",
-        "Throng_FallInBath_Spritesheet",
-        "ThrongA_Roundabout_SpriteSheet",
-        "ThrongA_Jump_VariantA_Spritesheet",
-        "ThrongA_Mitosis_Spritesheet",
-        "ThrongA_Dead_001",
-        "ThrongA_Dead_002",
-        "ThrongA_Bones",
-        "ThrongA_Sad",
-    }
     entries = []
-    talk = []
-    idle = []
     index = THRONG_BASE
     for name in sorted(clips):
         frames = clips[name]
@@ -1958,16 +1984,12 @@ def _stamp_throng_anims(sheet, cols):
             _stamp_cell(dirt_sheet, cols, index, _unity_throng_cell(dirt, pivot, scale, anchor))
             index += 1
         entries.append((name, start, len(frames)))
-        if "Talk" in name:
-            talk.append(name)
-        elif name not in reserved:
-            idle.append(name)
-    index = _stamp_loose_clips(sheet, dirt_sheet, cols, index, entries, idle)
+    index = _stamp_loose_clips(sheet, dirt_sheet, cols, index, entries)
     index = _stamp_fx_and_biomes(sheet, cols, index)
     rows = (index + cols - 1) // cols
     sheet = sheet.crop((0, 0, cols * CELL_W, rows * CELL_H))
     dirt_sheet = dirt_sheet.crop((0, 0, cols * CELL_W, rows * CELL_H))
-    _write_throng_clips(entries, rows, talk, idle)
+    _write_throng_clips(entries, rows)
     dirt_sheet.save(OUT("resources", "sprites", "world_iso_dirt.png"))
     print("throng clips", len(entries), "frames", total, "rows", rows)
     return sheet
