@@ -1239,6 +1239,36 @@ def make_hud():
         out.alpha_composite(ring, (-2, -2))
         ring = out
     ring.save(OUT("resources", "ui", "ui_circle.png"))
+    # Gem counter plaque: three-plank wood from Sprites-WoodPanel.
+    wood_atlas = os.path.join(
+        SRC_TEX, "sactx-0-512x1024-ASTC 6x6-Sprites-WoodPanel-b20f41f3.png",
+    )
+    if not os.path.isfile(wood_atlas):
+        wood_atlas = OUT(
+            "references", "Assets", "Texture2D",
+            "sactx-0-512x1024-ASTC 6x6-Sprites-WoodPanel-b20f41f3.png",
+        )
+    wood_meta = os.path.join(SRC_SPRITE, "UI_WoodPanelUI_ThreePanelWindow_0.json")
+    if not os.path.isfile(wood_meta):
+        wood_meta = OUT(
+            "references", "Assets", "Sprite", "UI_WoodPanelUI_ThreePanelWindow_0.json",
+        )
+    if os.path.isfile(wood_atlas) and os.path.isfile(wood_meta):
+        meta = json.load(open(wood_meta))
+        settings = int((meta.get("m_RD") or {}).get("m_SettingsRaw") or 0)
+        plaque = _crop_unity(Image.open(wood_atlas).convert("RGBA"), meta["m_Rect"], settings)
+        plaque.save(OUT("resources", "ui", "gem_frame.png"))
+    # HUD gem glyph: full crystal scaled to plaque height (~20px).
+    gem_src = os.path.join(SRC_TEX, "..", "ref", "gem.png")
+    if not os.path.isfile(gem_src):
+        gem_src = OUT("tools", "art_source", "src", "ref", "gem.png")
+    if os.path.isfile(gem_src):
+        gem_img = Image.open(gem_src).convert("RGBA")
+        box = gem_img.getbbox() or (0, 0, gem_img.size[0], gem_img.size[1])
+        gem_img = gem_img.crop(box)
+        gh = 18
+        gw = max(1, int(round(gem_img.size[0] * gh / float(gem_img.size[1]))))
+        gem_img.resize((gw, gh), Image.NEAREST).save(OUT("resources", "ui", "gem_icon.png"))
     # Video plate: OldOS dashed cyan button.
     # Task frame: original GOAL banner (3px white + 2px cyan ring + shadow).
     oldos_btn = os.path.join(ROOT, "references", "Assets", "Texture2D", "UI_OldOS_Button.png")

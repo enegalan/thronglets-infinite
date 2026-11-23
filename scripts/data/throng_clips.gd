@@ -200,6 +200,10 @@ const IDLE := [
 		"ThrongA_Default_Ghost"
 ]
 
+static var _frame_clip: PackedStringArray = PackedStringArray()
+static var _frame_index: PackedInt32Array = PackedInt32Array()
+static var _frame_map_ready := false
+
 static func has_clip(clip: String) -> bool:
 	return CLIPS.has(clip)
 
@@ -222,10 +226,42 @@ static func pick(pool: Array, index: int, time: float, hold: float) -> int:
 	var local := time - float(int(time / hold)) * hold
 	return frame_at(name, int(local * 8.0))
 
-static func info_at(frame: int) -> Dictionary:
+static func _ensure_frame_map() -> void:
+	if _frame_map_ready:
+		return
+	var max_frame := 0
 	for clip in CLIPS.keys():
 		var box: Vector2i = CLIPS[clip]
-		if frame >= box.x and frame < box.x + box.y:
-			return {"clip": str(clip), "index": frame - box.x}
-	return {}
+		max_frame = maxi(max_frame, box.x + box.y)
+	_frame_clip.resize(max_frame)
+	_frame_index.resize(max_frame)
+	for i in max_frame:
+		_frame_clip[i] = ""
+		_frame_index[i] = -1
+	for clip in CLIPS.keys():
+		var box: Vector2i = CLIPS[clip]
+		var name := str(clip)
+		for i in box.y:
+			var f := box.x + i
+			_frame_clip[f] = name
+			_frame_index[f] = i
+	_frame_map_ready = true
+
+static func clip_name_at(frame: int) -> String:
+	_ensure_frame_map()
+	if frame < 0 or frame >= _frame_clip.size():
+		return ""
+	return _frame_clip[frame]
+
+static func clip_index_at(frame: int) -> int:
+	_ensure_frame_map()
+	if frame < 0 or frame >= _frame_index.size():
+		return -1
+	return _frame_index[frame]
+
+static func info_at(frame: int) -> Dictionary:
+	var clip := clip_name_at(frame)
+	if clip.is_empty():
+		return {}
+	return {"clip": clip, "index": clip_index_at(frame)}
 

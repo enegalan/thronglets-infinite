@@ -3,6 +3,7 @@ class_name SaveSystem
 
 const SLOT_COUNT := 4
 const LIVE_SLOT := 0
+const SANDBOX_PATH := "user://thronglets_sandbox.save"
 
 var _sim
 
@@ -13,6 +14,10 @@ func _init(sim) -> void:
 
 func slot_path(index: int) -> String:
 	return "user://thronglets_slot_%d.save" % index
+
+
+func sandbox_path() -> String:
+	return SANDBOX_PATH
 
 
 func read_meta() -> Dictionary:
@@ -38,6 +43,13 @@ func last_slot() -> int:
 	return int(meta.get("last", -1))
 
 
+func clear_sandbox_save() -> void:
+	var dir := DirAccess.open("user://")
+	var path := sandbox_path()
+	if dir != null and FileAccess.file_exists(path):
+		dir.remove(path.get_file())
+
+
 func clear_saves() -> void:
 	var sim = _sim
 	var dir := DirAccess.open("user://")
@@ -49,6 +61,28 @@ func clear_saves() -> void:
 	sim.current_slot = -1
 	sim.session_live = false
 	sim.game_over = false
+
+
+func clear_all_progress() -> void:
+	clear_saves()
+	clear_sandbox_save()
+
+
+func has_sandbox_save() -> bool:
+	return FileAccess.file_exists(sandbox_path())
+
+
+func load_sandbox() -> bool:
+	var sim = _sim
+	if not has_sandbox_save():
+		return false
+	sim.save_path = sandbox_path()
+	if not load_game():
+		return false
+	sim.current_slot = -1
+	sim.sandbox_mode = true
+	sim.unlock_serial += 1
+	return true
 
 
 func save_slot(index: int) -> bool:
@@ -68,6 +102,14 @@ func save_slot(index: int) -> bool:
 
 
 func save_progress() -> bool:
+	var sim = _sim
+	# Sandbox keeps its own file so campaign slots / autosave history stay intact.
+	if bool(sim.sandbox_mode):
+		sim.current_slot = -1
+		sim.save_path = sandbox_path()
+		var ok := save_game()
+		sim.autosave_t = 0.0
+		return ok
 	return save_slot(LIVE_SLOT)
 
 
@@ -79,6 +121,9 @@ func tick_autosave(delta: float) -> void:
 	if sim.autosave_t < sim.autosave_interval:
 		return
 	sim.autosave_t = 0.0
+	if bool(sim.sandbox_mode):
+		save_progress()
+		return
 	rotate_autosave_history()
 	save_progress()
 
@@ -174,6 +219,7 @@ func save_game() -> bool:
 		"total_gems_earned": sim.total_gems_earned,
 		"deaths_total": sim.deaths_total,
 		"land_tier": sim.land_tier,
+		"sandbox_mode": sim.sandbox_mode,
 		"glitch_seen": sim.glitch_seen,
 		"unlocks": sim.unlocks.duplicate(true),
 		"ethics": sim.ethics.duplicate(true),
@@ -256,6 +302,7 @@ func load_game() -> bool:
 	sim.total_gems_earned = maxi(int(data.get("total_gems_earned", sim.gems_peak)), sim.gems_peak)
 	sim.deaths_total = int(data.get("deaths_total", 0))
 	sim.land_tier = int(data.get("land_tier", 0))
+	sim.sandbox_mode = bool(data.get("sandbox_mode", false))
 	sim.unlocks = data.get("unlocks", sim.unlocks)
 	sim.glitch_seen = bool(data.get("glitch_seen", false))
 	sim.ethics = data.get("ethics", [])

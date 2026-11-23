@@ -273,6 +273,13 @@ func tick_shot() -> void:
 			if not save_shot(main.get_viewport(), "res://shots/hud_task.png"):
 				main.get_tree().quit(1)
 				return
+			# Gem plaque reference shot: force part-two HUD and crop the top-left strip.
+			sim.part_two = true
+			sim.gems = 642
+			main._sync_hud(0.0)
+			if not save_shot(main.get_viewport(), "res://shots/hud_gem.png"):
+				main.get_tree().quit(1)
+				return
 			hud_saved = true
 			frames = 0
 			return

@@ -13,6 +13,9 @@ static func condition_met(sim, cond: Dictionary) -> bool:
 		return metric_value(sim, metric) >= want
 	if t == ProgressionCatalog.ConditionType.UNLOCKED:
 		return bool(sim.unlocks.get(str(cond.get("itemId", "")), false))
+	if t == ProgressionCatalog.ConditionType.BUILDING_PLACED:
+		var kind := build_kind_for_id(str(cond.get("itemId", "")))
+		return kind >= 0 and building_count(sim, kind) >= 1
 	return false
 
 static func metric_value(sim, metric: String) -> float:
@@ -33,6 +36,9 @@ static func pollution_percent(sim) -> float:
 
 static func can_unlock(sim, id: String) -> bool:
 	if bool(sim.unlocks.get(id, false)):
+		return false
+	# Market catalog entries are bought with gems; never auto-granted by conditions.
+	if Catalog.MARKET.has(id):
 		return false
 	var e := ProgressionCatalog.by_id(id)
 	if e.is_empty():
@@ -67,6 +73,9 @@ static func building_count(sim, build_kind: int) -> int:
 		if not b.dead and int(b.kind) == build_kind:
 			n += 1
 	return n
+
+static func _house_count(sim) -> int:
+	return building_count(sim, Catalog.BLD_DWELL) + building_count(sim, Catalog.BLD_FANCY)
 
 static func build_kind_for_id(id: String) -> int:
 	match id:
@@ -207,6 +216,8 @@ static func apply_progression_hooks(sim, announce: bool = true) -> void:
 		sim._expand_super_island(announce)
 	if announce and sim.peak >= 12 and sim._ethics_choice("what_is_care") == -1 and sim.living >= 3:
 		sim._queue_talk("what_is_care", {})
+	if announce and _house_count(sim) >= 3 and sim._ethics_choice("work_life") == -1:
+		sim._queue_talk("work_life", {})
 	elif announce and sim.peak >= 8 and sim.living >= 2:
 		sim._queue_ambient_talk()
 
