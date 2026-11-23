@@ -6676,9 +6676,9 @@ func _settings_ask_reset() -> void:
 
 
 func _settings_reset() -> void:
-	# Reset progress: delete all saved games and return to the title. A new game is not started
-	# automatically; the user chooses to start one from the main menu.
-	ThrongletSimServer.save_system.clear_saves()
+	# Reset progress: delete campaign and sandbox saves, then return to the title.
+	# A new game is not started automatically; the user chooses from the main menu.
+	ThrongletSimServer.save_system.clear_all_progress()
 	_show_title()
 
 
@@ -7050,7 +7050,8 @@ func _start_new_game() -> void:
 
 
 func _start_sandbox_game() -> void:
-	ThrongletSimServer.new_sandbox_game()
+	if not ThrongletSimServer.save_system.load_sandbox():
+		ThrongletSimServer.new_sandbox_game()
 	_reset_world_paint()
 	_reset_camera()
 	_enter_game()

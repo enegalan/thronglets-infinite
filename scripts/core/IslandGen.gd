@@ -554,8 +554,6 @@ func shape_island() -> int:
 			continue
 		if int(feat.kind) == Catalog.FEAT_MONOLITH:
 			continue
-		if not is_island_chunk(int(feat.cx), int(feat.cy)):
-			continue
 		var under: int = int(sim._tile_at(float(feat.x), float(feat.y)))
 		if under == Catalog.TILE_VOID or under == Catalog.TILE_WATER:
 			sim._kill_feature(feat)

@@ -57,11 +57,32 @@ func clear_saves() -> void:
 		var path := slot_path(i)
 		if dir != null and FileAccess.file_exists(path):
 			dir.remove(path.get_file())
-	clear_sandbox_save()
 	write_meta({})
 	sim.current_slot = -1
 	sim.session_live = false
 	sim.game_over = false
+
+
+func clear_all_progress() -> void:
+	clear_saves()
+	clear_sandbox_save()
+
+
+func has_sandbox_save() -> bool:
+	return FileAccess.file_exists(sandbox_path())
+
+
+func load_sandbox() -> bool:
+	var sim = _sim
+	if not has_sandbox_save():
+		return false
+	sim.save_path = sandbox_path()
+	if not load_game():
+		return false
+	sim.current_slot = -1
+	sim.sandbox_mode = true
+	sim.unlock_serial += 1
+	return true
 
 
 func save_slot(index: int) -> bool:
