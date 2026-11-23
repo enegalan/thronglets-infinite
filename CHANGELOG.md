@@ -4,7 +4,16 @@
 
 ### 2026-11-23
 
+- Dirty thronglets stay dirty while walking at default zoom: far-view LOD no longer zeroes the dirt factor (held already kept it). Missing dirt masks filled via `python3 tools/fill_throng_dirt.py`; check with `--shot-dirt`.
+- Grabbing a thronglet no longer draws a giant walk sprite on top: FX (hand, bubbles, fire, …) were restored after the throng extras that had overwritten those atlas cells.
+- Thronglet body clips share one foot baseline in the atlas (no more floating FreakOut / clipped walks); hop clips keep their air. Re-home with `python3 tools/home_throng_atlas.py`.
 - Thronglet animations follow situation pools (idle / mood / peer talk-sing / console stare / possessed / celebrate / panic) with a tiered `_frame` selector; Unity panic, carry, mood-walk, puppy, and awe sheets are packed into the atlas and wired.
+- Post-feed `Rotund` and eat→`Celebrate` cheer removed: playthrough frames show Happy stand after a bite ([68:03](references/video-frames/t068-03.jpg)), not a fat walk or cheer hop. `Celebrate` stays on unlock (`celebrate_t`). Dense eat/wash frames added under `references/video-frames/`.
+- `ACT_WASH` is no longer sticky after scrub ends (was looping `Happy` forever).
+- Full situation wiring audit vs playthrough: `_begin_gaze` no longer forces `glitch_t` (POSSESSED was firing on every talk; inject frames stay Default). Dead `cheer_t` body path removed; Celebrate/Panic pools trimmed to live clips.
+- Ball play no longer pops a giant thronglet: pack-extra clips (`Happy_Walk`, `FreakOut`, carry, …) were missing from `ThrongTune.SCALE` and drew at 1.0 instead of 0.4. Check with `--shot-ball` → `shots/ball_kick_scale.png`.
+- Sponge wash: one bubble atlas cell (no stacked sheets); suds only on the thronglet under the sponge; prior targets clear when the sponge moves on; sparkles on release. Shot: `wash_scrub_vs_sparkle.png`.
+- Thought-bubble barks pick a random `SingB`/`SingC`/`SingD`/`SingE` while free; the thronglet stands still for one full clip (bark life = frames/8fps).
 
 ### 2026-11-22
 

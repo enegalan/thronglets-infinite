@@ -358,7 +358,7 @@ All character sprites are packed inside `references/Assets/Texture2D/sactx-0-204
 | **Autonomous** | `sleep` | `Throng_Idle_AntennaSpin_EyesClosed_Spritesheet_*` | 4 | 1 (Base) |
 | **Autonomous** | `walk` / `walk_back` | `Throng_Walk_Anim_Spritesheet_*` (`_Alpha_*`), `Throng_WalkBack_Anim_Spritesheet_*` | 5 | 1 (Base) |
 | **Autonomous** | `walk_homed` | `Throng_Walk_Homed_Spritesheet_*` (walk cycle when assigned to a Dwelling) | 5 | 1 (Base) |
-| **Autonomous** | `walk_variants` | `Char_ThrongA_Happy_Walk_Spritesheet_*`, `Char_ThrongA_Sad_Walk_Spritesheet_*`, `Char_ThrongA_Rotund_Spritesheet_*` | 2–4 | 1 (Base) |
+| **Autonomous** | `walk_variants` | `Char_ThrongA_Happy_Walk_Spritesheet_*`, `Char_ThrongA_Sad_Walk_Spritesheet_*` (`Rotund` sheet packed, **not wired** — no video) | 2–4 | 1 (Base) |
 | **Interaction** | `eat` | `ThrongA_Eat_001..002` + `Prop_Apple_Bite_1..3` | 2 | 2 (Action) |
 | **Interaction** | `bathe` | `Throng_FallInBath_Spritesheet_*` (`_Alpha_*`) + `FX_CleanSparkles_Spritesheet.png` / `FX_SoapBubbles_Spritesheet.png` / `FX_WaterSplash_Spritesheet.png` | 8 | 2 (Action) |
 | **Interaction** | `play` / `roundabout` | `ThrongA_Roundabout_SpriteSheet_*` (`_Alpha_Updated_*`) + `Prop_Roundabout_SpriteSheet_*` | 8 | 2 (Action) |
@@ -394,18 +394,18 @@ Situation → animation for issue #37 is **shipped** in [`thronglet-animations.m
 - [x] **Atlas extraction & coordinate normalization**: Unity sheets → strip PNGs + `world_iso` pack (incl. panic, freak, carry, happy/sad walk, puppy, in-awe, deflesh sheet). Deflesh kill path N/A (Dead sheets).
 - [x] **Priority-based animation selection**: 4-tier interrupt in `Main._frame` with situation pools (`IDLE_CALM`, `MOOD_*`, `SING_PEER`, `TALK_*`, `POSSESSED`, `CELEBRATE`, `PANIC`). No separate `ThrongletAnimator` node; MultiMesh + `ThrongClips.frame_at`.
 - [x] **Cutscene overrides** (sim flags, not a full SEQ `CutsceneDirector`):
-  - [x] Dialogue stare: `frozen` → `TALK_CONSOLE` (+ `TALK_REACT` mood accents), 0–300 ms stagger; `POSSESSED` when `glitch_t`.
-  - [x] Celebration: unlock/`celebrate_t` + eat `cheer_t` → `CELEBRATE` pool.
-- [x] **Spatial & local event reactions**:
+  - [x] Dialogue stare: `frozen` → `TALK_CONSOLE` (+ mood accents); `_begin_gaze` does not force `glitch_t` ([111:30](video-frames/t111-30.jpg) Default). `POSSESSED` only when `glitch_t` is set (monolith).
+  - [x] Celebration: unlock/`celebrate_t` → `Celebrate` ([0:30](video-frames/t000-30.jpg)). Eat bite → idle/`Happy` ([68:03](video-frames/t068-03.jpg)); `Rotund` not wired.
+  - [x] **Spatial & local event reactions**:
   - [x] Panic/FreakOut/ReactToKill via penned, near fire, neighbor death (`react_t`).
   - [x] Mitosis frames along charge/split (`frame_along`).
-- [x] **Dirt**: DirtTex shader when clean drops. Theatre body masks **N/A** (no cosmetics layer yet; [73:30](video-frames/t073-30.jpg) remains open for overlays elsewhere).
+  - [x] **Dirt**: DirtTex shader when clean drops. Theatre body masks **N/A** (no cosmetics layer yet; [73:30](video-frames/t073-30.jpg) remains open for overlays elsewhere).
 
 ### World and tools
 
 - [x] Fix Energy frame, it is positioned right behind the tasks frame, in a buggy way.
 - [ ] Pointing hand of the tutorial: a big white hand (`UI_Tutorial_HandPointA.json`, `UI_Tutorial_HandPointB.json`, `UI_Tutorial_HandTouch.json`, `UI_Tutorial_TouchRings_1..2.json` in `sactx-0-128x128-ASTC 4x4-Sprites-UITutorial-d57718eb.png`) that points at the thronglet and asks for the first click. (capturas: [3:30](video-frames/t003-30.jpg))
-  - [ ] Adding to this, I would make changes related to what is given to the user initially. Right now we are giving him apple, sponge and ball. We should give first an apple (triggers `ThrongA_Eat_001..002` + `Prop_Apple_Bite_1..3` -> `ThrongA_Celebrate_Spritesheet_*`), then the ball (triggers `ThrongA_Jump_VariantA_*` -> `celebrate`), then sponge (triggers `FX_CleanSparkles_Spritesheet` / `FX_SoapBubbles_Spritesheet` -> `ThrongA_Mitosis_*` / sign progression). Confirm exact sequence against `SEQ_1.json`–`SEQ_8.json`.
+  - [ ] Adding to this, I would make changes related to what is given to the user initially. Right now we are giving him apple, sponge and ball. We should give first an apple (`ThrongA_Eat` → idle/`Happy`; [4:30](video-frames/t004-30.jpg), [68:03](video-frames/t068-03.jpg)), then the ball (`Jump_VariantA` / play), then sponge (clean FX → mitosis / sign). Confirm exact sequence against `SEQ_1.json`–`SEQ_8.json`.
 - [x] White arc while dragging the hammer, and a green box on the rock or the trunk. (capturas: [11:00](video-frames/t011-00.jpg), [17:00](video-frames/t017-00.jpg), [37:00](video-frames/t037-00.jpg))
   - [ ] Revise this for all tools and all sprites that applies.
 - [x] Green reach circle, with an outline on each target inside it. (capturas: [64:00](video-frames/t064-00.jpg), [64:30](video-frames/t064-30.jpg), [70:30](video-frames/t070-30.jpg))

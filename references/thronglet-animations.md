@@ -1,6 +1,6 @@
 # Thronglet animations — situation map (issue #37)
 
-R&D source of truth for [issue #37](https://github.com/enegalan/thronglets-infinite/issues/37). Playthrough evidence comes from [Black Mirror: Thronglets, full game and ending](https://www.youtube.com/watch?v=UtreOZO9A3s) (frames in [`video-frames/`](video-frames/)); asset names from `references/Assets/Sprite/` and the runtime atlas in [`scripts/data/throng_clips.gd`](../scripts/data/throng_clips.gd). Selection today lives in [`Main._frame`](../scripts/presentation/Main.gd) (~1861–1937).
+R&D source of truth for [issue #37](https://github.com/enegalan/thronglets-infinite/issues/37). Playthrough evidence comes from [Black Mirror: Thronglets, full game and ending](https://www.youtube.com/watch?v=UtreOZO9A3s) (frames in [`video-frames/`](video-frames/); denser marks under `t004-*` / `t068-*` for eat/wash). Situation wiring must cite a frame (or stay unwired). Asset names from `references/Assets/Sprite/` and the runtime atlas in [`scripts/data/throng_clips.gd`](../scripts/data/throng_clips.gd). Selection today lives in [`Main._frame`](../scripts/presentation/Main.gd).
 
 **Per-animation sheets:** one PNG per clip (frames left → right). Runtime source: [`../resources/sprites/throng_anims/`](../resources/sprites/throng_anims/). Doc mirror: [`thronglet-anims/`](thronglet-anims/). Export with `python3 tools/export_throng_anims.py`.
 
@@ -151,7 +151,7 @@ Each clip is **one PNG**: several sprites in a row (left → right).
 
 | Clip                               | Frames | Situation                    | Strip                                                                                                                  |
 | ---------------------------------- | -----: | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `ThrongA_Rotund_Spritesheet`       | 4      | Full / post-feed walk flavor | [![strip](thronglet-anims/ThrongA_Rotund_Spritesheet.png)](thronglet-anims/ThrongA_Rotund_Spritesheet.png)             |
+| `ThrongA_Rotund_Spritesheet`       | 4      | Asset only — **not wired** (no video) | [![strip](thronglet-anims/ThrongA_Rotund_Spritesheet.png)](thronglet-anims/ThrongA_Rotund_Spritesheet.png)             |
 | `ThrongA_Happy_Walk`               | 2      | Content walk                 | [![strip](thronglet-anims/ThrongA_Happy_Walk.png)](thronglet-anims/ThrongA_Happy_Walk.png)                             |
 | `ThrongA_Sad_Walk`                 | 2      | Hungry/dirty walk            | [![strip](thronglet-anims/ThrongA_Sad_Walk.png)](thronglet-anims/ThrongA_Sad_Walk.png)                                 |
 | `ThrongA_LiftProp`                 | 7      | Carry stand                  | [![strip](thronglet-anims/ThrongA_LiftProp.png)](thronglet-anims/ThrongA_LiftProp.png)                                 |
@@ -516,7 +516,9 @@ Situation pools live in `ThrongClips` (`IDLE_CALM`, `MOOD_*`, `SING_PEER`, `TALK
 
 ### Locomotion
 
-#### `ThrongA_Rotund_Spritesheet` (4f) — [ThrongA_Rotund_Spritesheet.png](thronglet-anims/ThrongA_Rotund_Spritesheet.png)
+#### `ThrongA_Rotund_Spritesheet` (4f) — asset only, **not wired** — [ThrongA_Rotund_Spritesheet.png](thronglet-anims/ThrongA_Rotund_Spritesheet.png)
+
+No playthrough frame shows this after eating ([4:30](video-frames/t004-30.jpg)–[4:40](video-frames/t004-40.jpg), [68:03](video-frames/t068-03.jpg) stay normal/`Happy`). Sheet kept packed; no `rotund_t`.
 
 ![ThrongA_Rotund_Spritesheet](thronglet-anims/ThrongA_Rotund_Spritesheet.png)
 
@@ -670,7 +672,8 @@ Columns: **situation** | **sim / game trigger** | **clips (order)** | **loop** |
 | Hungry / dirty stand | Standing and (`fed < 25` or `clean < 12`)                   | `Sad` + DirtTex mix from `clean`                                                                                                         | yes                                | Needs HUD [68:00](video-frames/t068-00.jpg)                                          |
 | Bored / low fun      | Standing and `amused < 25`                                  | `Bored_KickRock` (primary) → `Grumpy_Sheet` / `Grumpy3` / `PuppyDogEyes`                                                                 | KickRock one-shot then loop grumpy | AMUSED empty [68:00](video-frames/t068-00.jpg); captcha Bored                        |
 | Content calm         | Standing, needs OK, not singing                             | Calm pool **only**: Default, Blink, Happy, EarWiggleLow, Think, Shrug (light) — **no** KickRock / Celebrate / Ghost                      | yes                                | Content town                                                                         |
-| Peer sing            | Needs all ≥ `NEED_OK` **and** near another living thronglet | `Sing` / `SingB` / `SingC` (/ D–E) → optional `SingToThronglet` A–E                                                                      | yes                                | Facing clusters [12:30](video-frames/t012-30.jpg), [70:30](video-frames/t070-30.jpg) |
+| Bark sing            | Active thought bark **and** `bark_can_sing` (not bath/theatre/carry/act…) | Random one of `SingB` / `SingC` / `SingD` / `SingE` for that bark                                      | yes while bark                     | Bocadillo + sing mouth [12:30](video-frames/t012-30.jpg)                             |
+| Peer sing            | Needs all ≥ `NEED_OK` **and** near another living thronglet | `Sing` / `SingB`–`E` → optional `SingToThronglet` A–E                                                                      | yes                                | Facing clusters [12:30](video-frames/t012-30.jpg), [70:30](video-frames/t070-30.jpg) |
 | Peer talk            | Near peer, social tick (not console)                        | `TalkToOtherThronglet` A–E                                                                                                               | yes (short 3f)                     | Pairs [12:30](video-frames/t012-30.jpg)                                              |
 | Penned / no exit     | `_is_penned` (≥6 blocked dirs)                              | Prefer Unity `FreakOut` / `PanicRun` when atlas has them; until then Walk pacing + keep `ICON_ROCK` bark — **not** calm idle             | panic loop / pacing                | [5:30](video-frames/t005-30.jpg)                                                     |
 
@@ -678,11 +681,11 @@ Columns: **situation** | **sim / game trigger** | **clips (order)** | **loop** |
 
 | Situation           | Trigger                                | Clips (order)                                        | Loop                 | Video                                                                              |
 | ------------------- | -------------------------------------- | ---------------------------------------------------- | -------------------- | ---------------------------------------------------------------------------------- |
-| Eat                 | `ACT_EAT`                              | `Eat` @ ~6fps → optional short `Celebrate` on finish | Eat loop while act   | Apple care; [68:00](video-frames/t068-00.jpg)                                      |
+| Eat                 | `ACT_EAT`                              | `Eat` @ ~6fps while biting; on bite land → idle (`Happy` / calm) | Eat loop while act   | Bite [4:30](video-frames/t004-30.jpg), [68:00](video-frames/t068-00.jpg)–[68:04](video-frames/t068-04.jpg); post-bite Happy [68:03](video-frames/t068-03.jpg) |
 | Bath enter          | `ACT_BATH`, seat, `age < BATH_ENTER_T` | `FallInBath` frames 0–4 along enter                  | one-shot             | [12:30](video-frames/t012-30.jpg)                                                  |
 | Bath soak           | `ACT_BATH`, after enter                | `FallInBath` 5–7                                     | yes                  | [12:30](video-frames/t012-30.jpg), [42:30](video-frames/t042-30.jpg)               |
 | Bath no seat        | `ACT_BATH`, empty tub dict             | `Happy`                                              | yes                  | —                                                                                  |
-| Wash / sponge       | `ACT_WASH`                             | `Happy` + soap/sparkle FX                            | yes                  | Tutorial clean [3:00](video-frames/t003-00.jpg)                                    |
+| Wash / sponge       | Press over dirty; **agitate** (`stroke >= 0.35`) | Hold still after first stroke → `Happy` + suds; rub → clean gain; release after 100% → one `CLEAN` + `Happy` | suds while sponge held on wash target | [4:42](video-frames/t004-42.jpg); shot `wash_scrub_vs_sparkle.png` |
 | Ball play move      | `ACT_PLAY` + ball + moving             | Walk / WalkBack                                      | yes                  | Balls from [4:30](video-frames/t004-30.jpg)                                        |
 | Ball play idle      | `ACT_PLAY` + ball + still              | `Happy`                                              | yes                  | —                                                                                  |
 | Roundabout          | `ACT_PLAY` + ride seat                 | `Roundabout` frame from seat angle                   | yes (pose by angle)  | [9:30] unlock, [12:30](video-frames/t012-30.jpg)                                   |
@@ -691,7 +694,6 @@ Columns: **situation** | **sim / game trigger** | **clips (order)** | **loop** |
 | Work wait           | Same guest, wait beat after swing      | `Think_TwiddleThumbs`                                | yes (wait window)    | FULL nodes [73:30](video-frames/t073-30.jpg)                                       |
 | Carry haul          | `carry != NONE`                        | `LiftProp` / `LiftPropWalk`                          | yes                  | [73:30](video-frames/t073-30.jpg) crystals on heads                                |
 | Carry drop          | `_set_carry` → NONE (`drop_t`)         | `DropProp` along drop window                         | one-shot             | Deliver / drop haul                                                                |
-| Post-feed rotund    | Apple bite sets `rotund_t`             | `Rotund` stand + walk (after cheer)                  | while timer          | Full belly flavor                                                                  |
 
 ### Critical (tier 3)
 
@@ -711,8 +713,8 @@ Columns: **situation** | **sim / game trigger** | **clips (order)** | **loop** |
 | ------------------------ | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------- | ---------------------------------------------------------------------------------------- |
 | Dialogue stare           | Console / talk modal (`frozen`)    | Freeze AI → stagger 0–300ms → pool: `Talk`, Talk_Blink, HandsBack, ScratchArm, EyeRoll, Tall, Low, OffCenter, EarOffset                    | yes while modal         | All console talks; [42:30](video-frames/t042-30.jpg), [111:30](video-frames/t111-30.jpg) |
 | Dialogue reaction (tone) | Tagged line mood                   | After or instead of base talk: HappyNod / Skeptical / Angry / DeepThought / ImpactfulExplanation / Shrug / InAwe                           | one-shot then talk loop | Gift line [121:30](video-frames/t121-30.jpg); angry judgment beats                       |
-| Unlock celebrate         | Milestone / unlock card            | Swarm `Celebrate` (optional Jump / Jump-EarWiggle accents)                                                                                 | one-shot wave           | Teaser jump [0:30](video-frames/t000-30.jpg); checklist                                  |
-| Possessed / glitch talk  | Late glitch / package inject talks | `Possessed_AntennaSpin` → `Possessed_AntennaSpinTalk` / EarRaise                                                                           | yes during beat         | [111:30](video-frames/t111-30.jpg)–[114:00](video-frames/t114-00.jpg)                    |
+| Unlock celebrate         | Milestone / unlock card            | Swarm `Celebrate` only                                                                                                                     | one-shot wave           | Mid-air hop [0:30](video-frames/t000-30.jpg)                                             |
+| Possessed / glitch talk  | `frozen` **and** `glitch_t > 0.45` (monolith; not every gaze) | `Possessed_*` pool                                                                                                            | yes while glitch        | Body stays Default during package inject ([111:30](video-frames/t111-30.jpg)–[114:00](video-frames/t114-00.jpg)); possessed only with real `glitch_t` |
 | Group sing cutscene      | Scripted SEQ / hive song           | Sing A–E + SingToThronglet A–E                                                                                                             | yes                     | Asset; group frames                                                                      |
 
 ## Mismatch table (shipped vs remaining)
@@ -723,23 +725,33 @@ Source of truth: [`Main._frame`](../scripts/presentation/Main.gd) + situation po
 | --- | --- | --- |
 | Calm idle no longer mixes KickRock / Celebrate / Jump / Ghost | Done | `IDLE_CALM` only |
 | `amused < 25` → `MOOD_BORED` (KickRock / Grumpy sheets / PuppyDogEyes) | Done | |
-| Penned → `PANIC` body (`FreakOut` / `PanicRun`) + rock bark | Done | `penned_flag` cache |
-| Frozen → `TALK_CONSOLE` (+ `TALK_REACT` mood accents); Possessed only when `glitch_t` | Done | Peer talk stays tier 1 |
+| Penned → `FreakOut` + rock bark | Done | `penned_flag`; `PanicRun` sheet packed unused |
+| Frozen → `TALK_CONSOLE` (+ `TALK_REACT` mood accents); Possessed only when `glitch_t` | Done | `_begin_gaze` no longer forces `glitch_t` ([111:30](video-frames/t111-30.jpg) Default) |
 | Sing only when content **and** near peer | Done | `has_living_peer` |
 | `Walk_Homed` on dwelling approach | Done | `approaching_home` |
 | Antenna / eyes / back / sleep in calm / sleep pools | Done | `IDLE_SLEEP` via `sleep_t` |
 | `ReactToKill` on nearby death | Done | `react_t` |
-| Swarm Celebrate on unlock + eat cheer | Done | `celebrate_t` / `cheer_t` |
-| Panic / Freak / Carry / Happy\|Sad walk / Puppy / InAwe in atlas + wired | Done | Packed cells 654–722 |
+| Swarm Celebrate on unlock (`celebrate_t`) | Done | No eat `cheer_t`; Rotund unwired |
+| Carry / Happy\|Sad walk / Puppy / InAwe in atlas + wired | Done | Packed cells 654–722 |
 | Situation pools replace kitchen-sink idle | Done | No `ThrongClips.IDLE` |
 | Sing D/E + SingToThronglet B–E in `SING_PEER` | Done | |
-| Deflesh on extreme kill tools | **N/A** | Sheet packed; kill tools still map to `Dead_001/002` (no separate deflesh tool state) |
-| Theatre mask overlay on body | **N/A** | No cosmetics / THEATRE body layer yet; bubble UI only ([73:30](video-frames/t073-30.jpg)) |
-| Pollution UI sheet | **N/A (optional)** | Dirt stays DirtTex shader (`_throng_dirty`); sheet not required |
+| Deflesh on extreme kill tools | **N/A** | Sheet packed; kill tools still map to `Dead_001/002` |
+| Theatre mask overlay on body | **N/A** | Bubble UI only ([73:30](video-frames/t073-30.jpg)); guests hidden indoors |
+| Pollution UI sheet | **N/A (optional)** | DirtTex shader |
+| `Rotund` / eat→Celebrate / Jump accents live | **Removed** | No video for post-feed Rotund/Celebrate; Jump accents shots-only |
+
+### Wiring audit (2026-11-23 playthrough)
+
+| Verdict | Situations |
+| --- | --- |
+| **OK** | Death, Eat, Bath soak/enter, Roundabout, Carry haul, Penned→FreakOut, Base walk, Sad stand, Default/calm idle, Wash→Happy, Unlock Celebrate |
+| **WEAK** (wired, pose not crisp in frames) | TALK_CONSOLE variants, TALK_REACT, peer sing/talk, Happy/Sad/Homed walks, free-play Jump, Pickaxe/Twiddle, DropProp, Mitosis, PanicRunFire, Bored KickRock, Sleep eyes-closed, ball play |
+| **INVENTED → fixed** | Post-feed Rotund; eat `cheer_t`→Celebrate; every gaze → POSSESSED via `_begin_gaze` glitch |
+| **Asset / not live** | Rotund, Deflesh, PanicRun (penned uses FreakOut), Jump / Jump-EarWiggle (not mixed into unlock), Ghost, Flying, Theatre body mask |
 
 ### What is situation-correct
 
-Dead facing, mitosis along charge/split, Eat + cheer Celebrate, FallInBath phases, Wash→Happy, ball Walk/Happy, Roundabout by angle, Jump_VariantA free play, Pickaxe when working still, Walk/WalkBack/Homed/mood walks, carry LiftProp*, Sad/Bored pools, peer sing/talk, console stare, possessed on glitch, penned/fire panic, unlock celebrate, sleep eyes-closed.
+Dead facing, mitosis along charge/split, Eat then Happy idle (not Celebrate/Rotund), FallInBath phases, Wash→Happy, ball Walk/Happy, Roundabout by angle, Jump_VariantA free play, Pickaxe when working still, Walk/WalkBack/Homed/mood walks, carry LiftProp*, Sad/Bored pools, peer sing/talk, console stare (Default/Talk — Possessed only with real `glitch_t`), penned FreakOut / fire PanicRunFire, unlock celebrate, sleep eyes-closed.
 
 ## Cinematic sequences (ordered)
 
@@ -749,8 +761,8 @@ Evidence: [3:00](video-frames/t003-00.jpg)–[6:30](video-frames/t006-30.jpg), w
 
 1. Spawn / idle: `Default` (+ Blink).
 2. Dirty prompt: DirtTex up; optional green sparkle FX; player sponge → `ACT_WASH` → `Happy` + soap FX.
-3. Feed: `ACT_EAT` → `Eat` → short `Celebrate`.
-4. Ball: `ACT_PLAY` → Walk/Happy with ball → optional `Celebrate`.
+3. Feed: `ACT_EAT` → `Eat` → idle/`Happy` (closed eyes; [68:03](video-frames/t068-03.jpg)).
+4. Ball: `ACT_PLAY` → Walk/Happy with ball.
 5. If still enclosed and `_is_penned`: FreakOut/PanicRun (or pacing) + rock bark; sign beat in original.
 6. Mitosis when needs recover: charge → `Mitosis_Spritesheet` → split on final frame.
 
@@ -816,7 +828,8 @@ Keyed pools in `ThrongClips` (members = clip names in `CLIPS`):
 | `TALK_CONSOLE` | Talk, Talk_Blink, HandsBack, ScratchArm, EyeRoll, Tall, Low, OffCenter, EarOffset | `frozen` dialogue stare |
 | `TALK_REACT` | HappyNod, Skeptical, Angry, DeepThought, ImpactfulExplanation, Shrug, InAwe | Dialogue mood accents (`mood_face`) |
 | `POSSESSED` | Possessed_AntennaSpin, AntennaSpinTalk, AntennaSpinEar, EarRaise | Glitch talks (`glitch_t`) |
-| `CELEBRATE` | Celebrate, Jump, Jump-EarWiggle | Unlock `celebrate_t` / eat `cheer_t` |
+| `CELEBRATE` | Celebrate | Unlock `celebrate_t` only (Jump accents are shots/asset) |
+| `PANIC` | FreakOut, PanicRunFire, ReactToKill | Live paths hard-wire one clip each; `PanicRun` sheet packed unused |
 | `PANIC` | ReactToKill, FreakOut, PanicRun, PanicRunFire | Penned, near fire; ReactToKill via `react_t` |
 
 `make_art` refreshes `CLIPS` / `SHEET_ROWS` only; pools are hand-maintained.
@@ -855,7 +868,7 @@ Each task cites **depends on**, **touches**, **situation/clips**, and **done whe
 | **A1–A8** | Pools + tiered `_frame` + bored/talk/sing/penned | `throng_clips.gd`, `Main.gd`, `throng_tune.gd` |
 | **B1–B5** | Extract/pack Unity sheets; panic/carry/mood walks wired | `pack_extra_throng_clips.py`, atlas cells 654+, `_walk_clip` / carry |
 | **B6** | Deflesh | **N/A** — sheet packed; kill path stays Dead (no deflesh tool state) |
-| **C1–C7** | Stare stagger + react, celebrate, possessed, ReactToKill, eat cheer, mito along, sleep | `frozen`/`glitch_t`/`celebrate_t`/`cheer_t`/`react_t`/`sleep_t` |
+| **C1–C7** | Stare stagger + react, unlock celebrate, possessed, ReactToKill, mito along, sleep; post-eat → Happy (no Rotund / eat-cheer) | `frozen`/`glitch_t`/`celebrate_t`/`react_t`/`sleep_t` |
 | **D1w** | Walk_Homed | `approaching_home` |
 | **D2w** | Theatre masks | **N/A** — no body cosmetics layer yet |
 | **D3w** | Pollution sheet | **N/A (optional)** — DirtTex shader primary |
