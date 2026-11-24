@@ -259,6 +259,7 @@ func save_game() -> bool:
 		"peer_of": sim.peer_of,
 		"peer_sing": sim.peer_sing,
 		"drop_t": sim.drop_t,
+		"bloody": sim.bloody,
 		"state": sim.state,
 		"carry": sim.carry,
 		"carry_value": sim.carry_value,
@@ -357,6 +358,9 @@ func load_game() -> bool:
 	for raw_sing in data.get("peer_sing", []):
 		sim.peer_sing.append(int(raw_sing))
 	sim.drop_t = sim._as_f32(data.get("drop_t", []))
+	sim.bloody = PackedByteArray()
+	for raw_blood in data.get("bloody", []):
+		sim.bloody.append(int(raw_blood))
 	sim.state = sim._as_i32(data.state)
 	sim.carry = sim._as_i32(data.carry)
 	sim.carry_value = sim._as_i32(data.carry_value)
@@ -397,6 +401,13 @@ func load_game() -> bool:
 			sim.peer_sing[s] = int(old_sing[s])
 	while sim.drop_t.size() < sim.slot_count:
 		sim.drop_t.append(0.0)
+	if sim.bloody.size() != sim.slot_count:
+		var old_blood: PackedByteArray = sim.bloody
+		sim.bloody = PackedByteArray()
+		sim.bloody.resize(sim.slot_count)
+		sim.bloody.fill(0)
+		for b in mini(old_blood.size(), sim.slot_count):
+			sim.bloody[b] = int(old_blood[b])
 	sim.penned_flag = PackedByteArray()
 	sim.penned_flag.resize(sim.slot_count)
 	sim.penned_flag.fill(0)

@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://drdwf303xop1u"
-path="res://.godot/imported/Throng_Egg_C.png-7144e1d886bf6fa41fbf66f9756f2408.ctex"
+uid="uid://g8bwg5hk5kbg"
+path="res://.godot/imported/0571.png-9d06cde3834cbbc33aacc5f0bb99d0fb.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://resources/sprites/throng_anims/Throng_Egg_C.png"
-dest_files=["res://.godot/imported/Throng_Egg_C.png-7144e1d886bf6fa41fbf66f9756f2408.ctex"]
+source_file="res://resources/sprites/world/world_cells_dirt/0571.png"
+dest_files=["res://.godot/imported/0571.png-9d06cde3834cbbc33aacc5f0bb99d0fb.ctex"]
 
 [params]
 

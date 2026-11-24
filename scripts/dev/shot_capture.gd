@@ -31,6 +31,7 @@ var apple_wait := 0
 var bld_goo_i := 0
 var bld_goo_phase := 0
 var bld_goo_mop_id := -1
+var blood_phase := 0
 
 
 func setup(p_main: Node2D) -> void:
@@ -53,6 +54,9 @@ func tick_shot() -> void:
 		return
 	if sim.shot_bld_goo:
 		_tick_shot_bld_goo()
+		return
+	if sim.shot_blood:
+		_tick_shot_blood()
 		return
 	if sim.shot_fx:
 		_tick_shot_fx()
@@ -1000,6 +1004,56 @@ func _tick_shot_bld_goo() -> void:
 		print("SHOT BLD GOO DONE")
 		main.get_tree().quit(0)
 		return
+
+
+func _tick_shot_blood() -> void:
+	# Left: neglect corpse (no blood). Mid: living. Right: splash-kill + blood pool.
+	if blood_phase == 0 and frames == 0:
+		if main.ui != null:
+			main.ui.visible = false
+		main.kit_open = false
+		if main.has_method("_set_kit_shown"):
+			main._set_kit_shown(false)
+		if main.task_panel != null:
+			main.task_panel.visible = false
+		main.crt_on = false
+		if main.has_method("_apply_crt"):
+			main._apply_crt()
+		main.cam_rig.set_zoom(3.0)
+		main.camera.position = main.cam_rig.to_iso(sim.shot_focus)
+	frames += 1
+	if blood_phase == 0:
+		if frames < 8:
+			return
+		var blood_n := 0
+		var dead_n := 0
+		for i in sim.slot_count:
+			if sim.state[i] == Catalog.ST_DEAD:
+				dead_n += 1
+				if i < sim.bloody.size() and int(sim.bloody[i]) != 0:
+					blood_n += 1
+		if dead_n < 2 or blood_n != 1:
+			print("SHOT BLOOD FAIL dead=%d bloody=%d expected dead>=2 bloody=1" % [dead_n, blood_n])
+			main.get_tree().quit(1)
+			return
+		RenderingServer.force_draw()
+		if not save_shot(main.get_viewport(), "res://shots/corpse_blood.png"):
+			main.get_tree().quit(1)
+			return
+		main.cam_rig.set_zoom(5.0)
+		main.camera.position = main.cam_rig.to_iso(sim.shot_focus + Vector2(48.0, 0.0))
+		blood_phase = 1
+		frames = 0
+		return
+	if frames < 4:
+		return
+	RenderingServer.force_draw()
+	if not save_shot(main.get_viewport(), "res://shots/corpse_blood_close.png"):
+		main.get_tree().quit(1)
+		return
+	done = true
+	print("SHOT BLOOD DONE")
+	main.get_tree().quit(0)
 
 
 func _tick_shot_wash() -> void:

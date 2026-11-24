@@ -1548,6 +1548,8 @@ func _sync_actors() -> void:
 			var throng_outline := Color.TRANSPARENT
 			if outlined_throng_ids.has(i):
 				throng_outline = Color(0.35, 1.0, 0.45, 1.0)
+			if sim.state[i] == Catalog.ST_DEAD:
+				_push_corpse_blood(draws, sim, i, pos, throng_sort_y)
 			_push_iso(draws, throng_at, throng_frame, tint, lift, throng_scale, throng_sort_y, throng_outline)
 			draws[draws.size() - 1]["flip"] = _throng_flip(i)
 			# Dirt is a needs signal — keep it at every zoom (far_view only LODs the clip).
@@ -1844,6 +1846,8 @@ func _push_throng_crowd_draws(draws: Array, ids: Array, time: float, far_view: b
 		var flip := 1.0
 		if not far_view and absf(sim.dir_x[i]) > absf(sim.dir_y[i]) and sim.dir_x[i] < 0.0:
 			flip = -1.0
+		if sim.state[i] == Catalog.ST_DEAD:
+			_push_corpse_blood(draws, sim, i, pos, cam_rig.to_iso(pos).y)
 		_push_iso(draws, pos, frame, tint, 0.0, THRONG_SPRITE_SCALE)
 		draws[draws.size() - 1]["flip"] = flip
 		draws[draws.size() - 1]["dirty"] = _throng_dirty(sim.clean[i])
@@ -1894,6 +1898,15 @@ func _throng_special_body(sim: ThrongletSim, i: int) -> bool:
 	if int(sim.carry[i]) != Catalog.CARRY_NONE:
 		return true
 	return false
+
+
+func _push_corpse_blood(draws: Array, sim: ThrongletSim, i: int, pos: Vector2, sort_y: float) -> void:
+	if i < 0 or i >= sim.bloody.size() or int(sim.bloody[i]) == 0:
+		return
+	var blood_frame := ThrongClips.frame_at("Throng_Prop_Blood_A", 0)
+	var blood_look := _throng_sprite_look(blood_frame)
+	# Slightly behind the corpse so the pool sits on the ground under it.
+	_push_iso(draws, pos, blood_frame, Color.WHITE, 0.0, float(blood_look.scale), sort_y - 0.5)
 
 
 func _frame_lod(i: int, time: float, far_view: bool) -> int:
@@ -4241,7 +4254,10 @@ func _focus_draws() -> Array:
 			tint = Color.WHITE
 		var throng_frame := _frame(i, time)
 		var throng_look := _throng_sprite_look(throng_frame)
-		_push_iso(draws, pos + throng_look.off, throng_frame, tint, 0.0, float(throng_look.scale))
+		var throng_sort_y := cam_rig.to_iso(pos).y
+		if sim.state[i] == Catalog.ST_DEAD:
+			_push_corpse_blood(draws, sim, i, pos, throng_sort_y)
+		_push_iso(draws, pos + throng_look.off, throng_frame, tint, 0.0, float(throng_look.scale), throng_sort_y)
 		draws[draws.size() - 1]["flip"] = _throng_flip(i)
 		draws[draws.size() - 1]["dirty"] = _throng_dirty(sim.clean[i])
 	draws.sort_custom(func(a, b): return float(a.get("sy", a.p.y)) < float(b.get("sy", b.p.y)))

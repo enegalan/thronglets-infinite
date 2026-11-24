@@ -125,6 +125,7 @@ var shot_dirt := false
 var shot_ball := false
 var shot_wash := false
 var shot_bld_goo := false
+var shot_blood := false
 var shot_focus := Vector2(256, 256)
 var shot_span := 210.0
 var shot_throng := -1
@@ -214,6 +215,8 @@ var peer_of := PackedInt32Array()
 var peer_sing := PackedByteArray()
 ## One-shot DropProp after putting down a haul.
 var drop_t := PackedFloat32Array()
+## 1 = violent corpse (saw / tnt / nuke); draw Throng_Prop_Blood_A under it.
+var bloody := PackedByteArray()
 var state := PackedInt32Array()
 var carry := PackedInt32Array()
 var carry_value := PackedInt32Array()
@@ -326,7 +329,7 @@ func _ready() -> void:
 	var args := OS.get_cmdline_user_args()
 	perf_mode = args.has("--perf")
 	save_perf_mode = args.has("--save-perf")
-	shot_mode = args.has("--shot") or args.has("--shot-fx") or args.has("--shot-carry") or args.has("--shot-round") or args.has("--shot-apple") or args.has("--shot-needs") or args.has("--shot-anims") or args.has("--shot-dirt") or args.has("--shot-ball") or args.has("--shot-wash") or args.has("--shot-bld-goo")
+	shot_mode = args.has("--shot") or args.has("--shot-fx") or args.has("--shot-carry") or args.has("--shot-round") or args.has("--shot-apple") or args.has("--shot-needs") or args.has("--shot-anims") or args.has("--shot-dirt") or args.has("--shot-ball") or args.has("--shot-wash") or args.has("--shot-bld-goo") or args.has("--shot-blood")
 	var pick_zoom_repro := args.has("--pick-zoom-repro")
 	testing = args.has("--smoke") or shot_mode or perf_mode or pick_zoom_repro or save_perf_mode
 	if args.has("--shot-fx"):
@@ -349,6 +352,8 @@ func _ready() -> void:
 		shot_wash = true
 	if args.has("--shot-bld-goo"):
 		shot_bld_goo = true
+	if args.has("--shot-blood"):
+		shot_blood = true
 	if testing and not save_perf_mode:
 		# Keep smoke/shot/perf saves inside the project so headless CI sandboxes can write.
 		save_path = ProjectSettings.globalize_path("res://shots/thronglets_smoke.save")
@@ -410,6 +415,8 @@ func _begin_smoke() -> void:
 			_prep_shot_wash()
 		elif shot_bld_goo:
 			_prep_shot_bld_goo()
+		elif shot_blood:
+			_prep_shot_blood()
 		else:
 			_prep_shot_world()
 		return
@@ -3803,7 +3810,10 @@ func _drop_loose(kind: int, x: float, y: float, value: int) -> void:
 func _tool_axe(x: float, y: float) -> void:
 	var feat := _axe_feature_at(x, y)
 	if not feat.is_empty() and int(feat.kind) == Catalog.FEAT_TREE:
+		var tx := float(feat.x)
+		var ty := float(feat.y)
 		_chop(feat)
+		_splash_kill(tx, ty, 20.0)
 		sfx_queue.append("chop")
 		return
 	if not feat.is_empty() and (int(feat.kind) == Catalog.FEAT_COSMETIC or int(feat.kind) == Catalog.FEAT_COSMETIC_BAD):
@@ -4629,6 +4639,8 @@ func _ensure_agent_timers(i: int) -> void:
 		drop_t.append(0.0)
 	while penned_flag.size() <= i:
 		penned_flag.append(0)
+	while bloody.size() <= i:
+		bloody.append(0)
 
 
 func grab_thronglet(id: int) -> bool:
@@ -6154,6 +6166,8 @@ func _deflesh(id: int, count_use: bool) -> void:
 	elif was_dead:
 		dead_n = maxi(0, dead_n - 1)
 		_dead_remove(id)
+	if id < bloody.size():
+		bloody[id] = 0
 	state[id] = Catalog.ST_VACANT
 	_hash_unlink(id)
 	var bone_it := _add_item(Catalog.ITEM_BONE, x, y, 1)
@@ -6226,7 +6240,7 @@ func _splash_kill(x: float, y: float, radius: float) -> void:
 	var any := false
 	for id in ids:
 		if state[int(id)] == Catalog.ST_LIVING:
-			_become_corpse(int(id))
+			_become_corpse(int(id), true)
 			any = true
 	if any:
 		sfx_queue.append("bones")
@@ -6234,12 +6248,12 @@ func _splash_kill(x: float, y: float, radius: float) -> void:
 
 
 func _die_neglect(i: int) -> void:
-	_become_corpse(i)
+	_become_corpse(i, false)
 	sfx_queue.append("bones")
 	_reflect("neglect")
 
 
-func _become_corpse(i: int) -> void:
+func _become_corpse(i: int, with_blood: bool = false) -> void:
 	if state[i] != Catalog.ST_LIVING:
 		return
 	var x := pos_x[i]
@@ -6249,6 +6263,8 @@ func _become_corpse(i: int) -> void:
 	dead_n += 1
 	deaths_total += 1
 	starve[i] = CORPSE_LIFE
+	_ensure_agent_timers(i)
+	bloody[i] = 1 if with_blood else 0
 	_living_remove(i)
 	_dead_add(i)
 	_set_carry(i, Catalog.CARRY_NONE)
@@ -6460,6 +6476,8 @@ func _vacate(i: int) -> void:
 		dead_n = maxi(0, dead_n - 1)
 		_dead_remove(i)
 	_set_carry(i, Catalog.CARRY_NONE)
+	if i < bloody.size():
+		bloody[i] = 0
 	state[i] = Catalog.ST_VACANT
 	_release_mine_job(i)
 	_release_claim(i)
@@ -7493,6 +7511,7 @@ func _reset_world() -> void:
 	peer_of = PackedInt32Array()
 	peer_sing = PackedByteArray()
 	drop_t = PackedFloat32Array()
+	bloody = PackedByteArray()
 	state = PackedInt32Array()
 	carry = PackedInt32Array()
 	carry_value = PackedInt32Array()
@@ -7572,6 +7591,7 @@ func _push_slot_quiet(x: float, y: float, fed_v: float, fun_v: float, clean_v: f
 	peer_of.append(-1)
 	peer_sing.append(0)
 	drop_t.append(0.0)
+	bloody.append(0)
 	state.append(Catalog.ST_LIVING)
 	carry.append(Catalog.CARRY_NONE)
 	carry_value.append(0)
@@ -9189,6 +9209,42 @@ func _prep_shot_bld_goo() -> void:
 	view_rect = Rect2(shot_focus.x - shot_span, shot_focus.y - shot_span, shot_span * 2.0, shot_span * 2.0)
 	smoke_hold = true
 	print("SHOT BLD GOO READY")
+
+
+func _prep_shot_blood() -> void:
+	_clear_shot_props()
+	# Left: neglect corpse (no blood). Mid: living. Right: splash-kill corpse + Throng_Prop_Blood_A.
+	var ax := 256.0
+	var ay := 256.0
+	var neglect_id := _push_slot(ax - 48.0, ay, 90.0, 90.0, 90.0, 90.0, 0)
+	var living_id := _push_slot(ax, ay, 90.0, 90.0, 90.0, 90.0, 1)
+	var splash_id := _push_slot(ax + 48.0, ay, 90.0, 90.0, 90.0, 90.0, 2)
+	if neglect_id >= 0:
+		dir_x[neglect_id] = 1.0
+		dir_y[neglect_id] = 0.0
+		_become_corpse(neglect_id, false)
+	if living_id >= 0:
+		dir_x[living_id] = 0.0
+		dir_y[living_id] = 0.0
+		act[living_id] = 0
+	if splash_id >= 0:
+		dir_x[splash_id] = -1.0
+		dir_y[splash_id] = 0.0
+		_splash_kill(pos_x[splash_id], pos_y[splash_id], 8.0)
+	peak = maxi(peak, 3)
+	shot_focus = Vector2(ax, ay)
+	shot_span = 80.0
+	view_rect = Rect2(shot_focus.x - shot_span, shot_focus.y - shot_span, shot_span * 2.0, shot_span * 2.0)
+	smoke_hold = true
+	_rebuild_hash()
+	print("SHOT BLOOD READY neglect=%s living=%s splash=%s bloody=%s/%s/%s" % [
+		neglect_id,
+		living_id,
+		splash_id,
+		int(bloody[neglect_id]) if neglect_id >= 0 else -1,
+		int(bloody[living_id]) if living_id >= 0 else -1,
+		int(bloody[splash_id]) if splash_id >= 0 else -1,
+	])
 
 
 func _prep_shot_wash() -> void:

@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bkl8yt7sgkq53"
-path="res://.godot/imported/Throng_Egg_B_Glow.png-bc25f2afcbbdc6b7f71749ac98b428c4.ctex"
+uid="uid://c0j5xua5r6332"
+path="res://.godot/imported/0572.png-7d274ed3a4d21c421b87b7c6cc6f9e1d.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://resources/sprites/throng_anims/Throng_Egg_B_Glow.png"
-dest_files=["res://.godot/imported/Throng_Egg_B_Glow.png-bc25f2afcbbdc6b7f71749ac98b428c4.ctex"]
+source_file="res://resources/sprites/world/world_cells/0572.png"
+dest_files=["res://.godot/imported/0572.png-7d274ed3a4d21c421b87b7c6cc6f9e1d.ctex"]
 
 [params]
 
