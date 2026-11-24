@@ -1297,7 +1297,38 @@ def _unity_unpack(img, settings_raw):
     return img
 
 
-def _crop_unity(atlas, rect, settings_raw=0):
+def _mask_unity_physics(img, rect, meta):
+    # Tight-packed atlas cells share an AABB with neighbors. Keep only the
+    # sprite mesh outline Unity stored as m_PhysicsShape.
+    shapes = meta.get("m_PhysicsShape") or []
+    if not shapes:
+        return img
+    pivot = meta.get("m_Pivot") or {}
+    ppu = float(meta.get("m_PixelsToUnits") or 100)
+    rw = float(rect.get("m_Width") or img.size[0])
+    rh = float(rect.get("m_Height") or img.size[1])
+    if rw <= 0 or rh <= 0:
+        return img
+    sx = float(img.size[0]) / rw
+    sy = float(img.size[1]) / rh
+    px = float(pivot.get("m_X", 0.5)) * rw
+    py = float(pivot.get("m_Y", 0.5)) * rh
+    mask = Image.new("L", img.size, 0)
+    draw = ImageDraw.Draw(mask)
+    for poly in shapes:
+        pts = []
+        for point in poly:
+            lx = float(point.get("m_X", 0.0)) * ppu
+            ly = float(point.get("m_Y", 0.0)) * ppu
+            pts.append(((px + lx) * sx, (rh - (py + ly)) * sy))
+        if len(pts) >= 3:
+            draw.polygon(pts, fill=255)
+    out = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    out.paste(img, (0, 0), mask)
+    return out
+
+
+def _crop_unity(atlas, rect, settings_raw=0, meta=None):
     x = int(round(rect["m_X"]))
     y = int(round(rect["m_Y"]))
     w = max(1, int(round(rect["m_Width"])))
@@ -1309,7 +1340,10 @@ def _crop_unity(atlas, rect, settings_raw=0):
     lower = min(atlas.size[1], top + h)
     if right <= left or lower <= upper:
         return new(1, 1)
-    return _unity_unpack(atlas.crop((left, upper, right, lower)), settings_raw)
+    img = _unity_unpack(atlas.crop((left, upper, right, lower)), settings_raw)
+    if meta:
+        img = _mask_unity_physics(img, rect, meta)
+    return img
 
 
 def _kickrock_strip(dirt_atlas):
@@ -1372,12 +1406,14 @@ def _load_throng_clips():
             continue
         pivot = data.get("m_Pivot") or {}
         settings_raw = int((data.get("m_RD") or {}).get("m_SettingsRaw") or 0)
+        # NoBlood peak frames share a tight AABB with neighbor atlas sprites.
+        mask_meta = data if clip == "ThrongA_MitosisCutscene_NoBlood_Spritesheet" else None
         groups.setdefault(clip, [])
         groups[clip].append((
             order,
             name,
-            _crop_unity(atlas, rect, settings_raw),
-            _crop_unity(dirt_atlas, rect, settings_raw),
+            _crop_unity(atlas, rect, settings_raw, mask_meta),
+            _crop_unity(dirt_atlas, rect, settings_raw, mask_meta),
             (float(pivot.get("m_X", 0.5)), float(pivot.get("m_Y", 0.5))),
         ))
     kick = _kickrock_strip(dirt_atlas)
