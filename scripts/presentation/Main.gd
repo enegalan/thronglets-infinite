@@ -54,6 +54,7 @@ var hand_vel_init := false
 var _prop_bands: Array = []
 var _monoliths := {}
 var _building_active_sprites := {}
+var _place_ghost_sprite: Sprite2D = null
 var _idle_structure_tex := {}
 var _active_structure_tex := {}
 var _goo_structure_tex := {}
@@ -1401,6 +1402,7 @@ func _sync_actors() -> void:
 					"scale": carried_scale,
 				})
 	var drag_front: Array = []
+	_hide_place_ghost_sprite()
 	if not kit_drag.is_empty():
 		var ghost := Color(1, 1, 1, 0.85)
 		var drag_icon := _kit_drag_icon()
@@ -1412,7 +1414,11 @@ func _sync_actors() -> void:
 				var ghost_sort_y := NAN
 				if ghost_kind == Catalog.BLD_MINE or ghost_kind == Catalog.BLD_MINE2:
 					ghost_sort_y = -1000000.0
-				_push_iso(drag_front, _building_draw_at(ghost_kind, grid_at), _prop_frame(drag_icon), ghost, 10.0, ghost_scale, ghost_sort_y)
+				# Buildings with loose PNGs preview as Sprite2D — same path as after place.
+				if ghost_kind >= 0 and _sync_place_ghost_sprite(ghost_kind, grid_at, ghost_scale, ghost):
+					pass
+				else:
+					_push_iso(drag_front, _building_draw_at(ghost_kind, grid_at), _prop_frame(drag_icon), ghost, 10.0, ghost_scale, ghost_sort_y)
 			else:
 				var drag_scale := 1.0
 				var drag_frame := _prop_frame(drag_icon) if drag_icon >= 0 else -1
@@ -3169,6 +3175,39 @@ func _hide_active_building_sprite(id: int) -> void:
 		node.set_meta("seen", false)
 
 
+func _sync_place_ghost_sprite(kind: int, origin: Vector2, sprite_scale: float, tint: Color) -> bool:
+	var tex: Texture2D = null
+	if kind == Catalog.BLD_FLOWER or kind == Catalog.BLD_ROUND:
+		tex = _structure_anim_texture(kind, 0)
+	if tex == null:
+		tex = _idle_structure_texture(kind)
+	if tex == null:
+		_hide_place_ghost_sprite()
+		return false
+	if _place_ghost_sprite == null or not is_instance_valid(_place_ghost_sprite):
+		_place_ghost_sprite = Sprite2D.new()
+		_place_ghost_sprite.centered = true
+		_place_ghost_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		world_layer.add_child(_place_ghost_sprite)
+	_place_ghost_sprite.texture = tex
+	_place_ghost_sprite.scale = Vector2(sprite_scale, sprite_scale)
+	_place_ghost_sprite.modulate = tint
+	var screen_p := cam_rig.to_iso(_building_active_draw_at(kind, origin))
+	_place_ghost_sprite.position = screen_p + Vector2(0, -WORLD_CELL * 0.5 * sprite_scale)
+	_place_ghost_sprite.set_meta("sy", screen_p.y)
+	_place_ghost_sprite.visible = true
+	_place_ghost_sprite.set_meta("seen", true)
+	return true
+
+
+func _hide_place_ghost_sprite() -> void:
+	if _place_ghost_sprite == null or not is_instance_valid(_place_ghost_sprite):
+		_place_ghost_sprite = null
+		return
+	_place_ghost_sprite.visible = false
+	_place_ghost_sprite.set_meta("seen", false)
+
+
 func _void_behind_cliff(world_pos: Vector2) -> bool:
 	var sim: ThrongletSim = ThrongletSimServer
 	var cell := sim._cell_vec(world_pos.x, world_pos.y)
@@ -3248,6 +3287,16 @@ func _paint_props(draws: Array) -> void:
 		bnode.set_meta("seen", false)
 		var bsy := float(bnode.get_meta("sy", bnode.position.y))
 		live.append({"sy": bsy, "node": bnode})
+	if (
+		_place_ghost_sprite != null
+		and is_instance_valid(_place_ghost_sprite)
+		and bool(_place_ghost_sprite.get_meta("seen", false))
+	):
+		_place_ghost_sprite.set_meta("seen", false)
+		live.append({
+			"sy": float(_place_ghost_sprite.get_meta("sy", _place_ghost_sprite.position.y)),
+			"node": _place_ghost_sprite,
+		})
 	_band_cursor = 0
 	var order: Array = []
 	if live.is_empty():
