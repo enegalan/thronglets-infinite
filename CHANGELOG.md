@@ -8,7 +8,12 @@
 - Capacity marks now show occupancy for houses, fancy houses, and theatres plus mine stock, while factories keep their progress wedges. Full visit buildings read `LLENO`.
 - World art is split into per-tile sprites and separate structure frames; the art tools and runtime drawing were updated to match, including the roundabout and flower strips. Prop draws can tint instances through the thronglet shader.
 - Bath-exit sparkles now draw at 0.28 scale with a (9, 9) offset; wash sparkles use the same offset and sponge suds draw at 0.45 scale with a (7, 7) offset.
-- Added bench probes and shot modes for building goo, visit capacity, and flower placement; video-gap notes record the verified building UI.
+- Violent deaths (saw, TNT, nuke, axe splash) leave a blood pool under the corpse; neglect deaths do not. The bloody state is saved and restored.
+- Flower buildings use updated art and animation offsets, can be placed from the sandbox terrain props, and factory pollution goo now spills on 25% of completed cycles instead of every cycle.
+- Thronglets inside visit buildings do not show thought bubbles while hidden indoors.
+- Kit building placement previews use the same loose Sprite2D frames as placed buildings, so flower and roundabout ghosts match what lands on the island.
+- Factories now use a 4x4 footprint; statues and wood sculptures draw at 1.03 scale. The axe hint notes it can kill nearby multis.
+- Added bench probes and shot modes for building goo, visit capacity, flower placement, no indoor barks, and corpse blood; video-gap notes record the verified building UI.
 
 ### 2026-11-23
 
