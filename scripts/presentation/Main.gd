@@ -291,7 +291,6 @@ var logo_wait := 0.0
 
 
 func _ready() -> void:
-	AnimTune.load_saved()
 	EffectTune.load_saved()
 	ui_assets = UIAssets.new()
 	_build_sky()
@@ -1247,10 +1246,14 @@ func _sync_actors() -> void:
 			var anim_idx := -1
 			if b_kind == Catalog.BLD_FLOWER:
 				anim_idx = posmod(int(time_pre * 6.0), FLOWER_ANIM_N)
-			elif b_kind == Catalog.BLD_ROUND and bool(b.get("active", false)):
+				b_off = AnimTune.frame_offset("flower", anim_idx)
+			elif b_kind == Catalog.BLD_ROUND:
 				# Disk wedges follow the same spin the riders orbit on.
-				var spin := float(b.get("spin", 0.0))
-				anim_idx = posmod(int(floor(spin / (TAU / float(ROUND_ANIM_N)))), ROUND_ANIM_N)
+				if bool(b.get("active", false)):
+					var spin := float(b.get("spin", 0.0))
+					anim_idx = posmod(int(floor(spin / (TAU / float(ROUND_ANIM_N)))), ROUND_ANIM_N)
+				else:
+					anim_idx = 0
 				b_off = AnimTune.frame_offset("round", anim_idx)
 				b_rot = AnimTune.frame_rot("round", anim_idx)
 			if bool(b.get("active", false)) and b_kind != Catalog.BLD_APPLE:
@@ -1410,6 +1413,8 @@ func _sync_actors() -> void:
 		if drag_icon >= 0 or drag_tool_id == Catalog.TOOL_GRAB:
 			if _want_place_grid() and _drop_on_island():
 				var ghost_kind := placing if str(kit_drag.get("type", "")) == "build" else -1
+				if ghost_kind < 0 and str(kit_drag.get("type", "")) == "prop" and str(kit_drag.get("prop", "")) == "flower":
+					ghost_kind = Catalog.BLD_FLOWER
 				var ghost_scale := Catalog.building_sprite_scale(ghost_kind)
 				var ghost_sort_y := NAN
 				if ghost_kind == Catalog.BLD_MINE or ghost_kind == Catalog.BLD_MINE2:
@@ -1506,8 +1511,9 @@ func _sync_actors() -> void:
 								pos = mid + ring.normalized() * rr
 							else:
 								pos = mid
-						prop_anchor = Vector2.INF
-						sort_y = cam_rig.to_iso(pos).y + 10.0
+						prop_anchor = _building_active_draw_at(
+							Catalog.BLD_ROUND, Vector2(float(ride.x), float(ride.y))
+						)
 				elif doing == ThrongletSimServer.ACT_BATH:
 					var tub: Dictionary = sim.seat_of(i)
 					if tub.is_empty():
@@ -2464,6 +2470,8 @@ func _sync_place_mark() -> void:
 			ok = tile != Catalog.TILE_VOID and tile != Catalog.TILE_FOG
 		elif prop == "thronglet":
 			ok = not Catalog.tile_blocks(tile) and sim._land_inland(at.x, at.y)
+		elif prop == "flower":
+			ok = sim.can_place_building(Catalog.BLD_FLOWER, at.x, at.y)
 		else:
 			ok = not Catalog.tile_blocks(tile) and sim._feature_at(at.x, at.y, 8.0).is_empty()
 	elif placing >= 0:
@@ -3016,6 +3024,12 @@ func _sync_monolith(id: int, world_pos: Vector2, feat: Dictionary, t: float) -> 
 		node.sync_state(feat, t)
 
 
+func _structure_sprite_lift(tex: Texture2D, sprite_scale: float) -> Vector2:
+	if tex == null:
+		return Vector2.ZERO
+	return Vector2(0.0, -float(tex.get_height()) * 0.5 * sprite_scale)
+
+
 func _idle_structure_sprite_path(kind: int) -> String:
 	match kind:
 		Catalog.BLD_DWELL:
@@ -3158,9 +3172,10 @@ func _sync_active_building_sprite(
 	node.scale = Vector2(sprite_scale, sprite_scale)
 	node.rotation_degrees = rot
 	node.modulate = tint if outline.a <= 0.0 else outline
-	var screen_p := cam_rig.to_iso(_building_active_draw_at(kind, origin) + offset)
-	node.position = screen_p + Vector2(0, -WORLD_CELL * 0.5 * sprite_scale)
-	var sy := sort_y if not is_nan(sort_y) else screen_p.y
+	var anchor := _building_active_draw_at(kind, origin)
+	var screen_p := cam_rig.to_iso(anchor + offset)
+	node.position = screen_p + _structure_sprite_lift(tex, sprite_scale)
+	var sy := sort_y if not is_nan(sort_y) else cam_rig.to_iso(anchor).y
 	node.set_meta("sy", sy)
 	node.visible = true
 	node.set_meta("seen", true)
@@ -3193,7 +3208,7 @@ func _sync_place_ghost_sprite(kind: int, origin: Vector2, sprite_scale: float, t
 	_place_ghost_sprite.scale = Vector2(sprite_scale, sprite_scale)
 	_place_ghost_sprite.modulate = tint
 	var screen_p := cam_rig.to_iso(_building_active_draw_at(kind, origin))
-	_place_ghost_sprite.position = screen_p + Vector2(0, -WORLD_CELL * 0.5 * sprite_scale)
+	_place_ghost_sprite.position = screen_p + _structure_sprite_lift(tex, sprite_scale)
 	_place_ghost_sprite.set_meta("sy", screen_p.y)
 	_place_ghost_sprite.visible = true
 	_place_ghost_sprite.set_meta("seen", true)
@@ -3263,6 +3278,14 @@ func _bind_band_frame(band: MultiMeshInstance2D, frame: int) -> void:
 
 func _paint_props(draws: Array) -> void:
 	var sim: ThrongletSim = ThrongletSimServer
+	# meta_only rows carry sort_y for Sprite2D props; never emit them as Multimesh icons.
+	if not draws.is_empty():
+		var paint: Array = []
+		for d in draws:
+			if bool(d.get("meta_only", false)):
+				continue
+			paint.append(d)
+		draws = paint
 	var live: Array = []
 	for id in _monoliths.keys():
 		var node: Node2D = _monoliths[id]
@@ -4253,7 +4276,7 @@ func _kit_tabs() -> Array:
 			"title": "TERRENO",
 			"tools": [],
 			"builds": [],
-			"props": ["tree", "rock", "ore", "water", "grass", "thronglet"],
+			"props": ["tree", "rock", "ore", "flower", "water", "grass", "thronglet"],
 		})
 	return tabs
 
@@ -4266,10 +4289,12 @@ func _sandbox_prop_info(prop: String) -> Dictionary:
 			return {"label": "ROCA", "icon": Catalog.ICON_ROCK}
 		"ore":
 			return {"label": "MINERAL", "icon": Catalog.ICON_ORE_ROCK}
+		"flower":
+			return {"label": "FLOR", "icon": Catalog.ICON_FLOWER}
 		"water":
 			return {"label": "AGUA", "icon": Catalog.ICON_SPONGE}
 		"grass":
-			return {"label": "HIERBA", "icon": Catalog.ICON_FLOWER}
+			return {"label": "HIERBA", "icon": Catalog.ICON_APPLE_TREE}
 		"thronglet":
 			return {"label": "THRONGLET", "icon": Catalog.ICON_EGG}
 		_:
@@ -4862,8 +4887,21 @@ func _sync_marks() -> void:
 		var throng_id := int(bark.get("id", -1))
 		# Prefer live feet: gaze teleport moves pos_* while bark.x/y can lag while frozen.
 		var at := Vector2(float(bark.x), float(bark.y))
+		var tip_lift := 14.0
 		if throng_id >= 0 and throng_id < sim.slot_count and sim.state[throng_id] == Catalog.ST_LIVING:
 			at = Vector2(sim.pos_x[throng_id], sim.pos_y[throng_id])
+			# Hidden guests: float the bocadillo over the building roof (same lift as capacity marks).
+			if _throng_hidden_indoors(sim, throng_id) and throng_id < sim.link_guest.size():
+				var bid := int(sim.link_guest[throng_id])
+				var visit: Dictionary = sim.building_by_id.get(bid, {})
+				if not visit.is_empty() and not bool(visit.get("dead", true)):
+					var kind := int(visit.kind)
+					var origin := Vector2(float(visit.x), float(visit.y))
+					if Catalog.building_has_active(kind):
+						at = _building_active_draw_at(kind, origin)
+					else:
+						at = _building_draw_at(kind, origin)
+					tip_lift = 56.0
 		if not view.has_point(at):
 			panel.visible = false
 			tail.visible = false
@@ -4900,8 +4938,7 @@ func _sync_marks() -> void:
 			panel.set_meta("bark_size", size)
 		else:
 			size = panel.get_meta("bark_size") as Vector2
-		# tip = bottom of pico (points at thronglet head).
-		var tip := cam_rig.to_iso(at) + Vector2(0, -14)
+		var tip := cam_rig.to_iso(at) + Vector2(0, -tip_lift)
 		panel.position = Vector2(tip.x - size.x * 0.5, tip.y - size.y)
 		panel.visible = true
 	_sync_capacity_marks(sim, view)

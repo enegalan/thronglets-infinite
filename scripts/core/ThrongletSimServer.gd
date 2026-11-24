@@ -30,6 +30,8 @@ const FACTORY_PROCESS_TIME2 := 4.0
 # Per ore unit spent. Early original cycles paid ~+10; Mk II pays more.
 const FACTORY_GEM_PAY := 10
 const FACTORY_GEM_PAY2 := 25
+# Chance that a finished factory cycle spills goo (was always on; too aggressive).
+const FACTORY_GOO_CHANCE := 0.25
 # Mine ore stock (blue bar). Fills on a timer; diggers enter and leave with a load.
 const MINE_STOCK_CAP := 5
 const MINE_STOCK_CAP2 := 8
@@ -2827,6 +2829,10 @@ func _thought_icon(i: int) -> int:
 			return Catalog.ICON_MOP
 		if _thought_known("sponge"):
 			return Catalog.ICON_SPONGE
+	# Guests are hidden indoors: bark needs the building does not cover, or the visit itself.
+	var visit := _guest_building(i)
+	if not visit.is_empty() and not _visit_rule(int(visit.kind)).is_empty():
+		return _visit_thought_icon(i, visit)
 	if fed[i] < Catalog.NEED_HUNGRY and _thought_known("apple"):
 		return Catalog.ICON_APPLE
 	var in_tub := link_tub[i] >= 0
@@ -2856,6 +2862,34 @@ func _thought_icon(i: int) -> int:
 		return Catalog.ICON_ORE
 	if mito_t[i] > 0.0 or mito_charge[i] > MITOSIS_CHARGE * 0.7:
 		return Catalog.ICON_EGG
+	if fed[i] >= 85.0 and amused[i] >= 85.0 and clean[i] >= 85.0 and _thought_known("flower"):
+		return Catalog.ICON_FLOWER
+	return -1
+
+
+func _visit_thought_icon(i: int, visit: Dictionary) -> int:
+	var vk := int(visit.kind)
+	var rule := _visit_rule(vk)
+	if fed[i] < Catalog.NEED_HUNGRY and float(rule.get("fed", 0.0)) <= 0.0 and _thought_known("apple"):
+		return Catalog.ICON_APPLE
+	if clean[i] < Catalog.NEED_SEEK and float(rule.get("clean", 0.0)) <= 0.0:
+		if _thought_known("mop"):
+			return Catalog.ICON_MOP
+		if _thought_known("sponge"):
+			return Catalog.ICON_SPONGE
+	if amused[i] < Catalog.NEED_FUN and float(rule.get("fun", 0.0)) <= 0.0:
+		if _thought_known("roundabout"):
+			return Catalog.ICON_ROUND
+		if _thought_known("ball"):
+			return Catalog.ICON_BALL
+	if _is_mine_kind(vk) and (_thought_known("mine") or _thought_known("pickaxe")):
+		return Catalog.ICON_ORE
+	if _is_show(vk) and _thought_known("theatre"):
+		return Catalog.ICON_THEATRE
+	if vk == Catalog.BLD_FANCY:
+		return Catalog.ICON_FANCY
+	if vk == Catalog.BLD_DWELL:
+		return Catalog.ICON_DWELL
 	if fed[i] >= 85.0 and amused[i] >= 85.0 and clean[i] >= 85.0 and _thought_known("flower"):
 		return Catalog.ICON_FLOWER
 	return -1
@@ -2897,6 +2931,10 @@ func _maybe_bark(i: int) -> void:
 		or icon == Catalog.ICON_SPONGE
 		or icon == Catalog.ICON_BALL
 		or icon == Catalog.ICON_ROUND
+		or icon == Catalog.ICON_ORE
+		or icon == Catalog.ICON_DWELL
+		or icon == Catalog.ICON_FANCY
+		or icon == Catalog.ICON_THEATRE
 	)
 	if urgent:
 		if randf() > 0.0015:
@@ -3593,7 +3631,8 @@ func _tick_buildings(dt: float) -> void:
 					total_gems_earned += _g
 					b.active = true
 					_pop(float(b.x), float(b.y) - 6.0, Catalog.ICON_GEM)
-					_spill_goo(float(b.x), float(b.y), 2 if kind == Catalog.BLD_FACTORY2 else 1)
+					if randf() < FACTORY_GOO_CHANCE:
+						_spill_goo(float(b.x), float(b.y), 2 if kind == Catalog.BLD_FACTORY2 else 1)
 					buffered = int(b.get("buffer", 0))
 					b.timer = cycle if buffered > 0 else 0.25
 				else:
@@ -7256,6 +7295,8 @@ func sandbox_place_prop(prop: String, x: float, y: float) -> bool:
 			if Catalog.tile_blocks(_tile_at(at.x, at.y)):
 				return false
 			return not _add_feature(Catalog.FEAT_ROCK, at.x, at.y, 2, 1, true).is_empty()
+		"flower":
+			return place_building(Catalog.BLD_FLOWER, at.x, at.y)
 		"water":
 			var cell := _cell_vec(at.x, at.y)
 			var tile := _tile_at_cell(cell)

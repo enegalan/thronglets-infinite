@@ -81,6 +81,7 @@ func load_sandbox() -> bool:
 		return false
 	sim.current_slot = -1
 	sim.sandbox_mode = true
+	sim._unlock_all()
 	sim.unlock_serial += 1
 	return true
 

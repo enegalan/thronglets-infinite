@@ -1024,25 +1024,20 @@ def _export_structure_anims():
     if not os.path.isfile(flower_anim):
         return
     fim = Image.open(flower_anim).convert("RGBA")
-    flower_rects = (
-        (0, 148.07613, 66, 69.84776),
-        (66, 148.07613, 66, 68.84776),
-        (132, 148.07613, 66, 70.84776),
-        (0, 75.07612, 66, 70.92388),
-        (66, 75.07612, 66, 70.84776),
-        (132, 75.07612, 66, 70.92388),
-        (0, 2.0761204, 66, 70.92388),
-    )
-    fh = fim.size[1]
-    for i, (x, y, w, hh) in enumerate(flower_rects):
-        top = fh - (y + hh)
-        box = (
-            int(round(x)),
-            int(round(top)),
-            int(round(x + w)),
-            int(round(top + hh)),
-        )
-        frame = _fit(fim.crop(box), 56, 72)
+    sprite_dir = SRC_SPRITE
+    meta0 = os.path.join(sprite_dir, "TEMP_flowerAnim_0.json")
+    if not os.path.isfile(meta0):
+        sprite_dir = OUT("references", "Assets", "Sprite")
+        meta0 = os.path.join(sprite_dir, "TEMP_flowerAnim_0.json")
+    if not os.path.isfile(meta0):
+        return
+    for i in range(7):
+        meta_path = os.path.join(sprite_dir, "TEMP_flowerAnim_%d.json" % i)
+        if not os.path.isfile(meta_path):
+            continue
+        meta = json.load(open(meta_path))
+        settings = int((meta.get("m_RD") or {}).get("m_SettingsRaw") or 0)
+        frame = _crop_unity(fim, meta["m_Rect"], settings)
         body = frame.crop(frame.getbbox()) if frame.getbbox() else frame
         body.save(os.path.join(out, "flower_%d.png" % i))
 

@@ -663,6 +663,9 @@ func _paint_inst(draws: Array, row: Dictionary, origin: Vector2, alpha: float, u
 	if str(row.get("group", "")) == "building" and (kind == Catalog.BLD_ROUND or kind == Catalog.BLD_FLOWER):
 		_paint_structure_anim(draws, kind, origin, alpha, _frame_of(row), tune, uid, used)
 		return
+	if str(row.get("group", "")) == "building" and main._idle_structure_texture(kind) != null:
+		_paint_idle_structure(draws, kind, origin, alpha, tune, uid, used)
+		return
 	var frame := _frame_of(row)
 	var at: Vector2 = _anchor(row, origin, tune, frame)
 	main._push_iso(draws, at, frame, Color(1, 1, 1, alpha), 0.0, float(tune.scale))
@@ -765,7 +768,7 @@ func _paint_active_building(
 	node.scale = Vector2(sprite_scale, sprite_scale)
 	node.rotation_degrees = float(tune.rot)
 	node.modulate = Color(1, 1, 1, alpha)
-	node.position = screen_p + Vector2(0, -main.WORLD_CELL * 0.5 * sprite_scale)
+	node.position = screen_p + main._structure_sprite_lift(tex, sprite_scale)
 	node.visible = true
 	used[uid] = true
 
@@ -2552,6 +2555,9 @@ func _paint_building(draws: Array, kind: int, origin: Vector2, alpha: float, fra
 	if kind == Catalog.BLD_ROUND or kind == Catalog.BLD_FLOWER:
 		_paint_structure_anim(draws, kind, origin, alpha, frame_override, tune, EFFECT_ACTIVE_UID, _node_used)
 		return
+	if main._idle_structure_texture(kind) != null:
+		_paint_idle_structure(draws, kind, origin, alpha, tune, EFFECT_ACTIVE_UID, _node_used)
+		return
 	var frame := frame_override
 	if frame < 0:
 		frame = _frame_of(row)
@@ -2563,6 +2569,44 @@ func _paint_building(draws: Array, kind: int, origin: Vector2, alpha: float, fra
 	var last: Dictionary = draws[draws.size() - 1]
 	last["sy"] = float(last.get("sy", last.p.y)) + float(tune.z)
 	last["rot"] = float(tune.rot)
+
+
+func _paint_idle_structure(
+	draws: Array,
+	kind: int,
+	origin: Vector2,
+	alpha: float,
+	tune: Dictionary,
+	uid: int,
+	used: Dictionary
+) -> void:
+	var tex: Texture2D = main._idle_structure_texture(kind)
+	if tex == null:
+		return
+	var frame: int = main._prop_frame(Catalog.icon_for_building(kind))
+	var size: Vector2i = tune.get("footprint", Vector2i(1, 1))
+	var sprite_scale := float(tune.scale)
+	var extra: Vector2 = tune.offset if tune.has("offset") else Vector2.ZERO
+	var at: Vector2 = origin + Catalog.footprint_center(size) + main._pad_nudge(frame, sprite_scale, size) + extra
+	var tint := Color(1, 1, 1, alpha)
+	if kind == Catalog.BLD_TUB:
+		tint = Color(0.85, 0.95, 1.0, alpha)
+	var screen_p: Vector2 = main.cam_rig.to_iso(at)
+	var node: Sprite2D = _take_structure_sprite(uid, tex)
+	node.scale = Vector2(sprite_scale, sprite_scale)
+	node.rotation_degrees = float(tune.rot)
+	node.modulate = tint
+	node.position = screen_p + main._structure_sprite_lift(tex, sprite_scale)
+	node.visible = true
+	used[uid] = true
+	draws.append({
+		"p": screen_p,
+		"sy": screen_p.y + float(tune.z),
+		"icon": frame,
+		"tint": tint,
+		"scale": sprite_scale,
+		"meta_only": true,
+	})
 
 
 func _paint_structure_anim(
@@ -2588,9 +2632,12 @@ func _paint_structure_anim(
 	var sprite_scale := float(tune.scale)
 	if kind == Catalog.BLD_ROUND:
 		sprite_scale *= AnimTune.frame_scale("round", idx)
-	var at: Vector2 = origin + Catalog.footprint_center(size) + main._pad_nudge(frame, sprite_scale, size)
+	var extra: Vector2 = tune.offset if tune.has("offset") else Vector2.ZERO
+	var at: Vector2 = origin + Catalog.footprint_center(size) + main._pad_nudge(frame, sprite_scale, size) + extra
 	if kind == Catalog.BLD_ROUND:
 		at += AnimTune.frame_offset("round", idx)
+	elif kind == Catalog.BLD_FLOWER:
+		at += AnimTune.frame_offset("flower", idx)
 	var screen_p: Vector2 = main.cam_rig.to_iso(at)
 	var node: Sprite2D = _take_structure_sprite(uid, tex)
 	node.scale = Vector2(sprite_scale, sprite_scale)
@@ -2598,11 +2645,19 @@ func _paint_structure_anim(
 	if kind == Catalog.BLD_ROUND:
 		node.rotation_degrees += AnimTune.frame_rot("round", idx)
 	node.modulate = Color(1, 1, 1, alpha)
-	node.position = screen_p + Vector2(0, -main.WORLD_CELL * 0.5 * sprite_scale)
+	node.position = screen_p + main._structure_sprite_lift(tex, sprite_scale)
 	node.visible = true
 	used[uid] = true
-	# Fake draw row so callers can read sort_y.
-	draws.append({"p": screen_p, "sy": screen_p.y + float(tune.z), "icon": frame, "tint": Color(1, 1, 1, alpha), "scale": sprite_scale})
+	# Sort bookkeeping only — Sprite2D already draws the frame. Painting this row
+	# would also blit the atlas default under the anim (flower/round double sprite).
+	draws.append({
+		"p": screen_p,
+		"sy": screen_p.y + float(tune.z),
+		"icon": frame,
+		"tint": Color(1, 1, 1, alpha),
+		"scale": sprite_scale,
+		"meta_only": true,
+	})
 
 
 func _take_structure_sprite(uid: int, tex: Texture2D) -> Sprite2D:
@@ -3729,9 +3784,9 @@ func _lab_tick_draw() -> void:
 		if int(a.get("id", -1)) == lab_selected_agent:
 			tint = Color(1.0, 1.0, 0.55, 1.0)
 		var sy := float(main.cam_rig.to_iso(pos).y) + 8.0
-		if st == "riding":
-			# depth-sort riders around the carousel: front seats draw over, back seats under
-			sy = float(main.cam_rig.to_iso(pos).y) + 10.0
+		if st == "riding" and carousel_sy_base > -INF:
+			# Flat disk: all riders stay above the carousel.
+			sy = carousel_sy_base + 1.0 + float(slot) * 0.01
 		main._push_iso(draws, pos + off, frame, tint, lift, sc, sy)
 		if st == "riding":
 			# directional ride sprites already encode orientation; avoid extra flip/rotation jitter

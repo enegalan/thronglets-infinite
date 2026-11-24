@@ -1,7 +1,7 @@
 extends Object
 
-# Bench tunes for animations that are not thronglet clips.
-# The game never reads this script. res://dev/anim_tune.json is the handoff.
+# Live FRAME_* consts for non-thronglet anims. Main reads these via frame_offset/scale/rot.
+# res://dev/anim_tune.json is bench handoff only (do_not_runtime_load) — apply into FRAME_* here.
 
 const PATH := "res://dev/anim_tune.json"
 
@@ -54,7 +54,7 @@ const SPECIALS := [
 		"start": 0,
 		"count": 8,
 		"fps": 8.0,
-		"where": "Active roundabout cycles resources/structures/buildings/round_0..7.png. Main uses ROUND_ANIM_N (8).",
+		"where": "Roundabout draws resources/structures/buildings/round_0..7.png. Idle uses frame 0; when active, Main cycles with ROUND_ANIM_N (8).",
 	},
 	{
 		"id": "flower",

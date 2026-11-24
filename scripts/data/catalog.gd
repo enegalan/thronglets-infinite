@@ -359,8 +359,7 @@ static func footprint_for_building(kind: int) -> Vector2i:
 		BLD_MINE2:
 			return Vector2i(5, 6)
 		BLD_FACTORY, BLD_FACTORY2:
-			# Same pad as a dwelling: a 5x5 never fits a lived-in home island.
-			return Vector2i(3, 3)
+			return Vector2i(4, 4)
 		BLD_THEATRE:
 			return Vector2i(4, 6)
 		BLD_MARKET:
@@ -415,6 +414,8 @@ static func building_sprite_scale(kind: int) -> float:
 			return ROUND_SPRITE_SCALE
 		BLD_FLOWER:
 			return FLOWER_SPRITE_SCALE
+		BLD_STATUE, BLD_WOOD:
+			return 1.03
 		_:
 			return 1.0
 
@@ -480,10 +481,6 @@ static func building_draw_off(kind: int) -> Vector2:
 # Extra world offset for occupied/active/goo building sprites.
 static func active_building_draw_off(kind: int) -> Vector2:
 	match kind:
-		BLD_DWELL:
-			return Vector2(22.8, 23.3)
-		BLD_FANCY:
-			return Vector2(18.8, 19.3)
 		BLD_THEATRE:
 			return Vector2(0.5, -0.5)
 		BLD_FACTORY, BLD_FACTORY2:
