@@ -51,10 +51,19 @@ const SPECIALS := [
 		"id": "round",
 		"label": "TIOVIVO",
 		"group": "ESTRUCTURAS",
-		"start": 132,
+		"start": 0,
 		"count": 8,
 		"fps": 8.0,
-		"where": "An active roundabout uses Main.ROUND_ANIM + int(time * 8) % 8. ROUND_ANIM is 132.",
+		"where": "Active roundabout cycles resources/structures/buildings/round_0..7.png. Main uses ROUND_ANIM_N (8).",
+	},
+	{
+		"id": "flower",
+		"label": "FLOR",
+		"group": "ESTRUCTURAS",
+		"start": 0,
+		"count": 7,
+		"fps": 6.0,
+		"where": "Flower cycles resources/structures/buildings/flower_0..6.png. Main uses FLOWER_ANIM_N (7) at 6 fps.",
 	},
 ]
 

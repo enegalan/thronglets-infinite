@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Extract Unity-only Char_Throng sheets into strips and append them to world_iso."""
+"""Extract Unity-only Char_Throng sheets into strips and append them to world/world_cells."""
 
 from __future__ import annotations
 
@@ -13,8 +13,8 @@ from PIL import Image
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RES_DIR = os.path.join(ROOT, "resources", "sprites", "throng_anims")
 REF_DIR = os.path.join(ROOT, "references", "thronglet-anims")
-WORLD = os.path.join(ROOT, "resources", "sprites", "world_iso.png")
-DIRT = os.path.join(ROOT, "resources", "sprites", "world_iso_dirt.png")
+CELLS = os.path.join(ROOT, "resources", "sprites", "world", "world_cells")
+CELLS_DIRT = os.path.join(ROOT, "resources", "sprites", "world", "world_cells_dirt")
 CLIPS_GD = os.path.join(ROOT, "scripts", "data", "throng_clips.gd")
 CELL = 128
 COLS = 16
@@ -104,8 +104,15 @@ def _strip(frames):
 
 
 def _max_clip_end(text: str) -> int:
-    ends = [int(s) + int(c) for s, c in re.findall(r'Vector2i\((\d+), (\d+)\)', text)]
+    ends = [int(s) + int(c) for s, c in re.findall(r"Vector2i\((\d+), (\d+)\)", text)]
     return max(ends) if ends else 144
+
+
+def _put_cell(idx: int, body: Image.Image, dirt: Image.Image) -> None:
+    os.makedirs(CELLS, exist_ok=True)
+    os.makedirs(CELLS_DIRT, exist_ok=True)
+    body.save(os.path.join(CELLS, "%04d.png" % idx))
+    dirt.save(os.path.join(CELLS_DIRT, "%04d.png" % idx))
 
 
 def _patch_clips_gd(entries: list[tuple[str, int, int]], rows: int) -> None:
@@ -151,8 +158,6 @@ def main() -> None:
     make_art = _load_make_art()
     os.makedirs(RES_DIR, exist_ok=True)
     os.makedirs(REF_DIR, exist_ok=True)
-    sheet = Image.open(WORLD).convert("RGBA")
-    dirt_sheet = Image.open(DIRT).convert("RGBA") if os.path.isfile(DIRT) else Image.new("RGBA", sheet.size, (0, 0, 0, 0))
     gd = open(CLIPS_GD).read()
     # Always append after throng clips AND AssetFrames FX — never overwrite HAND/BUBBLE/etc.
     index = _max_clip_end(gd)
@@ -173,12 +178,13 @@ def main() -> None:
             extra_start = int(m.group(1))
             if extra_start >= index:
                 index = extra_start
-                row0 = index // COLS
-                sheet = sheet.crop((0, 0, sheet.size[0], max(sheet.size[1], (row0 + 1) * CELL)))
-                dirt_sheet = dirt_sheet.crop((0, 0, dirt_sheet.size[0], sheet.size[1]))
     entries = []
     manifest_path = os.path.join(RES_DIR, "manifest.json")
-    manifest = json.load(open(manifest_path)) if os.path.isfile(manifest_path) else {"clips": {}, "strip_dir": "res://resources/sprites/throng_anims/"}
+    manifest = (
+        json.load(open(manifest_path))
+        if os.path.isfile(manifest_path)
+        else {"clips": {}, "strip_dir": "res://resources/sprites/throng_anims/"}
+    )
     for unity, clip in EXTRA:
         frames = _frames_for(make_art, unity)
         if not frames:
@@ -188,41 +194,37 @@ def main() -> None:
         safe = clip + ".png"
         for folder in (RES_DIR, REF_DIR):
             strip.save(os.path.join(folder, safe))
-        manifest["clips"][clip] = {"file": safe, "frames": len(frames), "cell_w": cw, "cell_h": ch}
+        manifest["clips"][clip] = {
+            "file": safe,
+            "frames": len(frames),
+            "cell_w": cw,
+            "cell_h": ch,
+        }
         scale, anchor = make_art._throng_fit(frames)
         start = index
-        bodies = [make_art._unity_throng_cell(body, pivot, scale, anchor) for body, _dirt, pivot in frames]
-        dirts = [make_art._unity_throng_cell(dirt, pivot, scale, anchor) for _body, dirt, pivot in frames]
+        bodies = [
+            make_art._unity_throng_cell(body, pivot, scale, anchor)
+            for body, _dirt, pivot in frames
+        ]
+        dirts = [
+            make_art._unity_throng_cell(dirt, pivot, scale, anchor)
+            for _body, dirt, pivot in frames
+        ]
         if not make_art._throng_skip_home(clip):
             keep_air = make_art._throng_preserve_air(clip)
             shifts = make_art._home_shift_for_cells(bodies, preserve_air=keep_air)
-            bodies = make_art._home_throng_cells(bodies, preserve_air=keep_air, shifts=shifts)
-            dirts = make_art._home_throng_cells(dirts, preserve_air=keep_air, shifts=shifts)
+            bodies = make_art._home_throng_cells(
+                bodies, preserve_air=keep_air, shifts=shifts
+            )
+            dirts = make_art._home_throng_cells(
+                dirts, preserve_air=keep_air, shifts=shifts
+            )
         for cell, dcell in zip(bodies, dirts):
-            need_rows = (index // COLS) + 1
-            need_h = need_rows * CELL
-            if sheet.size[1] < need_h:
-                bigger = Image.new("RGBA", (COLS * CELL, need_h), (0, 0, 0, 0))
-                bigger.alpha_composite(sheet, (0, 0))
-                sheet = bigger
-                bigger_d = Image.new("RGBA", sheet.size, (0, 0, 0, 0))
-                bigger_d.alpha_composite(dirt_sheet, (0, 0))
-                dirt_sheet = bigger_d
-            make_art._stamp_cell(sheet, COLS, index, cell)
-            make_art._stamp_cell(dirt_sheet, COLS, index, dcell)
+            _put_cell(index, cell, dcell)
             index += 1
         entries.append((clip, start, len(frames)))
         print("packed", clip, len(frames), "at", start)
     rows = (index + COLS - 1) // COLS
-    sheet = sheet.crop((0, 0, COLS * CELL, rows * CELL))
-    dirt_sheet = dirt_sheet.crop((0, 0, COLS * CELL, rows * CELL))
-    sheet.save(WORLD)
-    dirt_sheet.save(DIRT)
-    # Drop cached .ctex so Godot reloads.
-    for path in (WORLD, DIRT):
-        ctex = path + ".ctex"
-        if os.path.isfile(ctex):
-            os.remove(ctex)
     _patch_clips_gd(entries, rows)
     with open(manifest_path, "w") as handle:
         json.dump(manifest, handle, indent=2, sort_keys=True)

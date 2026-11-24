@@ -1,0 +1,3152 @@
+{
+ "cell": 128,
+ "cols": 16,
+ "frames": {
+  "100": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0100.png",
+   "name": "super",
+   "path": "res://resources/sprites/world/world_cells/0100.png"
+  },
+  "101": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0101.png",
+   "name": "apple_tree",
+   "path": "res://resources/sprites/world/world_cells/0101.png"
+  },
+  "102": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0102.png",
+   "name": "tub",
+   "path": "res://resources/sprites/world/world_cells/0102.png"
+  },
+  "103": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0103.png",
+   "name": "round",
+   "path": "res://resources/sprites/world/world_cells/0103.png"
+  },
+  "104": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0104.png",
+   "name": "dwell_atlas",
+   "path": "res://resources/sprites/world/world_cells/0104.png"
+  },
+  "105": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0105.png",
+   "name": "fancy_atlas",
+   "path": "res://resources/sprites/world/world_cells/0105.png"
+  },
+  "106": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0106.png",
+   "name": "mine_atlas",
+   "path": "res://resources/sprites/world/world_cells/0106.png"
+  },
+  "107": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0107.png",
+   "name": "mine2_atlas",
+   "path": "res://resources/sprites/world/world_cells/0107.png"
+  },
+  "108": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0108.png",
+   "name": "factory_atlas",
+   "path": "res://resources/sprites/world/world_cells/0108.png"
+  },
+  "109": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0109.png",
+   "name": "factory2_atlas",
+   "path": "res://resources/sprites/world/world_cells/0109.png"
+  },
+  "110": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0110.png",
+   "name": "theatre_atlas",
+   "path": "res://resources/sprites/world/world_cells/0110.png"
+  },
+  "111": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0111.png",
+   "name": "market",
+   "path": "res://resources/sprites/world/world_cells/0111.png"
+  },
+  "112": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0112.png",
+   "name": "monolith",
+   "path": "res://resources/sprites/world/world_cells/0112.png"
+  },
+  "113": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0113.png",
+   "name": "statue",
+   "path": "res://resources/sprites/world/world_cells/0113.png"
+  },
+  "114": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0114.png",
+   "name": "goo",
+   "path": "res://resources/sprites/world/world_cells/0114.png"
+  },
+  "115": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0115.png",
+   "name": "bigrock",
+   "path": "res://resources/sprites/world/world_cells/0115.png"
+  },
+  "116": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0116.png",
+   "name": "cosmetic",
+   "path": "res://resources/sprites/world/world_cells/0116.png"
+  },
+  "117": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0117.png",
+   "name": "cosmetic_bad",
+   "path": "res://resources/sprites/world/world_cells/0117.png"
+  },
+  "118": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0118.png",
+   "name": "ore_mega",
+   "path": "res://resources/sprites/world/world_cells/0118.png"
+  },
+  "119": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0119.png",
+   "name": "ore_super",
+   "path": "res://resources/sprites/world/world_cells/0119.png"
+  },
+  "120": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0120.png",
+   "name": "ore_ultra",
+   "path": "res://resources/sprites/world/world_cells/0120.png"
+  },
+  "121": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0121.png",
+   "name": "wood_statue",
+   "path": "res://resources/sprites/world/world_cells/0121.png"
+  },
+  "122": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0122.png",
+   "name": "fire_icon",
+   "path": "res://resources/sprites/world/world_cells/0122.png"
+  },
+  "123": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0123.png",
+   "name": "totem",
+   "path": "res://resources/sprites/world/world_cells/0123.png"
+  },
+  "124": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0124.png",
+   "name": "curer",
+   "path": "res://resources/sprites/world/world_cells/0124.png"
+  },
+  "125": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0125.png",
+   "name": "jack",
+   "path": "res://resources/sprites/world/world_cells/0125.png"
+  },
+  "126": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0126.png",
+   "name": "superbug",
+   "path": "res://resources/sprites/world/world_cells/0126.png"
+  },
+  "127": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0127.png",
+   "name": "mstump",
+   "path": "res://resources/sprites/world/world_cells/0127.png"
+  },
+  "128": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0128.png",
+   "name": "mnode",
+   "path": "res://resources/sprites/world/world_cells/0128.png"
+  },
+  "140": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0140.png",
+   "name": "fire_ground_0",
+   "path": "res://resources/sprites/world/world_cells/0140.png"
+  },
+  "141": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0141.png",
+   "name": "fire_ground_1",
+   "path": "res://resources/sprites/world/world_cells/0141.png"
+  },
+  "142": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0142.png",
+   "name": "fire_ground_2",
+   "path": "res://resources/sprites/world/world_cells/0142.png"
+  },
+  "143": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0143.png",
+   "name": "fire_ground_3",
+   "path": "res://resources/sprites/world/world_cells/0143.png"
+  },
+  "144": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0144.png",
+   "path": "res://resources/sprites/world/world_cells/0144.png"
+  },
+  "145": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0145.png",
+   "path": "res://resources/sprites/world/world_cells/0145.png"
+  },
+  "146": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0146.png",
+   "path": "res://resources/sprites/world/world_cells/0146.png"
+  },
+  "147": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0147.png",
+   "path": "res://resources/sprites/world/world_cells/0147.png"
+  },
+  "148": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0148.png",
+   "path": "res://resources/sprites/world/world_cells/0148.png"
+  },
+  "149": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0149.png",
+   "path": "res://resources/sprites/world/world_cells/0149.png"
+  },
+  "150": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0150.png",
+   "path": "res://resources/sprites/world/world_cells/0150.png"
+  },
+  "151": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0151.png",
+   "path": "res://resources/sprites/world/world_cells/0151.png"
+  },
+  "152": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0152.png",
+   "path": "res://resources/sprites/world/world_cells/0152.png"
+  },
+  "153": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0153.png",
+   "path": "res://resources/sprites/world/world_cells/0153.png"
+  },
+  "154": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0154.png",
+   "path": "res://resources/sprites/world/world_cells/0154.png"
+  },
+  "155": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0155.png",
+   "path": "res://resources/sprites/world/world_cells/0155.png"
+  },
+  "156": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0156.png",
+   "path": "res://resources/sprites/world/world_cells/0156.png"
+  },
+  "157": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0157.png",
+   "path": "res://resources/sprites/world/world_cells/0157.png"
+  },
+  "158": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0158.png",
+   "path": "res://resources/sprites/world/world_cells/0158.png"
+  },
+  "159": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0159.png",
+   "path": "res://resources/sprites/world/world_cells/0159.png"
+  },
+  "160": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0160.png",
+   "path": "res://resources/sprites/world/world_cells/0160.png"
+  },
+  "161": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0161.png",
+   "path": "res://resources/sprites/world/world_cells/0161.png"
+  },
+  "162": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0162.png",
+   "path": "res://resources/sprites/world/world_cells/0162.png"
+  },
+  "163": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0163.png",
+   "path": "res://resources/sprites/world/world_cells/0163.png"
+  },
+  "164": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0164.png",
+   "path": "res://resources/sprites/world/world_cells/0164.png"
+  },
+  "165": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0165.png",
+   "path": "res://resources/sprites/world/world_cells/0165.png"
+  },
+  "166": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0166.png",
+   "path": "res://resources/sprites/world/world_cells/0166.png"
+  },
+  "167": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0167.png",
+   "path": "res://resources/sprites/world/world_cells/0167.png"
+  },
+  "168": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0168.png",
+   "path": "res://resources/sprites/world/world_cells/0168.png"
+  },
+  "169": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0169.png",
+   "path": "res://resources/sprites/world/world_cells/0169.png"
+  },
+  "170": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0170.png",
+   "path": "res://resources/sprites/world/world_cells/0170.png"
+  },
+  "171": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0171.png",
+   "path": "res://resources/sprites/world/world_cells/0171.png"
+  },
+  "172": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0172.png",
+   "path": "res://resources/sprites/world/world_cells/0172.png"
+  },
+  "173": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0173.png",
+   "path": "res://resources/sprites/world/world_cells/0173.png"
+  },
+  "174": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0174.png",
+   "path": "res://resources/sprites/world/world_cells/0174.png"
+  },
+  "175": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0175.png",
+   "path": "res://resources/sprites/world/world_cells/0175.png"
+  },
+  "176": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0176.png",
+   "path": "res://resources/sprites/world/world_cells/0176.png"
+  },
+  "177": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0177.png",
+   "path": "res://resources/sprites/world/world_cells/0177.png"
+  },
+  "178": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0178.png",
+   "path": "res://resources/sprites/world/world_cells/0178.png"
+  },
+  "179": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0179.png",
+   "path": "res://resources/sprites/world/world_cells/0179.png"
+  },
+  "180": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0180.png",
+   "path": "res://resources/sprites/world/world_cells/0180.png"
+  },
+  "181": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0181.png",
+   "path": "res://resources/sprites/world/world_cells/0181.png"
+  },
+  "182": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0182.png",
+   "path": "res://resources/sprites/world/world_cells/0182.png"
+  },
+  "183": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0183.png",
+   "path": "res://resources/sprites/world/world_cells/0183.png"
+  },
+  "184": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0184.png",
+   "path": "res://resources/sprites/world/world_cells/0184.png"
+  },
+  "185": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0185.png",
+   "path": "res://resources/sprites/world/world_cells/0185.png"
+  },
+  "186": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0186.png",
+   "path": "res://resources/sprites/world/world_cells/0186.png"
+  },
+  "187": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0187.png",
+   "path": "res://resources/sprites/world/world_cells/0187.png"
+  },
+  "188": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0188.png",
+   "path": "res://resources/sprites/world/world_cells/0188.png"
+  },
+  "189": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0189.png",
+   "path": "res://resources/sprites/world/world_cells/0189.png"
+  },
+  "190": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0190.png",
+   "path": "res://resources/sprites/world/world_cells/0190.png"
+  },
+  "191": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0191.png",
+   "path": "res://resources/sprites/world/world_cells/0191.png"
+  },
+  "192": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0192.png",
+   "path": "res://resources/sprites/world/world_cells/0192.png"
+  },
+  "193": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0193.png",
+   "path": "res://resources/sprites/world/world_cells/0193.png"
+  },
+  "194": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0194.png",
+   "path": "res://resources/sprites/world/world_cells/0194.png"
+  },
+  "195": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0195.png",
+   "path": "res://resources/sprites/world/world_cells/0195.png"
+  },
+  "196": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0196.png",
+   "path": "res://resources/sprites/world/world_cells/0196.png"
+  },
+  "197": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0197.png",
+   "path": "res://resources/sprites/world/world_cells/0197.png"
+  },
+  "198": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0198.png",
+   "path": "res://resources/sprites/world/world_cells/0198.png"
+  },
+  "199": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0199.png",
+   "path": "res://resources/sprites/world/world_cells/0199.png"
+  },
+  "200": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0200.png",
+   "path": "res://resources/sprites/world/world_cells/0200.png"
+  },
+  "201": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0201.png",
+   "path": "res://resources/sprites/world/world_cells/0201.png"
+  },
+  "202": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0202.png",
+   "path": "res://resources/sprites/world/world_cells/0202.png"
+  },
+  "203": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0203.png",
+   "path": "res://resources/sprites/world/world_cells/0203.png"
+  },
+  "204": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0204.png",
+   "path": "res://resources/sprites/world/world_cells/0204.png"
+  },
+  "205": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0205.png",
+   "path": "res://resources/sprites/world/world_cells/0205.png"
+  },
+  "206": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0206.png",
+   "path": "res://resources/sprites/world/world_cells/0206.png"
+  },
+  "207": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0207.png",
+   "path": "res://resources/sprites/world/world_cells/0207.png"
+  },
+  "208": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0208.png",
+   "path": "res://resources/sprites/world/world_cells/0208.png"
+  },
+  "209": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0209.png",
+   "path": "res://resources/sprites/world/world_cells/0209.png"
+  },
+  "210": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0210.png",
+   "path": "res://resources/sprites/world/world_cells/0210.png"
+  },
+  "211": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0211.png",
+   "path": "res://resources/sprites/world/world_cells/0211.png"
+  },
+  "212": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0212.png",
+   "path": "res://resources/sprites/world/world_cells/0212.png"
+  },
+  "213": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0213.png",
+   "path": "res://resources/sprites/world/world_cells/0213.png"
+  },
+  "214": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0214.png",
+   "path": "res://resources/sprites/world/world_cells/0214.png"
+  },
+  "215": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0215.png",
+   "path": "res://resources/sprites/world/world_cells/0215.png"
+  },
+  "216": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0216.png",
+   "path": "res://resources/sprites/world/world_cells/0216.png"
+  },
+  "217": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0217.png",
+   "path": "res://resources/sprites/world/world_cells/0217.png"
+  },
+  "218": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0218.png",
+   "path": "res://resources/sprites/world/world_cells/0218.png"
+  },
+  "219": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0219.png",
+   "path": "res://resources/sprites/world/world_cells/0219.png"
+  },
+  "220": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0220.png",
+   "path": "res://resources/sprites/world/world_cells/0220.png"
+  },
+  "221": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0221.png",
+   "path": "res://resources/sprites/world/world_cells/0221.png"
+  },
+  "222": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0222.png",
+   "path": "res://resources/sprites/world/world_cells/0222.png"
+  },
+  "223": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0223.png",
+   "path": "res://resources/sprites/world/world_cells/0223.png"
+  },
+  "224": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0224.png",
+   "path": "res://resources/sprites/world/world_cells/0224.png"
+  },
+  "225": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0225.png",
+   "path": "res://resources/sprites/world/world_cells/0225.png"
+  },
+  "226": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0226.png",
+   "path": "res://resources/sprites/world/world_cells/0226.png"
+  },
+  "227": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0227.png",
+   "path": "res://resources/sprites/world/world_cells/0227.png"
+  },
+  "228": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0228.png",
+   "path": "res://resources/sprites/world/world_cells/0228.png"
+  },
+  "229": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0229.png",
+   "path": "res://resources/sprites/world/world_cells/0229.png"
+  },
+  "230": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0230.png",
+   "path": "res://resources/sprites/world/world_cells/0230.png"
+  },
+  "231": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0231.png",
+   "path": "res://resources/sprites/world/world_cells/0231.png"
+  },
+  "232": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0232.png",
+   "path": "res://resources/sprites/world/world_cells/0232.png"
+  },
+  "233": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0233.png",
+   "path": "res://resources/sprites/world/world_cells/0233.png"
+  },
+  "234": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0234.png",
+   "path": "res://resources/sprites/world/world_cells/0234.png"
+  },
+  "235": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0235.png",
+   "path": "res://resources/sprites/world/world_cells/0235.png"
+  },
+  "236": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0236.png",
+   "path": "res://resources/sprites/world/world_cells/0236.png"
+  },
+  "237": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0237.png",
+   "path": "res://resources/sprites/world/world_cells/0237.png"
+  },
+  "238": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0238.png",
+   "path": "res://resources/sprites/world/world_cells/0238.png"
+  },
+  "239": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0239.png",
+   "path": "res://resources/sprites/world/world_cells/0239.png"
+  },
+  "24": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0024.png",
+   "name": "apple_item",
+   "path": "res://resources/sprites/world/world_cells/0024.png"
+  },
+  "240": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0240.png",
+   "path": "res://resources/sprites/world/world_cells/0240.png"
+  },
+  "241": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0241.png",
+   "path": "res://resources/sprites/world/world_cells/0241.png"
+  },
+  "242": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0242.png",
+   "path": "res://resources/sprites/world/world_cells/0242.png"
+  },
+  "243": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0243.png",
+   "path": "res://resources/sprites/world/world_cells/0243.png"
+  },
+  "244": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0244.png",
+   "path": "res://resources/sprites/world/world_cells/0244.png"
+  },
+  "245": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0245.png",
+   "path": "res://resources/sprites/world/world_cells/0245.png"
+  },
+  "246": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0246.png",
+   "path": "res://resources/sprites/world/world_cells/0246.png"
+  },
+  "247": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0247.png",
+   "path": "res://resources/sprites/world/world_cells/0247.png"
+  },
+  "248": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0248.png",
+   "path": "res://resources/sprites/world/world_cells/0248.png"
+  },
+  "249": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0249.png",
+   "path": "res://resources/sprites/world/world_cells/0249.png"
+  },
+  "25": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0025.png",
+   "name": "ball",
+   "path": "res://resources/sprites/world/world_cells/0025.png"
+  },
+  "250": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0250.png",
+   "path": "res://resources/sprites/world/world_cells/0250.png"
+  },
+  "251": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0251.png",
+   "path": "res://resources/sprites/world/world_cells/0251.png"
+  },
+  "252": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0252.png",
+   "path": "res://resources/sprites/world/world_cells/0252.png"
+  },
+  "253": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0253.png",
+   "path": "res://resources/sprites/world/world_cells/0253.png"
+  },
+  "254": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0254.png",
+   "path": "res://resources/sprites/world/world_cells/0254.png"
+  },
+  "255": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0255.png",
+   "path": "res://resources/sprites/world/world_cells/0255.png"
+  },
+  "256": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0256.png",
+   "path": "res://resources/sprites/world/world_cells/0256.png"
+  },
+  "257": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0257.png",
+   "path": "res://resources/sprites/world/world_cells/0257.png"
+  },
+  "258": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0258.png",
+   "path": "res://resources/sprites/world/world_cells/0258.png"
+  },
+  "259": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0259.png",
+   "path": "res://resources/sprites/world/world_cells/0259.png"
+  },
+  "26": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0026.png",
+   "name": "tree_icon",
+   "path": "res://resources/sprites/world/world_cells/0026.png"
+  },
+  "260": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0260.png",
+   "path": "res://resources/sprites/world/world_cells/0260.png"
+  },
+  "261": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0261.png",
+   "path": "res://resources/sprites/world/world_cells/0261.png"
+  },
+  "262": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0262.png",
+   "path": "res://resources/sprites/world/world_cells/0262.png"
+  },
+  "263": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0263.png",
+   "path": "res://resources/sprites/world/world_cells/0263.png"
+  },
+  "264": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0264.png",
+   "path": "res://resources/sprites/world/world_cells/0264.png"
+  },
+  "265": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0265.png",
+   "path": "res://resources/sprites/world/world_cells/0265.png"
+  },
+  "266": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0266.png",
+   "path": "res://resources/sprites/world/world_cells/0266.png"
+  },
+  "267": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0267.png",
+   "path": "res://resources/sprites/world/world_cells/0267.png"
+  },
+  "268": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0268.png",
+   "path": "res://resources/sprites/world/world_cells/0268.png"
+  },
+  "269": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0269.png",
+   "path": "res://resources/sprites/world/world_cells/0269.png"
+  },
+  "27": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0027.png",
+   "name": "stump_icon",
+   "path": "res://resources/sprites/world/world_cells/0027.png"
+  },
+  "270": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0270.png",
+   "path": "res://resources/sprites/world/world_cells/0270.png"
+  },
+  "271": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0271.png",
+   "path": "res://resources/sprites/world/world_cells/0271.png"
+  },
+  "272": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0272.png",
+   "path": "res://resources/sprites/world/world_cells/0272.png"
+  },
+  "273": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0273.png",
+   "path": "res://resources/sprites/world/world_cells/0273.png"
+  },
+  "274": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0274.png",
+   "path": "res://resources/sprites/world/world_cells/0274.png"
+  },
+  "275": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0275.png",
+   "path": "res://resources/sprites/world/world_cells/0275.png"
+  },
+  "276": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0276.png",
+   "path": "res://resources/sprites/world/world_cells/0276.png"
+  },
+  "277": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0277.png",
+   "path": "res://resources/sprites/world/world_cells/0277.png"
+  },
+  "278": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0278.png",
+   "path": "res://resources/sprites/world/world_cells/0278.png"
+  },
+  "279": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0279.png",
+   "path": "res://resources/sprites/world/world_cells/0279.png"
+  },
+  "28": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0028.png",
+   "name": "rock_icon",
+   "path": "res://resources/sprites/world/world_cells/0028.png"
+  },
+  "280": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0280.png",
+   "path": "res://resources/sprites/world/world_cells/0280.png"
+  },
+  "281": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0281.png",
+   "path": "res://resources/sprites/world/world_cells/0281.png"
+  },
+  "282": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0282.png",
+   "path": "res://resources/sprites/world/world_cells/0282.png"
+  },
+  "283": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0283.png",
+   "path": "res://resources/sprites/world/world_cells/0283.png"
+  },
+  "284": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0284.png",
+   "path": "res://resources/sprites/world/world_cells/0284.png"
+  },
+  "285": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0285.png",
+   "path": "res://resources/sprites/world/world_cells/0285.png"
+  },
+  "286": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0286.png",
+   "path": "res://resources/sprites/world/world_cells/0286.png"
+  },
+  "287": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0287.png",
+   "path": "res://resources/sprites/world/world_cells/0287.png"
+  },
+  "288": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0288.png",
+   "path": "res://resources/sprites/world/world_cells/0288.png"
+  },
+  "289": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0289.png",
+   "path": "res://resources/sprites/world/world_cells/0289.png"
+  },
+  "29": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0029.png",
+   "name": "ore_rock_icon",
+   "path": "res://resources/sprites/world/world_cells/0029.png"
+  },
+  "290": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0290.png",
+   "path": "res://resources/sprites/world/world_cells/0290.png"
+  },
+  "291": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0291.png",
+   "path": "res://resources/sprites/world/world_cells/0291.png"
+  },
+  "292": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0292.png",
+   "path": "res://resources/sprites/world/world_cells/0292.png"
+  },
+  "293": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0293.png",
+   "path": "res://resources/sprites/world/world_cells/0293.png"
+  },
+  "294": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0294.png",
+   "path": "res://resources/sprites/world/world_cells/0294.png"
+  },
+  "295": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0295.png",
+   "path": "res://resources/sprites/world/world_cells/0295.png"
+  },
+  "296": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0296.png",
+   "path": "res://resources/sprites/world/world_cells/0296.png"
+  },
+  "297": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0297.png",
+   "path": "res://resources/sprites/world/world_cells/0297.png"
+  },
+  "298": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0298.png",
+   "path": "res://resources/sprites/world/world_cells/0298.png"
+  },
+  "299": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0299.png",
+   "path": "res://resources/sprites/world/world_cells/0299.png"
+  },
+  "30": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0030.png",
+   "name": "node_icon",
+   "path": "res://resources/sprites/world/world_cells/0030.png"
+  },
+  "300": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0300.png",
+   "path": "res://resources/sprites/world/world_cells/0300.png"
+  },
+  "301": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0301.png",
+   "path": "res://resources/sprites/world/world_cells/0301.png"
+  },
+  "302": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0302.png",
+   "path": "res://resources/sprites/world/world_cells/0302.png"
+  },
+  "303": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0303.png",
+   "path": "res://resources/sprites/world/world_cells/0303.png"
+  },
+  "304": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0304.png",
+   "path": "res://resources/sprites/world/world_cells/0304.png"
+  },
+  "305": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0305.png",
+   "path": "res://resources/sprites/world/world_cells/0305.png"
+  },
+  "306": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0306.png",
+   "path": "res://resources/sprites/world/world_cells/0306.png"
+  },
+  "307": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0307.png",
+   "path": "res://resources/sprites/world/world_cells/0307.png"
+  },
+  "308": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0308.png",
+   "path": "res://resources/sprites/world/world_cells/0308.png"
+  },
+  "309": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0309.png",
+   "path": "res://resources/sprites/world/world_cells/0309.png"
+  },
+  "31": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0031.png",
+   "name": "super_icon",
+   "path": "res://resources/sprites/world/world_cells/0031.png"
+  },
+  "310": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0310.png",
+   "path": "res://resources/sprites/world/world_cells/0310.png"
+  },
+  "311": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0311.png",
+   "path": "res://resources/sprites/world/world_cells/0311.png"
+  },
+  "312": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0312.png",
+   "path": "res://resources/sprites/world/world_cells/0312.png"
+  },
+  "313": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0313.png",
+   "path": "res://resources/sprites/world/world_cells/0313.png"
+  },
+  "314": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0314.png",
+   "path": "res://resources/sprites/world/world_cells/0314.png"
+  },
+  "315": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0315.png",
+   "path": "res://resources/sprites/world/world_cells/0315.png"
+  },
+  "316": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0316.png",
+   "path": "res://resources/sprites/world/world_cells/0316.png"
+  },
+  "317": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0317.png",
+   "path": "res://resources/sprites/world/world_cells/0317.png"
+  },
+  "318": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0318.png",
+   "path": "res://resources/sprites/world/world_cells/0318.png"
+  },
+  "319": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0319.png",
+   "path": "res://resources/sprites/world/world_cells/0319.png"
+  },
+  "32": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0032.png",
+   "name": "wood_item",
+   "path": "res://resources/sprites/world/world_cells/0032.png"
+  },
+  "320": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0320.png",
+   "path": "res://resources/sprites/world/world_cells/0320.png"
+  },
+  "321": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0321.png",
+   "path": "res://resources/sprites/world/world_cells/0321.png"
+  },
+  "322": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0322.png",
+   "path": "res://resources/sprites/world/world_cells/0322.png"
+  },
+  "323": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0323.png",
+   "path": "res://resources/sprites/world/world_cells/0323.png"
+  },
+  "324": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0324.png",
+   "path": "res://resources/sprites/world/world_cells/0324.png"
+  },
+  "325": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0325.png",
+   "path": "res://resources/sprites/world/world_cells/0325.png"
+  },
+  "326": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0326.png",
+   "path": "res://resources/sprites/world/world_cells/0326.png"
+  },
+  "327": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0327.png",
+   "path": "res://resources/sprites/world/world_cells/0327.png"
+  },
+  "328": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0328.png",
+   "path": "res://resources/sprites/world/world_cells/0328.png"
+  },
+  "329": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0329.png",
+   "path": "res://resources/sprites/world/world_cells/0329.png"
+  },
+  "33": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0033.png",
+   "name": "bone",
+   "path": "res://resources/sprites/world/world_cells/0033.png"
+  },
+  "330": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0330.png",
+   "path": "res://resources/sprites/world/world_cells/0330.png"
+  },
+  "331": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0331.png",
+   "path": "res://resources/sprites/world/world_cells/0331.png"
+  },
+  "332": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0332.png",
+   "path": "res://resources/sprites/world/world_cells/0332.png"
+  },
+  "333": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0333.png",
+   "path": "res://resources/sprites/world/world_cells/0333.png"
+  },
+  "334": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0334.png",
+   "path": "res://resources/sprites/world/world_cells/0334.png"
+  },
+  "335": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0335.png",
+   "path": "res://resources/sprites/world/world_cells/0335.png"
+  },
+  "336": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0336.png",
+   "path": "res://resources/sprites/world/world_cells/0336.png"
+  },
+  "337": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0337.png",
+   "path": "res://resources/sprites/world/world_cells/0337.png"
+  },
+  "338": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0338.png",
+   "path": "res://resources/sprites/world/world_cells/0338.png"
+  },
+  "339": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0339.png",
+   "path": "res://resources/sprites/world/world_cells/0339.png"
+  },
+  "34": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0034.png",
+   "name": "ore_item",
+   "path": "res://resources/sprites/world/world_cells/0034.png"
+  },
+  "340": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0340.png",
+   "path": "res://resources/sprites/world/world_cells/0340.png"
+  },
+  "341": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0341.png",
+   "path": "res://resources/sprites/world/world_cells/0341.png"
+  },
+  "342": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0342.png",
+   "path": "res://resources/sprites/world/world_cells/0342.png"
+  },
+  "343": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0343.png",
+   "path": "res://resources/sprites/world/world_cells/0343.png"
+  },
+  "344": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0344.png",
+   "path": "res://resources/sprites/world/world_cells/0344.png"
+  },
+  "345": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0345.png",
+   "path": "res://resources/sprites/world/world_cells/0345.png"
+  },
+  "346": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0346.png",
+   "path": "res://resources/sprites/world/world_cells/0346.png"
+  },
+  "347": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0347.png",
+   "path": "res://resources/sprites/world/world_cells/0347.png"
+  },
+  "348": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0348.png",
+   "path": "res://resources/sprites/world/world_cells/0348.png"
+  },
+  "349": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0349.png",
+   "path": "res://resources/sprites/world/world_cells/0349.png"
+  },
+  "35": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0035.png",
+   "name": "apple_tree_icon",
+   "path": "res://resources/sprites/world/world_cells/0035.png"
+  },
+  "350": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0350.png",
+   "path": "res://resources/sprites/world/world_cells/0350.png"
+  },
+  "351": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0351.png",
+   "path": "res://resources/sprites/world/world_cells/0351.png"
+  },
+  "352": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0352.png",
+   "path": "res://resources/sprites/world/world_cells/0352.png"
+  },
+  "353": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0353.png",
+   "path": "res://resources/sprites/world/world_cells/0353.png"
+  },
+  "354": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0354.png",
+   "path": "res://resources/sprites/world/world_cells/0354.png"
+  },
+  "355": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0355.png",
+   "path": "res://resources/sprites/world/world_cells/0355.png"
+  },
+  "356": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0356.png",
+   "path": "res://resources/sprites/world/world_cells/0356.png"
+  },
+  "357": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0357.png",
+   "path": "res://resources/sprites/world/world_cells/0357.png"
+  },
+  "358": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0358.png",
+   "path": "res://resources/sprites/world/world_cells/0358.png"
+  },
+  "359": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0359.png",
+   "path": "res://resources/sprites/world/world_cells/0359.png"
+  },
+  "36": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0036.png",
+   "name": "tub_icon",
+   "path": "res://resources/sprites/world/world_cells/0036.png"
+  },
+  "360": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0360.png",
+   "path": "res://resources/sprites/world/world_cells/0360.png"
+  },
+  "361": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0361.png",
+   "path": "res://resources/sprites/world/world_cells/0361.png"
+  },
+  "362": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0362.png",
+   "path": "res://resources/sprites/world/world_cells/0362.png"
+  },
+  "363": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0363.png",
+   "path": "res://resources/sprites/world/world_cells/0363.png"
+  },
+  "364": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0364.png",
+   "path": "res://resources/sprites/world/world_cells/0364.png"
+  },
+  "365": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0365.png",
+   "path": "res://resources/sprites/world/world_cells/0365.png"
+  },
+  "366": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0366.png",
+   "path": "res://resources/sprites/world/world_cells/0366.png"
+  },
+  "367": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0367.png",
+   "path": "res://resources/sprites/world/world_cells/0367.png"
+  },
+  "368": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0368.png",
+   "path": "res://resources/sprites/world/world_cells/0368.png"
+  },
+  "369": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0369.png",
+   "path": "res://resources/sprites/world/world_cells/0369.png"
+  },
+  "37": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0037.png",
+   "name": "round_icon",
+   "path": "res://resources/sprites/world/world_cells/0037.png"
+  },
+  "370": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0370.png",
+   "path": "res://resources/sprites/world/world_cells/0370.png"
+  },
+  "371": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0371.png",
+   "path": "res://resources/sprites/world/world_cells/0371.png"
+  },
+  "372": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0372.png",
+   "path": "res://resources/sprites/world/world_cells/0372.png"
+  },
+  "373": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0373.png",
+   "path": "res://resources/sprites/world/world_cells/0373.png"
+  },
+  "374": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0374.png",
+   "path": "res://resources/sprites/world/world_cells/0374.png"
+  },
+  "375": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0375.png",
+   "path": "res://resources/sprites/world/world_cells/0375.png"
+  },
+  "376": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0376.png",
+   "path": "res://resources/sprites/world/world_cells/0376.png"
+  },
+  "377": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0377.png",
+   "path": "res://resources/sprites/world/world_cells/0377.png"
+  },
+  "378": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0378.png",
+   "path": "res://resources/sprites/world/world_cells/0378.png"
+  },
+  "379": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0379.png",
+   "path": "res://resources/sprites/world/world_cells/0379.png"
+  },
+  "38": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0038.png",
+   "name": "dwell_icon",
+   "path": "res://resources/sprites/world/world_cells/0038.png"
+  },
+  "380": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0380.png",
+   "path": "res://resources/sprites/world/world_cells/0380.png"
+  },
+  "381": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0381.png",
+   "path": "res://resources/sprites/world/world_cells/0381.png"
+  },
+  "382": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0382.png",
+   "path": "res://resources/sprites/world/world_cells/0382.png"
+  },
+  "383": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0383.png",
+   "path": "res://resources/sprites/world/world_cells/0383.png"
+  },
+  "384": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0384.png",
+   "path": "res://resources/sprites/world/world_cells/0384.png"
+  },
+  "385": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0385.png",
+   "path": "res://resources/sprites/world/world_cells/0385.png"
+  },
+  "386": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0386.png",
+   "path": "res://resources/sprites/world/world_cells/0386.png"
+  },
+  "387": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0387.png",
+   "path": "res://resources/sprites/world/world_cells/0387.png"
+  },
+  "388": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0388.png",
+   "path": "res://resources/sprites/world/world_cells/0388.png"
+  },
+  "389": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0389.png",
+   "path": "res://resources/sprites/world/world_cells/0389.png"
+  },
+  "39": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0039.png",
+   "name": "fancy_icon",
+   "path": "res://resources/sprites/world/world_cells/0039.png"
+  },
+  "390": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0390.png",
+   "path": "res://resources/sprites/world/world_cells/0390.png"
+  },
+  "391": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0391.png",
+   "path": "res://resources/sprites/world/world_cells/0391.png"
+  },
+  "392": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0392.png",
+   "path": "res://resources/sprites/world/world_cells/0392.png"
+  },
+  "393": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0393.png",
+   "path": "res://resources/sprites/world/world_cells/0393.png"
+  },
+  "394": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0394.png",
+   "path": "res://resources/sprites/world/world_cells/0394.png"
+  },
+  "395": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0395.png",
+   "path": "res://resources/sprites/world/world_cells/0395.png"
+  },
+  "396": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0396.png",
+   "path": "res://resources/sprites/world/world_cells/0396.png"
+  },
+  "397": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0397.png",
+   "path": "res://resources/sprites/world/world_cells/0397.png"
+  },
+  "398": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0398.png",
+   "path": "res://resources/sprites/world/world_cells/0398.png"
+  },
+  "399": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0399.png",
+   "path": "res://resources/sprites/world/world_cells/0399.png"
+  },
+  "40": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0040.png",
+   "name": "mine_icon",
+   "path": "res://resources/sprites/world/world_cells/0040.png"
+  },
+  "400": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0400.png",
+   "path": "res://resources/sprites/world/world_cells/0400.png"
+  },
+  "401": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0401.png",
+   "path": "res://resources/sprites/world/world_cells/0401.png"
+  },
+  "402": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0402.png",
+   "path": "res://resources/sprites/world/world_cells/0402.png"
+  },
+  "403": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0403.png",
+   "path": "res://resources/sprites/world/world_cells/0403.png"
+  },
+  "404": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0404.png",
+   "path": "res://resources/sprites/world/world_cells/0404.png"
+  },
+  "405": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0405.png",
+   "path": "res://resources/sprites/world/world_cells/0405.png"
+  },
+  "406": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0406.png",
+   "path": "res://resources/sprites/world/world_cells/0406.png"
+  },
+  "407": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0407.png",
+   "path": "res://resources/sprites/world/world_cells/0407.png"
+  },
+  "408": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0408.png",
+   "path": "res://resources/sprites/world/world_cells/0408.png"
+  },
+  "409": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0409.png",
+   "path": "res://resources/sprites/world/world_cells/0409.png"
+  },
+  "41": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0041.png",
+   "name": "mine2_icon",
+   "path": "res://resources/sprites/world/world_cells/0041.png"
+  },
+  "410": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0410.png",
+   "path": "res://resources/sprites/world/world_cells/0410.png"
+  },
+  "411": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0411.png",
+   "path": "res://resources/sprites/world/world_cells/0411.png"
+  },
+  "412": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0412.png",
+   "path": "res://resources/sprites/world/world_cells/0412.png"
+  },
+  "413": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0413.png",
+   "path": "res://resources/sprites/world/world_cells/0413.png"
+  },
+  "414": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0414.png",
+   "path": "res://resources/sprites/world/world_cells/0414.png"
+  },
+  "415": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0415.png",
+   "path": "res://resources/sprites/world/world_cells/0415.png"
+  },
+  "416": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0416.png",
+   "path": "res://resources/sprites/world/world_cells/0416.png"
+  },
+  "417": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0417.png",
+   "path": "res://resources/sprites/world/world_cells/0417.png"
+  },
+  "418": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0418.png",
+   "path": "res://resources/sprites/world/world_cells/0418.png"
+  },
+  "419": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0419.png",
+   "path": "res://resources/sprites/world/world_cells/0419.png"
+  },
+  "42": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0042.png",
+   "name": "factory_icon",
+   "path": "res://resources/sprites/world/world_cells/0042.png"
+  },
+  "420": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0420.png",
+   "path": "res://resources/sprites/world/world_cells/0420.png"
+  },
+  "421": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0421.png",
+   "path": "res://resources/sprites/world/world_cells/0421.png"
+  },
+  "422": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0422.png",
+   "path": "res://resources/sprites/world/world_cells/0422.png"
+  },
+  "423": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0423.png",
+   "path": "res://resources/sprites/world/world_cells/0423.png"
+  },
+  "424": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0424.png",
+   "path": "res://resources/sprites/world/world_cells/0424.png"
+  },
+  "425": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0425.png",
+   "path": "res://resources/sprites/world/world_cells/0425.png"
+  },
+  "426": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0426.png",
+   "path": "res://resources/sprites/world/world_cells/0426.png"
+  },
+  "427": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0427.png",
+   "path": "res://resources/sprites/world/world_cells/0427.png"
+  },
+  "428": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0428.png",
+   "path": "res://resources/sprites/world/world_cells/0428.png"
+  },
+  "429": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0429.png",
+   "path": "res://resources/sprites/world/world_cells/0429.png"
+  },
+  "43": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0043.png",
+   "name": "factory2_icon",
+   "path": "res://resources/sprites/world/world_cells/0043.png"
+  },
+  "430": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0430.png",
+   "path": "res://resources/sprites/world/world_cells/0430.png"
+  },
+  "431": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0431.png",
+   "path": "res://resources/sprites/world/world_cells/0431.png"
+  },
+  "432": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0432.png",
+   "path": "res://resources/sprites/world/world_cells/0432.png"
+  },
+  "433": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0433.png",
+   "path": "res://resources/sprites/world/world_cells/0433.png"
+  },
+  "434": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0434.png",
+   "path": "res://resources/sprites/world/world_cells/0434.png"
+  },
+  "435": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0435.png",
+   "path": "res://resources/sprites/world/world_cells/0435.png"
+  },
+  "436": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0436.png",
+   "path": "res://resources/sprites/world/world_cells/0436.png"
+  },
+  "437": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0437.png",
+   "path": "res://resources/sprites/world/world_cells/0437.png"
+  },
+  "438": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0438.png",
+   "path": "res://resources/sprites/world/world_cells/0438.png"
+  },
+  "439": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0439.png",
+   "path": "res://resources/sprites/world/world_cells/0439.png"
+  },
+  "44": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0044.png",
+   "name": "theatre_icon",
+   "path": "res://resources/sprites/world/world_cells/0044.png"
+  },
+  "440": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0440.png",
+   "path": "res://resources/sprites/world/world_cells/0440.png"
+  },
+  "441": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0441.png",
+   "path": "res://resources/sprites/world/world_cells/0441.png"
+  },
+  "442": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0442.png",
+   "path": "res://resources/sprites/world/world_cells/0442.png"
+  },
+  "443": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0443.png",
+   "path": "res://resources/sprites/world/world_cells/0443.png"
+  },
+  "444": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0444.png",
+   "path": "res://resources/sprites/world/world_cells/0444.png"
+  },
+  "445": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0445.png",
+   "path": "res://resources/sprites/world/world_cells/0445.png"
+  },
+  "446": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0446.png",
+   "path": "res://resources/sprites/world/world_cells/0446.png"
+  },
+  "447": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0447.png",
+   "path": "res://resources/sprites/world/world_cells/0447.png"
+  },
+  "448": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0448.png",
+   "path": "res://resources/sprites/world/world_cells/0448.png"
+  },
+  "449": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0449.png",
+   "path": "res://resources/sprites/world/world_cells/0449.png"
+  },
+  "450": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0450.png",
+   "path": "res://resources/sprites/world/world_cells/0450.png"
+  },
+  "451": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0451.png",
+   "path": "res://resources/sprites/world/world_cells/0451.png"
+  },
+  "452": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0452.png",
+   "path": "res://resources/sprites/world/world_cells/0452.png"
+  },
+  "453": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0453.png",
+   "path": "res://resources/sprites/world/world_cells/0453.png"
+  },
+  "454": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0454.png",
+   "path": "res://resources/sprites/world/world_cells/0454.png"
+  },
+  "455": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0455.png",
+   "path": "res://resources/sprites/world/world_cells/0455.png"
+  },
+  "456": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0456.png",
+   "path": "res://resources/sprites/world/world_cells/0456.png"
+  },
+  "457": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0457.png",
+   "path": "res://resources/sprites/world/world_cells/0457.png"
+  },
+  "458": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0458.png",
+   "path": "res://resources/sprites/world/world_cells/0458.png"
+  },
+  "459": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0459.png",
+   "path": "res://resources/sprites/world/world_cells/0459.png"
+  },
+  "46": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0046.png",
+   "name": "market_icon",
+   "path": "res://resources/sprites/world/world_cells/0046.png"
+  },
+  "460": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0460.png",
+   "path": "res://resources/sprites/world/world_cells/0460.png"
+  },
+  "461": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0461.png",
+   "path": "res://resources/sprites/world/world_cells/0461.png"
+  },
+  "462": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0462.png",
+   "path": "res://resources/sprites/world/world_cells/0462.png"
+  },
+  "463": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0463.png",
+   "path": "res://resources/sprites/world/world_cells/0463.png"
+  },
+  "464": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0464.png",
+   "path": "res://resources/sprites/world/world_cells/0464.png"
+  },
+  "465": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0465.png",
+   "path": "res://resources/sprites/world/world_cells/0465.png"
+  },
+  "466": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0466.png",
+   "path": "res://resources/sprites/world/world_cells/0466.png"
+  },
+  "467": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0467.png",
+   "path": "res://resources/sprites/world/world_cells/0467.png"
+  },
+  "468": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0468.png",
+   "path": "res://resources/sprites/world/world_cells/0468.png"
+  },
+  "469": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0469.png",
+   "path": "res://resources/sprites/world/world_cells/0469.png"
+  },
+  "47": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0047.png",
+   "name": "flower_icon",
+   "path": "res://resources/sprites/world/world_cells/0047.png"
+  },
+  "470": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0470.png",
+   "path": "res://resources/sprites/world/world_cells/0470.png"
+  },
+  "471": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0471.png",
+   "path": "res://resources/sprites/world/world_cells/0471.png"
+  },
+  "472": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0472.png",
+   "path": "res://resources/sprites/world/world_cells/0472.png"
+  },
+  "473": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0473.png",
+   "path": "res://resources/sprites/world/world_cells/0473.png"
+  },
+  "474": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0474.png",
+   "path": "res://resources/sprites/world/world_cells/0474.png"
+  },
+  "475": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0475.png",
+   "path": "res://resources/sprites/world/world_cells/0475.png"
+  },
+  "476": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0476.png",
+   "path": "res://resources/sprites/world/world_cells/0476.png"
+  },
+  "477": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0477.png",
+   "path": "res://resources/sprites/world/world_cells/0477.png"
+  },
+  "478": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0478.png",
+   "path": "res://resources/sprites/world/world_cells/0478.png"
+  },
+  "479": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0479.png",
+   "path": "res://resources/sprites/world/world_cells/0479.png"
+  },
+  "48": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0048.png",
+   "name": "statue_icon",
+   "path": "res://resources/sprites/world/world_cells/0048.png"
+  },
+  "480": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0480.png",
+   "path": "res://resources/sprites/world/world_cells/0480.png"
+  },
+  "481": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0481.png",
+   "path": "res://resources/sprites/world/world_cells/0481.png"
+  },
+  "482": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0482.png",
+   "path": "res://resources/sprites/world/world_cells/0482.png"
+  },
+  "483": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0483.png",
+   "path": "res://resources/sprites/world/world_cells/0483.png"
+  },
+  "484": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0484.png",
+   "path": "res://resources/sprites/world/world_cells/0484.png"
+  },
+  "485": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0485.png",
+   "path": "res://resources/sprites/world/world_cells/0485.png"
+  },
+  "486": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0486.png",
+   "path": "res://resources/sprites/world/world_cells/0486.png"
+  },
+  "487": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0487.png",
+   "path": "res://resources/sprites/world/world_cells/0487.png"
+  },
+  "488": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0488.png",
+   "path": "res://resources/sprites/world/world_cells/0488.png"
+  },
+  "489": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0489.png",
+   "path": "res://resources/sprites/world/world_cells/0489.png"
+  },
+  "49": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0049.png",
+   "name": "monolith_icon",
+   "path": "res://resources/sprites/world/world_cells/0049.png"
+  },
+  "490": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0490.png",
+   "path": "res://resources/sprites/world/world_cells/0490.png"
+  },
+  "491": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0491.png",
+   "path": "res://resources/sprites/world/world_cells/0491.png"
+  },
+  "492": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0492.png",
+   "path": "res://resources/sprites/world/world_cells/0492.png"
+  },
+  "493": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0493.png",
+   "path": "res://resources/sprites/world/world_cells/0493.png"
+  },
+  "494": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0494.png",
+   "path": "res://resources/sprites/world/world_cells/0494.png"
+  },
+  "495": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0495.png",
+   "path": "res://resources/sprites/world/world_cells/0495.png"
+  },
+  "496": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0496.png",
+   "path": "res://resources/sprites/world/world_cells/0496.png"
+  },
+  "497": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0497.png",
+   "path": "res://resources/sprites/world/world_cells/0497.png"
+  },
+  "498": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0498.png",
+   "path": "res://resources/sprites/world/world_cells/0498.png"
+  },
+  "499": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0499.png",
+   "path": "res://resources/sprites/world/world_cells/0499.png"
+  },
+  "50": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0050.png",
+   "name": "tnt",
+   "path": "res://resources/sprites/world/world_cells/0050.png"
+  },
+  "500": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0500.png",
+   "path": "res://resources/sprites/world/world_cells/0500.png"
+  },
+  "501": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0501.png",
+   "path": "res://resources/sprites/world/world_cells/0501.png"
+  },
+  "502": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0502.png",
+   "path": "res://resources/sprites/world/world_cells/0502.png"
+  },
+  "503": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0503.png",
+   "path": "res://resources/sprites/world/world_cells/0503.png"
+  },
+  "504": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0504.png",
+   "path": "res://resources/sprites/world/world_cells/0504.png"
+  },
+  "505": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0505.png",
+   "path": "res://resources/sprites/world/world_cells/0505.png"
+  },
+  "506": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0506.png",
+   "path": "res://resources/sprites/world/world_cells/0506.png"
+  },
+  "507": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0507.png",
+   "path": "res://resources/sprites/world/world_cells/0507.png"
+  },
+  "508": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0508.png",
+   "path": "res://resources/sprites/world/world_cells/0508.png"
+  },
+  "509": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0509.png",
+   "path": "res://resources/sprites/world/world_cells/0509.png"
+  },
+  "51": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0051.png",
+   "name": "goo_icon",
+   "path": "res://resources/sprites/world/world_cells/0051.png"
+  },
+  "510": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0510.png",
+   "path": "res://resources/sprites/world/world_cells/0510.png"
+  },
+  "511": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0511.png",
+   "path": "res://resources/sprites/world/world_cells/0511.png"
+  },
+  "512": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0512.png",
+   "path": "res://resources/sprites/world/world_cells/0512.png"
+  },
+  "513": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0513.png",
+   "path": "res://resources/sprites/world/world_cells/0513.png"
+  },
+  "514": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0514.png",
+   "path": "res://resources/sprites/world/world_cells/0514.png"
+  },
+  "515": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0515.png",
+   "path": "res://resources/sprites/world/world_cells/0515.png"
+  },
+  "516": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0516.png",
+   "path": "res://resources/sprites/world/world_cells/0516.png"
+  },
+  "517": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0517.png",
+   "path": "res://resources/sprites/world/world_cells/0517.png"
+  },
+  "518": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0518.png",
+   "path": "res://resources/sprites/world/world_cells/0518.png"
+  },
+  "519": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0519.png",
+   "path": "res://resources/sprites/world/world_cells/0519.png"
+  },
+  "52": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0052.png",
+   "path": "res://resources/sprites/world/world_cells/0052.png"
+  },
+  "520": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0520.png",
+   "path": "res://resources/sprites/world/world_cells/0520.png"
+  },
+  "521": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0521.png",
+   "path": "res://resources/sprites/world/world_cells/0521.png"
+  },
+  "522": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0522.png",
+   "path": "res://resources/sprites/world/world_cells/0522.png"
+  },
+  "523": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0523.png",
+   "path": "res://resources/sprites/world/world_cells/0523.png"
+  },
+  "524": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0524.png",
+   "path": "res://resources/sprites/world/world_cells/0524.png"
+  },
+  "528": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0528.png",
+   "path": "res://resources/sprites/world/world_cells/0528.png"
+  },
+  "53": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0053.png",
+   "path": "res://resources/sprites/world/world_cells/0053.png"
+  },
+  "532": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0532.png",
+   "path": "res://resources/sprites/world/world_cells/0532.png"
+  },
+  "537": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0537.png",
+   "path": "res://resources/sprites/world/world_cells/0537.png"
+  },
+  "538": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0538.png",
+   "path": "res://resources/sprites/world/world_cells/0538.png"
+  },
+  "54": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0054.png",
+   "path": "res://resources/sprites/world/world_cells/0054.png"
+  },
+  "540": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0540.png",
+   "path": "res://resources/sprites/world/world_cells/0540.png"
+  },
+  "541": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0541.png",
+   "path": "res://resources/sprites/world/world_cells/0541.png"
+  },
+  "542": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0542.png",
+   "path": "res://resources/sprites/world/world_cells/0542.png"
+  },
+  "543": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0543.png",
+   "path": "res://resources/sprites/world/world_cells/0543.png"
+  },
+  "544": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0544.png",
+   "path": "res://resources/sprites/world/world_cells/0544.png"
+  },
+  "545": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0545.png",
+   "path": "res://resources/sprites/world/world_cells/0545.png"
+  },
+  "546": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0546.png",
+   "path": "res://resources/sprites/world/world_cells/0546.png"
+  },
+  "547": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0547.png",
+   "path": "res://resources/sprites/world/world_cells/0547.png"
+  },
+  "548": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0548.png",
+   "path": "res://resources/sprites/world/world_cells/0548.png"
+  },
+  "549": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0549.png",
+   "path": "res://resources/sprites/world/world_cells/0549.png"
+  },
+  "55": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0055.png",
+   "path": "res://resources/sprites/world/world_cells/0055.png"
+  },
+  "550": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0550.png",
+   "path": "res://resources/sprites/world/world_cells/0550.png"
+  },
+  "551": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0551.png",
+   "path": "res://resources/sprites/world/world_cells/0551.png"
+  },
+  "552": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0552.png",
+   "path": "res://resources/sprites/world/world_cells/0552.png"
+  },
+  "553": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0553.png",
+   "path": "res://resources/sprites/world/world_cells/0553.png"
+  },
+  "554": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0554.png",
+   "path": "res://resources/sprites/world/world_cells/0554.png"
+  },
+  "555": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0555.png",
+   "path": "res://resources/sprites/world/world_cells/0555.png"
+  },
+  "556": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0556.png",
+   "path": "res://resources/sprites/world/world_cells/0556.png"
+  },
+  "557": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0557.png",
+   "path": "res://resources/sprites/world/world_cells/0557.png"
+  },
+  "558": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0558.png",
+   "path": "res://resources/sprites/world/world_cells/0558.png"
+  },
+  "559": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0559.png",
+   "path": "res://resources/sprites/world/world_cells/0559.png"
+  },
+  "56": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0056.png",
+   "path": "res://resources/sprites/world/world_cells/0056.png"
+  },
+  "560": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0560.png",
+   "path": "res://resources/sprites/world/world_cells/0560.png"
+  },
+  "561": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0561.png",
+   "path": "res://resources/sprites/world/world_cells/0561.png"
+  },
+  "562": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0562.png",
+   "path": "res://resources/sprites/world/world_cells/0562.png"
+  },
+  "563": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0563.png",
+   "path": "res://resources/sprites/world/world_cells/0563.png"
+  },
+  "564": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0564.png",
+   "path": "res://resources/sprites/world/world_cells/0564.png"
+  },
+  "565": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0565.png",
+   "path": "res://resources/sprites/world/world_cells/0565.png"
+  },
+  "566": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0566.png",
+   "path": "res://resources/sprites/world/world_cells/0566.png"
+  },
+  "567": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0567.png",
+   "path": "res://resources/sprites/world/world_cells/0567.png"
+  },
+  "568": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0568.png",
+   "path": "res://resources/sprites/world/world_cells/0568.png"
+  },
+  "569": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0569.png",
+   "path": "res://resources/sprites/world/world_cells/0569.png"
+  },
+  "57": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0057.png",
+   "path": "res://resources/sprites/world/world_cells/0057.png"
+  },
+  "570": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0570.png",
+   "path": "res://resources/sprites/world/world_cells/0570.png"
+  },
+  "574": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0574.png",
+   "path": "res://resources/sprites/world/world_cells/0574.png"
+  },
+  "575": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0575.png",
+   "path": "res://resources/sprites/world/world_cells/0575.png"
+  },
+  "576": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0576.png",
+   "path": "res://resources/sprites/world/world_cells/0576.png"
+  },
+  "577": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0577.png",
+   "path": "res://resources/sprites/world/world_cells/0577.png"
+  },
+  "578": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0578.png",
+   "path": "res://resources/sprites/world/world_cells/0578.png"
+  },
+  "579": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0579.png",
+   "path": "res://resources/sprites/world/world_cells/0579.png"
+  },
+  "58": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0058.png",
+   "path": "res://resources/sprites/world/world_cells/0058.png"
+  },
+  "580": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0580.png",
+   "path": "res://resources/sprites/world/world_cells/0580.png"
+  },
+  "581": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0581.png",
+   "path": "res://resources/sprites/world/world_cells/0581.png"
+  },
+  "582": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0582.png",
+   "path": "res://resources/sprites/world/world_cells/0582.png"
+  },
+  "583": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0583.png",
+   "path": "res://resources/sprites/world/world_cells/0583.png"
+  },
+  "584": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0584.png",
+   "path": "res://resources/sprites/world/world_cells/0584.png"
+  },
+  "585": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0585.png",
+   "path": "res://resources/sprites/world/world_cells/0585.png"
+  },
+  "586": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0586.png",
+   "path": "res://resources/sprites/world/world_cells/0586.png"
+  },
+  "587": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0587.png",
+   "path": "res://resources/sprites/world/world_cells/0587.png"
+  },
+  "588": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0588.png",
+   "path": "res://resources/sprites/world/world_cells/0588.png"
+  },
+  "589": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0589.png",
+   "path": "res://resources/sprites/world/world_cells/0589.png"
+  },
+  "59": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0059.png",
+   "path": "res://resources/sprites/world/world_cells/0059.png"
+  },
+  "590": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0590.png",
+   "path": "res://resources/sprites/world/world_cells/0590.png"
+  },
+  "591": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0591.png",
+   "path": "res://resources/sprites/world/world_cells/0591.png"
+  },
+  "592": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0592.png",
+   "path": "res://resources/sprites/world/world_cells/0592.png"
+  },
+  "593": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0593.png",
+   "path": "res://resources/sprites/world/world_cells/0593.png"
+  },
+  "594": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0594.png",
+   "path": "res://resources/sprites/world/world_cells/0594.png"
+  },
+  "595": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0595.png",
+   "path": "res://resources/sprites/world/world_cells/0595.png"
+  },
+  "596": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0596.png",
+   "path": "res://resources/sprites/world/world_cells/0596.png"
+  },
+  "597": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0597.png",
+   "path": "res://resources/sprites/world/world_cells/0597.png"
+  },
+  "598": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0598.png",
+   "path": "res://resources/sprites/world/world_cells/0598.png"
+  },
+  "599": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0599.png",
+   "path": "res://resources/sprites/world/world_cells/0599.png"
+  },
+  "60": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0060.png",
+   "path": "res://resources/sprites/world/world_cells/0060.png"
+  },
+  "600": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0600.png",
+   "path": "res://resources/sprites/world/world_cells/0600.png"
+  },
+  "601": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0601.png",
+   "path": "res://resources/sprites/world/world_cells/0601.png"
+  },
+  "602": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0602.png",
+   "path": "res://resources/sprites/world/world_cells/0602.png"
+  },
+  "603": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0603.png",
+   "path": "res://resources/sprites/world/world_cells/0603.png"
+  },
+  "604": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0604.png",
+   "path": "res://resources/sprites/world/world_cells/0604.png"
+  },
+  "605": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0605.png",
+   "path": "res://resources/sprites/world/world_cells/0605.png"
+  },
+  "606": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0606.png",
+   "path": "res://resources/sprites/world/world_cells/0606.png"
+  },
+  "607": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0607.png",
+   "path": "res://resources/sprites/world/world_cells/0607.png"
+  },
+  "608": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0608.png",
+   "path": "res://resources/sprites/world/world_cells/0608.png"
+  },
+  "609": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0609.png",
+   "path": "res://resources/sprites/world/world_cells/0609.png"
+  },
+  "61": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0061.png",
+   "path": "res://resources/sprites/world/world_cells/0061.png"
+  },
+  "610": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0610.png",
+   "path": "res://resources/sprites/world/world_cells/0610.png"
+  },
+  "611": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0611.png",
+   "path": "res://resources/sprites/world/world_cells/0611.png"
+  },
+  "612": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0612.png",
+   "path": "res://resources/sprites/world/world_cells/0612.png"
+  },
+  "613": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0613.png",
+   "path": "res://resources/sprites/world/world_cells/0613.png"
+  },
+  "614": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0614.png",
+   "path": "res://resources/sprites/world/world_cells/0614.png"
+  },
+  "615": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0615.png",
+   "path": "res://resources/sprites/world/world_cells/0615.png"
+  },
+  "616": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0616.png",
+   "path": "res://resources/sprites/world/world_cells/0616.png"
+  },
+  "617": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0617.png",
+   "path": "res://resources/sprites/world/world_cells/0617.png"
+  },
+  "618": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0618.png",
+   "path": "res://resources/sprites/world/world_cells/0618.png"
+  },
+  "619": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0619.png",
+   "path": "res://resources/sprites/world/world_cells/0619.png"
+  },
+  "62": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0062.png",
+   "path": "res://resources/sprites/world/world_cells/0062.png"
+  },
+  "620": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0620.png",
+   "path": "res://resources/sprites/world/world_cells/0620.png"
+  },
+  "621": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0621.png",
+   "path": "res://resources/sprites/world/world_cells/0621.png"
+  },
+  "622": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0622.png",
+   "path": "res://resources/sprites/world/world_cells/0622.png"
+  },
+  "623": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0623.png",
+   "path": "res://resources/sprites/world/world_cells/0623.png"
+  },
+  "624": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0624.png",
+   "path": "res://resources/sprites/world/world_cells/0624.png"
+  },
+  "625": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0625.png",
+   "path": "res://resources/sprites/world/world_cells/0625.png"
+  },
+  "626": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0626.png",
+   "path": "res://resources/sprites/world/world_cells/0626.png"
+  },
+  "627": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0627.png",
+   "path": "res://resources/sprites/world/world_cells/0627.png"
+  },
+  "628": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0628.png",
+   "path": "res://resources/sprites/world/world_cells/0628.png"
+  },
+  "629": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0629.png",
+   "path": "res://resources/sprites/world/world_cells/0629.png"
+  },
+  "63": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0063.png",
+   "name": "gem",
+   "path": "res://resources/sprites/world/world_cells/0063.png"
+  },
+  "630": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0630.png",
+   "path": "res://resources/sprites/world/world_cells/0630.png"
+  },
+  "631": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0631.png",
+   "path": "res://resources/sprites/world/world_cells/0631.png"
+  },
+  "632": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0632.png",
+   "path": "res://resources/sprites/world/world_cells/0632.png"
+  },
+  "633": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0633.png",
+   "path": "res://resources/sprites/world/world_cells/0633.png"
+  },
+  "634": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0634.png",
+   "path": "res://resources/sprites/world/world_cells/0634.png"
+  },
+  "635": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0635.png",
+   "path": "res://resources/sprites/world/world_cells/0635.png"
+  },
+  "636": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0636.png",
+   "path": "res://resources/sprites/world/world_cells/0636.png"
+  },
+  "637": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0637.png",
+   "path": "res://resources/sprites/world/world_cells/0637.png"
+  },
+  "638": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0638.png",
+   "path": "res://resources/sprites/world/world_cells/0638.png"
+  },
+  "639": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0639.png",
+   "path": "res://resources/sprites/world/world_cells/0639.png"
+  },
+  "64": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0064.png",
+   "name": "egg_item",
+   "path": "res://resources/sprites/world/world_cells/0064.png"
+  },
+  "640": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0640.png",
+   "path": "res://resources/sprites/world/world_cells/0640.png"
+  },
+  "641": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0641.png",
+   "path": "res://resources/sprites/world/world_cells/0641.png"
+  },
+  "642": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0642.png",
+   "path": "res://resources/sprites/world/world_cells/0642.png"
+  },
+  "643": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0643.png",
+   "path": "res://resources/sprites/world/world_cells/0643.png"
+  },
+  "644": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0644.png",
+   "path": "res://resources/sprites/world/world_cells/0644.png"
+  },
+  "645": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0645.png",
+   "path": "res://resources/sprites/world/world_cells/0645.png"
+  },
+  "646": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0646.png",
+   "path": "res://resources/sprites/world/world_cells/0646.png"
+  },
+  "647": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0647.png",
+   "path": "res://resources/sprites/world/world_cells/0647.png"
+  },
+  "648": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0648.png",
+   "path": "res://resources/sprites/world/world_cells/0648.png"
+  },
+  "649": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0649.png",
+   "path": "res://resources/sprites/world/world_cells/0649.png"
+  },
+  "65": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0065.png",
+   "path": "res://resources/sprites/world/world_cells/0065.png"
+  },
+  "650": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0650.png",
+   "path": "res://resources/sprites/world/world_cells/0650.png"
+  },
+  "651": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0651.png",
+   "path": "res://resources/sprites/world/world_cells/0651.png"
+  },
+  "652": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0652.png",
+   "path": "res://resources/sprites/world/world_cells/0652.png"
+  },
+  "653": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0653.png",
+   "path": "res://resources/sprites/world/world_cells/0653.png"
+  },
+  "654": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0654.png",
+   "path": "res://resources/sprites/world/world_cells/0654.png"
+  },
+  "655": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0655.png",
+   "path": "res://resources/sprites/world/world_cells/0655.png"
+  },
+  "656": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0656.png",
+   "path": "res://resources/sprites/world/world_cells/0656.png"
+  },
+  "657": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0657.png",
+   "path": "res://resources/sprites/world/world_cells/0657.png"
+  },
+  "658": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0658.png",
+   "path": "res://resources/sprites/world/world_cells/0658.png"
+  },
+  "659": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0659.png",
+   "path": "res://resources/sprites/world/world_cells/0659.png"
+  },
+  "66": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0066.png",
+   "path": "res://resources/sprites/world/world_cells/0066.png"
+  },
+  "660": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0660.png",
+   "path": "res://resources/sprites/world/world_cells/0660.png"
+  },
+  "661": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0661.png",
+   "path": "res://resources/sprites/world/world_cells/0661.png"
+  },
+  "662": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0662.png",
+   "path": "res://resources/sprites/world/world_cells/0662.png"
+  },
+  "663": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0663.png",
+   "path": "res://resources/sprites/world/world_cells/0663.png"
+  },
+  "664": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0664.png",
+   "path": "res://resources/sprites/world/world_cells/0664.png"
+  },
+  "665": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0665.png",
+   "path": "res://resources/sprites/world/world_cells/0665.png"
+  },
+  "666": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0666.png",
+   "path": "res://resources/sprites/world/world_cells/0666.png"
+  },
+  "667": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0667.png",
+   "path": "res://resources/sprites/world/world_cells/0667.png"
+  },
+  "668": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0668.png",
+   "path": "res://resources/sprites/world/world_cells/0668.png"
+  },
+  "669": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0669.png",
+   "path": "res://resources/sprites/world/world_cells/0669.png"
+  },
+  "67": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0067.png",
+   "path": "res://resources/sprites/world/world_cells/0067.png"
+  },
+  "670": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0670.png",
+   "path": "res://resources/sprites/world/world_cells/0670.png"
+  },
+  "671": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0671.png",
+   "path": "res://resources/sprites/world/world_cells/0671.png"
+  },
+  "674": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0674.png",
+   "path": "res://resources/sprites/world/world_cells/0674.png"
+  },
+  "675": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0675.png",
+   "path": "res://resources/sprites/world/world_cells/0675.png"
+  },
+  "676": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0676.png",
+   "path": "res://resources/sprites/world/world_cells/0676.png"
+  },
+  "677": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0677.png",
+   "path": "res://resources/sprites/world/world_cells/0677.png"
+  },
+  "678": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0678.png",
+   "path": "res://resources/sprites/world/world_cells/0678.png"
+  },
+  "679": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0679.png",
+   "path": "res://resources/sprites/world/world_cells/0679.png"
+  },
+  "68": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0068.png",
+   "path": "res://resources/sprites/world/world_cells/0068.png"
+  },
+  "680": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0680.png",
+   "path": "res://resources/sprites/world/world_cells/0680.png"
+  },
+  "681": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0681.png",
+   "path": "res://resources/sprites/world/world_cells/0681.png"
+  },
+  "682": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0682.png",
+   "path": "res://resources/sprites/world/world_cells/0682.png"
+  },
+  "683": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0683.png",
+   "path": "res://resources/sprites/world/world_cells/0683.png"
+  },
+  "684": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0684.png",
+   "path": "res://resources/sprites/world/world_cells/0684.png"
+  },
+  "685": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0685.png",
+   "path": "res://resources/sprites/world/world_cells/0685.png"
+  },
+  "686": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0686.png",
+   "path": "res://resources/sprites/world/world_cells/0686.png"
+  },
+  "687": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0687.png",
+   "path": "res://resources/sprites/world/world_cells/0687.png"
+  },
+  "688": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0688.png",
+   "path": "res://resources/sprites/world/world_cells/0688.png"
+  },
+  "689": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0689.png",
+   "path": "res://resources/sprites/world/world_cells/0689.png"
+  },
+  "69": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0069.png",
+   "path": "res://resources/sprites/world/world_cells/0069.png"
+  },
+  "690": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0690.png",
+   "path": "res://resources/sprites/world/world_cells/0690.png"
+  },
+  "691": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0691.png",
+   "path": "res://resources/sprites/world/world_cells/0691.png"
+  },
+  "692": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0692.png",
+   "path": "res://resources/sprites/world/world_cells/0692.png"
+  },
+  "693": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0693.png",
+   "path": "res://resources/sprites/world/world_cells/0693.png"
+  },
+  "694": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0694.png",
+   "path": "res://resources/sprites/world/world_cells/0694.png"
+  },
+  "695": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0695.png",
+   "path": "res://resources/sprites/world/world_cells/0695.png"
+  },
+  "696": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0696.png",
+   "path": "res://resources/sprites/world/world_cells/0696.png"
+  },
+  "697": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0697.png",
+   "path": "res://resources/sprites/world/world_cells/0697.png"
+  },
+  "698": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0698.png",
+   "path": "res://resources/sprites/world/world_cells/0698.png"
+  },
+  "699": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0699.png",
+   "path": "res://resources/sprites/world/world_cells/0699.png"
+  },
+  "70": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0070.png",
+   "path": "res://resources/sprites/world/world_cells/0070.png"
+  },
+  "700": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0700.png",
+   "path": "res://resources/sprites/world/world_cells/0700.png"
+  },
+  "701": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0701.png",
+   "path": "res://resources/sprites/world/world_cells/0701.png"
+  },
+  "702": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0702.png",
+   "path": "res://resources/sprites/world/world_cells/0702.png"
+  },
+  "703": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0703.png",
+   "path": "res://resources/sprites/world/world_cells/0703.png"
+  },
+  "704": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0704.png",
+   "path": "res://resources/sprites/world/world_cells/0704.png"
+  },
+  "705": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0705.png",
+   "path": "res://resources/sprites/world/world_cells/0705.png"
+  },
+  "706": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0706.png",
+   "path": "res://resources/sprites/world/world_cells/0706.png"
+  },
+  "707": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0707.png",
+   "path": "res://resources/sprites/world/world_cells/0707.png"
+  },
+  "708": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0708.png",
+   "path": "res://resources/sprites/world/world_cells/0708.png"
+  },
+  "709": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0709.png",
+   "path": "res://resources/sprites/world/world_cells/0709.png"
+  },
+  "71": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0071.png",
+   "path": "res://resources/sprites/world/world_cells/0071.png"
+  },
+  "710": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0710.png",
+   "path": "res://resources/sprites/world/world_cells/0710.png"
+  },
+  "711": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0711.png",
+   "path": "res://resources/sprites/world/world_cells/0711.png"
+  },
+  "712": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0712.png",
+   "path": "res://resources/sprites/world/world_cells/0712.png"
+  },
+  "713": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0713.png",
+   "path": "res://resources/sprites/world/world_cells/0713.png"
+  },
+  "714": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0714.png",
+   "path": "res://resources/sprites/world/world_cells/0714.png"
+  },
+  "715": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0715.png",
+   "path": "res://resources/sprites/world/world_cells/0715.png"
+  },
+  "716": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0716.png",
+   "path": "res://resources/sprites/world/world_cells/0716.png"
+  },
+  "717": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0717.png",
+   "path": "res://resources/sprites/world/world_cells/0717.png"
+  },
+  "718": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0718.png",
+   "path": "res://resources/sprites/world/world_cells/0718.png"
+  },
+  "719": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0719.png",
+   "path": "res://resources/sprites/world/world_cells/0719.png"
+  },
+  "72": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0072.png",
+   "path": "res://resources/sprites/world/world_cells/0072.png"
+  },
+  "720": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0720.png",
+   "path": "res://resources/sprites/world/world_cells/0720.png"
+  },
+  "721": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0721.png",
+   "path": "res://resources/sprites/world/world_cells/0721.png"
+  },
+  "722": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0722.png",
+   "path": "res://resources/sprites/world/world_cells/0722.png"
+  },
+  "723": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0723.png",
+   "name": "bubble_0",
+   "path": "res://resources/sprites/world/world_cells/0723.png"
+  },
+  "724": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0724.png",
+   "name": "bubble_1",
+   "path": "res://resources/sprites/world/world_cells/0724.png"
+  },
+  "725": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0725.png",
+   "name": "bubble_2",
+   "path": "res://resources/sprites/world/world_cells/0725.png"
+  },
+  "726": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0726.png",
+   "name": "bubble_light_0",
+   "path": "res://resources/sprites/world/world_cells/0726.png"
+  },
+  "727": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0727.png",
+   "name": "bubble_light_1",
+   "path": "res://resources/sprites/world/world_cells/0727.png"
+  },
+  "728": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0728.png",
+   "name": "bubble_light_2",
+   "path": "res://resources/sprites/world/world_cells/0728.png"
+  },
+  "729": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0729.png",
+   "name": "clean_0",
+   "path": "res://resources/sprites/world/world_cells/0729.png"
+  },
+  "73": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0073.png",
+   "path": "res://resources/sprites/world/world_cells/0073.png"
+  },
+  "730": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0730.png",
+   "name": "clean_1",
+   "path": "res://resources/sprites/world/world_cells/0730.png"
+  },
+  "731": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0731.png",
+   "name": "splash_0",
+   "path": "res://resources/sprites/world/world_cells/0731.png"
+  },
+  "732": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0732.png",
+   "name": "splash_1",
+   "path": "res://resources/sprites/world/world_cells/0732.png"
+  },
+  "733": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0733.png",
+   "name": "splash_2",
+   "path": "res://resources/sprites/world/world_cells/0733.png"
+  },
+  "734": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0734.png",
+   "name": "smoke_0",
+   "path": "res://resources/sprites/world/world_cells/0734.png"
+  },
+  "735": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0735.png",
+   "name": "smoke_1",
+   "path": "res://resources/sprites/world/world_cells/0735.png"
+  },
+  "736": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0736.png",
+   "name": "smoke_2",
+   "path": "res://resources/sprites/world/world_cells/0736.png"
+  },
+  "737": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0737.png",
+   "name": "smoke_3",
+   "path": "res://resources/sprites/world/world_cells/0737.png"
+  },
+  "738": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0738.png",
+   "name": "smoke_4",
+   "path": "res://resources/sprites/world/world_cells/0738.png"
+  },
+  "739": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0739.png",
+   "name": "smoke_5",
+   "path": "res://resources/sprites/world/world_cells/0739.png"
+  },
+  "74": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0074.png",
+   "path": "res://resources/sprites/world/world_cells/0074.png"
+  },
+  "740": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0740.png",
+   "name": "smoke_6",
+   "path": "res://resources/sprites/world/world_cells/0740.png"
+  },
+  "741": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0741.png",
+   "name": "smoke_7",
+   "path": "res://resources/sprites/world/world_cells/0741.png"
+  },
+  "749": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0749.png",
+   "name": "glitch_0",
+   "path": "res://resources/sprites/world/world_cells/0749.png"
+  },
+  "75": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0075.png",
+   "path": "res://resources/sprites/world/world_cells/0075.png"
+  },
+  "750": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0750.png",
+   "name": "glitch_1",
+   "path": "res://resources/sprites/world/world_cells/0750.png"
+  },
+  "751": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0751.png",
+   "name": "glitch_2",
+   "path": "res://resources/sprites/world/world_cells/0751.png"
+  },
+  "752": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0752.png",
+   "name": "tile_glitch_0",
+   "path": "res://resources/sprites/world/world_cells/0752.png"
+  },
+  "753": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0753.png",
+   "name": "tile_glitch_1",
+   "path": "res://resources/sprites/world/world_cells/0753.png"
+  },
+  "754": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0754.png",
+   "name": "tile_glitch_2",
+   "path": "res://resources/sprites/world/world_cells/0754.png"
+  },
+  "755": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0755.png",
+   "name": "tile_glitch_3",
+   "path": "res://resources/sprites/world/world_cells/0755.png"
+  },
+  "756": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0756.png",
+   "name": "hand_0",
+   "path": "res://resources/sprites/world/world_cells/0756.png"
+  },
+  "757": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0757.png",
+   "name": "hand_1",
+   "path": "res://resources/sprites/world/world_cells/0757.png"
+  },
+  "758": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0758.png",
+   "name": "hand_2",
+   "path": "res://resources/sprites/world/world_cells/0758.png"
+  },
+  "759": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0759.png",
+   "name": "hand_3",
+   "path": "res://resources/sprites/world/world_cells/0759.png"
+  },
+  "76": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0076.png",
+   "path": "res://resources/sprites/world/world_cells/0076.png"
+  },
+  "760": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0760.png",
+   "name": "fire_fx_0",
+   "path": "res://resources/sprites/world/world_cells/0760.png"
+  },
+  "761": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0761.png",
+   "name": "fire_fx_1",
+   "path": "res://resources/sprites/world/world_cells/0761.png"
+  },
+  "762": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0762.png",
+   "name": "fire_fx_2",
+   "path": "res://resources/sprites/world/world_cells/0762.png"
+  },
+  "763": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0763.png",
+   "name": "fire_fx_3",
+   "path": "res://resources/sprites/world/world_cells/0763.png"
+  },
+  "764": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0764.png",
+   "name": "fire_fx_4",
+   "path": "res://resources/sprites/world/world_cells/0764.png"
+  },
+  "765": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0765.png",
+   "name": "fire_fx_5",
+   "path": "res://resources/sprites/world/world_cells/0765.png"
+  },
+  "766": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0766.png",
+   "name": "fire_fx_6",
+   "path": "res://resources/sprites/world/world_cells/0766.png"
+  },
+  "767": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0767.png",
+   "name": "fire_fx_7",
+   "path": "res://resources/sprites/world/world_cells/0767.png"
+  },
+  "768": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0768.png",
+   "name": "fire_fx_8",
+   "path": "res://resources/sprites/world/world_cells/0768.png"
+  },
+  "769": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0769.png",
+   "name": "fire_fx_9",
+   "path": "res://resources/sprites/world/world_cells/0769.png"
+  },
+  "77": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0077.png",
+   "path": "res://resources/sprites/world/world_cells/0077.png"
+  },
+  "770": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0770.png",
+   "name": "fire_fx_10",
+   "path": "res://resources/sprites/world/world_cells/0770.png"
+  },
+  "771": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0771.png",
+   "name": "fire_fx_11",
+   "path": "res://resources/sprites/world/world_cells/0771.png"
+  },
+  "772": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0772.png",
+   "name": "fire_fx_12",
+   "path": "res://resources/sprites/world/world_cells/0772.png"
+  },
+  "773": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0773.png",
+   "name": "fire_fx_13",
+   "path": "res://resources/sprites/world/world_cells/0773.png"
+  },
+  "774": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0774.png",
+   "name": "fire_fx_14",
+   "path": "res://resources/sprites/world/world_cells/0774.png"
+  },
+  "775": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0775.png",
+   "name": "glitch_house",
+   "path": "res://resources/sprites/world/world_cells/0775.png"
+  },
+  "776": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0776.png",
+   "name": "glitch_tree",
+   "path": "res://resources/sprites/world/world_cells/0776.png"
+  },
+  "777": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0777.png",
+   "name": "waste_tree",
+   "path": "res://resources/sprites/world/world_cells/0777.png"
+  },
+  "778": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0778.png",
+   "name": "anomaly",
+   "path": "res://resources/sprites/world/world_cells/0778.png"
+  },
+  "779": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0779.png",
+   "name": "anomaly_ray",
+   "path": "res://resources/sprites/world/world_cells/0779.png"
+  },
+  "78": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0078.png",
+   "path": "res://resources/sprites/world/world_cells/0078.png"
+  },
+  "780": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0780.png",
+   "name": "epilogue_0",
+   "path": "res://resources/sprites/world/world_cells/0780.png"
+  },
+  "781": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0781.png",
+   "name": "epilogue_1",
+   "path": "res://resources/sprites/world/world_cells/0781.png"
+  },
+  "782": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0782.png",
+   "name": "epilogue_2",
+   "path": "res://resources/sprites/world/world_cells/0782.png"
+  },
+  "783": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0783.png",
+   "name": "epilogue_3",
+   "path": "res://resources/sprites/world/world_cells/0783.png"
+  },
+  "785": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0785.png",
+   "name": "rotten_apple",
+   "path": "res://resources/sprites/world/world_cells/0785.png"
+  },
+  "786": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0786.png",
+   "name": "suds",
+   "path": "res://resources/sprites/world/world_cells/0786.png"
+  },
+  "787": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0787.png",
+   "name": "glitch_tree_c",
+   "path": "res://resources/sprites/world/world_cells/0787.png"
+  },
+  "788": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0788.png",
+   "name": "glitch_tree_d",
+   "path": "res://resources/sprites/world/world_cells/0788.png"
+  },
+  "789": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0789.png",
+   "name": "waste_tree_b",
+   "path": "res://resources/sprites/world/world_cells/0789.png"
+  },
+  "79": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0079.png",
+   "path": "res://resources/sprites/world/world_cells/0079.png"
+  },
+  "790": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0790.png",
+   "name": "epi_apple",
+   "path": "res://resources/sprites/world/world_cells/0790.png"
+  },
+  "791": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0791.png",
+   "name": "mount_big",
+   "path": "res://resources/sprites/world/world_cells/0791.png"
+  },
+  "792": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0792.png",
+   "name": "mount_small",
+   "path": "res://resources/sprites/world/world_cells/0792.png"
+  },
+  "793": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0793.png",
+   "name": "mount_glitch",
+   "path": "res://resources/sprites/world/world_cells/0793.png"
+  },
+  "794": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0794.png",
+   "name": "grass_patch",
+   "path": "res://resources/sprites/world/world_cells/0794.png"
+  },
+  "795": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0795.png",
+   "name": "fumes_0",
+   "path": "res://resources/sprites/world/world_cells/0795.png"
+  },
+  "796": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0796.png",
+   "name": "fumes_1",
+   "path": "res://resources/sprites/world/world_cells/0796.png"
+  },
+  "797": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0797.png",
+   "name": "fumes_2",
+   "path": "res://resources/sprites/world/world_cells/0797.png"
+  },
+  "798": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0798.png",
+   "name": "fumes_3",
+   "path": "res://resources/sprites/world/world_cells/0798.png"
+  },
+  "799": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0799.png",
+   "name": "fumes_4",
+   "path": "res://resources/sprites/world/world_cells/0799.png"
+  },
+  "80": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0080.png",
+   "path": "res://resources/sprites/world/world_cells/0080.png"
+  },
+  "800": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0800.png",
+   "name": "fumes_5",
+   "path": "res://resources/sprites/world/world_cells/0800.png"
+  },
+  "801": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0801.png",
+   "name": "fumes_6",
+   "path": "res://resources/sprites/world/world_cells/0801.png"
+  },
+  "802": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0802.png",
+   "name": "fumes_7",
+   "path": "res://resources/sprites/world/world_cells/0802.png"
+  },
+  "803": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0803.png",
+   "name": "fire_blob_0",
+   "path": "res://resources/sprites/world/world_cells/0803.png"
+  },
+  "804": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0804.png",
+   "name": "fire_blob_1",
+   "path": "res://resources/sprites/world/world_cells/0804.png"
+  },
+  "805": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0805.png",
+   "name": "fire_blob_2",
+   "path": "res://resources/sprites/world/world_cells/0805.png"
+  },
+  "806": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0806.png",
+   "name": "fire_blob_3",
+   "path": "res://resources/sprites/world/world_cells/0806.png"
+  },
+  "807": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0807.png",
+   "name": "fire_blob_4",
+   "path": "res://resources/sprites/world/world_cells/0807.png"
+  },
+  "808": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0808.png",
+   "name": "fire_blob_5",
+   "path": "res://resources/sprites/world/world_cells/0808.png"
+  },
+  "809": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0809.png",
+   "name": "fire_blob_6",
+   "path": "res://resources/sprites/world/world_cells/0809.png"
+  },
+  "81": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0081.png",
+   "path": "res://resources/sprites/world/world_cells/0081.png"
+  },
+  "810": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0810.png",
+   "name": "fire_blob_7",
+   "path": "res://resources/sprites/world/world_cells/0810.png"
+  },
+  "82": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0082.png",
+   "path": "res://resources/sprites/world/world_cells/0082.png"
+  },
+  "85": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0085.png",
+   "path": "res://resources/sprites/world/world_cells/0085.png"
+  },
+  "86": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0086.png",
+   "path": "res://resources/sprites/world/world_cells/0086.png"
+  },
+  "87": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0087.png",
+   "name": "egg_0",
+   "path": "res://resources/sprites/world/world_cells/0087.png"
+  },
+  "88": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0088.png",
+   "name": "egg_1",
+   "path": "res://resources/sprites/world/world_cells/0088.png"
+  },
+  "89": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0089.png",
+   "name": "egg_2",
+   "path": "res://resources/sprites/world/world_cells/0089.png"
+  },
+  "90": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0090.png",
+   "name": "egg_3",
+   "path": "res://resources/sprites/world/world_cells/0090.png"
+  },
+  "91": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0091.png",
+   "name": "egg_4",
+   "path": "res://resources/sprites/world/world_cells/0091.png"
+  },
+  "92": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0092.png",
+   "name": "apple_bite_1",
+   "path": "res://resources/sprites/world/world_cells/0092.png"
+  },
+  "93": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0093.png",
+   "name": "apple_bite_2",
+   "path": "res://resources/sprites/world/world_cells/0093.png"
+  },
+  "94": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0094.png",
+   "name": "apple_bite_3",
+   "path": "res://resources/sprites/world/world_cells/0094.png"
+  },
+  "96": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0096.png",
+   "name": "tree",
+   "path": "res://resources/sprites/world/world_cells/0096.png"
+  },
+  "97": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0097.png",
+   "name": "rock",
+   "path": "res://resources/sprites/world/world_cells/0097.png"
+  },
+  "98": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0098.png",
+   "name": "ore_rock",
+   "path": "res://resources/sprites/world/world_cells/0098.png"
+  },
+  "99": {
+   "dirt": "res://resources/sprites/world/world_cells_dirt/0099.png",
+   "name": "node",
+   "path": "res://resources/sprites/world/world_cells/0099.png"
+  }
+ }
+}
