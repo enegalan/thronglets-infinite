@@ -477,7 +477,7 @@ static func building_draw_off(kind: int) -> Vector2:
 			return Vector2.ZERO
 
 
-# Extra world offset for occupied/active building sprites (dwell/fancy/theatre).
+# Extra world offset for occupied/active/goo building sprites.
 static func active_building_draw_off(kind: int) -> Vector2:
 	match kind:
 		BLD_DWELL:
@@ -486,12 +486,26 @@ static func active_building_draw_off(kind: int) -> Vector2:
 			return Vector2(18.8, 19.3)
 		BLD_THEATRE:
 			return Vector2(0.5, -0.5)
+		BLD_FACTORY, BLD_FACTORY2:
+			return Vector2(-14.0, -14.0)
 		_:
 			return Vector2.ZERO
 
 
 static func building_has_active(kind: int) -> bool:
-	return kind == BLD_DWELL or kind == BLD_FANCY or kind == BLD_THEATRE
+	return (
+		kind == BLD_DWELL or kind == BLD_FANCY or kind == BLD_THEATRE
+		or kind == BLD_MINE or kind == BLD_MINE2
+		or kind == BLD_FACTORY or kind == BLD_FACTORY2
+	)
+
+
+static func building_has_goo(kind: int) -> bool:
+	return (
+		kind == BLD_DWELL or kind == BLD_FANCY or kind == BLD_THEATRE
+		or kind == BLD_MINE or kind == BLD_MINE2
+		or kind == BLD_FACTORY or kind == BLD_FACTORY2
+	)
 
 
 static func feature_draw_off(kind: int, ore: int = 0) -> Vector2:

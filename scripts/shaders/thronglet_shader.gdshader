@@ -25,6 +25,7 @@ void fragment() {
 		discard;
 	}
 	// INSTANCE_CUSTOM.z > 0: solid silhouette for tool select outline.
+	// INSTANCE_CUSTOM.w > 0: multiply instance tint (props). Throngs leave w=0.
 	if (custom_data.z > 0.5) {
 		COLOR = vec4(inst_color.rgb, tex.a * inst_color.a);
 	} else {
@@ -35,6 +36,6 @@ void fragment() {
 			float factor = clamp(dirt.a * dirty, 0.0, 1.0);
 			tex.rgb = mix(tex.rgb, dirt.rgb, factor);
 		}
-		COLOR = (current_frame < 24 || current_frame >= 144) ? tex : tex * inst_color;
+		COLOR = mix(tex, tex * inst_color, clamp(custom_data.w, 0.0, 1.0));
 	}
 }

@@ -122,6 +122,7 @@ var shot_anims := false
 var shot_dirt := false
 var shot_ball := false
 var shot_wash := false
+var shot_bld_goo := false
 var shot_focus := Vector2(256, 256)
 var shot_span := 210.0
 var shot_throng := -1
@@ -323,7 +324,7 @@ func _ready() -> void:
 	var args := OS.get_cmdline_user_args()
 	perf_mode = args.has("--perf")
 	save_perf_mode = args.has("--save-perf")
-	shot_mode = args.has("--shot") or args.has("--shot-fx") or args.has("--shot-carry") or args.has("--shot-round") or args.has("--shot-apple") or args.has("--shot-needs") or args.has("--shot-anims") or args.has("--shot-dirt") or args.has("--shot-ball") or args.has("--shot-wash")
+	shot_mode = args.has("--shot") or args.has("--shot-fx") or args.has("--shot-carry") or args.has("--shot-round") or args.has("--shot-apple") or args.has("--shot-needs") or args.has("--shot-anims") or args.has("--shot-dirt") or args.has("--shot-ball") or args.has("--shot-wash") or args.has("--shot-bld-goo")
 	var pick_zoom_repro := args.has("--pick-zoom-repro")
 	testing = args.has("--smoke") or shot_mode or perf_mode or pick_zoom_repro or save_perf_mode
 	if args.has("--shot-fx"):
@@ -344,6 +345,8 @@ func _ready() -> void:
 		shot_ball = true
 	if args.has("--shot-wash"):
 		shot_wash = true
+	if args.has("--shot-bld-goo"):
+		shot_bld_goo = true
 	if testing and not save_perf_mode:
 		# Keep smoke/shot/perf saves inside the project so headless CI sandboxes can write.
 		save_path = ProjectSettings.globalize_path("res://shots/thronglets_smoke.save")
@@ -403,6 +406,8 @@ func _begin_smoke() -> void:
 			_prep_shot_ball()
 		elif shot_wash:
 			_prep_shot_wash()
+		elif shot_bld_goo:
+			_prep_shot_bld_goo()
 		else:
 			_prep_shot_world()
 		return
@@ -3162,6 +3167,8 @@ func _banned(b: Dictionary, i: int) -> bool:
 
 
 func _can_enter(b: Dictionary, i: int) -> bool:
+	if building_is_polluted(b):
+		return false
 	var rule := _visit_rule(int(b.kind))
 	if rule.is_empty():
 		return true
@@ -3522,6 +3529,30 @@ func _loot_spot(b: Dictionary) -> Vector2:
 	return _approach_spot(float(b.x), float(b.y), south + 8.0)
 
 
+func building_is_polluted(b: Dictionary) -> bool:
+	if b.is_empty() or bool(b.get("dead", false)):
+		return false
+	if not Catalog.building_has_goo(int(b.kind)):
+		return false
+	for cell in _footprint_cells(float(b.x), float(b.y), Catalog.footprint_for_building(int(b.kind))):
+		if _tile_at_cell(cell) == Catalog.TILE_GOO:
+			return true
+	return false
+
+
+func _shut_polluted_building(b: Dictionary) -> void:
+	for guest in b.get("guests", []):
+		var gid := int(guest.get("id", -1))
+		if gid >= 0 and gid < link_guest.size() and link_guest[gid] == int(b.id):
+			link_guest[gid] = -1
+	b.guests = []
+	b.away = []
+	b.active = false
+	if bool(b.get("incinerate", false)):
+		b.incinerate = false
+		b.burn = 0.0
+
+
 func _tick_buildings(dt: float) -> void:
 	for b in buildings:
 		if b.dead:
@@ -3530,6 +3561,9 @@ func _tick_buildings(dt: float) -> void:
 			b.active = false
 			continue
 		var kind := int(b.kind)
+		if building_is_polluted(b):
+			_shut_polluted_building(b)
+			continue
 		b.active = false
 		if kind == Catalog.BLD_APPLE:
 			_tick_apple_tree(b, dt)
@@ -3610,19 +3644,23 @@ func _tick_buildings(dt: float) -> void:
 
 
 func capacity_info(b: Dictionary) -> Dictionary:
-	if b.is_empty() or bool(b.get("dead", true)):
+	if b.is_empty() or bool(b.get("dead", false)):
 		return {}
 	var kind := int(b.kind)
+	if kind == Catalog.BLD_FACTORY or kind == Catalog.BLD_FACTORY2:
+		return {}
 	if _is_mine_kind(kind):
 		var cap := _mine_stock_cap(b)
 		var n := clampi(int(b.get("buffer", 0)), 0, cap)
-		return {"n": n, "cap": cap, "full": n >= cap, "mine": true}
+		return {"n": n, "cap": cap, "full": n >= cap, "mine": true, "visit": false}
+	if kind != Catalog.BLD_DWELL and kind != Catalog.BLD_FANCY and kind != Catalog.BLD_THEATRE:
+		return {}
 	var rule := _visit_rule(kind)
 	if rule.is_empty():
 		return {}
 	var cap2 := int(rule.cap)
 	var n2 := clampi(_live_guests(b), 0, cap2)
-	return {"n": n2, "cap": cap2, "full": n2 >= cap2, "mine": false}
+	return {"n": n2, "cap": cap2, "full": n2 >= cap2, "mine": false, "visit": true}
 
 
 func _tick_auras(dt: float) -> void:
@@ -7653,9 +7691,7 @@ func occupancy_text(b: Dictionary) -> String:
 		return ""
 	if bool(info.full):
 		return "LLENO"
-	if bool(info.get("mine", false)):
-		return ""
-	return "%d/%d" % [int(info.n), int(info.cap)]
+	return ""
 
 
 func _tick_props(dt: float) -> void:
@@ -8098,6 +8134,8 @@ func _nearest_building_kinds(x: float, y: float, kinds: Array, max_dist: float, 
 	var best_d := max_dist
 	for b in _buildings_for_kinds(kinds):
 		if b.dead or not kinds.has(int(b.kind)):
+			continue
+		if building_is_polluted(b):
 			continue
 		if who >= 0 and not _can_enter(b, who):
 			continue
@@ -9001,6 +9039,117 @@ func _as_i32(value) -> PackedInt32Array:
 
 
 
+func _shot_bld_goo_kinds() -> Array:
+	return [
+		{"kind": Catalog.BLD_DWELL, "name": "dwell"},
+		{"kind": Catalog.BLD_FANCY, "name": "fancy"},
+		{"kind": Catalog.BLD_THEATRE, "name": "theatre"},
+		{"kind": Catalog.BLD_MINE, "name": "mine"},
+		{"kind": Catalog.BLD_MINE2, "name": "mine2"},
+		{"kind": Catalog.BLD_FACTORY, "name": "factory"},
+		{"kind": Catalog.BLD_FACTORY2, "name": "factory2"},
+	]
+
+
+func _shot_force_pad(kind: int, x: float, y: float) -> Vector2:
+	var at := Catalog.snap_world(x, y)
+	for cell in _footprint_cells(at.x, at.y, Catalog.footprint_for_building(kind)):
+		_set_world_cell(cell.x, cell.y, Catalog.TILE_GRASS, true)
+	return at
+
+
+func _shot_paint_building_goo(b: Dictionary) -> void:
+	for cell in _footprint_cells(float(b.x), float(b.y), Catalog.footprint_for_building(int(b.kind))):
+		_set_world_cell(cell.x, cell.y, Catalog.TILE_GOO, false)
+	goo_count = _count_goo()
+
+
+func _shot_mop_building(b: Dictionary) -> void:
+	# Sweep the mop over every footprint cell (mines exceed one MOP_RADIUS).
+	for cell in _footprint_cells(float(b.x), float(b.y), Catalog.footprint_for_building(int(b.kind))):
+		var at := _cell_world(cell)
+		_mop(at.x, at.y)
+
+
+func _shot_activate_building(b: Dictionary) -> void:
+	var kind := int(b.kind)
+	if kind == Catalog.BLD_DWELL or kind == Catalog.BLD_FANCY or kind == Catalog.BLD_THEATRE:
+		var tid := _push_slot_quiet(float(b.x) + 400.0, float(b.y) + 400.0, 90.0, 90.0, 90.0, 90.0, 0)
+		if tid < 0:
+			b.active = true
+			return
+		b.guests = [{"id": tid, "left": 99.0}]
+		if tid < link_guest.size():
+			link_guest[tid] = int(b.id)
+		b.active = true
+		return
+	b.active = true
+	if kind == Catalog.BLD_FACTORY or kind == Catalog.BLD_FACTORY2:
+		_shot_fill_factory(b)
+		b.timer = _factory_cycle_time(kind) * 0.4
+	elif _is_mine_kind(kind):
+		b.buffer = maxi(1, int(b.get("buffer", 0)))
+
+
+func _shot_place_bld_row(kind: int) -> Dictionary:
+	# Left idle | mid active | right goo. Same kind for overlay alignment checks.
+	_clear_shot_props()
+	var size := Catalog.footprint_for_building(kind)
+	var gap := float(size.x + 2) * float(Catalog.TILE)
+	var cy := 256.0
+	var spots := [
+		Catalog.snap_world(256.0 - gap, cy),
+		Catalog.snap_world(256.0, cy),
+		Catalog.snap_world(256.0 + gap, cy),
+	]
+	var out := {"idle": {}, "active": {}, "goo": {}, "focus": Vector2(256.0, cy)}
+	var keys := ["idle", "active", "goo"]
+	for i in keys.size():
+		var at: Vector2 = spots[i]
+		at = _shot_force_pad(kind, at.x, at.y)
+		var b: Dictionary = _add_building(kind, at.x, at.y)
+		if b.is_empty():
+			# Nudge a little if bind failed on the first try.
+			for n in 8:
+				var nx := at.x + float((n % 4) - 1) * float(Catalog.TILE)
+				var ny := at.y + float(int(n / 4) - 1) * float(Catalog.TILE)
+				_shot_force_pad(kind, nx, ny)
+				b = _add_building(kind, nx, ny)
+				if not b.is_empty():
+					break
+		if b.is_empty():
+			out["error"] = "place %s col=%s" % [kind, keys[i]]
+			return out
+		out[keys[i]] = b
+	_shot_activate_building(out.active)
+	_shot_paint_building_goo(out.goo)
+	var span := gap + float(size.x) * float(Catalog.TILE) * 0.75
+	shot_focus = out.focus
+	shot_span = maxf(120.0, span)
+	view_rect = Rect2(shot_focus.x - shot_span, shot_focus.y - shot_span, shot_span * 2.0, shot_span * 2.0)
+	_rebuild_hash()
+	smoke_hold = true
+	return out
+
+
+func _prep_shot_bld_goo() -> void:
+	# Capture harness places each idle|active|goo row and the mop pair.
+	unlocks.dwelling = true
+	unlocks.fancy = true
+	unlocks.theatre = true
+	unlocks.mine = true
+	unlocks.mine2 = true
+	unlocks.factory = true
+	unlocks.factory2 = true
+	unlocks.mop = true
+	_clear_shot_props()
+	shot_focus = Vector2(256.0, 256.0)
+	shot_span = 140.0
+	view_rect = Rect2(shot_focus.x - shot_span, shot_focus.y - shot_span, shot_span * 2.0, shot_span * 2.0)
+	smoke_hold = true
+	print("SHOT BLD GOO READY")
+
+
 func _prep_shot_wash() -> void:
 	_clear_shot_props()
 	# Left: ACT_WASH + bubbles on body. Right: post-wash Happy stand + one CLEAN burst.
@@ -9404,6 +9553,9 @@ func _clear_shot_props() -> void:
 	living = 0
 	hand_id = -1
 	_clear_held()
+	_rebuild_kind_indexes()
+	_invalidate_factory_cache()
+	_invalidate_walk_cells()
 
 
 func _shot_spot(taken: Dictionary, size: Vector2i, halo: int = 1, margin: float = 40.0, skirt: int = 0) -> Vector2:

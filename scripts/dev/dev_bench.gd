@@ -660,6 +660,9 @@ func _paint_inst(draws: Array, row: Dictionary, origin: Vector2, alpha: float, u
 	if str(row.get("group", "")) == "building" and _want_active_sprite(kind):
 		_paint_active_building(draws, kind, origin, alpha, uid, used, tune)
 		return
+	if str(row.get("group", "")) == "building" and (kind == Catalog.BLD_ROUND or kind == Catalog.BLD_FLOWER):
+		_paint_structure_anim(draws, kind, origin, alpha, _frame_of(row), tune, uid, used)
+		return
 	var frame := _frame_of(row)
 	var at: Vector2 = _anchor(row, origin, tune, frame)
 	main._push_iso(draws, at, frame, Color(1, 1, 1, alpha), 0.0, float(tune.scale))
@@ -695,7 +698,9 @@ func _frame_of(row: Dictionary) -> int:
 			return main.EGG_ANIM + posmod(int(time * 4.0), 5)
 		return main._prop_frame(Catalog.icon_for_item(kind))
 	if kind == Catalog.BLD_ROUND:
-		return main.ROUND_ANIM + posmod(int(time * 8.0), 8)
+		return posmod(int(time * 8.0), main.ROUND_ANIM_N)
+	if kind == Catalog.BLD_FLOWER:
+		return posmod(int(time * 6.0), main.FLOWER_ANIM_N)
 	return main._prop_frame(int(row.icon))
 
 
@@ -1098,7 +1103,7 @@ func _section(text: String) -> void:
 func _add_palette(row: Dictionary) -> void:
 	var button := Button.new()
 	if str(row.group) == "feature" and int(row.kind) == Catalog.FEAT_ANOMALY:
-		button.icon = _frame_tex(AssetFrames.ANOMALY)
+		button.icon = main._cell_tex(AssetFrames.ANOMALY)
 	else:
 		button.icon = main._atlas_icon(int(row.icon))
 	button.tooltip_text = str(row.label)
@@ -1998,9 +2003,9 @@ func _paint_effect_partner(draws: Array, origin: Vector2, alpha: float) -> float
 		var before := draws.size()
 		var prop_frame := -1
 		if kind == Catalog.BLD_ROUND:
-			prop_frame = main.ROUND_ANIM + posmod(int(effect_t * 8.0), 8)
+			prop_frame = posmod(int(effect_t * 8.0), main.ROUND_ANIM_N)
 		elif kind == Catalog.BLD_FLOWER:
-			prop_frame = main.FLOWER_ANIM + posmod(int(effect_t * 6.0), main.FLOWER_ANIM_N)
+			prop_frame = posmod(int(effect_t * 6.0), main.FLOWER_ANIM_N)
 		_paint_building(draws, kind, partner_at, alpha, prop_frame)
 		if draws.size() > before:
 			return float(draws[draws.size() - 1].get("sy", 0.0)) + 1.0
@@ -2485,7 +2490,7 @@ func _paint_tuned(draws: Array, origin: Vector2, alpha: float) -> void:
 		var before := draws.size()
 		var prop_frame := -1
 		if kind == Catalog.BLD_ROUND:
-			prop_frame = main.ROUND_ANIM + posmod(_shown_index(), 8)
+			prop_frame = posmod(_shown_index(), main.ROUND_ANIM_N)
 		_paint_building(draws, kind, origin, alpha, prop_frame)
 		if draws.size() > before:
 			sort_y = float(draws[draws.size() - 1].get("sy", 0.0)) + 1.0
@@ -2504,10 +2509,18 @@ func _paint_anim(draws: Array, origin: Vector2, alpha: float) -> void:
 	var key := _anim_key(clip_name)
 	var index := _shown_index()
 	var off: Vector2 = AnimTune.frame_offset(key, index)
-	var frame := _box().x + index
 	var scale := AnimTune.frame_scale(key, index)
-	if key == "round":
-		scale = Catalog.building_sprite_scale(Catalog.BLD_ROUND) * scale
+	if key == "round" or key == "flower":
+		var kind := Catalog.BLD_ROUND if key == "round" else Catalog.BLD_FLOWER
+		if key == "round":
+			scale = Catalog.building_sprite_scale(Catalog.BLD_ROUND) * scale
+		else:
+			scale = Catalog.building_sprite_scale(Catalog.BLD_FLOWER) * scale
+		_paint_building(draws, kind, origin + off, alpha, index)
+		if not draws.is_empty():
+			draws[draws.size() - 1]["rot"] = AnimTune.frame_rot(key, index)
+		return
+	var frame := _box().x + index
 	main._push_iso(draws, origin + off, frame, Color(1, 1, 1, alpha), 0.0, scale)
 	draws[draws.size() - 1]["rot"] = AnimTune.frame_rot(key, index)
 	if mirror:
@@ -2536,6 +2549,9 @@ func _paint_building(draws: Array, kind: int, origin: Vector2, alpha: float, fra
 	if _want_active_sprite(kind):
 		_paint_active_building(draws, kind, origin, alpha, EFFECT_ACTIVE_UID, _node_used, tune)
 		return
+	if kind == Catalog.BLD_ROUND or kind == Catalog.BLD_FLOWER:
+		_paint_structure_anim(draws, kind, origin, alpha, frame_override, tune, EFFECT_ACTIVE_UID, _node_used)
+		return
 	var frame := frame_override
 	if frame < 0:
 		frame = _frame_of(row)
@@ -2547,6 +2563,63 @@ func _paint_building(draws: Array, kind: int, origin: Vector2, alpha: float, fra
 	var last: Dictionary = draws[draws.size() - 1]
 	last["sy"] = float(last.get("sy", last.p.y)) + float(tune.z)
 	last["rot"] = float(tune.rot)
+
+
+func _paint_structure_anim(
+	draws: Array,
+	kind: int,
+	origin: Vector2,
+	alpha: float,
+	anim_idx: int,
+	tune: Dictionary,
+	uid: int,
+	used: Dictionary
+) -> void:
+	var idx := anim_idx
+	if idx < 0:
+		idx = _frame_of(PropTune.entry("building:%d" % kind))
+	var tex: Texture2D = main._structure_anim_texture(kind, idx)
+	if tex == null:
+		tex = main._idle_structure_texture(kind)
+	if tex == null:
+		return
+	var frame: int = main._prop_frame(Catalog.icon_for_building(kind))
+	var size: Vector2i = tune.get("footprint", Vector2i(1, 1))
+	var sprite_scale := float(tune.scale)
+	if kind == Catalog.BLD_ROUND:
+		sprite_scale *= AnimTune.frame_scale("round", idx)
+	var at: Vector2 = origin + Catalog.footprint_center(size) + main._pad_nudge(frame, sprite_scale, size)
+	if kind == Catalog.BLD_ROUND:
+		at += AnimTune.frame_offset("round", idx)
+	var screen_p: Vector2 = main.cam_rig.to_iso(at)
+	var node: Sprite2D = _take_structure_sprite(uid, tex)
+	node.scale = Vector2(sprite_scale, sprite_scale)
+	node.rotation_degrees = float(tune.rot)
+	if kind == Catalog.BLD_ROUND:
+		node.rotation_degrees += AnimTune.frame_rot("round", idx)
+	node.modulate = Color(1, 1, 1, alpha)
+	node.position = screen_p + Vector2(0, -main.WORLD_CELL * 0.5 * sprite_scale)
+	node.visible = true
+	used[uid] = true
+	# Fake draw row so callers can read sort_y.
+	draws.append({"p": screen_p, "sy": screen_p.y + float(tune.z), "icon": frame, "tint": Color(1, 1, 1, alpha), "scale": sprite_scale})
+
+
+func _take_structure_sprite(uid: int, tex: Texture2D) -> Sprite2D:
+	if nodes.has(uid) and is_instance_valid(nodes[uid]) and nodes[uid] is Sprite2D:
+		var kept: Sprite2D = nodes[uid]
+		kept.texture = tex
+		return kept
+	if nodes.has(uid) and is_instance_valid(nodes[uid]):
+		nodes[uid].queue_free()
+		nodes.erase(uid)
+	var node := Sprite2D.new()
+	node.centered = true
+	node.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	node.texture = tex
+	main.world_layer.add_child(node)
+	nodes[uid] = node
+	return node
 
 
 func _stroke_partner(poly: PackedVector2Array) -> void:
@@ -2652,7 +2725,7 @@ func _build_strip() -> void:
 	selected_frames = keep
 	for i in box.y:
 		var button := Button.new()
-		button.icon = _frame_tex(box.x + i)
+		button.icon = main._cell_tex(box.x + i)
 		button.custom_minimum_size = Vector2(28, 28)
 		button.expand_icon = true
 		button.focus_mode = Control.FOCUS_NONE
@@ -2713,20 +2786,6 @@ func _range_frames(i: int) -> void:
 	frame_i = target
 	_sync_play_button()
 	_sync_playhead()
-
-
-func _frame_tex(frame: int) -> AtlasTexture:
-	var tex: Texture2D = main.world.texture
-	var atlas := AtlasTexture.new()
-	atlas.atlas = tex
-	var cols := ThrongClips.SHEET_COLS
-	var rows := ThrongClips.SHEET_ROWS
-	var cw := float(tex.get_width()) / float(cols)
-	var ch := float(tex.get_height()) / float(rows)
-	var col := frame % cols
-	var row := frame / cols
-	atlas.region = Rect2(float(col) * cw, float(row) * ch, cw, ch)
-	return atlas
 
 
 func _fill_clip() -> void:
@@ -3622,7 +3681,7 @@ func _lab_tick_draw() -> void:
 	if not lab_carousel.is_empty():
 		var pos: Vector2 = lab_carousel.get("pos", Catalog.cell_world(Vector2i(8, 16)))
 		var spin: float = float(lab_carousel.get("spin", 0.0))
-		var prop_frame: int = int(main.ROUND_ANIM) + posmod(int(spin * 4.0), 8)
+		var prop_frame: int = posmod(int(spin * 4.0), main.ROUND_ANIM_N)
 		_paint_building(draws, Catalog.BLD_ROUND, pos, 1.0, prop_frame)
 		if not draws.is_empty():
 			# keep building at a base depth so riders can sort in front/behind by seat

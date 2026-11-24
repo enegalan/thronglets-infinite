@@ -36,10 +36,13 @@ var world_mesh: MultiMesh
 var world_layer: Node2D
 var throng_crowd: MultiMeshInstance2D
 var throng_crowd_mesh: MultiMesh
-var feat_static: MultiMeshInstance2D
+var feat_static: Node2D
 var feat_static_mesh: MultiMesh
-var void_back: MultiMeshInstance2D
+var void_back: Node2D
 var void_back_mesh: MultiMesh
+var focus_root: Node2D
+var _focus_bands: Array = []
+var _focus_band_cursor := 0
 var _crowd_default_frame := -1
 var _crowd_walk_frame := -1
 var _crowd_sad_frame := -1
@@ -51,7 +54,16 @@ var hand_vel_init := false
 var _prop_bands: Array = []
 var _monoliths := {}
 var _building_active_sprites := {}
+var _idle_structure_tex := {}
 var _active_structure_tex := {}
+var _goo_structure_tex := {}
+var _structure_anim_tex := {}
+var _cell_tex_cache := {}
+var _cell_dirt_cache := {}
+var _band_cursor := 0
+var _void_bands: Array = []
+var _void_band_cursor := 0
+var _feat_bands: Array = []
 var _bark_tex_cache := {}
 var _bark_atlas_img: Image
 var _atlas_tex_cache := {}
@@ -84,10 +96,9 @@ var tool_charge := 0.0
 var tool_charge_key := ""
 var tool_charge_n := 0
 const EGG_ANIM := 87
-const ROUND_ANIM := 132
 const THRONG_SPRITE_SCALE := 0.4
 const FIRE_ANIM := 140
-const FLOWER_ANIM := 742
+const ROUND_ANIM_N := 8
 const FLOWER_ANIM_N := 7
 const RIVER_ATLAS := 12
 const WASTE_ATLAS := 48
@@ -276,7 +287,6 @@ var build_buttons := {}
 var boot := ""
 var logo_started := false
 var logo_wait := 0.0
-var biome_plates: Array[Sprite2D] = []
 
 
 func _ready() -> void:
@@ -530,7 +540,6 @@ func _process(delta: float) -> void:
 	_sync_world()
 	_sync_charge_mark(delta)
 	_sync_actors()
-	_sync_biome_plates()
 	_sync_place_mark()
 	_sync_hitboxes()
 	_sync_agent_debug()
@@ -558,7 +567,6 @@ func _process_perf(delta: float) -> void:
 	var t0 := Time.get_ticks_usec()
 	_sync_actors()
 	set_meta("perf_sync_ms", float(Time.get_ticks_usec() - t0) * 0.001)
-	_sync_biome_plates()
 	_sync_place_mark()
 	_sync_hud(delta)
 	_sync_need_bars()
@@ -582,7 +590,6 @@ func _process_save_perf(delta: float) -> void:
 	var ts := Time.get_ticks_usec()
 	_sync_actors()
 	set_meta("save_perf_sync_ms", float(Time.get_ticks_usec() - ts) * 0.001)
-	_sync_biome_plates()
 	_sync_place_mark()
 	_sync_hud(delta)
 	_sync_need_bars()
@@ -1125,59 +1132,6 @@ func _clear_world_sprite_registry() -> void:
 	_building_active_sprites.clear()
 
 
-func _biome_plate_paths(biome: String) -> PackedStringArray:
-	if biome == "epilogue":
-		return PackedStringArray([
-			"res://resources/sprites/plates/T_Epilogue_Tree1.png",
-			"res://resources/sprites/plates/T_Epilogue_Tree2.png",
-			"res://resources/sprites/plates/T_Epilogue_Tree3_Neurons.png",
-		])
-	if biome == "anomaly":
-		return PackedStringArray([
-			"res://resources/sprites/plates/Anomaly_Base_Shape.png",
-			"res://resources/sprites/plates/Anomaly_Blue_Outline.png",
-			"res://resources/sprites/plates/Anomaly_Pink_Outline.png",
-		])
-	return PackedStringArray()
-
-
-func _sync_biome_plates() -> void:
-	if biome_plates.is_empty():
-		for biome in ["epilogue", "anomaly"]:
-			var paths := _biome_plate_paths(biome)
-			for i in paths.size():
-				var sprite := Sprite2D.new()
-				sprite.texture = ui_assets.tex(paths[i])
-				sprite.centered = true
-				sprite.z_index = 1
-				sprite.visible = false
-				sprite.set_meta("biome", biome)
-				sprite.set_meta("plate", i)
-				add_child(sprite)
-				biome_plates.append(sprite)
-	var shown := {}
-	for key in ThrongletSimServer.special_biomes:
-		var biome := str(ThrongletSimServer.special_biomes[key])
-		if _biome_plate_paths(biome).is_empty() or shown.has(biome):
-			continue
-		shown[biome] = str(key)
-	var pick := int(anim_time * 1000.0 / 1400.0)
-	for sprite in biome_plates:
-		var biome := str(sprite.get_meta("biome"))
-		var paths := _biome_plate_paths(biome)
-		var on := shown.has(biome) and sprite.texture != null and int(sprite.get_meta("plate")) == posmod(pick, paths.size())
-		sprite.visible = on
-		if not on:
-			continue
-		var parts := str(shown[biome]).split(",")
-		var cx := int(parts[0])
-		var cy := int(parts[1])
-		var center := Vector2(float(cx * Catalog.CHUNK + Catalog.CHUNK / 2) * Catalog.TILE, float(cy * Catalog.CHUNK + Catalog.CHUNK / 2) * Catalog.TILE)
-		sprite.position = cam_rig.to_iso(center)
-		sprite.scale = Vector2.ONE * (280.0 / maxf(float(sprite.texture.get_width()), 1.0))
-		sprite.modulate = Color(1, 1, 1, 0.72 if biome == "anomaly" else 0.42)
-
-
 func _sync_actors() -> void:
 	var sim: ThrongletSim = ThrongletSimServer
 	var view := cam_rig.world_view().grow(64.0)
@@ -1289,43 +1243,58 @@ func _sync_actors() -> void:
 			var b_frame := _prop_frame(Catalog.icon_for_building(b_kind))
 			var b_off := Vector2.ZERO
 			var b_rot := 0.0
-			var round_idx := 0
+			var anim_idx := -1
 			if b_kind == Catalog.BLD_FLOWER:
-				b_frame = FLOWER_ANIM + int(time_pre * 6.0) % FLOWER_ANIM_N
-			if b_kind == Catalog.BLD_ROUND and bool(b.get("active", false)):
+				anim_idx = posmod(int(time_pre * 6.0), FLOWER_ANIM_N)
+			elif b_kind == Catalog.BLD_ROUND and bool(b.get("active", false)):
 				# Disk wedges follow the same spin the riders orbit on.
 				var spin := float(b.get("spin", 0.0))
-				round_idx = posmod(int(floor(spin / (TAU / 8.0))), 8)
-				b_frame = ROUND_ANIM + round_idx
-				b_off = AnimTune.frame_offset("round", round_idx)
-				b_rot = AnimTune.frame_rot("round", round_idx)
+				anim_idx = posmod(int(floor(spin / (TAU / float(ROUND_ANIM_N)))), ROUND_ANIM_N)
+				b_off = AnimTune.frame_offset("round", anim_idx)
+				b_rot = AnimTune.frame_rot("round", anim_idx)
 			if bool(b.get("active", false)) and b_kind != Catalog.BLD_APPLE:
 				if b_kind == Catalog.BLD_TUB:
 					b_tint = Color(0.85, 0.95, 1.0)
-				elif b_kind != Catalog.BLD_ROUND:
-					var mine_kind := b_kind == Catalog.BLD_MINE or b_kind == Catalog.BLD_MINE2
-					var factory_kind := b_kind == Catalog.BLD_FACTORY or b_kind == Catalog.BLD_FACTORY2
-					# Mines/factories stay planted; bounce was a leftover "active" cue.
-					if not mine_kind and not factory_kind:
-						b_lift = absf(sin(time_pre * 8.0 + float(b.id))) * 2.2
-					if factory_kind:
-						b_tint = Color(1.0, 0.9, 0.82)
-					elif mine_kind:
-						b_tint = Color(1.0, 0.95, 0.75)
+				elif b_kind != Catalog.BLD_ROUND and not Catalog.building_has_active(b_kind):
+					b_lift = absf(sin(time_pre * 8.0 + float(b.id))) * 2.2
 			var b_scale := Catalog.building_sprite_scale(b_kind)
-			if b_kind == Catalog.BLD_ROUND and bool(b.get("active", false)):
-				b_scale *= AnimTune.frame_scale("round", round_idx)
+			if b_kind == Catalog.BLD_ROUND and anim_idx >= 0:
+				b_scale *= AnimTune.frame_scale("round", anim_idx)
 			var b_sort_y := NAN
 			if b_kind == Catalog.BLD_MINE or b_kind == Catalog.BLD_MINE2:
 				# Mines are walkable ground pads: render above ground but below entities on top.
 				b_sort_y = -1000000.0
-			var occupied_home := (
-				(b_kind == Catalog.BLD_DWELL or b_kind == Catalog.BLD_FANCY or b_kind == Catalog.BLD_THEATRE)
-				and sim.has_method("_live_guests")
-				and int(sim._live_guests(b)) > 0
-			)
-			if occupied_home and _active_structure_texture(b_kind) != null:
-				_sync_active_building_sprite(int(b.id), b_kind, p3, b_scale, b_sort_y)
+			var polluted := sim.has_method("building_is_polluted") and bool(sim.building_is_polluted(b))
+			var show_on := false
+			if not polluted and Catalog.building_has_active(b_kind):
+				if (
+					b_kind == Catalog.BLD_DWELL
+					or b_kind == Catalog.BLD_FANCY
+					or b_kind == Catalog.BLD_THEATRE
+				):
+					show_on = (
+						sim.has_method("_live_guests")
+						and int(sim._live_guests(b)) > 0
+					)
+				else:
+					show_on = bool(b.get("active", false))
+			var sprite_tex: Texture2D = null
+			if polluted:
+				sprite_tex = _goo_structure_texture(b_kind)
+			elif anim_idx >= 0:
+				sprite_tex = _structure_anim_texture(b_kind, anim_idx)
+			elif show_on:
+				sprite_tex = _active_structure_texture(b_kind)
+			if sprite_tex == null:
+				sprite_tex = _idle_structure_texture(b_kind)
+			if sprite_tex != null:
+				var bid := int(b.id)
+				var b_outline := Color.TRANSPARENT
+				if outlined_bld_ids.has(bid):
+					b_outline = Color(0.35, 1.0, 0.45, 1.0)
+				elif tool_charge > 0.02 and str(tool_charge_key).begins_with("bld:") and int(str(tool_charge_key).substr(4)) == bid:
+					b_outline = Color(0.35, 1.0, 0.45, 1.0)
+				_sync_active_building_sprite(bid, b_kind, p3, b_scale, b_sort_y, sprite_tex, b_tint, b_outline, b_off, b_rot)
 			else:
 				_hide_active_building_sprite(int(b.id))
 				var b_outline := Color.TRANSPARENT
@@ -1641,8 +1610,7 @@ func _sync_actors() -> void:
 	draws.append_array(egg_front)
 	draws.append_array(drag_front)
 	_paint_props(draws)
-	if void_back_mesh != null:
-		_write_mesh(void_back_mesh, void_back_draws)
+	_write_void_draws(void_back_draws)
 
 
 
@@ -1727,35 +1695,23 @@ func _push_far_feat_overlays(draws: Array, view: Rect2, time_pre: float) -> void
 
 func _clear_feat_static() -> void:
 	_feat_static_active = false
-	if feat_static_mesh != null:
-		feat_static_mesh.visible_instance_count = 0
+	for band in _feat_bands:
+		if band != null and is_instance_valid(band):
+			_write_mesh(band.multimesh, [])
+			band.visible = false
 	if feat_static != null:
 		feat_static.visible = false
 
 
 func _ensure_feat_static() -> void:
 	var sim: ThrongletSim = ThrongletSimServer
-	if feat_static_mesh == null:
+	if feat_static == null:
 		return
 	if _feat_static_active and _feat_static_epoch == sim.feat_mesh_epoch:
 		return
 	_feat_static_epoch = sim.feat_mesh_epoch
 	_feat_static_active = true
-	var written := 0
-	var need := 0
-	for feat in sim.features:
-		if feat.dead or bool(feat.get("lifted", false)):
-			continue
-		if not _feat_is_batchable(int(feat.kind)):
-			continue
-		if not sim.chunk_shown(sim._ck(int(feat.cx), int(feat.cy))):
-			continue
-		need += 1
-	var old_vis := feat_static_mesh.visible_instance_count
-	if feat_static_mesh.instance_count < need:
-		feat_static_mesh.instance_count = maxi(16, need)
-	var xf := Transform2D()
-	var hide_xf := Transform2D(0.0, Vector2.ZERO, 0.0, Vector2(-100000.0, -100000.0))
+	var by_frame := {}
 	for feat in sim.features:
 		if feat.dead or bool(feat.get("lifted", false)):
 			continue
@@ -1769,17 +1725,84 @@ func _ensure_feat_static() -> void:
 		var at := cam_rig.to_iso(_feature_draw_at(kind, origin, ore))
 		var sprite_scale := Catalog.feature_sprite_scale(kind, ore)
 		var frame := _prop_frame(Catalog.icon_for_feature(kind, ore))
-		var center := Vector2(0, -WORLD_CELL * 0.5 * sprite_scale)
-		xf = Transform2D(0.0, Vector2(sprite_scale, sprite_scale), 0.0, at + center)
-		feat_static_mesh.set_instance_transform_2d(written, xf)
-		feat_static_mesh.set_instance_custom_data(written, Color(float(frame), 0.0, 0.0, 0.0))
-		feat_static_mesh.set_instance_color(written, Color.WHITE)
-		written += 1
-	# Park shrunk slots off-screen — some drivers ignore visible_instance_count.
-	for leftover in range(written, maxi(written, old_vis)):
-		feat_static_mesh.set_instance_transform_2d(leftover, hide_xf)
-	feat_static_mesh.visible_instance_count = written
-	feat_static.visible = written > 0
+		if not by_frame.has(frame):
+			by_frame[frame] = []
+		by_frame[frame].append({
+			"p": at,
+			"icon": frame,
+			"tint": Color.WHITE,
+			"scale": sprite_scale,
+		})
+	var frames: Array = by_frame.keys()
+	frames.sort()
+	while _feat_bands.size() < frames.size():
+		var band := MultiMeshInstance2D.new()
+		band.multimesh = _mesh(true, Vector2(WORLD_CELL, WORLD_CELL))
+		feat_static.add_child(band)
+		_feat_bands.append(band)
+	for i in _feat_bands.size():
+		var band: MultiMeshInstance2D = _feat_bands[i]
+		if i >= frames.size():
+			_write_mesh(band.multimesh, [])
+			band.visible = false
+			continue
+		var frame := int(frames[i])
+		_bind_band_frame(band, frame)
+		_write_mesh(band.multimesh, by_frame[frame])
+		band.visible = true
+	feat_static.visible = not frames.is_empty()
+
+
+func _write_void_draws(draws: Array) -> void:
+	if void_back == null:
+		return
+	_void_band_cursor = 0
+	_append_container_frame_runs(void_back, _void_bands, "_void_band_cursor", draws)
+	for j in range(_void_band_cursor, _void_bands.size()):
+		_write_mesh(_void_bands[j].multimesh, [])
+		_void_bands[j].visible = false
+	void_back.visible = _void_band_cursor > 0
+
+
+func _write_focus_draws(draws: Array) -> void:
+	if focus_root == null:
+		return
+	_focus_band_cursor = 0
+	_append_container_frame_runs(focus_root, _focus_bands, "_focus_band_cursor", draws)
+	for j in range(_focus_band_cursor, _focus_bands.size()):
+		_write_mesh(_focus_bands[j].multimesh, [])
+		_focus_bands[j].visible = false
+
+
+func _append_container_frame_runs(root: Node2D, bands: Array, cursor_name: String, draws: Array) -> void:
+	if draws.is_empty():
+		return
+	var run: Array = []
+	var run_frame := int(draws[0].icon)
+	for d in draws:
+		var fr := int(d.icon)
+		if fr != run_frame:
+			_emit_container_run(root, bands, cursor_name, run_frame, run)
+			run = []
+			run_frame = fr
+		run.append(d)
+	_emit_container_run(root, bands, cursor_name, run_frame, run)
+
+
+func _emit_container_run(root: Node2D, bands: Array, cursor_name: String, frame: int, run: Array) -> void:
+	if run.is_empty():
+		return
+	var cursor := int(get(cursor_name))
+	while bands.size() <= cursor:
+		var band := MultiMeshInstance2D.new()
+		band.multimesh = _mesh(true, Vector2(WORLD_CELL, WORLD_CELL))
+		root.add_child(band)
+		bands.append(band)
+	var band2: MultiMeshInstance2D = bands[cursor]
+	set(cursor_name, cursor + 1)
+	_bind_band_frame(band2, frame)
+	_write_mesh(band2.multimesh, run)
+	band2.visible = true
 
 
 func _push_throng_crowd_draws(draws: Array, ids: Array, time: float, far_view: bool) -> void:
@@ -2846,12 +2869,15 @@ func _building_draw_at(kind: int, origin: Vector2) -> Vector2:
 	return origin + Catalog.footprint_center(size) + _pad_nudge(frame, scale, size) + Catalog.building_draw_off(kind)
 
 
-# Active/occupied sprite: same pad anchor as idle, but its own offset (not building_draw_off).
+# Loose building PNGs (idle/active/goo): pad + active offset when set, else idle draw_off.
 func _building_active_draw_at(kind: int, origin: Vector2) -> Vector2:
 	var size := Catalog.footprint_for_building(kind)
 	var frame := _prop_frame(Catalog.icon_for_building(kind))
 	var scale := Catalog.building_sprite_scale(kind)
-	return origin + Catalog.footprint_center(size) + _pad_nudge(frame, scale, size) + Catalog.active_building_draw_off(kind)
+	var off := Catalog.active_building_draw_off(kind)
+	if off == Vector2.ZERO:
+		off = Catalog.building_draw_off(kind)
+	return origin + Catalog.footprint_center(size) + _pad_nudge(frame, scale, size) + off
 
 
 func _feature_draw_at(kind: int, origin: Vector2, ore: int = 0) -> Vector2:
@@ -2984,6 +3010,39 @@ func _sync_monolith(id: int, world_pos: Vector2, feat: Dictionary, t: float) -> 
 		node.sync_state(feat, t)
 
 
+func _idle_structure_sprite_path(kind: int) -> String:
+	match kind:
+		Catalog.BLD_DWELL:
+			return "res://resources/structures/buildings/dwell.png"
+		Catalog.BLD_FANCY:
+			return "res://resources/structures/buildings/fancy.png"
+		Catalog.BLD_THEATRE:
+			return "res://resources/structures/buildings/theatre.png"
+		Catalog.BLD_MINE:
+			return "res://resources/structures/buildings/mine.png"
+		Catalog.BLD_MINE2:
+			return "res://resources/structures/buildings/mine2.png"
+		Catalog.BLD_FACTORY:
+			return "res://resources/structures/buildings/factory.png"
+		Catalog.BLD_FACTORY2:
+			return "res://resources/structures/buildings/factory2.png"
+		Catalog.BLD_APPLE:
+			return "res://resources/structures/buildings/apple.png"
+		Catalog.BLD_TUB:
+			return "res://resources/structures/buildings/tub.png"
+		Catalog.BLD_ROUND:
+			return "res://resources/structures/buildings/round.png"
+		Catalog.BLD_FLOWER:
+			return "res://resources/structures/buildings/flower.png"
+		Catalog.BLD_MARKET:
+			return "res://resources/structures/buildings/market.png"
+		Catalog.BLD_STATUE:
+			return "res://resources/structures/buildings/statue.png"
+		Catalog.BLD_WOOD:
+			return "res://resources/structures/buildings/wood.png"
+	return ""
+
+
 func _active_structure_sprite_path(kind: int) -> String:
 	match kind:
 		Catalog.BLD_DWELL:
@@ -2992,22 +3051,93 @@ func _active_structure_sprite_path(kind: int) -> String:
 			return "res://resources/structures/buildings/fancy_active.png"
 		Catalog.BLD_THEATRE:
 			return "res://resources/structures/buildings/theatre_active.png"
+		Catalog.BLD_MINE:
+			return "res://resources/structures/buildings/mine_active.png"
+		Catalog.BLD_MINE2:
+			return "res://resources/structures/buildings/mine2_active.png"
+		Catalog.BLD_FACTORY:
+			return "res://resources/structures/buildings/factory_active.png"
+		Catalog.BLD_FACTORY2:
+			return "res://resources/structures/buildings/factory2_active.png"
 	return ""
 
 
-func _active_structure_texture(kind: int) -> Texture2D:
-	if _active_structure_tex.has(kind):
-		return _active_structure_tex[kind]
-	var path := _active_structure_sprite_path(kind)
+func _goo_structure_sprite_path(kind: int) -> String:
+	match kind:
+		Catalog.BLD_DWELL:
+			return "res://resources/structures/buildings/dwell_goo.png"
+		Catalog.BLD_FANCY:
+			return "res://resources/structures/buildings/fancy_goo.png"
+		Catalog.BLD_THEATRE:
+			return "res://resources/structures/buildings/theatre_goo.png"
+		Catalog.BLD_MINE:
+			return "res://resources/structures/buildings/mine_goo.png"
+		Catalog.BLD_MINE2:
+			return "res://resources/structures/buildings/mine2_goo.png"
+		Catalog.BLD_FACTORY:
+			return "res://resources/structures/buildings/factory_goo.png"
+		Catalog.BLD_FACTORY2:
+			return "res://resources/structures/buildings/factory2_goo.png"
+	return ""
+
+
+func _load_structure_tex(cache: Dictionary, kind: int, path: String) -> Texture2D:
+	if cache.has(kind):
+		return cache[kind]
 	if path == "":
 		return null
 	var tex: Texture2D = load(path)
-	_active_structure_tex[kind] = tex
+	cache[kind] = tex
 	return tex
 
 
-func _sync_active_building_sprite(id: int, kind: int, origin: Vector2, sprite_scale: float, sort_y: float) -> void:
-	var tex := _active_structure_texture(kind)
+func _idle_structure_texture(kind: int) -> Texture2D:
+	return _load_structure_tex(_idle_structure_tex, kind, _idle_structure_sprite_path(kind))
+
+
+func _active_structure_texture(kind: int) -> Texture2D:
+	return _load_structure_tex(_active_structure_tex, kind, _active_structure_sprite_path(kind))
+
+
+func _goo_structure_texture(kind: int) -> Texture2D:
+	return _load_structure_tex(_goo_structure_tex, kind, _goo_structure_sprite_path(kind))
+
+
+func _structure_anim_path(kind: int, idx: int) -> String:
+	match kind:
+		Catalog.BLD_FLOWER:
+			return "res://resources/structures/buildings/flower_%d.png" % idx
+		Catalog.BLD_ROUND:
+			return "res://resources/structures/buildings/round_%d.png" % idx
+	return ""
+
+
+func _structure_anim_texture(kind: int, idx: int) -> Texture2D:
+	var key := "%d:%d" % [kind, idx]
+	if _structure_anim_tex.has(key):
+		return _structure_anim_tex[key]
+	var path := _structure_anim_path(kind, idx)
+	if path == "":
+		return null
+	var tex: Texture2D = load(path)
+	_structure_anim_tex[key] = tex
+	return tex
+
+
+func _sync_active_building_sprite(
+	id: int,
+	kind: int,
+	origin: Vector2,
+	sprite_scale: float,
+	sort_y: float,
+	tex: Texture2D = null,
+	tint: Color = Color.WHITE,
+	outline: Color = Color.TRANSPARENT,
+	offset: Vector2 = Vector2.ZERO,
+	rot: float = 0.0
+) -> void:
+	if tex == null:
+		tex = _idle_structure_texture(kind)
 	if tex == null:
 		_hide_active_building_sprite(id)
 		return
@@ -3020,7 +3150,9 @@ func _sync_active_building_sprite(id: int, kind: int, origin: Vector2, sprite_sc
 		_building_active_sprites[id] = node
 	node.texture = tex
 	node.scale = Vector2(sprite_scale, sprite_scale)
-	var screen_p := cam_rig.to_iso(_building_active_draw_at(kind, origin))
+	node.rotation_degrees = rot
+	node.modulate = tint if outline.a <= 0.0 else outline
+	var screen_p := cam_rig.to_iso(_building_active_draw_at(kind, origin) + offset)
 	node.position = screen_p + Vector2(0, -WORLD_CELL * 0.5 * sprite_scale)
 	var sy := sort_y if not is_nan(sort_y) else screen_p.y
 	node.set_meta("sy", sy)
@@ -3046,6 +3178,48 @@ func _void_behind_cliff(world_pos: Vector2) -> bool:
 		if tile != Catalog.TILE_VOID and tile != Catalog.TILE_FOG:
 			return true
 	return false
+
+
+func _cell_tex(frame: int) -> Texture2D:
+	if _cell_tex_cache.has(frame):
+		return _cell_tex_cache[frame]
+	var path := "res://resources/sprites/world/world_cells/%04d.png" % frame
+	var abs_path := ProjectSettings.globalize_path(path)
+	var tex: Texture2D = null
+	if FileAccess.file_exists(path) or FileAccess.file_exists(abs_path):
+		var img := Image.load_from_file(abs_path)
+		if img != null and not img.is_empty():
+			tex = ImageTexture.create_from_image(img)
+	_cell_tex_cache[frame] = tex
+	return tex
+
+
+func _cell_dirt(frame: int) -> Texture2D:
+	if _cell_dirt_cache.has(frame):
+		return _cell_dirt_cache[frame]
+	var path := "res://resources/sprites/world/world_cells_dirt/%04d.png" % frame
+	var abs_path := ProjectSettings.globalize_path(path)
+	var tex: Texture2D = null
+	if FileAccess.file_exists(path) or FileAccess.file_exists(abs_path):
+		var img := Image.load_from_file(abs_path)
+		if img != null and not img.is_empty():
+			tex = ImageTexture.create_from_image(img)
+	_cell_dirt_cache[frame] = tex
+	return tex
+
+
+func _bind_band_frame(band: MultiMeshInstance2D, frame: int) -> void:
+	band.texture = _cell_tex(frame)
+	var mat: ShaderMaterial = band.get_meta("own_mat") if band.has_meta("own_mat") else null
+	if mat == null:
+		mat = _material(1, 1)
+		band.material = mat
+		band.set_meta("own_mat", mat)
+	mat.set_shader_parameter("h_frames", 1)
+	mat.set_shader_parameter("v_frames", 1)
+	var dirt := _cell_dirt(frame)
+	if dirt != null:
+		mat.set_shader_parameter("dirt_tex", dirt)
 
 
 func _paint_props(draws: Array) -> void:
@@ -3074,40 +3248,27 @@ func _paint_props(draws: Array) -> void:
 		bnode.set_meta("seen", false)
 		var bsy := float(bnode.get_meta("sy", bnode.position.y))
 		live.append({"sy": bsy, "node": bnode})
-	if live.is_empty():
-		var sole := _prop_band(0)
-		_write_mesh(sole.multimesh, draws)
-		sole.visible = true
-		for j in range(1, _prop_bands.size()):
-			if _prop_bands[j].visible or _prop_bands[j].multimesh.visible_instance_count != 0:
-				_write_mesh(_prop_bands[j].multimesh, [])
-				_prop_bands[j].visible = false
-		if world_layer.get_child_count() > 0 and world_layer.get_child(0) != sole:
-			world_layer.move_child(sole, 0)
-		return
-	live.sort_custom(func(a, b): return float(a.sy) < float(b.sy))
-	var cursor := 0
+	_band_cursor = 0
 	var order: Array = []
-	for i in live.size():
-		var chunk: Array = []
-		var sy := float(live[i].sy)
-		while cursor < draws.size() and float(draws[cursor].get("sy", draws[cursor].p.y)) <= sy:
-			chunk.append(draws[cursor])
+	if live.is_empty():
+		_append_frame_runs(order, draws)
+	else:
+		live.sort_custom(func(a, b): return float(a.sy) < float(b.sy))
+		var cursor := 0
+		for i in live.size():
+			var chunk: Array = []
+			var sy := float(live[i].sy)
+			while cursor < draws.size() and float(draws[cursor].get("sy", draws[cursor].p.y)) <= sy:
+				chunk.append(draws[cursor])
+				cursor += 1
+			_append_frame_runs(order, chunk)
+			order.append(live[i].node)
+		var rest: Array = []
+		while cursor < draws.size():
+			rest.append(draws[cursor])
 			cursor += 1
-		var band := _prop_band(i)
-		_write_mesh(band.multimesh, chunk)
-		band.visible = true
-		order.append(band)
-		order.append(live[i].node)
-	var rest: Array = []
-	while cursor < draws.size():
-		rest.append(draws[cursor])
-		cursor += 1
-	var tail := _prop_band(live.size())
-	_write_mesh(tail.multimesh, rest)
-	tail.visible = true
-	order.append(tail)
-	for j in range(live.size() + 1, _prop_bands.size()):
+		_append_frame_runs(order, rest)
+	for j in range(_band_cursor, _prop_bands.size()):
 		_write_mesh(_prop_bands[j].multimesh, [])
 		_prop_bands[j].visible = false
 	for i in order.size():
@@ -3115,11 +3276,35 @@ func _paint_props(draws: Array) -> void:
 			world_layer.move_child(order[i], i)
 
 
+func _append_frame_runs(order: Array, draws: Array) -> void:
+	if draws.is_empty():
+		return
+	var run: Array = []
+	var run_frame := int(draws[0].icon)
+	for d in draws:
+		var fr := int(d.icon)
+		if fr != run_frame:
+			_emit_prop_run(order, run_frame, run)
+			run = []
+			run_frame = fr
+		run.append(d)
+	_emit_prop_run(order, run_frame, run)
+
+
+func _emit_prop_run(order: Array, frame: int, run: Array) -> void:
+	if run.is_empty():
+		return
+	var band := _prop_band(_band_cursor)
+	_band_cursor += 1
+	_bind_band_frame(band, frame)
+	_write_mesh(band.multimesh, run)
+	band.visible = true
+	order.append(band)
+
+
 func _prop_band(index: int) -> MultiMeshInstance2D:
 	while _prop_bands.size() <= index:
 		var band := MultiMeshInstance2D.new()
-		band.material = world.material
-		band.texture = world.texture
 		band.multimesh = _mesh(true, Vector2(WORLD_CELL, WORLD_CELL))
 		world_layer.add_child(band)
 		_prop_bands.append(band)
@@ -3144,17 +3329,20 @@ func _write_mesh(mesh: MultiMesh, draws: Array) -> void:
 		var flip := float(d.get("flip", 1.0))
 		var rot := deg_to_rad(float(d.get("rot", 0.0)))
 		var center := Vector2(0, -WORLD_CELL * 0.5 * sprite_scale).rotated(rot)
+		var icon := int(d.icon)
+		# Loose cell textures always sample frame 0; w=1 applies prop tint.
+		var apply_tint := 0.0 if (icon < 24 or icon >= 144) else 1.0
 		if d.has("outline"):
 			var oc: Color = d["outline"]
 			for o in OUTLINE_OFFS:
 				xf = Transform2D(rot, Vector2(sprite_scale * flip, sprite_scale), 0.0, d.p + o + center)
 				mesh.set_instance_transform_2d(i, xf)
-				mesh.set_instance_custom_data(i, Color(float(d.icon), 0.0, 1.0, 0))
+				mesh.set_instance_custom_data(i, Color(0.0, 0.0, 1.0, 0.0))
 				mesh.set_instance_color(i, oc)
 				i += 1
 		xf = Transform2D(rot, Vector2(sprite_scale * flip, sprite_scale), 0.0, d.p + center)
 		mesh.set_instance_transform_2d(i, xf)
-		mesh.set_instance_custom_data(i, Color(float(d.icon), float(d.get("dirty", 0.0)), 0.0, 0))
+		mesh.set_instance_custom_data(i, Color(0.0, float(d.get("dirty", 0.0)), 0.0, apply_tint))
 		mesh.set_instance_color(i, d.tint)
 		i += 1
 
@@ -3817,7 +4005,7 @@ func _sync_focus(delta: float) -> void:
 	focus_cam_node.position = subject.snapped(Vector2(1.0 / zoom, 1.0 / zoom))
 	var anchor := _talk_world() if talk else Vector2(float(egg.x), float(egg.y))
 	_paint_focus(anchor)
-	_write_mesh(focus_mesh, _focus_draws())
+	_write_focus_draws(_focus_draws())
 
 
 func _focus_frame_rect(talk: bool) -> Rect2:
@@ -3962,8 +4150,6 @@ func _focus_draws() -> Array:
 		var draw_at := _building_draw_at(b_kind, p3)
 		if _focus_sees(p3, 0.0) or _focus_sees(draw_at, 0.0):
 			var focus_frame := _prop_frame(Catalog.icon_for_building(b_kind))
-			if b_kind == Catalog.BLD_FLOWER:
-				focus_frame = FLOWER_ANIM + int(time * 6.0) % FLOWER_ANIM_N
 			var focus_sort_y := NAN
 			if b_kind == Catalog.BLD_MINE or b_kind == Catalog.BLD_MINE2:
 				focus_sort_y = -1000000.0
@@ -4729,18 +4915,26 @@ func _sync_capacity_marks(sim: ThrongletSim, view: Rect2) -> void:
 		var info: Dictionary = sim.capacity_info(b)
 		if info.is_empty():
 			continue
-		if not sim.chunk_shown(sim.chunk_key_at(float(b.x), float(b.y))):
+		var origin := Vector2(float(b.x), float(b.y))
+		if not sim.chunk_shown(sim.chunk_key_at(origin.x, origin.y)):
 			continue
-		var at := Vector2(float(b.x), float(b.y))
-		if not view.has_point(at):
-			continue
-		var screen := cam_rig.to_iso(at) + Vector2(0, -30)
+		var kind := int(b.kind)
+		var visit := bool(info.get("visit", false))
+		var mine := bool(info.get("mine", false))
 		var cap := maxi(1, int(info.cap))
 		var n := clampi(int(info.n), 0, cap)
 		var full := bool(info.full)
-		var mine := bool(info.get("mine", false))
-		# Mines always show the stock bar; houses/theatre show bar when occupied or full.
-		var show_bar := mine or n > 0 or full
+		# Anchor on the drawn sprite (roof/pad), not the footprint corner.
+		var mark_world := _building_draw_at(kind, origin)
+		if visit and n > 0 and Catalog.building_has_active(kind):
+			mark_world = _building_active_draw_at(kind, origin)
+		if not (view.has_point(origin) or view.has_point(mark_world)):
+			continue
+		# Houses/theatre need more lift so the bar sits over the chimney like the video.
+		var screen_lift := 56.0 if visit else 30.0
+		var screen := cam_rig.to_iso(mark_world) + Vector2(0, -screen_lift)
+		# Same gauge for mines and visit homes/theatre (fill level); LLENO only when full.
+		var show_bar := mine or visit
 		if show_bar and bar_n < cap_tracks.size():
 			var track: NinePatchRect = cap_tracks[bar_n]
 			var fill: NinePatchRect = cap_fills[bar_n]
@@ -4761,7 +4955,7 @@ func _sync_capacity_marks(sim: ThrongletSim, view: Rect2) -> void:
 			var label: Label = full_labels[full_n]
 			label.visible = true
 			label.text = cap_text
-			label.position = screen + Vector2(-12, -22.0 if show_bar else -8.0)
+			label.position = screen + Vector2(-18, -22.0 if show_bar else -8.0)
 			full_n += 1
 	for i in range(bar_n, cap_tracks.size()):
 		cap_tracks[i].visible = false
@@ -4893,7 +5087,7 @@ func _sync_building_alert(sim: ThrongletSim) -> void:
 	for b in sim.buildings:
 		if b.dead:
 			continue
-		if sim._tile_at(float(b.x), float(b.y)) != Catalog.TILE_GOO:
+		if not sim.building_is_polluted(b):
 			continue
 		pollution_bld.position = cam_rig.to_iso(Vector2(float(b.x), float(b.y))) + Vector2(0, -36)
 		pollution_bld.visible = true
@@ -5244,40 +5438,31 @@ func _build_world() -> void:
 	charge_ring.visible = false
 	add_child(charge_ring)
 	# Static quiet features sit under world_layer so far-view thronglets read on top.
-	feat_static = MultiMeshInstance2D.new()
+	feat_static = Node2D.new()
 	feat_static.z_index = 2
-	feat_static.material = _material(16, ThrongClips.SHEET_ROWS)
-	feat_static.texture = ui_assets.tex("res://resources/sprites/world_iso.png")
-	feat_static_mesh = _mesh(true, Vector2(WORLD_CELL, WORLD_CELL))
-	feat_static.multimesh = feat_static_mesh
-	feat_static_mesh.visible_instance_count = 0
 	feat_static.visible = false
 	add_child(feat_static)
+	_feat_bands = []
 	world_layer = Node2D.new()
 	world_layer.z_index = 2
 	add_child(world_layer)
 	world = MultiMeshInstance2D.new()
-	world.material = feat_static.material
-	world.texture = feat_static.texture
-	world_mesh = _mesh(true, Vector2(WORLD_CELL, WORLD_CELL))
-	world.multimesh = world_mesh
+	world.multimesh = _mesh(true, Vector2(WORLD_CELL, WORLD_CELL))
+	world_mesh = world.multimesh
 	world_layer.add_child(world)
 	_prop_bands = [world]
 	throng_crowd = MultiMeshInstance2D.new()
 	throng_crowd.z_index = 3
-	throng_crowd.material = feat_static.material
-	throng_crowd.texture = feat_static.texture
 	throng_crowd_mesh = _mesh(true, Vector2(WORLD_CELL, WORLD_CELL))
 	throng_crowd.multimesh = throng_crowd_mesh
 	throng_crowd_mesh.visible_instance_count = 0
+	throng_crowd.visible = false
 	add_child(throng_crowd)
-	void_back = MultiMeshInstance2D.new()
+	void_back = Node2D.new()
 	void_back.z_index = -1
-	void_back.material = world.material
-	void_back.texture = world.texture
-	void_back_mesh = _mesh(true, Vector2(WORLD_CELL, WORLD_CELL))
-	void_back.multimesh = void_back_mesh
 	add_child(void_back)
+	_void_bands = []
+	void_back_mesh = null
 	camera = Camera2D.new()
 	add_child(camera)
 	camera.make_current()
@@ -5331,7 +5516,6 @@ func _material(h_frames: int, v_frames: int) -> ShaderMaterial:
 	mat.shader = load("res://scripts/shaders/thronglet_shader.gdshader")
 	mat.set_shader_parameter("h_frames", h_frames)
 	mat.set_shader_parameter("v_frames", v_frames)
-	mat.set_shader_parameter("dirt_tex", ui_assets.tex("res://resources/sprites/world_iso_dirt.png"))
 	return mat
 
 
@@ -5664,13 +5848,11 @@ func _build_ui() -> void:
 	focus_path_root = Node2D.new()
 	focus_path_root.z_index = 1
 	focus_port.add_child(focus_path_root)
-	var focus_world := MultiMeshInstance2D.new()
-	focus_world.z_index = 2
-	focus_world.material = _material(16, ThrongClips.SHEET_ROWS)
-	focus_world.texture = world.texture
-	focus_mesh = _mesh(true, Vector2(WORLD_CELL, WORLD_CELL))
-	focus_world.multimesh = focus_mesh
-	focus_port.add_child(focus_world)
+	focus_root = Node2D.new()
+	focus_root.z_index = 2
+	focus_port.add_child(focus_root)
+	_focus_bands = []
+	focus_mesh = null
 	focus_cam_node = Camera2D.new()
 	focus_port.add_child(focus_cam_node)
 	root.add_child(focus_box)
@@ -7224,8 +7406,6 @@ func _enter_dev() -> void:
 		need_card.visible = false
 	_hide_agent_debug()
 	_hide_marks()
-	for plate in biome_plates:
-		plate.visible = false
 	for id in _monoliths.keys():
 		var node: Node2D = _monoliths[id]
 		node.visible = false
