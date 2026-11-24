@@ -2,6 +2,12 @@
 
 ## [Unreleased](https://github.com/enegalan/thronglets-infinite/compare/v2.7.5...HEAD)
 
+### 2026-11-25
+
+- Eat body clip no longer sticks after the apple claim is lost: `ACT_EAT` is sticky only in bite range, the full AI path continues/clears chew via `_continue_eat`, and expired non-sticky acts clear even when `act_t` is already 0.
+- Sponge scrub reads `stroke_min` / `stroke_cap` / `gain` / `radius` from `EffectTune` (defaults match the live gentle scrub).
+- Building goo pollution is cached on the building and invalidated when goo tiles change, so draw/HUD no longer rescan footprints every frame.
+
 ### 2026-11-24
 
 - Goo on a building footprint shuts houses, fancy houses, theatres, mines, and factories until it is mopped; those buildings also switch to active and goo sprite variants.

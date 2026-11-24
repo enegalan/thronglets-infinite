@@ -26,7 +26,7 @@ const DEFAULTS := {
 	"act:play": {"fun": 6.0},
 	"act:ball": {"fun": 8.0},
 	"act:round": {"fun": 2.5},
-	"act:sponge": {"radius": 30.0, "stroke_min": 0.35, "stroke_cap": 22.0, "gain": 2.0},
+	"act:sponge": {"radius": 30.0, "stroke_min": 0.35, "stroke_cap": 6.0, "gain": 1.25},
 	"act:mop": {"radius": 48.0, "clean": 100.0},
 }
 

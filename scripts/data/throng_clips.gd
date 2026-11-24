@@ -225,7 +225,6 @@ static var _frame_index: PackedInt32Array = PackedInt32Array()
 static var _frame_map_ready := false
 static var _strip_tex: Dictionary = {}
 static var _strip_meta: Dictionary = {}
-static var _sprite_frames: SpriteFrames = null
 
 static func has_clip(clip: String) -> bool:
 	return CLIPS.has(clip)
@@ -312,25 +311,6 @@ static func strip_frame(clip: String, tick: int) -> AtlasTexture:
 	atlas.region = Rect2(idx * cell_w, 0, cell_w, cell_h)
 	atlas.filter_clip = true
 	return atlas
-
-static func sprite_frames() -> SpriteFrames:
-	if _sprite_frames != null:
-		return _sprite_frames
-	var frames := SpriteFrames.new()
-	if frames.has_animation("default"):
-		frames.remove_animation("default")
-	for clip in CLIPS.keys():
-		var name := str(clip)
-		frames.add_animation(name)
-		frames.set_animation_speed(name, 8.0)
-		frames.set_animation_loop(name, true)
-		var n := frame_count(name)
-		for i in n:
-			var cell := strip_frame(name, i)
-			if cell != null:
-				frames.add_frame(name, cell)
-	_sprite_frames = frames
-	return _sprite_frames
 
 static func _ensure_frame_map() -> void:
 	if _frame_map_ready:

@@ -347,7 +347,7 @@ Things that were invisible at the whole-minute marks, or that the first pass rea
 
 ## Thronglet animations & sprites catalog (`references/` mapping)
 
-**R&D map for issue #37:** situation → clips, playback order, priority tiers, video evidence, and current `Main._frame` mismatches live in [`thronglet-animations.md`](thronglet-animations.md). Per-animation strips live in `resources/sprites/throng_anims/` (`ThrongClips.frame_at` / `strip_frame` / `sprite_frames`); `make_art` packs those strips into `world_iso.png` for MultiMesh.
+**R&D map for issue #37:** situation → clips, playback order, priority tiers, video evidence, and current `Main._frame` mismatches live in [`thronglet-animations.md`](thronglet-animations.md). Per-animation strips live in `resources/sprites/throng_anims/` (`ThrongClips.frame_at` / `strip_frame`); `make_art` packs those strips into `world_iso.png` for MultiMesh.
 
 All character sprites are packed inside `references/Assets/Texture2D/sactx-0-2048x2048-Uncompressed-Sprites-Thronglets-fc0e3430.png` (dirt overlay in `..._DirtTex.png`) and indexed by `references/Assets/SpriteAtlas/Sprites-Thronglets.json`. Frame rects (`m_Rect` / `m_RD.textureRect`) and foot anchors (`m_Pivot`) live in `references/Assets/Sprite/*.json` (note: Unity's `y=0` is bottom-left, so convert to Canvas/WebGL top-left via `2048 - textureRect.y - textureRect.height`). Cutscene timelines are stored in `references/Assets/ScriptableObjectGroup/` (`ThrongletTalkTimeline.json`, `ThrongletEmergeTimeline.json`, `SEQ_1.json`–`SEQ_8.json`).
 

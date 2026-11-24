@@ -514,7 +514,8 @@ func _process(delta: float) -> void:
 			sponge_tracking = true
 		sponge_last = at
 		# Bubbles + clean gain when agitating; hold still keeps Happy + suds if already washing.
-		sim.scrub(at.x, at.y, stroke, stroke >= ThrongletSimServer.SCRUB_STROKE_MIN)
+		var stroke_min := float(EffectTune.get_tune("act:sponge").get("stroke_min", ThrongletSimServer.SCRUB_STROKE_MIN))
+		sim.scrub(at.x, at.y, stroke, stroke >= stroke_min)
 	else:
 		if sponge_tracking and not sim.shot_mode:
 			sim.sponge_release()

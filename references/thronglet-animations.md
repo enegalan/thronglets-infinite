@@ -4,7 +4,7 @@ R&D source of truth for [issue #37](https://github.com/enegalan/thronglets-infin
 
 **Per-animation sheets:** one PNG per clip (frames left → right). Runtime source: [`../resources/sprites/throng_anims/`](../resources/sprites/throng_anims/). Doc mirror: [`thronglet-anims/`](thronglet-anims/). Export with `python3 tools/export_throng_anims.py`.
 
-`ThrongClips` resolves clips by name (`frame_at` / `strip_frame` / `sprite_frames`). MultiMesh still batches through `world_iso.png` cells packed **from those strips** in `make_art` (iso y-sort with props). AnimatedSprite / Sprite2D paths use the strip PNGs directly.
+`ThrongClips` resolves clips by name (`frame_at` / `strip_frame`). MultiMesh still batches through `world_iso.png` cells packed **from those strips** in `make_art` (iso y-sort with props). AnimatedSprite / Sprite2D paths use the strip PNGs directly.
 
 ## Priority tiers
 
@@ -28,7 +28,7 @@ Each clip is **one PNG**: several sprites in a row (left → right).
 | Runtime strips | [`res://resources/sprites/throng_anims/`](../resources/sprites/throng_anims/) + [`manifest.json`](../resources/sprites/throng_anims/manifest.json)                                                |
 | Doc mirror     | [`thronglet-anims/`](thronglet-anims/)                                                                                                                                                            |
 | Export         | `python3 tools/export_throng_anims.py`                                                                                                                                                            |
-| API            | `ThrongClips.frame_at(clip, tick)` → MultiMesh cell; `ThrongClips.strip_frame(clip, tick)` → `AtlasTexture` from the strip; `ThrongClips.sprite_frames()` → `SpriteFrames` for `AnimatedSprite2D` |
+| API            | `ThrongClips.frame_at(clip, tick)` → MultiMesh cell; `ThrongClips.strip_frame(clip, tick)` → `AtlasTexture` from the strip |
 
 `make_art` packs strip bodies into `world_iso.png` so the swarm MultiMesh keeps correct iso sorting with props.
 
@@ -863,7 +863,7 @@ Each task cites **depends on**, **touches**, **situation/clips**, and **done whe
 | --- | --- | --- |
 | D1 | R&D situation → clip map | This document |
 | D2 | Per-animation strip PNGs + manifest | `resources/sprites/throng_anims/`, `tools/export_throng_anims.py` |
-| D3 | `ThrongClips.frame_at` / `strip_frame` / `sprite_frames`; `make_art` packs strips into `world_iso` | `scripts/data/throng_clips.gd`, `tools/make_art.py` |
+| D3 | `ThrongClips.frame_at` / `strip_frame`; `make_art` packs strips into `world_iso` | `scripts/data/throng_clips.gd`, `tools/make_art.py` |
 | D4 | Situation-correct base acts | `Main._frame` |
 | **A1–A8** | Pools + tiered `_frame` + bored/talk/sing/penned | `throng_clips.gd`, `Main.gd`, `throng_tune.gd` |
 | **B1–B5** | Extract/pack Unity sheets; panic/carry/mood walks wired | `pack_extra_throng_clips.py`, atlas cells 654+, `_walk_clip` / carry |
@@ -959,7 +959,7 @@ flowchart LR
 
 - Issue: https://github.com/enegalan/thronglets-infinite/issues/37
 - Per-animation strips: [`../resources/sprites/throng_anims/`](../resources/sprites/throng_anims/) (runtime) / [`thronglet-anims/`](thronglet-anims/) (docs) — export [`tools/export_throng_anims.py`](../tools/export_throng_anims.py)
-- Clip API: [`scripts/data/throng_clips.gd`](../scripts/data/throng_clips.gd) (`frame_at`, `strip_frame`, `sprite_frames`)
+- Clip API: [`scripts/data/throng_clips.gd`](../scripts/data/throng_clips.gd) (`frame_at`, `strip_frame`)
 - Gaps / checklist: [`video-gaps.md`](video-gaps.md) § Thronglet animations & sprites catalog
 - Runtime clips: [`scripts/data/throng_clips.gd`](../scripts/data/throng_clips.gd)
 - Frame select: [`scripts/presentation/Main.gd`](../scripts/presentation/Main.gd) `_frame`

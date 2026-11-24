@@ -844,9 +844,10 @@ func _tick_life(i: int, dt: float, decay: float) -> bool:
 			sleep_t[i] = SLEEP_DUR
 	if act_t[i] > 0.0:
 		act_t[i] = maxf(0.0, act_t[i] - dt)
-		# Sticky acts are held by claim/seat/job — cheap/far ticks must not wipe the body clip.
-		if act_t[i] <= 0.0 and not _act_is_sticky(i):
-			act[i] = 0
+	# Sticky acts are held by claim/seat/job — cheap/far ticks must not wipe the body clip.
+	# Clear when timer is already 0 and sticky no longer applies (e.g. orphan ACT_EAT).
+	if act_t[i] <= 0.0 and int(act[i]) != 0 and not _act_is_sticky(i):
+		act[i] = 0
 	if shake_t[i] > 0.0:
 		shake_t[i] = maxf(0.0, shake_t[i] - dt)
 		act[i] = ACT_WASH
@@ -873,7 +874,10 @@ func _tick_life(i: int, dt: float, decay: float) -> bool:
 func _act_is_sticky(i: int) -> bool:
 	match int(act[i]):
 		ACT_EAT:
-			return true
+			# Only while a claimed apple is still in bite range — avoids orphan Eat clips
+			# on the full AI path (n <= AGENT_FULL_CAP never runs _continue_eat alone).
+			var apple := _claimed_apple(i)
+			return not apple.is_empty() and _dist_i(i, float(apple.x), float(apple.y)) < 12.0
 		# WASH is refreshed by scrub/shake act_t — never sticky or it loops forever.
 		ACT_BATH:
 			return (i < link_tub.size() and link_tub[i] >= 0) \
@@ -1047,6 +1051,10 @@ func _tick_decide(i: int, dt: float) -> void:
 	if i < peer_t.size() and peer_t[i] > 0.0:
 		dir_x[i] = 0.0
 		dir_y[i] = 0.0
+		return
+	# Full AI path never hits _tick_busy_or_coast — keep chewing / clear orphan ACT_EAT here.
+	if act[i] == ACT_EAT and _continue_eat(i, dt):
+		_release_mine_job(i)
 		return
 	var speed := MOVE_SPEED
 	if buff_t[i] > 0.0:
@@ -3555,10 +3563,25 @@ func building_is_polluted(b: Dictionary) -> bool:
 		return false
 	if not Catalog.building_has_goo(int(b.kind)):
 		return false
-	for cell in _footprint_cells(float(b.x), float(b.y), Catalog.footprint_for_building(int(b.kind))):
-		if _tile_at_cell(cell) == Catalog.TILE_GOO:
-			return true
-	return false
+	if b.has("polluted"):
+		return bool(b.polluted)
+	return _refresh_building_pollution(b)
+
+
+func _refresh_building_pollution(b: Dictionary) -> bool:
+	var polluted := false
+	if not b.is_empty() and not bool(b.get("dead", false)) and Catalog.building_has_goo(int(b.kind)):
+		for cell in _footprint_cells(float(b.x), float(b.y), Catalog.footprint_for_building(int(b.kind))):
+			if _tile_at_cell(cell) == Catalog.TILE_GOO:
+				polluted = true
+				break
+	b.polluted = polluted
+	return polluted
+
+
+func _invalidate_building_pollution() -> void:
+	for b in buildings:
+		b.erase("polluted")
 
 
 func _shut_polluted_building(b: Dictionary) -> void:
@@ -3569,6 +3592,7 @@ func _shut_polluted_building(b: Dictionary) -> void:
 	b.guests = []
 	b.away = []
 	b.active = false
+	b.polluted = true
 	if bool(b.get("incinerate", false)):
 		b.incinerate = false
 		b.burn = 0.0
@@ -3582,7 +3606,7 @@ func _tick_buildings(dt: float) -> void:
 			b.active = false
 			continue
 		var kind := int(b.kind)
-		if building_is_polluted(b):
+		if _refresh_building_pollution(b):
 			_shut_polluted_building(b)
 			continue
 		b.active = false
@@ -4374,7 +4398,12 @@ func _mop(x: float, y: float) -> void:
 func scrub(x: float, y: float, stroke: float, rubbing: bool = false) -> void:
 	if frozen:
 		return
-	var ids := query_radius(x, y, Catalog.SPONGE_RADIUS)
+	var sponge_tune: Dictionary = EffectTune.get_tune("act:sponge")
+	var stroke_min := float(sponge_tune.get("stroke_min", SCRUB_STROKE_MIN))
+	var stroke_cap := float(sponge_tune.get("stroke_cap", 6.0))
+	var gain_mul := float(sponge_tune.get("gain", 1.25))
+	var radius := float(sponge_tune.get("radius", Catalog.SPONGE_RADIUS))
+	var ids := query_radius(x, y, radius)
 	if ids.is_empty():
 		# Left every thronglet — drop wash pose; pending sparkles wait for release.
 		if sponge_id >= 0:
@@ -4383,7 +4412,7 @@ func scrub(x: float, y: float, stroke: float, rubbing: bool = false) -> void:
 		sponge_hold = 0.0
 		return
 	sponge_hold = 0.55
-	var scrubbing := rubbing or stroke >= SCRUB_STROKE_MIN
+	var scrubbing := rubbing or stroke >= stroke_min
 	var target := _scrub_pick_target(ids)
 	if target < 0:
 		if sponge_id >= 0:
@@ -4401,7 +4430,7 @@ func scrub(x: float, y: float, stroke: float, rubbing: bool = false) -> void:
 		act_t[target] = maxf(act_t[target], 0.35)
 		return
 	_know_count()
-	var gain := minf(stroke, 6.0) * 1.25
+	var gain := minf(stroke, stroke_cap) * gain_mul
 	if clean[target] < 100.0:
 		clean[target] = minf(100.0, clean[target] + gain)
 		if clean[target] >= 100.0:
@@ -8564,6 +8593,8 @@ func _set_local_tile(ck: String, lx: int, ly: int, tile: int, also_base: bool) -
 		var c := _parse_ck(ck)
 		_invalidate_inland_around(Vector2i(c.x * Catalog.CHUNK + lx, c.y * Catalog.CHUNK + ly))
 		_invalidate_walk_cells()
+		if prev == Catalog.TILE_GOO or tile == Catalog.TILE_GOO:
+			_invalidate_building_pollution()
 	_mark_dirty(ck)
 
 
