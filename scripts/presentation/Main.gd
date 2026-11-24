@@ -1510,16 +1510,16 @@ func _sync_actors() -> void:
 				if not far_view and sim.shake_t[i] > 0.0:
 					pos += Vector2(randf_range(-1.5, 1.5), randf_range(-1.5, 1.5))
 				if doing == ThrongletSim.ACT_EAT:
-					lift = sin(time * 10.0 + float(i)) * 1.0
+					lift = _effect_look_lift(EffectTune.get_tune("act:eat"), time, float(i))
 				elif doing == ThrongletSim.ACT_PLAY and ball_play:
-					lift = 0.0
+					lift = _effect_look_lift(EffectTune.get_tune("act:ball"), time, float(i))
 				elif doing == ThrongletSim.ACT_PLAY and not ball_play:
 					var ride: Dictionary = sim.ride_of(i)
 					if ride.is_empty():
-						lift = 0.0
+						lift = _effect_look_lift(EffectTune.get_tune("act:play"), time, float(i))
 					else:
 						riding = true
-						lift = 2.0
+						lift = _effect_look_lift(EffectTune.get_tune("act:round"), time, float(i))
 						var seat := sim._ride_slot_of(ride, i)
 						if seat >= 0:
 							pos = sim._ride_slot_pos(ride, seat)
@@ -1549,7 +1549,7 @@ func _sync_actors() -> void:
 							lift = Catalog.TUB_SOAK_LIFT
 						prop_anchor = _building_draw_at(Catalog.BLD_TUB, tub_origin)
 				elif doing == ThrongletSimServer.ACT_WASH:
-					lift = 0.0
+					lift = _effect_look_lift(EffectTune.get_tune("act:sponge"), time, float(i))
 				elif doing == ThrongletSimServer.ACT_WORK:
 					lift = 0.0
 				elif sim.act_t[i] > 0.0:
@@ -1617,6 +1617,8 @@ func _sync_actors() -> void:
 		var pop_scale := float(pop.get("scale", 1.0))
 		var pop_off := Vector2.ZERO
 		var pop_rot := 0.0
+		var pop_lift := float(pop.lift)
+		var pop_at := Vector2(float(pop.x), float(pop.y))
 		var pop_elapsed := pop_life - float(pop.t)
 		if picon == AssetFrames.SPLASH:
 			var splash_fps := float(AnimTune.get_tune("splash").get("fps", 8.0))
@@ -1627,21 +1629,14 @@ func _sync_actors() -> void:
 				pop_off = AnimTune.frame_offset("splash", splash_idx)
 				pop_rot = AnimTune.frame_rot("splash", splash_idx)
 		elif picon == AssetFrames.CLEAN:
-			# Play sparkle strip once over the pop life (wash finish / bath exit).
-			var clean_n := maxi(AssetFrames.CLEAN_N, 1)
-			var clean_idx := clampi(int(pop_elapsed / maxf(pop_life, 0.01) * float(clean_n)), 0, clean_n - 1)
-			frame = AssetFrames.frame(AssetFrames.CLEAN, clean_n, clean_idx)
+			# One-shot strip over pop life
 			var sparkle_tune: Dictionary = wash_sparkle_tune if str(pop.get("kind", "")) == "wash" else bath_exit_tune
-			var sparkle_scale := float(sparkle_tune.get("scale", 0.55))
-			var sparkle_off := Vector2(float(sparkle_tune.get("fx_x", 0.0)), float(sparkle_tune.get("fx_y", -4.0)))
-			if frame >= 0:
-				pop_scale = sparkle_scale * AnimTune.frame_scale("clean", clean_idx)
-				pop_off = sparkle_off + AnimTune.frame_offset("clean", clean_idx)
-				pop_rot = AnimTune.frame_rot("clean", clean_idx)
-			else:
-				pop_scale = sparkle_scale
-				pop_off = sparkle_off
-		_push_iso(draws, Vector2(float(pop.x), float(pop.y)) + pop_off, frame, Color(1, 1, 1, fade), float(pop.lift), pop_scale, NAN, Color.TRANSPARENT, Vector2.ZERO, pop_rot)
+			var tid := int(pop.get("throng_id", -1))
+			if tid >= 0 and tid < sim.slot_count and int(sim.state[tid]) == Catalog.ST_LIVING:
+				pop_at = Vector2(sim.pos_x[tid], sim.pos_y[tid]) + _throng_sprite_off(_frame_lod(tid, time, far_view))
+			_paint_clean_sparkle(draws, pop_at, NAN, sparkle_tune, fade, pop_elapsed / maxf(pop_life, 0.01))
+			continue
+		_push_iso(draws, pop_at + pop_off, frame, Color(1, 1, 1, fade), pop_lift, pop_scale, NAN, Color.TRANSPARENT, Vector2.ZERO, pop_rot)
 	draws.sort_custom(func(a, b): return float(a.get("sy", a.p.y)) < float(b.get("sy", b.p.y)))
 	draws.append_array(egg_front)
 	draws.append_array(drag_front)
@@ -1909,7 +1904,7 @@ func _frame(i: int, time: float) -> int:
 		return ThrongClips.frame_at("ThrongA_ReactToKill", int((ThrongletSimServer.REACT_DUR - sim.react_t[i]) * 8.0))
 	# Just finished a wash: stand still on Happy (not walk).
 	if i < sim.cheer_t.size() and sim.cheer_t[i] > 0.0:
-		return ThrongClips.frame_at("ThrongA_Happy", int(time * 6.0))
+		return ThrongClips.frame_at(_effect_look_clip("act:wash_sparkle", "ThrongA_Happy"), int(time * 6.0))
 	if i < sim.peer_t.size() and sim.peer_t[i] > 0.0:
 		if i < sim.peer_sing.size() and sim.peer_sing[i] != 0:
 			return _clip_pool(ThrongClips.SING_PEER, i, time, 1.6, "Throng_Sing_Spritesheet")
@@ -1934,29 +1929,30 @@ func _frame(i: int, time: float) -> int:
 	var moving := absf(sim.dir_x[i]) + absf(sim.dir_y[i]) >= 0.01
 	var carrying := int(sim.carry[i]) != Catalog.CARRY_NONE
 	if doing == ThrongletSimServer.ACT_EAT:
-		return ThrongClips.frame_at("ThrongA_Eat", int(time * 6.0))
+		return ThrongClips.frame_at(_effect_look_clip("act:eat", "ThrongA_Eat"), int(time * 6.0))
 	if doing == ThrongletSimServer.ACT_BATH:
+		var bath_clip := _effect_look_clip("act:bath", "Throng_FallInBath_Spritesheet")
 		var tub: Dictionary = sim.seat_of(i)
 		if tub.is_empty():
-			return ThrongClips.frame_at("ThrongA_Happy", int(time * 6.0))
+			return ThrongClips.frame_at(_effect_look_clip("act:bath_exit", "ThrongA_Happy"), int(time * 6.0))
 		var age := float(tub.get("bath_t", 0.0))
 		var enter_t := ThrongletSimServer.BATH_ENTER_T
 		if age < 0.0:
-			return ThrongClips.frame_at("Throng_FallInBath_Spritesheet", 0)
+			return ThrongClips.frame_at(bath_clip, 0)
 		if age < enter_t:
-			return ThrongClips.frame_along("Throng_FallInBath_Spritesheet", (age / enter_t) * (5.0 / 8.0))
-		return ThrongClips.frame_at("Throng_FallInBath_Spritesheet", 5 + int((age - enter_t) * 2.5) % 3)
+			return ThrongClips.frame_along(bath_clip, (age / enter_t) * (5.0 / 8.0))
+		return ThrongClips.frame_at(bath_clip, 5 + int((age - enter_t) * 2.5) % 3)
 	if doing == ThrongletSimServer.ACT_WASH:
 		# Stable Happy loop while scrubbing — do not restart from act_t pulses.
-		return ThrongClips.frame_at("ThrongA_Happy", int(time * 6.0 + float(i) * 0.37))
+		return ThrongClips.frame_at(_effect_look_clip("act:sponge", "ThrongA_Happy"), int(time * 6.0 + float(i) * 0.37))
 	if doing == ThrongletSimServer.ACT_PLAY:
 		if sim.has_ball(i):
 			if moving:
 				return _walk_clip(i, time, sim)
-			return ThrongClips.frame_at("ThrongA_Happy", int(time * 6.0))
+			return ThrongClips.frame_at(_effect_look_clip("act:ball", "ThrongA_Happy"), int(time * 6.0))
 		var ride: Dictionary = sim.ride_of(i)
 		if not ride.is_empty():
-			var clip := "ThrongA_Roundabout_SpriteSheet"
+			var clip := _effect_look_clip("act:round", "ThrongA_Roundabout_SpriteSheet")
 			var car := TiovivoLabTune.carousel()
 			var nframes := int(ThrongClips.CLIPS[clip].y) if ThrongClips.CLIPS.has(clip) else 8
 			var idx := 0
@@ -1973,7 +1969,7 @@ func _frame(i: int, time: float) -> int:
 			else:
 				idx = posmod(int(car.get("sprite_dir_offset", 0)), maxi(1, nframes))
 			return ThrongClips.frame_at(clip, idx)
-		return ThrongClips.frame_at("ThrongA_Jump_VariantA_Spritesheet", int(time * 8.0))
+		return ThrongClips.frame_at(_effect_look_clip("act:play", "ThrongA_Jump_VariantA_Spritesheet"), int(time * 8.0))
 	if doing == ThrongletSimServer.ACT_WORK and not moving:
 		if sim.is_mining(i):
 			var cycle := ThrongletSimServer.MINE_SWING_T + ThrongletSimServer.MINE_WAIT_T
@@ -2661,11 +2657,29 @@ func _paint_suds(draws: Array, pos: Vector2, sort_y: float, time: float, s: floa
 		_push_iso(draws, pos + off, frame, Color(1, 1, 1, alpha), 6.0 + float(i) * 2.0, scale, sort_y, Color.TRANSPARENT, Vector2.ZERO, AnimTune.frame_rot(frame_id, frame_idx))
 
 
-func _paint_sponge_suds(draws: Array, pos: Vector2, sort_y: float, time: float) -> void:
+func _effect_look_lift(tune: Dictionary, time: float, phase: float = 0.0) -> float:
+	var amp := float(tune.get("lift", 0.0))
+	var bob := float(tune.get("bob", 0.0))
+	if bob <= 0.0:
+		return amp
+	if amp <= 0.0:
+		return absf(sin(time * bob + phase)) * 1.5
+	return sin(time * bob + phase) * amp
+
+
+func _effect_look_clip(id: String, fallback: String) -> String:
+	var clip := str(EffectTune.get_tune(id).get("clip", ""))
+	if clip != "" and ThrongClips.has_clip(clip):
+		return clip
+	return fallback
+
+
+func _paint_sponge_suds(draws: Array, pos: Vector2, sort_y: float, time: float, tune: Dictionary = {}) -> void:
 	# One atlas cell is already a full bubble cluster — do not stack several cells.
-	var wash_tune: Dictionary = EffectTune.get_tune("act:sponge")
-	var s := float(wash_tune.get("scale", 0.55))
-	var tip := Vector2(float(wash_tune.get("fx_x", 0.0)), float(wash_tune.get("fx_y", 0.0)))
+	# Bench and live scrub both call this so fx_x/fx_y/scale/lift stay identical.
+	var wash_tune: Dictionary = tune if not tune.is_empty() else EffectTune.get_tune("act:sponge")
+	var s := float(wash_tune.get("scale", 0.45))
+	var tip := Vector2(float(wash_tune.get("fx_x", 7.0)), float(wash_tune.get("fx_y", 7.0)))
 	var body_lift := 6.0 + float(wash_tune.get("lift", 0.0))
 	var bubble_fps := float(AnimTune.get_tune("bubble").get("fps", 8.0))
 	var idx := posmod(int(time * bubble_fps), maxi(AssetFrames.BUBBLE_N, 1))
@@ -2675,6 +2689,23 @@ func _paint_sponge_suds(draws: Array, pos: Vector2, sort_y: float, time: float) 
 	if cluster < 0:
 		return
 	_push_iso(draws, pos + tip, cluster, Color(1, 1, 1, 0.92), body_lift, s, sort_y)
+
+
+func _paint_clean_sparkle(draws: Array, pos: Vector2, sort_y: float, tune: Dictionary, fade: float = 1.0, progress: float = -1.0, time: float = 0.0) -> void:
+	var clean_n := maxi(AssetFrames.CLEAN_N, 1)
+	var clean_idx := 0
+	if progress < 0.0:
+		var fps := float(AnimTune.get_tune("clean").get("fps", 10.0))
+		clean_idx = posmod(int(time * fps), clean_n)
+	else:
+		clean_idx = clampi(int(progress * float(clean_n)), 0, clean_n - 1)
+	var frame := AssetFrames.frame(AssetFrames.CLEAN, clean_n, clean_idx)
+	if frame < 0:
+		return
+	var sparkle_scale := float(tune.get("scale", 0.28)) * AnimTune.frame_scale("clean", clean_idx)
+	var sparkle_off := Vector2(float(tune.get("fx_x", 9.0)), float(tune.get("fx_y", 9.0))) + AnimTune.frame_offset("clean", clean_idx)
+	var sparkle_lift := float(tune.get("lift", 10.0))
+	_push_iso(draws, pos + sparkle_off, frame, Color(1, 1, 1, fade), sparkle_lift, sparkle_scale, sort_y, Color.TRANSPARENT, Vector2.ZERO, AnimTune.frame_rot("clean", clean_idx))
 
 
 # World offset that puts the opaque middle of a frame on the anchor.

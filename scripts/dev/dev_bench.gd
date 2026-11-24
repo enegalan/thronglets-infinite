@@ -2035,10 +2035,7 @@ func _paint_effect_throng(draws: Array, origin: Vector2, alpha: float) -> void:
 	var frame := ThrongClips.frame_at(clip, index)
 	var off: Vector2 = ThrongTune.frame_offset(clip, index)
 	var pos := origin + off
-	var lift := float(tune.get("lift", 0.0))
-	var bob := float(tune.get("bob", 0.0))
-	if bob > 0.0:
-		lift += absf(sin(effect_t * bob)) * maxf(lift, 1.5)
+	var lift: float = main._effect_look_lift(tune, effect_t)
 	if effect_id == "act:bath":
 		pos = origin + Catalog.TUB_SEAT_OFF + off
 		lift = _bath_lift(index)
@@ -2052,64 +2049,16 @@ func _paint_effect_throng(draws: Array, origin: Vector2, alpha: float) -> void:
 	_paint_effect_fx(draws, pos, sort_y + 1.0, tune)
 
 
-func _effect_fx_frame(fx: String, time: float) -> int:
-	match fx:
-		"spark":
-			return main._prop_frame(Catalog.ICON_FX_SPARK)
-		"suds":
-			return AssetFrames.frame(AssetFrames.BUBBLE, AssetFrames.BUBBLE_N, int(time * 8.0))
-		"splash":
-			return AssetFrames.frame(AssetFrames.SPLASH, AssetFrames.SPLASH_N, int(time * 8.0))
-		"aura":
-			return AssetFrames.frame(AssetFrames.AURA, AssetFrames.AURA_N, 0)
-		"fire":
-			return AssetFrames.frame(AssetFrames.FIRE, AssetFrames.FIRE_N, int(time * 8.0))
-		"clean":
-			return AssetFrames.frame(AssetFrames.CLEAN, AssetFrames.CLEAN_N, int(time * 10.0))
-		_:
-			return -1
-
-
 func _paint_effect_fx(draws: Array, pos: Vector2, sort_y: float, tune: Dictionary) -> void:
-	var fx := str(tune.get("fx", "none"))
-	if fx == "none" or fx == "":
-		return
-	var fx_scale := float(tune.get("scale", 1.0))
-	var fx_off := Vector2(float(tune.get("fx_x", 0.0)), float(tune.get("fx_y", 0.0)))
-	var time := effect_t
-	var orbit := float(tune.get("orbit", 0.0))
-	if fx == "suds":
-		var bubble := AssetFrames.frame(AssetFrames.BUBBLE, AssetFrames.BUBBLE_N, int(time * 10.0))
-		if bubble >= 0:
-			main._push_iso(draws, pos + fx_off, bubble, Color(1, 1, 1, 0.85), 8.0, fx_scale, sort_y)
-		else:
-			main._paint_suds(draws, pos + fx_off + Vector2(0, -6), sort_y + 0.4, time, fx_scale)
-		return
-	var frame := _effect_fx_frame(fx, time)
-	if frame < 0:
-		return
-	if orbit > 0.5:
-		for i in 3:
-			var ang := time * 4.0 + float(i) * TAU / 3.0
-			var wob := Vector2(cos(ang) * orbit, sin(ang) * orbit * 0.55 - 8.0)
-			main._push_iso(draws, pos + fx_off + wob, frame, Color(1, 1, 1, 0.95), 10.0 + float(i), fx_scale, sort_y + 0.4 + float(i) * 0.1)
-		return
-	if fx == "fire":
-		main._push_iso(draws, pos + fx_off + Vector2(10, -4), frame, Color(1, 1, 1, 1.0), 6.0, 1.0, sort_y + 0.4)
-		var blob := AssetFrames.frame(AssetFrames.FIRE_BLOB, AssetFrames.FIRE_BLOB_N, int(time * 8.0))
-		if blob >= 0:
-			main._push_iso(draws, pos + fx_off + Vector2(sin(time * 5.0) * 10.0, -12.0), blob, Color(1, 1, 1, 0.95), 10.0, 1.0, sort_y + 0.5)
-		return
-	if fx == "splash":
-		main._push_iso(draws, pos + fx_off + Vector2(0, 2), frame, Color(1, 1, 1, 0.95), 4.0, 1.0, sort_y + 0.4)
-		main._paint_suds(draws, pos + fx_off + Vector2(0, -2), sort_y + 0.5, time, fx_scale)
-		return
-	if fx == "clean":
-		main._push_iso(draws, pos + fx_off, frame, Color(1, 1, 1, 0.95), 10.0, fx_scale, sort_y + 0.4)
-		return
-	var bob := float(tune.get("bob", 0.0))
-	var hop := Vector2(0, -10.0 - absf(sin(time * maxf(bob, 4.0))) * 4.0)
-	main._push_iso(draws, pos + fx_off + hop, frame, Color(1, 1, 1, 0.95), 10.0, fx_scale, sort_y + 0.4)
+	match effect_id:
+		"act:sponge":
+			main._paint_sponge_suds(draws, pos, sort_y, effect_t, tune)
+		"act:wash_sparkle", "act:bath_exit":
+			main._paint_clean_sparkle(draws, pos, sort_y + 0.4, tune, 1.0, -1.0, effect_t)
+		"act:mop":
+			main._paint_clean_sparkle(draws, pos, sort_y + 0.4, EffectTune.get_tune("act:wash_sparkle"), 1.0, -1.0, effect_t)
+		_:
+			pass
 
 
 func _build_effect_gauge() -> void:

@@ -5934,10 +5934,11 @@ func _pop(x: float, y: float, icon: int, sprite_scale: float = 1.0, throng_id: i
 func _tick_pops(dt: float, age: bool = true) -> void:
 	var kept: Array = []
 	for pop in pops:
+		var throng_id := int(pop.get("throng_id", -1))
 		if age:
 			pop.t = float(pop.t) - dt
-			pop.lift = float(pop.lift) + 22.0 * dt
-		var throng_id := int(pop.get("throng_id", -1))
+			if throng_id < 0:
+				pop.lift = float(pop.lift) + 22.0 * dt
 		if float(pop.t) <= 0.0 or (throng_id >= 0 and (throng_id >= slot_count or state[throng_id] != Catalog.ST_LIVING)):
 			continue
 		if throng_id >= 0:
