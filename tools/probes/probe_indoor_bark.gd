@@ -41,6 +41,7 @@ func _run() -> void:
 		{"name": "home_hungry", "b": home, "fed": 50.0, "fun": 90.0, "clean": 90.0},
 		{"name": "theatre_hungry", "b": show_b, "fed": 50.0, "fun": 90.0, "clean": 90.0},
 	]
+	var failed := 0
 	for c in cases:
 		var b: Dictionary = c.b
 		if b.is_empty():
@@ -50,7 +51,6 @@ func _run() -> void:
 		var id := sim._push_slot(rim.x, rim.y, float(c.fed), float(c.fun), float(c.clean), 0.0, 0)
 		sim._rebuild_hash()
 		sim.view_rect = Rect2(mid - Vector2(300, 300), Vector2(600, 600))
-		# Clear prior guest if any
 		if sim._is_guest(b, id):
 			sim._drop_guest(b, id)
 		var entered := sim._enter_visit(id, b)
@@ -77,9 +77,12 @@ func _run() -> void:
 				got = true
 				break
 		print("  force_bark got=%s bark=%s" % [got, sim.barks])
+		if not indoors or icon >= 0 or can_sing or got:
+			failed += 1
+			print("  FAIL expected indoors with no thought/bark")
 		if sim._is_guest(b, id):
 			sim._drop_guest(b, id)
-	quit(0)
+	quit(1 if failed > 0 else 0)
 
 func _place(sim, kind: int, around: Vector2) -> Dictionary:
 	for attempt in 64:

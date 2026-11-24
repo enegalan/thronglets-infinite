@@ -4905,19 +4905,13 @@ func _sync_marks() -> void:
 		var at := Vector2(float(bark.x), float(bark.y))
 		var tip_lift := 14.0
 		if throng_id >= 0 and throng_id < sim.slot_count and sim.state[throng_id] == Catalog.ST_LIVING:
+			if _throng_hidden_indoors(sim, throng_id):
+				panel.visible = false
+				tail.visible = false
+				if i < bubble_labels.size():
+					bubble_labels[i].visible = false
+				continue
 			at = Vector2(sim.pos_x[throng_id], sim.pos_y[throng_id])
-			# Hidden guests: float the bocadillo over the building roof (same lift as capacity marks).
-			if _throng_hidden_indoors(sim, throng_id) and throng_id < sim.link_guest.size():
-				var bid := int(sim.link_guest[throng_id])
-				var visit: Dictionary = sim.building_by_id.get(bid, {})
-				if not visit.is_empty() and not bool(visit.get("dead", true)):
-					var kind := int(visit.kind)
-					var origin := Vector2(float(visit.x), float(visit.y))
-					if Catalog.building_has_active(kind):
-						at = _building_active_draw_at(kind, origin)
-					else:
-						at = _building_draw_at(kind, origin)
-					tip_lift = 56.0
 		if not view.has_point(at):
 			panel.visible = false
 			tail.visible = false

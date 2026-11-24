@@ -2836,10 +2836,9 @@ func _thought_icon(i: int) -> int:
 			return Catalog.ICON_MOP
 		if _thought_known("sponge"):
 			return Catalog.ICON_SPONGE
-	# Guests are hidden indoors: bark needs the building does not cover, or the visit itself.
-	var visit := _guest_building(i)
-	if not visit.is_empty() and not _visit_rule(int(visit.kind)).is_empty():
-		return _visit_thought_icon(i, visit)
+	# Hidden indoors: no thought bubble while a guest of a visit building.
+	if indoors(i):
+		return -1
 	if fed[i] < Catalog.NEED_HUNGRY and _thought_known("apple"):
 		return Catalog.ICON_APPLE
 	var in_tub := link_tub[i] >= 0
@@ -2874,34 +2873,6 @@ func _thought_icon(i: int) -> int:
 	return -1
 
 
-func _visit_thought_icon(i: int, visit: Dictionary) -> int:
-	var vk := int(visit.kind)
-	var rule := _visit_rule(vk)
-	if fed[i] < Catalog.NEED_HUNGRY and float(rule.get("fed", 0.0)) <= 0.0 and _thought_known("apple"):
-		return Catalog.ICON_APPLE
-	if clean[i] < Catalog.NEED_SEEK and float(rule.get("clean", 0.0)) <= 0.0:
-		if _thought_known("mop"):
-			return Catalog.ICON_MOP
-		if _thought_known("sponge"):
-			return Catalog.ICON_SPONGE
-	if amused[i] < Catalog.NEED_FUN and float(rule.get("fun", 0.0)) <= 0.0:
-		if _thought_known("roundabout"):
-			return Catalog.ICON_ROUND
-		if _thought_known("ball"):
-			return Catalog.ICON_BALL
-	if _is_mine_kind(vk) and (_thought_known("mine") or _thought_known("pickaxe")):
-		return Catalog.ICON_ORE
-	if _is_show(vk) and _thought_known("theatre"):
-		return Catalog.ICON_THEATRE
-	if vk == Catalog.BLD_FANCY:
-		return Catalog.ICON_FANCY
-	if vk == Catalog.BLD_DWELL:
-		return Catalog.ICON_DWELL
-	if fed[i] >= 85.0 and amused[i] >= 85.0 and clean[i] >= 85.0 and _thought_known("flower"):
-		return Catalog.ICON_FLOWER
-	return -1
-
-
 func _is_penned(i: int) -> bool:
 	var blocked_n := 0
 	for d in [
@@ -2915,6 +2886,9 @@ func _is_penned(i: int) -> bool:
 
 func _maybe_bark(i: int) -> void:
 	if barks.size() >= 2:
+		bark_cool[i] = Catalog.BARK_COOL
+		return
+	if indoors(i):
 		bark_cool[i] = Catalog.BARK_COOL
 		return
 	if view_rect.size != Vector2.ZERO and not view_rect.has_point(Vector2(pos_x[i], pos_y[i])):
@@ -3051,6 +3025,8 @@ func _tick_barks(delta: float, age: bool = true) -> void:
 			bark.t = float(bark.t) - delta
 		var i := int(bark.id)
 		if float(bark.t) <= 0.0 or i < 0 or i >= slot_count or state[i] != Catalog.ST_LIVING:
+			continue
+		if indoors(i):
 			continue
 		bark.x = pos_x[i]
 		bark.y = pos_y[i]
