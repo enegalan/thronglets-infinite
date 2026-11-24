@@ -2,6 +2,14 @@
 
 ## [Unreleased](https://github.com/enegalan/thronglets-infinite/compare/v2.7.5...HEAD)
 
+### 2026-11-24
+
+- Goo on a building footprint shuts houses, fancy houses, theatres, mines, and factories until it is mopped; those buildings also switch to active and goo sprite variants.
+- Capacity marks now show occupancy for houses, fancy houses, and theatres plus mine stock, while factories keep their progress wedges. Full visit buildings read `LLENO`.
+- World art is split into per-tile sprites and separate structure frames; the art tools and runtime drawing were updated to match, including the roundabout and flower strips. Prop draws can tint instances through the thronglet shader.
+- Bath-exit sparkles now draw at 0.28 scale with a (9, 9) offset; wash sparkles use the same offset and sponge suds draw at 0.45 scale with a (7, 7) offset.
+- Added bench probes and shot modes for building goo, visit capacity, and flower placement; video-gap notes record the verified building UI.
+
 ### 2026-11-23
 
 - Dirty thronglets stay dirty while walking at default zoom: far-view LOD no longer zeroes the dirt factor (held already kept it). Missing dirt masks filled via `python3 tools/fill_throng_dirt.py`; check with `--shot-dirt`.
