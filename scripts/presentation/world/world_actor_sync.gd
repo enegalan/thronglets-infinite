@@ -56,10 +56,10 @@ func sync() -> void:
 	var drag_front: Array = ctx.drag_front
 	# far_view only affects thronglet anim LOD — never batch features into a stale MultiMesh.
 	drawer.clear_feat_static()
-	for feat in sim.features_in_rect(view):
+	for feat in sim.world_entities.features_in_rect(view):
 		if bool(feat.get("lifted", false)):
 			continue
-		if not sim.chunk_shown(sim._ck(int(feat.cx), int(feat.cy))):
+		if not sim.spatial.chunk_shown(sim.spatial._ck(int(feat.cx), int(feat.cy))):
 			continue
 		var p = Vector2(float(feat.x), float(feat.y))
 		var feat_kind = int(feat.kind)
@@ -90,7 +90,7 @@ func sync() -> void:
 				feat_off = AnimTune.frame_offset(feat_tune_id, feat_idx)
 				feat_rot = AnimTune.frame_rot(feat_tune_id, feat_idx)
 			var feat_sort_y = NAN
-			if sim._ore_tier(feat_kind) > 0:
+			if sim.building_sim._ore_tier(feat_kind) > 0:
 				# Mine zones (ore nodes) are ground zones: above ground, below sprites on top.
 				feat_sort_y = -1000000.0
 			iso.push_iso(draws, feat_at, feat_frame, Color.WHITE, 0.0, feat_scale, feat_sort_y, feat_outline, feat_off, feat_rot)
@@ -100,7 +100,7 @@ func sync() -> void:
 		if it.dead or it.held:
 			continue
 		var falling_void = bool(it.get("falling_void", false))
-		if not falling_void and not sim.chunk_at_home(float(it.x), float(it.y)):
+		if not falling_void and not sim.spatial.chunk_at_home(float(it.x), float(it.y)):
 			continue
 		var world_pos = Vector2(float(it.x), float(it.y))
 		var p2 = iso.item_draw_at(int(it.kind), world_pos)
@@ -146,7 +146,7 @@ func sync() -> void:
 	for b in sim.buildings:
 		if b.dead or bool(b.get("lifted", false)):
 			continue
-		if not sim.chunk_at_home(float(b.x), float(b.y)):
+		if not sim.spatial.chunk_at_home(float(b.x), float(b.y)):
 			continue
 		var p3 = Vector2(float(b.x), float(b.y))
 		var b_kind = int(b.kind)
@@ -182,7 +182,7 @@ func sync() -> void:
 			if b_kind == Catalog.BLD_MINE or b_kind == Catalog.BLD_MINE2:
 				# Mines are walkable ground pads: render above ground but below entities on top.
 				b_sort_y = -1000000.0
-			var polluted = sim.has_method("building_is_polluted") and bool(sim.building_is_polluted(b))
+			var polluted = sim.building_sim.has_method("building_is_polluted") and bool(sim.building_sim.building_is_polluted(b))
 			var show_on = false
 			if not polluted and Catalog.building_has_active(b_kind):
 				if (
@@ -191,8 +191,8 @@ func sync() -> void:
 					or b_kind == Catalog.BLD_THEATRE
 				):
 					show_on = (
-						sim.has_method("_live_guests")
-						and int(sim._live_guests(b)) > 0
+						sim.building_sim.has_method("_live_guests")
+						and int(sim.building_sim._live_guests(b)) > 0
 					)
 				else:
 					show_on = bool(b.get("active", false))
@@ -240,7 +240,7 @@ func sync() -> void:
 					)
 	var grid_at = cam_rig.grid_pointer_world()
 	var free_at = cam_rig.pointer_world()
-	var hand: Dictionary = sim.hand_item()
+	var hand: Dictionary = sim.player_tools.hand_item()
 	if not hand.is_empty():
 		var hand_frame = host.anim_frames.prop_frame(Catalog.icon_for_item(int(hand.kind)))
 		var hand_scale = Catalog.item_sprite_scale(int(hand.kind))
@@ -268,7 +268,7 @@ func sync() -> void:
 			if not is_zero_approx(hand_rot):
 				hand_draw["rot"] = hand_rot
 			draws.append(hand_draw)
-	if sim.has_scoop():
+	if sim.player_tools.has_scoop():
 		for raw in sim.scoop_item_ids:
 			var scooped = sim.item_by_id.get(int(raw), {})
 			if scooped.is_empty() or scooped.dead:
@@ -374,11 +374,11 @@ func sync() -> void:
 					drag_front.append(drag_draw)
 	var time = time_pre
 	# Crowd LOD only when the viewport is actually dense — not merely zoomed out.
-	var visible_ids: Array = sim.query_rect(view, Catalog.DRAW_THRONG_DETAIL + 1)
+	var visible_ids: Array = sim.spatial.query_rect(view, Catalog.DRAW_THRONG_DETAIL + 1)
 	var crowd_mode = visible_ids.size() > Catalog.DRAW_THRONG_DETAIL
 	clear_throng_crowd()
 	if crowd_mode:
-		var crowd_ids: Array = sim.query_rect(view)
+		var crowd_ids: Array = sim.spatial.query_rect(view)
 		push_throng_crowd_draws(draws, crowd_ids, time, far_view)
 	else:
 		for id in visible_ids:
@@ -396,7 +396,7 @@ func sync() -> void:
 			var riding = false
 			var prop_anchor = Vector2.INF
 			var sort_y = NAN
-			var ball_play: bool = doing == ThrongletSim.ACT_PLAY and sim.has_ball(i)
+			var ball_play: bool = doing == ThrongletSim.ACT_PLAY and sim.building_sim.has_ball(i)
 			if not sim.frozen:
 				if not far_view and sim.shake_t[i] > 0.0:
 					pos += Vector2(randf_range(-1.5, 1.5), randf_range(-1.5, 1.5))
@@ -405,19 +405,19 @@ func sync() -> void:
 				elif doing == ThrongletSim.ACT_PLAY and ball_play:
 					lift = iso.effect_look_lift(EffectTune.get_tune("act:ball"), time, float(i))
 				elif doing == ThrongletSim.ACT_PLAY and not ball_play:
-					var ride: Dictionary = sim.ride_of(i)
+					var ride: Dictionary = sim.building_sim.ride_of(i)
 					if ride.is_empty():
 						lift = iso.effect_look_lift(EffectTune.get_tune("act:play"), time, float(i))
 					else:
 						riding = true
 						lift = iso.effect_look_lift(EffectTune.get_tune("act:round"), time, float(i))
-						var seat = sim._ride_slot_of(ride, i)
+						var seat = sim.agent_tick._ride_slot_of(ride, i)
 						if seat >= 0:
-							pos = sim._ride_slot_pos(ride, seat)
+							pos = sim.agent_tick._ride_slot_pos(ride, seat)
 						else:
-							var mid = sim._ride_center_of(ride)
+							var mid = sim.agent_tick._ride_center_of(ride)
 							var ring = pos - mid
-							var rr = sim._ride_radius(ride)
+							var rr = sim.agent_tick._ride_radius(ride)
 							if ring.length_squared() >= 0.25 and rr > 0.0:
 								pos = mid + ring.normalized() * rr
 							else:
@@ -426,7 +426,7 @@ func sync() -> void:
 							Catalog.BLD_ROUND, Vector2(float(ride.x), float(ride.y))
 						)
 				elif doing == ThrongletSimServer.ACT_BATH:
-					var tub: Dictionary = sim.seat_of(i)
+					var tub: Dictionary = sim.building_sim.seat_of(i)
 					if tub.is_empty():
 						lift = absf(sin(time * 9.0 + float(i))) * 2.2
 					else:
@@ -578,14 +578,14 @@ func push_throng_crowd_draws(draws: Array, ids: Array, time: float, far_view: bo
 			frame = ThrongClips.frame_at("ThrongA_Dead_001" if sim.dir_x[i] >= 0.0 else "ThrongA_Dead_002", 0)
 		elif host.anim_frames.throng_special_body(sim, i):
 			frame = host.anim_frames.frame_lod(i, time, far_view)
-			if int(sim.act[i]) == ThrongletSim.ACT_PLAY and not sim.has_ball(i):
-				var ride: Dictionary = sim.ride_of(i)
+			if int(sim.act[i]) == ThrongletSim.ACT_PLAY and not sim.building_sim.has_ball(i):
+				var ride: Dictionary = sim.building_sim.ride_of(i)
 				if not ride.is_empty():
 					riding = true
 					lift = iso.effect_look_lift(EffectTune.get_tune("act:round"), time, float(i))
-					var seat = sim._ride_slot_of(ride, i)
+					var seat = sim.agent_tick._ride_slot_of(ride, i)
 					if seat >= 0:
-						pos = sim._ride_slot_pos(ride, seat)
+						pos = sim.agent_tick._ride_slot_pos(ride, seat)
 					sort_y = iso.prop_front_sort_y(
 						iso.building_active_draw_at(Catalog.BLD_ROUND, Vector2(float(ride.x), float(ride.y)))
 					)
@@ -624,7 +624,7 @@ func throng_hidden_indoors(sim: ThrongletSim, i: int) -> bool:
 	var visit = sim.building_by_id.get(bid, {})
 	if visit.is_empty() or visit.dead:
 		return false
-	return not sim._visit_rule(int(visit.kind)).is_empty()
+	return not sim.building_sim._visit_rule(int(visit.kind)).is_empty()
 
 ## Draws blood pool under a dead thronglet.
 func push_corpse_blood(draws: Array, sim: ThrongletSim, i: int, pos: Vector2, sort_y: float) -> void:

@@ -304,13 +304,13 @@ func sync_capacity_marks(sim: ThrongletSim, view: Rect2) -> void:
 	for b in sim.buildings:
 		if b.dead:
 			continue
-		if not sim.has_method("capacity_info"):
+		if not sim.building_sim.has_method("capacity_info"):
 			continue
-		var info: Dictionary = sim.capacity_info(b)
+		var info: Dictionary = sim.building_sim.capacity_info(b)
 		if info.is_empty():
 			continue
 		var origin := Vector2(float(b.x), float(b.y))
-		if not sim.chunk_shown(sim.chunk_key_at(origin.x, origin.y)):
+		if not sim.spatial.chunk_shown(sim.spatial.chunk_key_at(origin.x, origin.y)):
 			continue
 		var kind := int(b.kind)
 		var visit := bool(info.get("visit", false))
@@ -344,7 +344,7 @@ func sync_capacity_marks(sim: ThrongletSim, view: Rect2) -> void:
 			fill.visible = amount >= 0.02
 			fill.modulate = Color(0.95, 0.28, 0.28) if full else Color(91.0 / 255.0, 198.0 / 255.0, 230.0 / 255.0)
 			bar_n += 1
-		var cap_text: String = sim.occupancy_text(b)
+		var cap_text: String = sim.building_sim.occupancy_text(b)
 		if cap_text != "" and full_n < full_labels.size():
 			var label: Label = full_labels[full_n]
 			label.visible = true
@@ -371,7 +371,7 @@ func ensure_factory_slice_texs() -> void:
 	img = img.duplicate()
 	var w: int = img.get_width()
 	var h: int = img.get_height()
-	var count := ThrongletSimServer.FACTORY_WEDGES
+	var count: int = ThrongletSimServer.FACTORY_WEDGES
 	var parts: Array[Image] = []
 	for _i in count:
 		parts.append(Image.create(w, h, false, Image.FORMAT_RGBA8))
@@ -442,7 +442,7 @@ func sync_factory_mark(sim: ThrongletSim) -> void:
 			continue
 		# Every factory shows its own frame; wedges fill with process time.
 		var at_world := Vector2(float(b.x), float(b.y))
-		if not sim.chunk_shown(sim.chunk_key_at(at_world.x, at_world.y)):
+		if not sim.spatial.chunk_shown(sim.spatial.chunk_key_at(at_world.x, at_world.y)):
 			continue
 		if cull_view and not view.has_point(at_world):
 			continue
@@ -452,8 +452,8 @@ func sync_factory_mark(sim: ThrongletSim) -> void:
 		var frame: Sprite2D = mark.frame
 		var slices: Array = mark.slices
 		var progress := 0.0
-		if sim.has_method("factory_process_progress"):
-			progress = float(sim.factory_process_progress(b))
+		if sim.building_sim.has_method("factory_process_progress"):
+			progress = float(sim.building_sim.factory_process_progress(b))
 		var filled := clampi(
 			int(floor(progress * float(ThrongletSimServer.FACTORY_WEDGES) + 0.001)),
 			0,
@@ -486,7 +486,7 @@ func sync_building_alert(sim: ThrongletSim) -> void:
 	for b in sim.buildings:
 		if b.dead:
 			continue
-		if not sim.building_is_polluted(b):
+		if not sim.building_sim.building_is_polluted(b):
 			continue
 		pollution_bld.position = host.cam_rig.to_iso(Vector2(float(b.x), float(b.y))) + Vector2(0, -36)
 		pollution_bld.visible = true
@@ -738,7 +738,7 @@ func bark_icon(icon: int) -> Texture2D:
 
 ## Whether the market can sell something new.
 func market_has_stock(sim: ThrongletSim) -> bool:
-	if not sim.has_building_kind(Catalog.BLD_MARKET):
+	if not sim.building_sim.has_building_kind(Catalog.BLD_MARKET):
 		return false
 	for key in Catalog.MARKET.keys():
 		var row: Dictionary = Catalog.MARKET[key]

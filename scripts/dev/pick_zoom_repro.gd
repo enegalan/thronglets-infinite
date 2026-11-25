@@ -61,7 +61,7 @@ func tick(delta: float) -> void:
 				])
 			if phase_t >= 1.2:
 				print("PICK ZOOM REPRO fire use_tool pick")
-				ThrongletSimServer.use_tool(Catalog.TOOL_PICK, 256.0, 256.0)
+				ThrongletSimServer.player_tools.use_tool(Catalog.TOOL_PICK, 256.0, 256.0)
 				phase = "after"
 				phase_t = 0.0
 		"after":
@@ -92,9 +92,9 @@ func _boot() -> void:
 		sim.unlocks["pickaxe"] = true
 		sim.unlocks["unlock_pickaxe"] = true
 	if count > 0:
-		sim.debug_perf_busy(Vector2(256, 256), 2)
+		sim.harness.debug_perf_busy(Vector2(256, 256), 2)
 		main.seen_epoch = -1
-		sim.debug_spawn(count, Vector2(256, 256))
+		sim.harness.debug_spawn(count, Vector2(256, 256))
 	main.cam_rig.set_zoom(CameraRig.ZOOM_MIN)
 	main.cam_rig.focus_world(Vector2(256, 256))
 	print("PICK ZOOM REPRO booted living=%s features=%s zoom=%s" % [

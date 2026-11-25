@@ -31,7 +31,7 @@ func _boot() -> void:
 
 ## Clears the world and mood flags before each isolated situation test.
 func _reset() -> void:
-	sim._reset_world()
+	sim.world_entities._reset_world()
 	sim.frozen = false
 	sim.glitch_t = 0.0
 	sim.celebrate_t = 0.0
@@ -71,7 +71,7 @@ func _fail(msg: String) -> void:
 
 ## Quiet-spawns one content thronglet at needs and returns slot id.
 func _spawn(x: float, y: float, fed_v: float, fun_v: float, clean_v: float) -> int:
-	var id: int = int(sim._push_slot_quiet(x, y, fed_v, fun_v, clean_v, 0.0, 0))
+	var id: int = int(sim.world_entities._push_slot_quiet(x, y, fed_v, fun_v, clean_v, 0.0, 0))
 	if id < 0:
 		_fail("spawn failed at %.0f,%.0f" % [x, y])
 		return -1
@@ -145,7 +145,7 @@ func _run_all() -> void:
 		_pass("penned → only FreakOut")
 	else:
 		_fail("penned must be only FreakOut, got %s" % str(penned_counts))
-	if sim.has_method("_is_penned"):
+	if sim.dialogue.has_method("_is_penned"):
 		_pass("_is_penned helper present (flag writer used each tick)")
 	else:
 		_fail("_is_penned missing")
@@ -154,7 +154,7 @@ func _run_all() -> void:
 	_reset()
 	a = _spawn(200.0, 200.0, 95.0, 95.0, 95.0)
 	sim.glitch_t = 0.0
-	sim._begin_gaze()
+	sim.dialogue._begin_gaze()
 	if float(sim.glitch_t) > 0.0:
 		_fail("_begin_gaze must not set glitch_t (got %.2f)" % float(sim.glitch_t))
 	else:
@@ -205,7 +205,7 @@ func _run_all() -> void:
 	print("==== 5 Peer sing/talk vs alone ====")
 	_reset()
 	a = _spawn(200.0, 200.0, 95.0, 95.0, 95.0)
-	var alone_peer: bool = bool(sim.has_living_peer(a))
+	var alone_peer: bool = bool(sim.world_entities.has_living_peer(a))
 	if alone_peer:
 		_fail("alone should not has_living_peer")
 	else:
@@ -220,7 +220,7 @@ func _run_all() -> void:
 		_pass("alone content stays calm: %s" % str(alone_social.keys()))
 
 	var b := _spawn(220.0, 200.0, 95.0, 95.0, 95.0)
-	if not bool(sim.has_living_peer(a)):
+	if not bool(sim.world_entities.has_living_peer(a)):
 		_fail("pair should has_living_peer (a)")
 	else:
 		_pass("pair has_living_peer=true")
@@ -263,7 +263,7 @@ func _run_all() -> void:
 	var started := false
 	for _attempt in 40:
 		sim.frame_i = 75 * (_attempt + 1)
-		if bool(sim._try_peer_social(a)):
+		if bool(sim.world_entities._try_peer_social(a)):
 			started = true
 			break
 	if started and float(sim.peer_t[a]) > 0.0 and int(sim.peer_of[a]) == b and float(sim.peer_t[b]) > 0.0:
@@ -274,7 +274,7 @@ func _run_all() -> void:
 	print("==== 6 Unlock celebrate + post-eat calm ====")
 	_reset()
 	a = _spawn(200.0, 200.0, 95.0, 95.0, 95.0)
-	var granted: bool = bool(sim._grant("probe_unlock_key", "", false))
+	var granted: bool = bool(sim.dialogue._grant("probe_unlock_key", "", false))
 	if not granted and float(sim.celebrate_t) <= 0.0:
 		sim.celebrate_t = float(sim.CELEBRATE_DUR)
 	if float(sim.celebrate_t) <= 0.0:
@@ -311,7 +311,7 @@ func _run_all() -> void:
 	_reset()
 	a = _spawn(200.0, 200.0, 95.0, 95.0, 95.0)
 	b = _spawn(220.0, 200.0, 95.0, 95.0, 95.0)
-	sim._pulse_react_near(200.0, 200.0, -1)
+	sim.world_entities._pulse_react_near(200.0, 200.0, -1)
 	if float(sim.react_t[a]) <= 0.0 and float(sim.react_t[b]) <= 0.0:
 		_fail("react_t not pulsed on neighbors")
 	else:
@@ -324,7 +324,7 @@ func _run_all() -> void:
 	sim.react_t[a] = 0.0
 	sim.react_t[b] = 0.0
 	sim.fires = [{"dead": false, "kind": Catalog.FEAT_FIRE, "x": 205.0, "y": 200.0}]
-	if not bool(sim.near_fire(a)):
+	if not bool(sim.world_entities.near_fire(a)):
 		_fail("near_fire false with fire at feet")
 	else:
 		_pass("near_fire true")
@@ -341,7 +341,7 @@ func _run_all() -> void:
 	sim.dir_x[a] = 1.0
 	sim.dir_y[a] = 0.0
 	sim.blds_home = [{"dead": false, "x": 230.0, "y": 200.0, "kind": Catalog.BLD_DWELL}]
-	if not bool(sim.approaching_home(a)):
+	if not bool(sim.world_entities.approaching_home(a)):
 		_fail("approaching_home false with home nearby")
 	else:
 		_pass("approaching_home true")
@@ -389,7 +389,7 @@ func _run_all() -> void:
 	_spawn(210.0, 205.0, 95.0, 95.0, 95.0)
 	sim.dir_x[a] = 1.0
 	sim.penned_flag[a] = 1
-	if not bool(sim.grab_thronglet(a)):
+	if not bool(sim.player_tools.grab_thronglet(a)):
 		_fail("grab_thronglet failed")
 	else:
 		_pass("grab_thronglet ok")
@@ -409,7 +409,7 @@ func _run_all() -> void:
 		_fail("world draw would still include held thronglet")
 	else:
 		_pass("world draw skips held thronglet")
-	sim.cancel_hold()
+	sim.player_tools.cancel_hold()
 	# Grab clears per-agent one-shots; penned body stays a single clip.
 	sim.penned_flag[a] = 1
 	sim.react_t[a] = 0.0
@@ -489,7 +489,7 @@ func _run_all() -> void:
 	a = _spawn(200.0, 200.0, 95.0, 95.0, 95.0)
 	sim.carry[a] = Catalog.CARRY_ORE
 	sim.carry_value[a] = 1
-	sim._set_carry(a, Catalog.CARRY_NONE)
+	sim.world_entities._set_carry(a, Catalog.CARRY_NONE)
 	if float(sim.drop_t[a]) <= 0.0:
 		_fail("drop_t not set on haul clear")
 	else:
@@ -512,12 +512,12 @@ func _run_all() -> void:
 	sim.act_t[a] = 1.0
 	sim.dir_x[a] = 0.0
 	sim.dir_y[a] = 0.0
-	if not bool(sim.is_mining(a)):
+	if not bool(sim.world_entities.is_mining(a)):
 		_fail("is_mining false for mine guest")
 	else:
 		_pass("is_mining true for mine guest")
 	var swing_t := 0.1
-	var wait_t := float(sim.MINE_SWING_T) + 0.05
+	var wait_t = float(sim.MINE_SWING_T) + 0.05
 	var swing_c := _clip(a, swing_t)
 	var wait_c := _clip(a, wait_t)
 	if swing_c == "ThrongA_Pickaxe_Spritesheet":

@@ -3,7 +3,7 @@ class_name KitToolbar
 
 const ThrongletSim := preload("res://scripts/core/ThrongletSimServer.gd")
 const CameraRig := preload("res://scripts/presentation/camera/camera_rig.gd")
-const ProgressionManager := preload("res://scripts/core/progression_manager.gd")
+const ProgressionManager := preload("res://scripts/core/sim/progression_manager.gd")
 
 ## Main scene node owning kit panels, drag state, and tool selection.
 var host: Node2D
@@ -287,7 +287,7 @@ func rebuild_bars() -> void:
 		if not (bkey == "" or bool(sim.unlocks.get(bkey, false))):
 			continue
 		var build_id := int(id)
-		if build_id == Catalog.BLD_MARKET and sim.has_building_kind(Catalog.BLD_MARKET):
+		if build_id == Catalog.BLD_MARKET and sim.building_sim.has_building_kind(Catalog.BLD_MARKET):
 			continue
 		pending.append({"kind": "build", "id": build_id, "icon": int(info.icon)})
 		count += 1
@@ -383,17 +383,17 @@ func begin_kit_drag(kind: String, id: int) -> void:
 ## Drops scooped items at the pointer.
 func drop_scoop() -> void:
 	var sim: ThrongletSim = ThrongletSimServer
-	if not sim.has_scoop():
+	if not sim.player_tools.has_scoop():
 		return
 	var at: Vector2 = host.cam_rig.pointer_world()
-	sim.scoop_drop(at.x, at.y)
+	sim.player_tools.scoop_drop(at.x, at.y)
 	on_clear_tool_charge.call()
 	host.tool = Catalog.TOOL_EYE
 
 
 ## Clears kit drag and resets to eye tool.
 func cancel_kit_drag() -> void:
-	if ThrongletSimServer.has_scoop():
+	if ThrongletSimServer.player_tools.has_scoop():
 		drop_scoop()
 	host.kit_drag = {}
 	host.placing = -1
@@ -412,7 +412,7 @@ func end_kit_drag() -> void:
 	host.placing = -1
 	# Building ids collide with host.tool ids (factory==saw=8). Only tools charge.
 	var was_charge: bool = kind == "tool" and bool(on_is_charge_tool.call(id))
-	if kind == "tool" and id == Catalog.TOOL_GRAB and ThrongletSimServer.has_scoop():
+	if kind == "tool" and id == Catalog.TOOL_GRAB and ThrongletSimServer.player_tools.has_scoop():
 		drop_scoop()
 		return
 	on_clear_tool_charge.call()
@@ -422,7 +422,7 @@ func end_kit_drag() -> void:
 	if kind == "prop":
 		if prop != "" and on_drop_on_island.call():
 			var at: Vector2 = host.cam_rig.grid_pointer_world()
-			ThrongletSimServer.sandbox_place_prop(prop, at.x, at.y)
+			ThrongletSimServer.player_tools.sandbox_place_prop(prop, at.x, at.y)
 		host.tool = Catalog.TOOL_EYE
 		return
 	if id < 0:
@@ -437,13 +437,13 @@ func end_kit_drag() -> void:
 	var place := (kind == "tool" and id == Catalog.TOOL_TNT) or kind == "build"
 	var at: Vector2 = host.cam_rig.grid_pointer_world() if place else host.cam_rig.pointer_world()
 	if kind == "build":
-		ThrongletSimServer.place_building(id, at.x, at.y)
+		ThrongletSimServer.player_tools.place_building(id, at.x, at.y)
 	elif kind == "tool":
 		if id == Catalog.TOOL_SPONGE:
 			# Hold already scrubbed via _process; release ends suds and pops sparkles if cleaned.
-			ThrongletSimServer.sponge_release()
+			ThrongletSimServer.player_tools.sponge_release()
 		else:
-			ThrongletSimServer.use_tool(id, at.x, at.y)
+			ThrongletSimServer.player_tools.use_tool(id, at.x, at.y)
 	host.tool = Catalog.TOOL_EYE
 
 
@@ -488,9 +488,9 @@ func sync_active_tool() -> void:
 	var sim: ThrongletSim = ThrongletSimServer
 	if host.tool == Catalog.TOOL_EYE:
 		return
-	if not sim._tool_open(host.tool):
+	if not sim.player_tools._tool_open(host.tool):
 		var rep := replacement_tool_for(host.tool)
-		if rep >= 0 and sim._tool_open(rep):
+		if rep >= 0 and sim.player_tools._tool_open(rep):
 			host.tool = rep
 		else:
 			host.tool = Catalog.TOOL_EYE

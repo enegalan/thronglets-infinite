@@ -56,7 +56,7 @@ func ensure_feat_static() -> void:
 		var kind := int(feat.kind)
 		if not feat_is_batchable(kind):
 			continue
-		if not sim.chunk_shown(sim._ck(int(feat.cx), int(feat.cy))):
+		if not sim.spatial.chunk_shown(sim.spatial._ck(int(feat.cx), int(feat.cy))):
 			continue
 		var ore := int(feat.ore)
 		var origin := Vector2(float(feat.x), float(feat.y))
@@ -102,7 +102,7 @@ func push_far_feat_overlays(draws: Array, view: Rect2, time_pre: float) -> void:
 	for feat in sim.fires:
 		if feat.is_empty() or feat.dead or bool(feat.get("lifted", false)):
 			continue
-		if not sim.chunk_shown(sim._ck(int(feat.cx), int(feat.cy))):
+		if not sim.spatial.chunk_shown(sim.spatial._ck(int(feat.cx), int(feat.cy))):
 			continue
 		var p := Vector2(float(feat.x), float(feat.y))
 		var feat_at: Vector2 = iso.feature_draw_at(Catalog.FEAT_FIRE, p, 0)
@@ -133,7 +133,7 @@ func push_far_feat_overlays(draws: Array, view: Rect2, time_pre: float) -> void:
 		var feat_kind := int(feat.kind)
 		if feat_kind == Catalog.FEAT_FIRE or feat_kind == Catalog.FEAT_MONOLITH:
 			continue
-		if not sim.chunk_shown(sim._ck(int(feat.cx), int(feat.cy))):
+		if not sim.spatial.chunk_shown(sim.spatial._ck(int(feat.cx), int(feat.cy))):
 			continue
 		var p2 := Vector2(float(feat.x), float(feat.y))
 		var feat_at2: Vector2 = iso.feature_draw_at(feat_kind, p2, int(feat.ore))
@@ -142,7 +142,7 @@ func push_far_feat_overlays(draws: Array, view: Rect2, time_pre: float) -> void:
 		var feat_scale2 := Catalog.feature_sprite_scale(feat_kind, int(feat.ore))
 		var feat_frame2: int = host.anim_frames.prop_frame(Catalog.icon_for_feature(feat_kind, int(feat.ore)))
 		var feat_sort_y := NAN
-		if sim._ore_tier(feat_kind) > 0:
+		if sim.building_sim._ore_tier(feat_kind) > 0:
 			feat_sort_y = -1000000.0
 		iso.push_iso(draws, feat_at2, feat_frame2, Color.WHITE, 0.0, feat_scale2, feat_sort_y, Color(0.35, 1.0, 0.45, 1.0))
 	# Keep already-tracked monolith sprites alive; discovery happens in near view.

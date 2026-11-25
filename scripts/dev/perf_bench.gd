@@ -131,10 +131,10 @@ func _boot() -> void:
 		main.cam_rig.set_zoom(2.0)
 		main.cam_rig.focus_world(Vector2(256, 256))
 		if busy:
-			busy_stats = sim.debug_perf_busy(Vector2(256, 256), busy_scale)
+			busy_stats = sim.harness.debug_perf_busy(Vector2(256, 256), busy_scale)
 			# Force path/world sprites to rebuild for the stamped wear cells.
 			main.seen_epoch = -1
-		sim.debug_spawn(count, Vector2(256, 256))
+		sim.harness.debug_spawn(count, Vector2(256, 256))
 		spawned = true
 		print("PERF BENCH spawned living=%s features=%s items=%s buildings=%s busy=%s" % [
 			sim.living, sim.features.size(), sim.items.size(), sim.buildings.size(), busy_stats

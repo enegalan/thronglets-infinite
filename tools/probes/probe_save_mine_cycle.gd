@@ -3,10 +3,10 @@ extends SceneTree
 ## Load the player's real slot_0 save and verify mine/factory cycle on live state.
 
 ## Preloaded ThrongletSimServer script used for headless simulation steps.
-const SimScript := preload("res://scripts/core/ThrongletSimServer.gd")
+const SimScript = preload("res://scripts/core/ThrongletSimServer.gd")
 
 ## On-disk slot_0 save path exercised for regression probes.
-const SAVE := "/Users/egalan/Library/Application Support/Godot/app_userdata/Thronglets- Infinite/thronglets_slot_0.save"
+const SAVE = "/Users/egalan/Library/Application Support/Godot/app_userdata/Thronglets- Infinite/thronglets_slot_0.save"
 
 
 ## Defers probe execution until the SceneTree root is ready.
@@ -37,28 +37,28 @@ func _run() -> void:
 	sim.modal = {}
 	sim.talk_pending = {}
 	sim.gaze_queue.clear()
-	sim._restore_gaze()
-	sim._invalidate_factory_cache()
+	sim.dialogue._restore_gaze()
+	sim.building_sim._invalidate_factory_cache()
 
 	var mines: Array = []
 	var factories: Array = []
 	for b in sim.buildings:
 		if b.dead:
 			continue
-		var k := int(b.kind)
+		var k = int(b.kind)
 		if k == Catalog.BLD_MINE or k == Catalog.BLD_MINE2:
 			mines.append(b)
 		elif k == Catalog.BLD_FACTORY or k == Catalog.BLD_FACTORY2:
 			factories.append(b)
 
 	print("SAVE living=%d gems=%d mines=%d factories=%d has_factory=%s" % [
-		sim.living, sim.gems, mines.size(), factories.size(), str(sim._has_factory()),
+		sim.living, sim.gems, mines.size(), factories.size(), str(sim.building_sim._has_factory()),
 	])
 	for b in mines:
-		var info: Dictionary = sim.capacity_info(b)
+		var info: Dictionary = sim.building_sim.capacity_info(b)
 		print("  MINE id=%s stock=%s/%s full=%s guests=%d active=%s" % [
 			str(b.id), str(info.get("n")), str(info.get("cap")), str(info.get("full")),
-			sim._live_guests(b), str(b.get("active", false)),
+			sim.building_sim._live_guests(b), str(b.get("active", false)),
 		])
 	for b in factories:
 		print("  FACTORY id=%s buffer=%s" % [str(b.id), str(b.get("buffer", 0))])
@@ -76,12 +76,12 @@ func _run() -> void:
 	var mine: Dictionary = mines[0]
 	var factory: Dictionary = factories[0]
 	# Camera over the mine↔factory corridor so AGENT_NEAR seek budget hits workers.
-	var mid := Vector2(
+	var mid = Vector2(
 		(float(mine.x) + float(factory.x)) * 0.5,
 		(float(mine.y) + float(factory.y)) * 0.5
 	)
 	sim.view_rect = Rect2(mid.x - 220.0, mid.y - 260.0, 440.0, 520.0)
-	var ready := 0
+	var ready = 0
 	for i in sim.slot_count:
 		if sim.state[i] != Catalog.ST_LIVING:
 			continue
@@ -96,12 +96,12 @@ func _run() -> void:
 	var gems0: int = int(sim.gems)
 	var stock0: int = int(mine.get("buffer", 0))
 	var factory0: int = int(factory.get("buffer", 0))
-	var saw_guest := false
-	var saw_carry := false
-	var saw_stock_up := false
-	var max_stock := stock0
-	var max_factory := factory0
-	var dt := 1.0 / 30.0
+	var saw_guest = false
+	var saw_carry = false
+	var saw_stock_up = false
+	var max_stock = stock0
+	var max_factory = factory0
+	var dt = 1.0 / 30.0
 	for _frame in 1500:
 		sim.modal = {}
 		sim.talk_pending = {}
@@ -109,7 +109,7 @@ func _run() -> void:
 		sim.frozen = false
 		# Keep a handful near the mine work-ready (camera colony).
 		if (_frame % 15) == 0:
-			var topped := 0
+			var topped = 0
 			for i in sim.slot_count:
 				if sim.state[i] != Catalog.ST_LIVING:
 					continue
@@ -122,11 +122,11 @@ func _run() -> void:
 				if topped >= 8:
 					break
 		sim._step(dt)
-		var stock := int(mine.get("buffer", 0))
+		var stock = int(mine.get("buffer", 0))
 		if stock > stock0:
 			saw_stock_up = true
 		max_stock = maxi(max_stock, stock)
-		if sim._live_guests(mine) > 0:
+		if sim.building_sim._live_guests(mine) > 0:
 			saw_guest = true
 		for i in sim.slot_count:
 			if sim.state[i] == Catalog.ST_LIVING and int(sim.carry[i]) == Catalog.CARRY_ORE:
@@ -140,8 +140,8 @@ func _run() -> void:
 	print("AFTER stock %d->max%d factory %d->max%d gems %d->%d guest=%s carry=%s stock_up=%s" % [
 		stock0, max_stock, factory0, max_factory, gems0, gems1, saw_guest, saw_carry, saw_stock_up,
 	])
-	var info: Dictionary = sim.capacity_info(mine)
-	print("capacity_info=%s occupancy='%s'" % [str(info), sim.occupancy_text(mine)])
+	var info: Dictionary = sim.building_sim.capacity_info(mine)
+	print("capacity_info=%s occupancy='%s'" % [str(info), sim.building_sim.occupancy_text(mine)])
 
 	var errors: Array[String] = []
 	if not saw_stock_up and not saw_guest and not saw_carry:
@@ -164,6 +164,6 @@ func _run() -> void:
 
 ## Euclidean distance between two world points.
 func _dist(ax: float, ay: float, bx: float, by: float) -> float:
-	var dx := ax - bx
-	var dy := ay - by
+	var dx = ax - bx
+	var dy = ay - by
 	return sqrt(dx * dx + dy * dy)

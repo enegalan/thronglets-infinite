@@ -189,7 +189,7 @@ func camera_biome(in_tree: bool) -> String:
 	if _camera == null:
 		return ""
 	var world_pos := from_iso(_camera.position) if in_tree else _camera.position
-	return ThrongletSimServer.biome_at(world_pos.x, world_pos.y)
+	return ThrongletSimServer.world_entities.biome_at(world_pos.x, world_pos.y)
 
 
 ## Returns "mine", "market", or "" for a nearby building at camera center.

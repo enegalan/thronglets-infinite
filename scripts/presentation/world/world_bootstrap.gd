@@ -151,8 +151,8 @@ func sync_world(host: Node2D, cam_rig: CameraRig) -> void:
 			host.pathmap.clear()
 			for cell in _path_overlay.path_nodes.keys():
 				_path_overlay.drop_path_at(cell, true)
-	for ck in sim.take_dirty():
-		paint_chunk(host, str(ck), not sim.chunk_shown(str(ck)), null)
+	for ck in sim.spatial.take_dirty():
+		paint_chunk(host, str(ck), not sim.spatial.chunk_shown(str(ck)), null)
 	var rect := cam_rig.world_view().grow(128.0)
 	var size := float(Catalog.TILE * Catalog.CHUNK)
 	var x0 := int(floor(rect.position.x / size))
@@ -162,7 +162,7 @@ func sync_world(host: Node2D, cam_rig: CameraRig) -> void:
 	for cy in range(y0 - 1, y1 + 2):
 		for cx in range(x0 - 1, x1 + 2):
 			var ck := "%d,%d" % [cx, cy]
-			if sim.chunk_shown(ck):
+			if sim.spatial.chunk_shown(ck):
 				if str(host.painted.get(ck, "")) != "real":
 					paint_chunk(host, ck, false)
 			elif str(host.painted.get(ck, "")) != "fog":
@@ -185,7 +185,7 @@ func paint_chunk(host: Node2D, ck: String, fog: bool, into = null) -> void:
 	var map: TileMapLayer = host.tilemap if into == null else into
 	var paths: TileMapLayer = host.pathmap if into == null else host.focus_pathmap
 	var sim: ThrongletSim = ThrongletSimServer
-	var origin: Vector2i = sim.chunk_origin(ck)
+	var origin: Vector2i = sim.spatial.chunk_origin(ck)
 	var main_world := into == null
 	if fog:
 		for ly in Catalog.CHUNK:
@@ -198,7 +198,7 @@ func paint_chunk(host: Node2D, ck: String, fog: bool, into = null) -> void:
 		if main_world:
 			host.painted[ck] = "fog"
 		return
-	var tiles: PackedByteArray = sim.chunk_tiles(ck)
+	var tiles: PackedByteArray = sim.spatial.chunk_tiles(ck)
 	if tiles.is_empty():
 		return
 	# Clear stale water cells for this chunk before repainting.

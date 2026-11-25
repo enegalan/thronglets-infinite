@@ -273,7 +273,7 @@ func tick_shot() -> void:
 			if not egg_done:
 				var egg: Dictionary = main.focus_viewport.starter_egg()
 				if egg.is_empty():
-					sim._spawn_starter_egg()
+					sim.world_entities._spawn_starter_egg()
 					egg = main.focus_viewport.starter_egg()
 				if float(egg.get("air", 0.0)) <= 0.0 and main.focus_hold <= 0.0 and frames == 1:
 					egg.air = 140.0
@@ -514,18 +514,18 @@ func _tick_shot_round() -> void:
 		round_b.rider = -1
 		round_ids.clear()
 		for slot_i in 8:
-			var id: int = int(sim._push_slot(float(round_b.x) + 24.0, float(round_b.y) + 24.0, 80.0, 20.0, 80.0, 80.0, -1))
+			var id: int = int(sim.world_entities._push_slot(float(round_b.x) + 24.0, float(round_b.y) + 24.0, 80.0, 20.0, 80.0, 80.0, -1))
 			if id < 0:
 				break
 			sim.act[id] = ThrongletSimServer.ACT_PLAY
 			sim.act_t[id] = 0.55
-			sim._set_ride_slot(round_b, id, slot_i)
-			sim._set_rider(round_b, id, true)
-			sim._set_ride_age(round_b, id, 0.0)
-			sim._place_on_ride_slot(id, round_b, slot_i)
+			sim.agent_tick._set_ride_slot(round_b, id, slot_i)
+			sim.agent_tick._set_rider(round_b, id, true)
+			sim.agent_tick._set_ride_age(round_b, id, 0.0)
+			sim.agent_tick._place_on_ride_slot(id, round_b, slot_i)
 			round_ids.append(id)
 		round_b.active = true
-		sim._rebuild_hash()
+		sim.spatial._rebuild_hash()
 		print("SHOT ROUND seated ids=%s slots=%s" % [str(round_ids), str(round_b.get("ride_slot", {}))])
 		round_mark = 0
 		round_hold = 0
@@ -540,8 +540,8 @@ func _tick_shot_round() -> void:
 	for id in round_ids:
 		if id < 0 or id >= sim.slot_count or sim.state[id] != Catalog.ST_LIVING:
 			continue
-		var slot: int = int(sim._ride_slot_of(round_b, id))
-		sim._place_on_ride_slot(id, round_b, slot)
+		var slot: int = int(sim.agent_tick._ride_slot_of(round_b, id))
+		sim.agent_tick._place_on_ride_slot(id, round_b, slot)
 		sim.act[id] = ThrongletSimServer.ACT_PLAY
 		sim.act_t[id] = 0.55
 	round_hold += 1
@@ -554,10 +554,10 @@ func _tick_shot_round() -> void:
 	var a := int(round_ids[0])
 	var b_id := int(round_ids[1])
 	var mid := Vector2(float(round_b.x), float(round_b.y)) + Catalog.ROUND_RIDE_OFF
-	var ang_a := atan2(sim.pos_y[a] - mid.y, sim.pos_x[a] - mid.x)
-	var ang_b := atan2(sim.pos_y[b_id] - mid.y, sim.pos_x[b_id] - mid.x)
+	var ang_a = atan2(sim.pos_y[a] - mid.y, sim.pos_x[a] - mid.x)
+	var ang_b = atan2(sim.pos_y[b_id] - mid.y, sim.pos_x[b_id] - mid.x)
 	var sep := absf(fposmod(ang_a - ang_b + PI, TAU) - PI)
-	var gap := Vector2(sim.pos_x[a] - sim.pos_x[b_id], sim.pos_y[a] - sim.pos_y[b_id]).length()
+	var gap = Vector2(sim.pos_x[a] - sim.pos_x[b_id], sim.pos_y[a] - sim.pos_y[b_id]).length()
 	var deg := int(round(float(marks[round_mark]) * 360.0))
 	print("SHOT ROUND spin=%d deg sep=%.2f gap=%.1f a=(%.1f,%.1f) b=(%.1f,%.1f) frame=%d" % [
 		deg, sep, gap, sim.pos_x[a], sim.pos_y[a], sim.pos_x[b_id], sim.pos_y[b_id],
@@ -869,13 +869,13 @@ func _bld_goo_assert_overlays(row: Dictionary, name: String) -> bool:
 	if idle.is_empty() or active.is_empty() or goo.is_empty():
 		print("SHOT BLD GOO FAIL %s missing building" % name)
 		return false
-	if sim.building_is_polluted(idle):
+	if sim.building_sim.building_is_polluted(idle):
 		print("SHOT BLD GOO FAIL %s idle polluted" % name)
 		return false
-	if sim.building_is_polluted(active):
+	if sim.building_sim.building_is_polluted(active):
 		print("SHOT BLD GOO FAIL %s active polluted" % name)
 		return false
-	if not sim.building_is_polluted(goo):
+	if not sim.building_sim.building_is_polluted(goo):
 		print("SHOT BLD GOO FAIL %s goo not polluted" % name)
 		return false
 	var kind := int(idle.kind)
@@ -887,7 +887,7 @@ func _bld_goo_assert_overlays(row: Dictionary, name: String) -> bool:
 		return false
 	var show_on := false
 	if kind == Catalog.BLD_DWELL or kind == Catalog.BLD_FANCY or kind == Catalog.BLD_THEATRE:
-		show_on = int(sim._live_guests(active)) > 0
+		show_on = int(sim.building_sim._live_guests(active)) > 0
 	else:
 		show_on = bool(active.get("active", false))
 	if not show_on:
@@ -932,32 +932,32 @@ func _bld_goo_assert_overlays(row: Dictionary, name: String) -> bool:
 func _tick_shot_bld_goo() -> void:
 	# Per kind: idle | active | goo row shot, then mop before/after + logic sweep.
 	_bld_goo_hide_ui()
-	var kinds: Array = sim._shot_bld_goo_kinds()
+	var kinds: Array = sim.harness._shot_bld_goo_kinds()
 	if bld_goo_phase == 0:
 		if bld_goo_i >= kinds.size():
 			bld_goo_phase = 1
 			frames = 0
 			# Prep mop scene on dwell.
 			var dwell_kind := Catalog.BLD_DWELL
-			sim._clear_shot_props()
-			var at: Vector2 = sim._shot_force_pad(dwell_kind, 256.0, 256.0)
-			var b: Dictionary = sim._add_building(dwell_kind, at.x, at.y)
+			sim.harness._clear_shot_props()
+			var at: Vector2 = sim.harness._shot_force_pad(dwell_kind, 256.0, 256.0)
+			var b: Dictionary = sim.world_entities._add_building(dwell_kind, at.x, at.y)
 			if b.is_empty():
 				print("SHOT BLD GOO FAIL mop place dwell")
 				main.get_tree().quit(1)
 				return
-			sim._shot_paint_building_goo(b)
+			sim.harness._shot_paint_building_goo(b)
 			bld_goo_mop_id = int(b.id)
 			sim.shot_focus = Vector2(float(b.x), float(b.y))
 			sim.shot_span = 90.0
 			sim.view_rect = Rect2(sim.shot_focus.x - sim.shot_span, sim.shot_focus.y - sim.shot_span, sim.shot_span * 2.0, sim.shot_span * 2.0)
 			sim.smoke_hold = true
-			sim._rebuild_hash()
-			print("SHOT BLD GOO MOP PREP id=%s polluted=%s" % [bld_goo_mop_id, sim.building_is_polluted(b)])
+			sim.spatial._rebuild_hash()
+			print("SHOT BLD GOO MOP PREP id=%s polluted=%s" % [bld_goo_mop_id, sim.building_sim.building_is_polluted(b)])
 			return
 		var spec: Dictionary = kinds[bld_goo_i]
 		if frames == 0:
-			var row: Dictionary = sim._shot_place_bld_row(int(spec.kind))
+			var row: Dictionary = sim.harness._shot_place_bld_row(int(spec.kind))
 			if row.has("error"):
 				print("SHOT BLD GOO FAIL %s" % str(row.error))
 				main.get_tree().quit(1)
@@ -986,7 +986,7 @@ func _tick_shot_bld_goo() -> void:
 		if frames < 8:
 			return
 		var b: Dictionary = sim.building_by_id.get(bld_goo_mop_id, {})
-		if b.is_empty() or not sim.building_is_polluted(b):
+		if b.is_empty() or not sim.building_sim.building_is_polluted(b):
 			print("SHOT BLD GOO FAIL mop before not polluted")
 			main.get_tree().quit(1)
 			return
@@ -994,9 +994,9 @@ func _tick_shot_bld_goo() -> void:
 		if not save_shot(main.get_viewport(), "res://shots/bld_mop_before.png"):
 			main.get_tree().quit(1)
 			return
-		sim._shot_mop_building(b)
-		sim._tick_buildings(0.016)
-		if sim.building_is_polluted(b):
+		sim.harness._shot_mop_building(b)
+		sim.building_sim._tick_buildings(0.016)
+		if sim.building_sim.building_is_polluted(b):
 			print("SHOT BLD GOO FAIL mop left dwell polluted")
 			main.get_tree().quit(1)
 			return
@@ -1017,21 +1017,21 @@ func _tick_shot_bld_goo() -> void:
 		# Logic sweep: every goo-capable kind pollutes then cleans under mop.
 		for spec in kinds:
 			var kind := int(spec.kind)
-			sim._clear_shot_props()
-			var at: Vector2 = sim._shot_force_pad(kind, 256.0, 256.0)
-			var b2: Dictionary = sim._add_building(kind, at.x, at.y)
+			sim.harness._clear_shot_props()
+			var at: Vector2 = sim.harness._shot_force_pad(kind, 256.0, 256.0)
+			var b2: Dictionary = sim.world_entities._add_building(kind, at.x, at.y)
 			if b2.is_empty():
 				print("SHOT BLD GOO FAIL mop-loop place %s" % str(spec.name))
 				main.get_tree().quit(1)
 				return
-			sim._shot_paint_building_goo(b2)
-			if not sim.building_is_polluted(b2):
+			sim.harness._shot_paint_building_goo(b2)
+			if not sim.building_sim.building_is_polluted(b2):
 				print("SHOT BLD GOO FAIL mop-loop %s not polluted" % str(spec.name))
 				main.get_tree().quit(1)
 				return
-			sim._shot_mop_building(b2)
-			sim._tick_buildings(0.016)
-			if sim.building_is_polluted(b2):
+			sim.harness._shot_mop_building(b2)
+			sim.building_sim._tick_buildings(0.016)
+			if sim.building_sim.building_is_polluted(b2):
 				print("SHOT BLD GOO FAIL mop-loop %s still polluted" % str(spec.name))
 				main.get_tree().quit(1)
 				return
@@ -1114,10 +1114,10 @@ func _tick_shot_wash() -> void:
 	frames += 1
 	main.sponge_tracking = true
 	# Simulate gentle rub (was failing when stroke_min was 2.0).
-	var scrub_at := Vector2(sim.shot_focus.x - 36.0 + sin(float(frames) * 0.9) * 3.0, sim.shot_focus.y)
+	var scrub_at = Vector2(sim.shot_focus.x - 36.0 + sin(float(frames) * 0.9) * 3.0, sim.shot_focus.y)
 	var stroke := 0.0 if frames <= 1 else scrub_at.distance_to(main.sponge_last)
 	main.sponge_last = scrub_at
-	sim.scrub(scrub_at.x, scrub_at.y, stroke, stroke >= ThrongletSimServer.SCRUB_STROKE_MIN)
+	sim.player_tools.scrub(scrub_at.x, scrub_at.y, stroke, stroke >= ThrongletSimServer.SCRUB_STROKE_MIN)
 	for i in sim.slot_count:
 		if sim.state[i] != Catalog.ST_LIVING:
 			continue

@@ -2,7 +2,7 @@ extends Node2D
 
 const ThrongletSim := preload("res://scripts/core/ThrongletSimServer.gd")
 const DevBench := preload("res://scripts/dev/dev_bench.gd")
-const ProgressionManager := preload("res://scripts/core/progression_manager.gd")
+const ProgressionManager := preload("res://scripts/core/sim/progression_manager.gd")
 const CameraRig := preload("res://scripts/presentation/camera/camera_rig.gd")
 const UIAssets := preload("res://scripts/presentation/ui/ui_assets.gd")
 const ShotCaptureScript := preload("res://scripts/dev/shot_capture.gd")
@@ -476,9 +476,9 @@ func _input(event: InputEvent) -> void:
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
 		if not kit_drag.is_empty():
 			kit_toolbar.end_kit_drag()
-		elif ThrongletSimServer.has_scoop():
+		elif ThrongletSimServer.player_tools.has_scoop():
 			kit_toolbar.drop_scoop()
-		elif ThrongletSimServer.is_holding():
+		elif ThrongletSimServer.player_tools.is_holding():
 			tool_controller.hand_release()
 		elif tool_controller.is_charge_tool(tool):
 			tool_controller.clear_tool_charge()
@@ -527,7 +527,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif event.keycode == KEY_F9:
 			game_flow.toggle_slots()
 		elif event.keycode == KEY_F8:
-			sim.debug_spawn(10000, cam_rig.from_iso(camera.position))
+			sim.harness.debug_spawn(10000, cam_rig.from_iso(camera.position))
 		elif event.keycode == KEY_ESCAPE:
 			if game_flow.slots_panel.visible:
 				media.play("ui")
@@ -618,7 +618,7 @@ func _process(delta: float) -> void:
 			selected = -1
 	var view := cam_rig.world_view()
 	sim.view_rect = view
-	sim.explore_rect(view.grow(8.0))
+	sim.spatial.explore_rect(view.grow(8.0))
 	# Kit-drag sponge still scrubs over the world even if a Control was under the press.
 	var sponge_held := tool == Catalog.TOOL_SPONGE and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and not sim.frozen
 	var sponge_over_ui := get_viewport().gui_get_hovered_control() != null and kit_drag.is_empty()
@@ -632,10 +632,10 @@ func _process(delta: float) -> void:
 		sponge_last = at
 		# Bubbles + clean gain when agitating; hold still keeps Happy + suds if already washing.
 		var stroke_min := float(EffectTune.get_tune("act:sponge").get("stroke_min", ThrongletSimServer.SCRUB_STROKE_MIN))
-		sim.scrub(at.x, at.y, stroke, stroke >= stroke_min)
+		sim.player_tools.scrub(at.x, at.y, stroke, stroke >= stroke_min)
 	else:
 		if sponge_tracking and not sim.shot_mode:
-			sim.sponge_release()
+			sim.player_tools.sponge_release()
 		if not sim.shot_mode:
 			sponge_tracking = false
 	if sim.hand_id != -1:
@@ -669,7 +669,7 @@ func _process(delta: float) -> void:
 	_sync_market()
 	console_ui.sync_gaze()
 	focus_viewport.sync_focus(delta)
-	for name in sim.take_sfx():
+	for name in sim.spatial.take_sfx():
 		media.play(str(name))
 
 ## Run a trimmed play tick while perf bench records sync and HUD timings.
@@ -680,7 +680,7 @@ func _process_perf(delta: float) -> void:
 		world_boot.sync_water_animation(self, anim_time)
 	var view := cam_rig.world_view()
 	sim.view_rect = view
-	sim.explore_rect(view.grow(8.0))
+	sim.spatial.explore_rect(view.grow(8.0))
 	world_boot.sync_world(self, cam_rig)
 	var t0 := Time.get_ticks_usec()
 	world_actor_sync.sync()
@@ -700,7 +700,7 @@ func _process_save_perf(delta: float) -> void:
 	cam_rig.move(delta, true, false)
 	var view := cam_rig.world_view()
 	sim.view_rect = view
-	sim.explore_rect(view.grow(8.0))
+	sim.spatial.explore_rect(view.grow(8.0))
 	var tw := Time.get_ticks_usec()
 	world_boot.sync_world(self, cam_rig)
 	set_meta("save_perf_world_ms", float(Time.get_ticks_usec() - tw) * 0.001)
@@ -772,18 +772,18 @@ func _sync_hud(delta: float) -> void:
 		task_x = 72.0 + gem_panel.get_combined_minimum_size().x + 6.0
 	task_panel.position.x = task_x
 	# count_item is generation-cached; one ensure covers wood/bone/ore for this HUD pass.
-	goal_label.text = sim.goal_line()
+	goal_label.text = sim.dialogue.goal_line()
 	res_label.text = "MADERA %d   HUESO %d   MINERAL %d" % [
-		sim.count_item(Catalog.ITEM_WOOD),
-		sim.count_item(Catalog.ITEM_BONE),
-		sim.count_item(Catalog.ITEM_ORE),
+		sim.world_entities.count_item(Catalog.ITEM_WOOD),
+		sim.world_entities.count_item(Catalog.ITEM_BONE),
+		sim.world_entities.count_item(Catalog.ITEM_ORE),
 	]
 	var info := ""
 	for entry in Catalog.TOOL_INFO:
 		if int(entry.tool) == tool:
 			info = str(entry.hint)
 			break
-	if sim.has_scoop():
+	if sim.player_tools.has_scoop():
 		info = "MANO  SUELTA PARA ESPARCIR  x%d" % (sim.scoop_item_ids.size() + sim.scoop_dead_ids.size())
 	elif not kit_drag.is_empty():
 		var drag_id := int(kit_drag.get("id", -1))
@@ -815,7 +815,7 @@ func _sync_hud(delta: float) -> void:
 		save_flash_t -= delta
 	if save_icon != null:
 		save_icon.visible = save_flash_t > 0.0 and game_flow.menu_button != null and game_flow.menu_button.visible
-	for note in sim.take_notes():
+	for note in sim.spatial.take_notes():
 		toast_queue.append(str(note))
 		media.play("console")
 	if toast_t <= 0.0 and not toast_queue.is_empty():
@@ -835,7 +835,7 @@ func _sync_hud(delta: float) -> void:
 ## Rebuild gem market offer list when panel is open and sim economy changed.
 func _sync_market() -> void:
 	var sim: ThrongletSim = ThrongletSimServer
-	market_panel.visible = market_open and sim.has_building_kind(Catalog.BLD_MARKET)
+	market_panel.visible = market_open and sim.building_sim.has_building_kind(Catalog.BLD_MARKET)
 	if not market_panel.visible:
 		return
 	var sig := "%d:%d" % [sim.gems, sim.unlock_serial]
@@ -857,7 +857,7 @@ func _sync_market() -> void:
 			button.text += "  LISTO"
 		var buy_key := str(key)
 		button.pressed.connect(func():
-			ThrongletSimServer.buy(buy_key)
+			ThrongletSimServer.player_tools.buy(buy_key)
 			market_sig = ""
 		)
 		market_list.add_child(button)
@@ -1405,7 +1405,7 @@ func _set_hud_shown(shown: bool) -> void:
 
 ## Advance sim tutorial sign and restore HUD when the chain completes.
 func _advance_sign() -> void:
-	ThrongletSimServer.advance_tutorial()
+	ThrongletSimServer.dialogue.advance_tutorial()
 	if ThrongletSimServer.tutorial_i < 0:
 		_set_hud_shown(true)
 		if boot_seq.sign_button != null:
@@ -1428,14 +1428,14 @@ func _reset_camera() -> void:
 
 ## Start a fresh sim session, reset camera, and enter gameplay.
 func _start_new_game() -> void:
-	ThrongletSimServer.new_game()
+	ThrongletSimServer.world_entities.new_game()
 	_reset_camera()
 	_enter_game()
 
 ## Load or create sandbox save, reset paint, camera, and enter gameplay.
 func _start_sandbox_game() -> void:
 	if not ThrongletSimServer.save_system.load_sandbox():
-		ThrongletSimServer.new_sandbox_game()
+		ThrongletSimServer.world_entities.new_sandbox_game()
 	_reset_world_paint()
 	_reset_camera()
 	_enter_game()
@@ -1458,9 +1458,9 @@ func _sandbox_resize(delta: int) -> void:
 		return
 	var before := sim.land_tier
 	if delta > 0:
-		sim.sandbox_grow()
+		sim.world_entities.sandbox_grow()
 	elif delta < 0:
-		sim.sandbox_shrink()
+		sim.world_entities.sandbox_shrink()
 	if sim.land_tier == before:
 		return
 	_reset_world_paint()
@@ -1471,7 +1471,7 @@ func _enter_dev() -> void:
 	if dev_on and dev_bench != null:
 		return
 	var sim: ThrongletSim = ThrongletSimServer
-	sim.cancel_hold()
+	sim.player_tools.cancel_hold()
 	sim.paused = true
 	dev_on = true
 	in_title = false

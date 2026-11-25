@@ -336,10 +336,10 @@ func use_prop_anchor(pos: Vector2) -> Vector2:
 ## True when solid land sits southeast of [param world_pos] (void depth).
 func void_behind_cliff(world_pos: Vector2) -> bool:
 	var sim: ThrongletSim = ThrongletSimServer
-	var cell := sim._cell_vec(world_pos.x, world_pos.y)
+	var cell := sim.spatial._cell_vec(world_pos.x, world_pos.y)
 	for off in [Vector2i(1, 0), Vector2i(0, 1), Vector2i(1, 1)]:
 		var at := Catalog.cell_world(cell + off)
-		var tile := sim._tile_at(at.x, at.y)
+		var tile := sim.collision._tile_at(at.x, at.y)
 		if tile != Catalog.TILE_VOID and tile != Catalog.TILE_FOG:
 			return true
 	return false

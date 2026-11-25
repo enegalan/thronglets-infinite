@@ -4,13 +4,13 @@ extends SceneTree
 ## Asserts progress, never stands on blocked cells, and path length stays near-optimal.
 
 ## Preloaded ThrongletSimServer script used for headless simulation steps.
-const SimScript := preload("res://scripts/core/ThrongletSimServer.gd")
+const SimScript = preload("res://scripts/core/ThrongletSimServer.gd")
 
 ## Fixed sim step delta used while walking throngs in path probes.
-const DT := 0.08
+const DT = 0.08
 
 ## Throng walk speed in world units per second for path stepping.
-const SPEED := 26.0
+const SPEED = 26.0
 
 
 ## Defers probe execution until the SceneTree root is ready.
@@ -32,7 +32,7 @@ func _run() -> void:
 	sim.smoke_hold = true
 	sim.frozen = false
 	if not sim.chunks.has("0,0"):
-		sim._bootstrap_new()
+		sim.world_entities._bootstrap_new()
 
 	var pads: Array[Vector2i] = _pick_pads(sim, 4)
 	if pads.size() < 4:
@@ -72,11 +72,11 @@ func _pick_pads(sim, need: int) -> Array[Vector2i]:
 			var rad: float = lerpf(lo, hi, float(rad_i) / 5.0)
 			var px: float = mid + cos(ang) * rad
 			var py: float = mid + sin(ang) * rad
-			if sim._near_spawn(px, py):
+			if sim.island_gen.near_spawn(px, py):
 				continue
-			if not sim._land_inland(px, py):
+			if not sim.collision._land_inland(px, py):
 				continue
-			var cell: Vector2i = sim._cell_vec(px, py)
+			var cell: Vector2i = sim.spatial._cell_vec(px, py)
 			var key: String = "%d,%d" % [cell.x, cell.y]
 			if used.has(key):
 				continue
@@ -98,7 +98,7 @@ func _pick_pads(sim, need: int) -> Array[Vector2i]:
 func _clear_pad(sim, origin: Vector2i, half: int) -> void:
 	for oy in range(-half, half + 1):
 		for ox in range(-half, half + 1):
-			var key := Vector2i(origin.x + ox, origin.y + oy)
+			var key = Vector2i(origin.x + ox, origin.y + oy)
 			if sim.feature_cell.has(key):
 				var fid: int = int(sim.feature_cell[key])
 				var feat: Dictionary = sim.feature_by_id.get(fid, {})
@@ -111,29 +111,29 @@ func _clear_pad(sim, origin: Vector2i, half: int) -> void:
 				if not b.is_empty():
 					b.dead = true
 				sim.building_cell.erase(key)
-			sim._set_world_cell(key.x, key.y, Catalog.TILE_GRASS, true)
+			sim.collision._set_world_cell(key.x, key.y, Catalog.TILE_GRASS, true)
 
 
 ## Plants a feature kind on a cell and returns the feature dict.
 func _plant(sim, kind: int, cell: Vector2i, ore: int = 0) -> Dictionary:
 	var at: Vector2 = Catalog.cell_world(cell)
-	var feat: Dictionary = sim._add_feature(kind, at.x, at.y, 1 + ore, ore, false)
+	var feat: Dictionary = sim.world_entities._add_feature(kind, at.x, at.y, 1 + ore, ore, false)
 	return feat
 
 
 ## Spawns a throng on a cell and returns its slot id.
 func _spawn_at(sim, cell: Vector2i) -> int:
 	var at: Vector2 = Catalog.cell_world(cell)
-	if sim._move_blocked(at.x, at.y):
+	if sim.collision._move_blocked(at.x, at.y):
 		return -1
-	var id: int = int(sim._push_slot(at.x, at.y, 95.0, 95.0, 95.0, 999.0, 0))
+	var id: int = int(sim.world_entities._push_slot(at.x, at.y, 95.0, 95.0, 95.0, 999.0, 0))
 	sim.pos_x[id] = at.x
 	sim.pos_y[id] = at.y
 	sim.dir_x[id] = 0.0
 	sim.dir_y[id] = 0.0
 	if id < sim.seek_t.size():
 		sim.seek_t[id] = 0.0
-	sim._rebuild_hash()
+	sim.spatial._rebuild_hash()
 	return id
 
 
@@ -143,11 +143,11 @@ func _walk_until(sim, id: int, goal: Vector2, steps: int) -> Dictionary:
 	var path_len: float = 0.0
 	var prev: Vector2 = Vector2(sim.pos_x[id], sim.pos_y[id])
 	for _n in steps:
-		sim._walk(id, goal.x, goal.y, SPEED, DT)
+		sim.agent_move._walk(id, goal.x, goal.y, SPEED, DT)
 		var cur: Vector2 = Vector2(sim.pos_x[id], sim.pos_y[id])
 		path_len += prev.distance_to(cur)
 		prev = cur
-		if sim._move_blocked(cur.x, cur.y):
+		if sim.collision._move_blocked(cur.x, cur.y):
 			blocked_hits += 1
 		if cur.distance_to(goal) < 2.0:
 			break
@@ -177,7 +177,7 @@ func _case_corner_trap(sim, origin: Vector2i) -> Array[String]:
 	if not errors.is_empty():
 		return errors
 	var ta: Vector2 = Catalog.cell_world(tree_a)
-	if not sim._move_blocked(ta.x, ta.y):
+	if not sim.collision._move_blocked(ta.x, ta.y):
 		errors.append("corner: tree A not solid")
 		return errors
 	var start: Vector2i = origin
@@ -246,13 +246,13 @@ func _case_rock_detour(sim, origin: Vector2i) -> Array[String]:
 		if not _plant(sim, Catalog.FEAT_TREE, origin + Vector2i(2, oy)).is_empty():
 			planted += 1
 	var rock_at: Vector2 = Catalog.cell_world(origin + Vector2i(2, 0))
-	if not sim._move_blocked(rock_at.x, rock_at.y):
+	if not sim.collision._move_blocked(rock_at.x, rock_at.y):
 		errors.append("rock: rock not solid")
 		return errors
 	var start: Vector2i = origin + Vector2i(0, 0)
 	var start_at: Vector2 = Catalog.cell_world(start)
 	var goal: Vector2 = Catalog.cell_world(origin + Vector2i(4, 0))
-	if sim._axis_clear(start_at.x, start_at.y, goal.x, start_at.y):
+	if sim.agent_move._axis_clear(start_at.x, start_at.y, goal.x, start_at.y):
 		errors.append("rock: straight path still open")
 		return errors
 	var id: int = _spawn_at(sim, start)
@@ -326,9 +326,9 @@ func _case_linear_up(sim, origin: Vector2i) -> Array[String]:
 	var prev_dx: float = 0.0
 	for _n in 220:
 		var before: Vector2 = Vector2(sim.pos_x[id], sim.pos_y[id])
-		sim._walk(id, goal.x, goal.y, SPEED, DT)
+		sim.agent_move._walk(id, goal.x, goal.y, SPEED, DT)
 		var after: Vector2 = Vector2(sim.pos_x[id], sim.pos_y[id])
-		if sim._move_blocked(after.x, after.y):
+		if sim.collision._move_blocked(after.x, after.y):
 			errors.append("linear: stood on blocked")
 			break
 		var drift: float = absf(after.x - start_x)

@@ -133,7 +133,7 @@ func _boot() -> void:
 		main.cam_rig.set_zoom(2.0)
 		main.cam_rig.focus_world(focus)
 		# Reveal whatever the current view covers, same as normal play.
-		sim.explore_rect(main.cam_rig.world_view().grow(8.0))
+		sim.spatial.explore_rect(main.cam_rig.world_view().grow(8.0))
 		loaded = true
 		var n_hungry := 0
 		var n_dirty := 0

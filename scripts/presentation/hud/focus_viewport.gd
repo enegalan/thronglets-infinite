@@ -104,7 +104,7 @@ func sync_focus(delta: float) -> void:
 		var signing = sim.tutorial_i >= 0 and not talk
 		host.boot_seq.sign_button.visible = signing
 		if signing:
-			host.boot_seq.sign_button.text = sim.tutorial_line()
+			host.boot_seq.sign_button.text = sim.dialogue.tutorial_line()
 			host.boot_seq.sign_button.position = frame.position + Vector2(40, frame.size.y - 98)
 			host.boot_seq.sign_button.size = Vector2(frame.size.x - 80, 64)
 	var inner = frame.grow(-22.0)
@@ -192,8 +192,8 @@ func paint_focus(anchor: Vector2) -> void:
 	host.focus_tilemap.clear()
 	host.path_overlay.clear_focus_paths()
 	var sim: ThrongletSim = ThrongletSimServer
-	var key: String = sim.chunk_key_at(anchor.x, anchor.y)
-	if sim.chunk_shown(key):
+	var key: String = sim.spatial.chunk_key_at(anchor.x, anchor.y)
+	if sim.spatial.chunk_shown(key):
 		on_paint_chunk.call(key, false, host.focus_tilemap)
 
 
@@ -238,7 +238,7 @@ func focus_draws() -> Array:
 			feat_off = AnimTune.frame_offset(feat_tune_id, feat_idx)
 			feat_rot = AnimTune.frame_rot(feat_tune_id, feat_idx)
 		var feat_sort_y = NAN
-		if sim._ore_tier(int(feat.kind)) > 0:
+		if sim.building_sim._ore_tier(int(feat.kind)) > 0:
 			feat_sort_y = -1000000.0
 		on_push_iso.call(draws, feat_at, feat_frame, Color.WHITE, 0.0, feat_scale, feat_sort_y, Color.TRANSPARENT, feat_off, feat_rot)
 		on_push_glitch_fumes.call(draws, int(feat.kind), feat_at, time)

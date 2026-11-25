@@ -52,8 +52,8 @@ func launch_item(it: Dictionary, air: float, vz: float, vx: float, vy: float) ->
 
 ## True when a point sits inside a blocking tile, feature, or building.
 func obstacle_blocked(px: float, py: float) -> bool:
-	var cell: Vector2i = sim._cell_vec(px, py)
-	var tile: int = sim._tile_at_cell(cell)
+	var cell: Vector2i = sim.spatial._cell_vec(px, py)
+	var tile: int = sim.collision._tile_at_cell(cell)
 	if tile == Catalog.TILE_MOUNTAIN or tile == Catalog.TILE_RUBBLE:
 		return true
 	if sim.feature_cell.has(cell):
@@ -76,7 +76,7 @@ func tick_items(dt: float) -> void:
 		if it.dead or it.held:
 			continue
 		if int(it.kind) == Catalog.ITEM_EGG:
-			sim._tick_egg(it, step_dt)
+			sim.world_tick._tick_egg(it, step_dt)
 			continue
 		if not has_physics(it):
 			continue
@@ -90,7 +90,7 @@ func tick_items(dt: float) -> void:
 				continue
 			# Ambient fun near a resting ball; every 4 frames with scaled dose.
 			if ((frame_i + int(it.id)) & 3) == 0:
-				sim._boost(float(it.x), float(it.y), 28.0, 2, 0.0, 0.0, 80.0 * step_dt, 0.0)
+				sim.building_sim._boost(float(it.x), float(it.y), 28.0, 2, 0.0, 0.0, 80.0 * step_dt, 0.0)
 		var air := float(it.get("air", 0.0))
 		var vz := float(it.get("vz", 0.0))
 		var vx := float(it.get("vx", 0.0))
@@ -100,13 +100,13 @@ func tick_items(dt: float) -> void:
 		# Quiet ground piles: rare cliff/water check, skip collision passes.
 		if not moving:
 			if ((frame_i + int(it.id)) & 7) == 0:
-				var ground: int = sim._tile_at_cell(sim._cell_vec(float(it.x), float(it.y)))
+				var ground: int = sim.collision._tile_at_cell(sim.spatial._cell_vec(float(it.x), float(it.y)))
 				if ground == Catalog.TILE_VOID or ground == Catalog.TILE_FOG:
 					it.falling_void = true
 					it.vz = -15.0
 					it.claimer = -1
 				elif ground == Catalog.TILE_WATER:
-					sim._pop(float(it.x), float(it.y), AssetFrames.SPLASH)
+					sim.dialogue._pop(float(it.x), float(it.y), AssetFrames.SPLASH)
 					sim.sfx_queue.append("splash")
 					it.claimer = -1
 					it.dead = true
@@ -134,13 +134,13 @@ func tick_items(dt: float) -> void:
 			vz -= ITEM_GRAVITY * step_dt
 			air += vz * step_dt
 			if air <= 0.0:
-				var tile: int = sim._tile_at_cell(sim._cell_vec(float(it.x), float(it.y)))
+				var tile: int = sim.collision._tile_at_cell(sim.spatial._cell_vec(float(it.x), float(it.y)))
 				if tile == Catalog.TILE_VOID or tile == Catalog.TILE_FOG:
 					falling_void = true
 					it.falling_void = true
 					it.claimer = -1
 				elif tile == Catalog.TILE_WATER:
-					sim._pop(float(it.x), float(it.y), AssetFrames.SPLASH)
+					sim.dialogue._pop(float(it.x), float(it.y), AssetFrames.SPLASH)
 					sim.sfx_queue.append("splash")
 					it.claimer = -1
 					it.dead = true
@@ -158,14 +158,14 @@ func tick_items(dt: float) -> void:
 						air = 0.0
 						vz = 0.0
 		else:
-			var ground2: int = sim._tile_at_cell(sim._cell_vec(float(it.x), float(it.y)))
+			var ground2: int = sim.collision._tile_at_cell(sim.spatial._cell_vec(float(it.x), float(it.y)))
 			if ground2 == Catalog.TILE_VOID or ground2 == Catalog.TILE_FOG:
 				it.falling_void = true
 				it.vz = minf(vz, -15.0)
 				it.claimer = -1
 				continue
 			elif ground2 == Catalog.TILE_WATER:
-				sim._pop(float(it.x), float(it.y), AssetFrames.SPLASH)
+				sim.dialogue._pop(float(it.x), float(it.y), AssetFrames.SPLASH)
 				sim.sfx_queue.append("splash")
 				it.claimer = -1
 				it.dead = true
@@ -193,7 +193,7 @@ func _resolve_item_obstacle_collisions(phys_items: Array) -> void:
 	for it in phys_items:
 		if it.dead:
 			continue
-		var center_cell: Vector2i = sim._cell_vec(float(it.x), float(it.y))
+		var center_cell: Vector2i = sim.spatial._cell_vec(float(it.x), float(it.y))
 		var boxes: Array = []
 		var seen_feats := {}
 		var seen_blds := {}
@@ -207,7 +207,7 @@ func _resolve_item_obstacle_collisions(phys_items: Array) -> void:
 						var feat = sim.feature_by_id.get(fid, {})
 						if not feat.is_empty() and not feat.dead and Catalog.feature_blocks(int(feat.kind)):
 							var size: Vector2i = Catalog.footprint_for_feature(int(feat.kind))
-							var bcenter: Vector2 = sim._cell_world(sim._cell_vec(float(feat.x), float(feat.y))) + Catalog.footprint_center(size)
+							var bcenter: Vector2 = sim.world_entities._cell_world(sim.spatial._cell_vec(float(feat.x), float(feat.y))) + Catalog.footprint_center(size)
 							var is_tree := int(feat.kind) == Catalog.FEAT_TREE
 							boxes.append({
 								"cx": bcenter.x,
@@ -224,7 +224,7 @@ func _resolve_item_obstacle_collisions(phys_items: Array) -> void:
 						var b = sim.building_by_id.get(bid, {})
 						if not b.is_empty() and not b.dead and Catalog.building_blocks(int(b.kind)):
 							var size: Vector2i = Catalog.footprint_for_building(int(b.kind))
-							var bcenter: Vector2 = sim._cell_world(sim._cell_vec(float(b.x), float(b.y))) + Catalog.footprint_center(size)
+							var bcenter: Vector2 = sim.world_entities._cell_world(sim.spatial._cell_vec(float(b.x), float(b.y))) + Catalog.footprint_center(size)
 							var is_tree := int(b.kind) == Catalog.BLD_APPLE
 							boxes.append({
 								"cx": bcenter.x,
@@ -234,9 +234,9 @@ func _resolve_item_obstacle_collisions(phys_items: Array) -> void:
 								"top_h": 18.0 if is_tree else 22.0,
 								"is_tree": is_tree,
 							})
-				var tile: int = sim._tile_at_cell(c)
+				var tile: int = sim.collision._tile_at_cell(c)
 				if tile == Catalog.TILE_MOUNTAIN or tile == Catalog.TILE_RUBBLE:
-					var cw: Vector2 = sim._cell_world(c)
+					var cw: Vector2 = sim.world_entities._cell_world(c)
 					boxes.append({
 						"cx": cw.x,
 						"cy": cw.y,
@@ -402,7 +402,7 @@ func _resolve_thronglet_item_bumps(phys_items: Array) -> void:
 			continue
 		var ix := float(it.x)
 		var iy := float(it.y)
-		for raw in sim.query_radius(ix, iy, 12.0):
+		for raw in sim.spatial.query_radius(ix, iy, 12.0):
 			var tid := int(raw)
 			if tid < 0 or tid >= sim.slot_count or sim.state[tid] != Catalog.ST_LIVING:
 				continue

@@ -4,7 +4,7 @@ extends SceneTree
 ## Headless mine-state trace for dig/haul failures on a fresh world.
 
 ## Preloaded ThrongletSimServer script used for headless simulation steps.
-const SimScript := preload("res://scripts/core/ThrongletSimServer.gd")
+const SimScript = preload("res://scripts/core/ThrongletSimServer.gd")
 
 
 ## Defers probe execution until the SceneTree root is ready.
@@ -26,31 +26,31 @@ func _run() -> void:
 	sim.smoke_hold = true
 	sim.frozen = false
 	if not sim.chunks.has("0,0"):
-		sim._bootstrap_new()
+		sim.world_entities._bootstrap_new()
 	sim.unlocks.mine = true
 	sim.unlocks.factory = true
 	sim.unlocks.pickaxe = true
 	sim.part_two = true
-	var ore := {}
+	var ore = {}
 	for feat in sim.features:
-		if not feat.dead and int(feat.cx) == 0 and sim._ore_tier(int(feat.kind)) > 0:
+		if not feat.dead and int(feat.cx) == 0 and sim.building_sim._ore_tier(int(feat.kind)) > 0:
 			ore = feat
 			break
 	if ore.is_empty():
 		print("PROBE FAIL no ore node")
 		quit(1)
 		return
-	var ore_at := Catalog.snap_world(float(ore.x), float(ore.y))
+	var ore_at = Catalog.snap_world(float(ore.x), float(ore.y))
 	for feat in sim.features:
 		if feat.dead or int(feat.id) == int(ore.id):
 			continue
 		if Vector2(float(feat.x), float(feat.y)).distance_to(ore_at) < 120.0:
 			feat.dead = true
-	sim._rebuild_hash()
-	sim._add_item(Catalog.ITEM_WOOD, ore_at.x + 112.0, ore_at.y + 96.0, 1)
-	sim._add_item(Catalog.ITEM_WOOD, ore_at.x + 128.0, ore_at.y + 96.0, 1)
-	sim.place_building(Catalog.BLD_MINE, ore_at.x, ore_at.y)
-	var mine := {}
+	sim.spatial._rebuild_hash()
+	sim.world_entities._add_item(Catalog.ITEM_WOOD, ore_at.x + 112.0, ore_at.y + 96.0, 1)
+	sim.world_entities._add_item(Catalog.ITEM_WOOD, ore_at.x + 128.0, ore_at.y + 96.0, 1)
+	sim.player_tools.place_building(Catalog.BLD_MINE, ore_at.x, ore_at.y)
+	var mine = {}
 	for b in sim.buildings:
 		if not b.dead and int(b.kind) == Catalog.BLD_MINE:
 			mine = b
@@ -62,31 +62,31 @@ func _run() -> void:
 	for it in sim.items:
 		if int(it.kind) == Catalog.ITEM_WOOD or int(it.kind) == Catalog.ITEM_ORE or int(it.kind) == Catalog.ITEM_BONE:
 			it.dead = true
-	var gate := sim._approach_building(mine, -1)
-	var id := sim._push_slot(gate.x + 140.0, gate.y + 140.0, 95.0, 95.0, 95.0, 0.0, 0)
+	var gate = sim.collision._approach_building(mine, -1)
+	var id = sim.world_entities._push_slot(gate.x + 140.0, gate.y + 140.0, 95.0, 95.0, 95.0, 0.0, 0)
 	sim.cool[id] = 999.0
 	sim.mito_charge[id] = 0.0
-	sim._rebuild_hash()
-	var spot := sim._approach_building(mine, id)
-	var center := sim._footprint_center_of(mine)
-	var reach := Catalog.building_reach(Catalog.BLD_MINE)
+	sim.spatial._rebuild_hash()
+	var spot = sim.collision._approach_building(mine, id)
+	var center = sim.agent_tick._footprint_center_of(mine)
+	var reach = Catalog.building_reach(Catalog.BLD_MINE)
 	print("pos=", sim.pos_x[id], ",", sim.pos_y[id])
 	print("mine=", mine.x, ",", mine.y, " center=", center, " reach=", reach)
 	print("spot=", spot, " dist_spot=", Vector2(sim.pos_x[id], sim.pos_y[id]).distance_to(spot))
-	print("inside=", sim._inside_building_reach(sim.pos_x[id], sim.pos_y[id], mine))
-	print("blocked_here=", sim._move_blocked(sim.pos_x[id], sim.pos_y[id]))
-	print("blocked_spot=", sim._move_blocked(spot.x, spot.y))
-	print("land_here=", sim._land_inland(sim.pos_x[id], sim.pos_y[id]))
-	print("tile=", sim._tile_at(sim.pos_x[id], sim.pos_y[id]))
-	var sought := sim._seek_mine(id, 26.0, 0.2)
+	print("inside=", sim.collision._inside_building_reach(sim.pos_x[id], sim.pos_y[id], mine))
+	print("blocked_here=", sim.collision._move_blocked(sim.pos_x[id], sim.pos_y[id]))
+	print("blocked_spot=", sim.collision._move_blocked(spot.x, spot.y))
+	print("land_here=", sim.collision._land_inland(sim.pos_x[id], sim.pos_y[id]))
+	print("tile=", sim.collision._tile_at(sim.pos_x[id], sim.pos_y[id]))
+	var sought = sim.agent_tick._seek_mine(id, 26.0, 0.2)
 	print("seek=", sought, " after=", sim.pos_x[id], ",", sim.pos_y[id], " dir=", sim.dir_x[id], ",", sim.dir_y[id], " act=", sim.act[id])
 	for n in 30:
-		sim._seek_mine(id, 26.0, 0.2)
+		sim.agent_tick._seek_mine(id, 26.0, 0.2)
 	print("after30=", sim.pos_x[id], ",", sim.pos_y[id], " d=", Vector2(sim.pos_x[id], sim.pos_y[id]).distance_to(Vector2(float(mine.x), float(mine.y))))
 	# Direct walk test
 	sim.pos_x[id] = gate.x + 140.0
 	sim.pos_y[id] = gate.y + 140.0
 	for n in 30:
-		sim._walk(id, spot.x, spot.y, 26.0, 0.2)
+		sim.agent_move._walk(id, spot.x, spot.y, 26.0, 0.2)
 	print("walk30=", sim.pos_x[id], ",", sim.pos_y[id], " dspot=", Vector2(sim.pos_x[id], sim.pos_y[id]).distance_to(spot))
 	quit()

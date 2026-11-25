@@ -303,7 +303,7 @@ func on_console_input(event: InputEvent) -> void:
 	if not naming and not sim.modal.has("lines"):
 		return
 	host.media.play("console_select")
-	sim.choose(0)
+	sim.dialogue.choose(0)
 	host.get_viewport().set_input_as_handled()
 
 
@@ -319,6 +319,7 @@ func sync_gaze() -> void:
 		host.console_line = ""
 		host.console_reveal = 0
 		host.console_shown = ""
+		host.console_corner_glyphs.clear()
 		return
 	var event := str(sim.modal.event)
 	var seq := int(sim.modal.get("seq", 1))
@@ -335,7 +336,7 @@ func sync_gaze() -> void:
 			"log": sim.modal.get("log", []),
 			"seq": seq,
 		}
-		var next_line := sim.address(DialogueBook.log_text(session)).replace("[", "(").replace("]", ")")
+		var next_line: String = sim.dialogue.address(DialogueBook.log_text(session)).replace("[", "(").replace("]", ")")
 		var keep_prefix: bool = event == host.shown_event and host.console_line != "" and next_line.begins_with(host.console_line)
 		host.console_reveal = host.console_line.length() if keep_prefix else 0
 		host.console_line = next_line
@@ -344,6 +345,7 @@ func sync_gaze() -> void:
 		host.shown_seq = seq
 		for child in host.gaze_box.get_children():
 			child.queue_free()
+		host.console_corner_glyphs.clear()
 		var line_talk: bool = sim.modal.has("lines")
 		if host.gaze_face != null:
 			host.gaze_face.visible = not line_talk
@@ -415,7 +417,7 @@ func sync_gaze() -> void:
 				host.media.play("console_select")
 				if host.name_edit != null and host.name_edit.visible:
 					ThrongletSimServer.modal["draft"] = host.name_edit.text
-				ThrongletSimServer.choose(index)
+				ThrongletSimServer.dialogue.choose(index)
 			)
 			slot.add_child(button)
 			host.gaze_box.add_child(slot)
@@ -433,9 +435,10 @@ func sync_gaze() -> void:
 		var tick := int(host.anim_time * 1000.0 / 160.0)
 		var alive: Array[TextureRect] = []
 		for i in host.console_corner_glyphs.size():
-			var glyph: TextureRect = host.console_corner_glyphs[i]
-			if not is_instance_valid(glyph):
+			var node = host.console_corner_glyphs[i]
+			if not is_instance_valid(node) or not (node is TextureRect):
 				continue
+			var glyph: TextureRect = node
 			var phase := int(glyph.get_meta("phase", 0))
 			glyph.texture = host.console_glyphs[(tick + i + phase) % host.console_glyphs.size()]
 			alive.append(glyph)

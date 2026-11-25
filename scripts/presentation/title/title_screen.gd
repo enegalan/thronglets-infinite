@@ -85,7 +85,7 @@ func setup(
 ## Pauses sim and reveals title HUD.
 func show_title() -> void:
 	var sim: ThrongletSim = ThrongletSimServer
-	sim.cancel_hold()
+	sim.player_tools.cancel_hold()
 	host.in_title = true
 	sim.paused = true
 	host.market_open = false

@@ -193,7 +193,7 @@ func sync_agent_debug() -> void:
 	if not show:
 		hide_agent_debug()
 		return
-	var world_pts := sim.debug_agent_path(host.selected)
+	var world_pts := sim.agent_tick.debug_agent_path(host.selected)
 	if world_pts.size() < 2:
 		agent_path_line.visible = false
 	else:
@@ -202,7 +202,7 @@ func sync_agent_debug() -> void:
 			iso_pts.append(host.cam_rig.to_iso(p))
 		agent_path_line.points = iso_pts
 		agent_path_line.visible = true
-	var tasks: Array = sim.debug_agent_tasks(host.selected)
+	var tasks: Array = sim.agent_tick.debug_agent_tasks(host.selected)
 	ensure_task_rows(tasks.size())
 	agent_task_title.text = "TAREAS #%d" % host.selected
 	for i in agent_task_rows.size():
@@ -262,7 +262,7 @@ func sync_hitboxes() -> void:
 		else:
 			fill_c = Color(0.85, 0.25, 1.0, 0.35)
 			edge_c = Color(0.95, 0.55, 1.0, 0.95)
-		for spot in sim.footprint_world(kind, origin.x, origin.y, false):
+		for spot in sim.building_sim.footprint_world(kind, origin.x, origin.y, false):
 			hitbox_push(marks, host.cam_rig.to_iso(spot), fill_c, edge_c)
 		# Yellow outline at sprite draw point — mismatch vs green cell = visual walk-through.
 		if kind == Catalog.FEAT_TREE:
@@ -274,7 +274,7 @@ func sync_hitboxes() -> void:
 		var origin := Vector2(float(b.x), float(b.y))
 		if not view.has_point(origin):
 			continue
-		for spot in sim.footprint_world(int(b.kind), origin.x, origin.y, true):
+		for spot in sim.building_sim.footprint_world(int(b.kind), origin.x, origin.y, true):
 			hitbox_push(marks, host.cam_rig.to_iso(spot), Color(0.25, 0.45, 1.0, 0.3), Color(0.55, 0.75, 1.0, 0.9))
 	for i in sim.slot_count:
 		if sim.state[i] == Catalog.ST_VACANT:
@@ -320,26 +320,26 @@ func sync_place_mark() -> void:
 	var ok := false
 	if not host.kit_drag.is_empty() and str(host.kit_drag.get("type", "")) == "prop":
 		var prop := str(host.kit_drag.get("prop", ""))
-		var tile := sim._tile_at(at.x, at.y)
+		var tile := sim.collision._tile_at(at.x, at.y)
 		if prop == "water" or prop == "grass":
 			ok = tile != Catalog.TILE_VOID and tile != Catalog.TILE_FOG
 		elif prop == "thronglet":
-			ok = not Catalog.tile_blocks(tile) and sim._land_inland(at.x, at.y)
+			ok = not Catalog.tile_blocks(tile) and sim.collision._land_inland(at.x, at.y)
 		elif prop == "flower":
-			ok = sim.can_place_building(Catalog.BLD_FLOWER, at.x, at.y)
+			ok = sim.player_tools.can_place_building(Catalog.BLD_FLOWER, at.x, at.y)
 		else:
-			ok = not Catalog.tile_blocks(tile) and sim._feature_at(at.x, at.y, 8.0).is_empty()
+			ok = not Catalog.tile_blocks(tile) and sim.world_entities._feature_at(at.x, at.y, 8.0).is_empty()
 	elif host.placing >= 0:
-		ok = sim.can_place_building(host.placing, at.x, at.y)
+		ok = sim.player_tools.can_place_building(host.placing, at.x, at.y)
 	elif kind >= 0 and bool(info.building):
-		ok = sim.spot_ok(at.x, at.y, building_id, ignore_item, kind)
+		ok = sim.player_tools.spot_ok(at.x, at.y, building_id, ignore_item, kind)
 	elif kind >= 0 and not bool(info.building):
-		ok = sim.can_drop_feature(sim.held_ref, at.x, at.y)
+		ok = sim.player_tools.can_drop_feature(sim.held_ref, at.x, at.y)
 	else:
-		ok = sim.spot_ok(at.x, at.y, building_id, ignore_item)
+		ok = sim.player_tools.spot_ok(at.x, at.y, building_id, ignore_item)
 	var spots: Array = [at]
 	if kind >= 0:
-		spots = sim.footprint_world(kind, at.x, at.y, bool(info.building))
+		spots = sim.building_sim.footprint_world(kind, at.x, at.y, bool(info.building))
 	ensure_place_marks(spots.size())
 	var poly := place_cell_poly()
 	var fill_c := Color(0.3, 1.0, 0.5, 0.55) if ok else Color(1.0, 0.25, 0.22, 0.55)
@@ -366,7 +366,7 @@ func sync_charge_mark(delta: float = 0.0) -> void:
 		return
 	var sim: ThrongletSim = ThrongletSimServer
 	var at: Vector2 = host.cam_rig.pointer_world()
-	if sim.has_scoop() or not on_drop_on_island.call():
+	if sim.player_tools.has_scoop() or not on_drop_on_island.call():
 		charge_area.visible = false
 		charge_area_key = ""
 		charge_ring.visible = false
@@ -379,7 +379,7 @@ func sync_charge_mark(delta: float = 0.0) -> void:
 	var preview_tool: int = used if used >= 0 else host.tool
 	var target: Dictionary = {}
 	if used >= 0 or preview_tool >= 0:
-		target = sim.charge_tool_target(preview_tool, at.x, at.y)
+		target = sim.player_tools.charge_tool_target(preview_tool, at.x, at.y)
 	var tx: float = float(target.get("x", at.x)) if not target.is_empty() else at.x
 	var ty: float = float(target.get("y", at.y)) if not target.is_empty() else at.y
 	var area_r := float(target.get("radius", 0.0)) if not target.is_empty() else 0.0
@@ -421,7 +421,7 @@ func sync_charge_mark(delta: float = 0.0) -> void:
 	host.outlined_bld_ids.clear()
 	var hits: Array = []
 	if outline_from_hits:
-		hits = sim.area_tool_hits(preview_tool, tx, ty)
+		hits = sim.player_tools.area_tool_hits(preview_tool, tx, ty)
 		for h in hits:
 			var what := str(h.get("what", ""))
 			if what == "feat" and h.has("id"):
@@ -453,8 +453,8 @@ func sync_charge_mark(delta: float = 0.0) -> void:
 			zoom_scale = float(host.camera.zoom.x)
 		charge_area.call("set_area", iso_ellipse_points(Vector2(tx, ty), area_r * anim_scale, area_r * 0.82 * anim_scale, 48), area_color, true, zoom_scale)
 	# Single-target hover highlight for bug host.tool.
-	if preview_tool == Catalog.TOOL_BUG and not sim.has_scoop():
-		var bug_id := sim.find_thronglet(at.x, at.y, 14.0, false)
+	if preview_tool == Catalog.TOOL_BUG and not sim.player_tools.has_scoop():
+		var bug_id := sim.spatial.find_thronglet(at.x, at.y, 14.0, false)
 		if bug_id >= 0:
 			host.outlined_throng_ids[bug_id] = true
 	if used >= 0 and host.tool_charge > 0.02 and (used != Catalog.TOOL_GRAB or int(target.get("n", 0)) > 0):

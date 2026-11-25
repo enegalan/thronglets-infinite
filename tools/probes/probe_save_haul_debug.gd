@@ -4,10 +4,10 @@ extends SceneTree
 ## Loads slot_0 and traces factory haul stuck states.
 
 ## Preloaded ThrongletSimServer script used for headless simulation steps.
-const SimScript := preload("res://scripts/core/ThrongletSimServer.gd")
+const SimScript = preload("res://scripts/core/ThrongletSimServer.gd")
 
 ## On-disk slot_0 save path exercised for regression probes.
-const SAVE := "/Users/egalan/Library/Application Support/Godot/app_userdata/Thronglets- Infinite/thronglets_slot_0.save"
+const SAVE = "/Users/egalan/Library/Application Support/Godot/app_userdata/Thronglets- Infinite/thronglets_slot_0.save"
 
 
 ## Defers probe execution until the SceneTree root is ready.
@@ -32,15 +32,15 @@ func _run() -> void:
 	sim.modal = {}
 	sim.talk_pending = {}
 	sim.gaze_queue.clear()
-	sim._restore_gaze()
-	sim._invalidate_factory_cache()
+	sim.dialogue._restore_gaze()
+	sim.building_sim._invalidate_factory_cache()
 
-	var mine := {}
-	var factory := {}
+	var mine = {}
+	var factory = {}
 	for b in sim.buildings:
 		if b.dead:
 			continue
-		var k := int(b.kind)
+		var k = int(b.kind)
 		if (k == Catalog.BLD_MINE or k == Catalog.BLD_MINE2) and mine.is_empty():
 			mine = b
 		elif (k == Catalog.BLD_FACTORY or k == Catalog.BLD_FACTORY2) and factory.is_empty():
@@ -50,34 +50,34 @@ func _run() -> void:
 		Vector2(float(mine.x), float(mine.y)).distance_to(Vector2(float(factory.x), float(factory.y))),
 	])
 	print("factory blocked=%s land=%s tile=%s" % [
-		str(sim._move_blocked(float(factory.x), float(factory.y))),
-		str(sim._land_inland(float(factory.x), float(factory.y))),
-		str(sim._tile_at(float(factory.x), float(factory.y))),
+		str(sim.collision._move_blocked(float(factory.x), float(factory.y))),
+		str(sim.collision._land_inland(float(factory.x), float(factory.y))),
+		str(sim.collision._tile_at(float(factory.x), float(factory.y))),
 	])
 
 	# Pick one living thronglet and force ore haul with per-frame decide (bypass AI budget).
-	var id := -1
+	var id = -1
 	for i in sim.slot_count:
 		if sim.state[i] == Catalog.ST_LIVING:
 			id = i
 			break
-	var gate := sim._approach_building(mine, id)
+	var gate = sim.collision._approach_building(mine, id)
 	sim.pos_x[id] = gate.x
 	sim.pos_y[id] = gate.y
-	sim._hash_relocate(id)
+	sim.spatial._hash_relocate(id)
 	sim.fed[id] = 100.0
 	sim.clean[id] = 100.0
 	sim.amused[id] = 100.0
 	sim.cool[id] = 999.0
 	sim.mito_charge[id] = 0.0
-	sim._set_carry(id, Catalog.CARRY_ORE, 1)
+	sim.world_entities._set_carry(id, Catalog.CARRY_ORE, 1)
 	print("haul start carry=%d d_fact=%.1f" % [
 		int(sim.carry[id]),
 		Vector2(sim.pos_x[id], sim.pos_y[id]).distance_to(Vector2(float(factory.x), float(factory.y))),
 	])
 
-	var dt := 1.0 / 30.0
-	var gems0 := int(sim.gems)
+	var dt = 1.0 / 30.0
+	var gems0 = int(sim.gems)
 	for frame in 900:
 		sim.fed[id] = 100.0
 		sim.clean[id] = 100.0
@@ -86,9 +86,9 @@ func _run() -> void:
 		sim.talk_pending = {}
 		sim.gaze_queue.clear()
 		# Buildings tick (factory spend) + forced decide for this carrier.
-		sim._tick_buildings(dt)
-		if sim._tick_busy(id, dt, true):
-			sim._tick_decide(id, dt)
+		sim.building_sim._tick_buildings(dt)
+		if sim.agent_tick._tick_busy(id, dt, true):
+			sim.agent_tick._tick_decide(id, dt)
 		if frame % 30 == 0 or int(sim.carry[id]) == Catalog.CARRY_NONE:
 			print("t=%.1f carry=%d act=%d pos=(%.1f,%.1f) d_fact=%.1f fbuf=%d gems=%d" % [
 				float(frame) * dt, int(sim.carry[id]), int(sim.act[id]),
@@ -118,6 +118,6 @@ func _run() -> void:
 		var px: float = sim.pos_x[id] + dx * float(step) * 24.0
 		var py: float = sim.pos_y[id] + dy * float(step) * 24.0
 		print("  step%d (%.1f,%.1f) blocked=%s tile=%s" % [
-			step, px, py, str(sim._move_blocked(px, py)), str(sim._tile_at(px, py)),
+			step, px, py, str(sim.collision._move_blocked(px, py)), str(sim.collision._tile_at(px, py)),
 		])
 	quit(1)

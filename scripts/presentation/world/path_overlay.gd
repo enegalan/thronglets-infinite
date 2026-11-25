@@ -56,7 +56,7 @@ func setup(
 ## Shows or clears path art for [param cell] on [param paths].
 func paint_path_cell(paths: TileMapLayer, cell: Vector2i, tile: int) -> void:
 	var main := paths == _pathmap
-	var show := tile == Catalog.TILE_GRASS and ThrongletSimServer.path_at(cell.x, cell.y)
+	var show := tile == Catalog.TILE_GRASS and ThrongletSimServer.paths.path_at(cell.x, cell.y)
 	if not show:
 		drop_path_at(cell, main)
 		return
@@ -71,13 +71,13 @@ func paint_path_cell(paths: TileMapLayer, cell: Vector2i, tile: int) -> void:
 ## Four-neighbor bitmask for path connectivity at [param cell].
 func path_mask(cell: Vector2i) -> int:
 	var mask := 0
-	if ThrongletSimServer.path_at(cell.x, cell.y - 1):
+	if ThrongletSimServer.paths.path_at(cell.x, cell.y - 1):
 		mask |= 1
-	if ThrongletSimServer.path_at(cell.x + 1, cell.y):
+	if ThrongletSimServer.paths.path_at(cell.x + 1, cell.y):
 		mask |= 2
-	if ThrongletSimServer.path_at(cell.x, cell.y + 1):
+	if ThrongletSimServer.paths.path_at(cell.x, cell.y + 1):
 		mask |= 4
-	if ThrongletSimServer.path_at(cell.x - 1, cell.y):
+	if ThrongletSimServer.paths.path_at(cell.x - 1, cell.y):
 		mask |= 8
 	return mask
 

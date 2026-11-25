@@ -27,12 +27,12 @@ func _go() -> void:
 		" unlock=",
 		unlocks.get("flower", false)
 	)
-	var first := Vector2(-9999, -9999)
-	var ok_n := 0
+	var first = Vector2(-9999, -9999)
+	var ok_n = 0
 	for y in range(-20, 21):
 		for x in range(-20, 21):
-			var wx := float(x * Catalog.TILE)
-			var wy := float(y * Catalog.TILE)
+			var wx = float(x * Catalog.TILE)
+			var wy = float(y * Catalog.TILE)
 			if bool(sim.call("can_place_building", Catalog.BLD_FLOWER, wx, wy)):
 				ok_n += 1
 				if first.x < -9000.0:
@@ -41,7 +41,7 @@ func _go() -> void:
 	if ok_n > 0:
 		var placed: bool = bool(sim.call("place_building", Catalog.BLD_FLOWER, first.x, first.y))
 		print("place -> ", placed)
-	var n := 0
+	var n = 0
 	for b in sim.get("buildings"):
 		if not bool(b.get("dead", false)) and int(b.get("kind", -1)) == Catalog.BLD_FLOWER:
 			n += 1

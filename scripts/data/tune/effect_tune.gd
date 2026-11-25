@@ -444,11 +444,11 @@ static func _apply_in(id: String, key: String) -> String:
 		"goo":
 			match key:
 				"fed":
-					return "ThrongletSimServer._tick_one TILE_GOO block: fed -= 0.35 * dt."
+					return "ThrongletSimServer.agent_tick._tick_one TILE_GOO block: fed -= 0.35 * dt."
 				"clean":
-					return "ThrongletSimServer._tick_one TILE_GOO block: clean_hit when mutations.adapt is false (currently 0.9)."
+					return "ThrongletSimServer.agent_tick._tick_one TILE_GOO block: clean_hit when mutations.adapt is false (currently 0.9)."
 				"clean_adapt":
-					return "ThrongletSimServer._tick_one TILE_GOO block: clean_hit when mutations.adapt is true (currently 0.35)."
+					return "ThrongletSimServer.agent_tick._tick_one TILE_GOO block: clean_hit when mutations.adapt is true (currently 0.35)."
 		"need":
 			match key:
 				"ok":
@@ -460,17 +460,17 @@ static func _apply_in(id: String, key: String) -> String:
 				"fun":
 					return "Catalog.NEED_FUN."
 		"visit:dwell":
-			return "ThrongletSimServer._visit_rule BLD_DWELL key '%s'." % key
+			return "ThrongletSimServer.building_sim._visit_rule BLD_DWELL key '%s'." % key
 		"visit:fancy":
-			return "ThrongletSimServer._visit_rule BLD_FANCY key '%s'." % key
+			return "ThrongletSimServer.building_sim._visit_rule BLD_FANCY key '%s'." % key
 		"visit:theatre":
-			return "ThrongletSimServer._visit_rule BLD_THEATRE key '%s'." % key
+			return "ThrongletSimServer.building_sim._visit_rule BLD_THEATRE key '%s'." % key
 		"aura:flower":
-			return "ThrongletSimServer._tick_auras BLD_FLOWER _boost args (%s). fun is rate/sec passed as fun * dt." % key
+			return "ThrongletSimServer.building_sim._tick_auras BLD_FLOWER _boost args (%s). fun is rate/sec passed as fun * dt." % key
 		"aura:statue":
-			return "ThrongletSimServer._tick_auras BLD_STATUE _boost args (%s). fun is rate/sec passed as fun * dt." % key
+			return "ThrongletSimServer.building_sim._tick_auras BLD_STATUE _boost args (%s). fun is rate/sec passed as fun * dt." % key
 		"aura:wood":
-			return "ThrongletSimServer._tick_auras BLD_WOOD _boost args (%s). fun is rate/sec passed as fun * dt." % key
+			return "ThrongletSimServer.building_sim._tick_auras BLD_WOOD _boost args (%s). fun is rate/sec passed as fun * dt." % key
 		"feat:totem":
 			return "ThrongletSimServer._tick_props FEAT_TOTEM _boost args (%s). fun is rate/sec." % key
 		"feat:curer":
@@ -486,9 +486,9 @@ static func _apply_in(id: String, key: String) -> String:
 		"act:eat":
 			match key:
 				"bite":
-					return "ThrongletSimServer._seek_food: per-bite progress threshold before a bite is consumed."
+					return "ThrongletSimServer.agent_tick._seek_food: per-bite progress threshold before a bite is consumed."
 				"fed":
-					return "ThrongletSimServer._seek_food: fed[i] = value after each apple bite (3 bites per apple)."
+					return "ThrongletSimServer.agent_tick._seek_food: fed[i] = value after each apple bite (3 bites per apple)."
 		"act:bath":
 			match key:
 				"clean":
@@ -500,27 +500,27 @@ static func _apply_in(id: String, key: String) -> String:
 				"enter":
 					return "ThrongletSimServer.BATH_ENTER_T."
 		"act:play":
-			return "ThrongletSimServer._seek_fun: amused += fun * dt near a play building."
+			return "ThrongletSimServer.agent_tick._seek_fun: amused += fun * dt near a play building."
 		"act:ball":
-			return "ThrongletSimServer._seek_fun: amused += fun on ball kick."
+			return "ThrongletSimServer.agent_tick._seek_fun: amused += fun on ball kick."
 		"act:round":
-			return "ThrongletSimServer._do_roundabout_ride: amused += fun * dt."
+			return "ThrongletSimServer.agent_tick._do_roundabout_ride: amused += fun * dt."
 		"act:sponge":
 			match key:
 				"radius":
-					return "ThrongletSimServer.scrub query_radius."
+					return "ThrongletSimServer.player_tools.scrub query_radius."
 				"stroke_min":
-					return "ThrongletSimServer.scrub: ignore strokes below this."
+					return "ThrongletSimServer.player_tools.scrub: ignore strokes below this."
 				"stroke_cap":
-					return "ThrongletSimServer.scrub: minf(stroke, stroke_cap)."
+					return "ThrongletSimServer.player_tools.scrub: minf(stroke, stroke_cap)."
 				"gain":
-					return "ThrongletSimServer.scrub: clean += minf(stroke, stroke_cap) * gain."
+					return "ThrongletSimServer.player_tools.scrub: clean += minf(stroke, stroke_cap) * gain."
 		"act:mop":
 			match key:
 				"radius":
-					return "ThrongletSimServer._mop query_radius and tile clear radius."
+					return "ThrongletSimServer.player_tools._mop query_radius and tile clear radius."
 				"clean":
-					return "ThrongletSimServer._mop: clean[id] = value for living thronglets in radius."
+					return "ThrongletSimServer.player_tools._mop: clean[id] = value for living thronglets in radius."
 	return "ThrongletSimServer / Catalog / Main for %s.%s" % [id, key]
 
 

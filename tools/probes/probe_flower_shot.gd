@@ -27,7 +27,7 @@ func _go() -> void:
 	await process_frame
 	await process_frame
 	var sim = root.get_node("ThrongletSimServer")
-	sim.new_sandbox_game()
+	sim.world_entities.new_sandbox_game()
 	main.in_title = false
 	if main.has_method("_start_sandbox_game"):
 		main._start_sandbox_game()
@@ -40,7 +40,7 @@ func _go() -> void:
 	var cam = main.camera
 	var at = main.cam_rig.from_iso(cam.position)
 	at = Catalog.snap_world(at.x, at.y)
-	print("try place at ", at, " can=", sim.can_place_building(Catalog.BLD_FLOWER, at.x, at.y))
+	print("try place at ", at, " can=", sim.player_tools.can_place_building(Catalog.BLD_FLOWER, at.x, at.y))
 	# search nearby
 	var placed_at = Vector2.ZERO
 	for r in range(0, 30):
@@ -48,8 +48,8 @@ func _go() -> void:
 			for dy in range(-r, r+1):
 				var wx = at.x + float(dx * Catalog.TILE)
 				var wy = at.y + float(dy * Catalog.TILE)
-				if sim.can_place_building(Catalog.BLD_FLOWER, wx, wy):
-					var ok = sim.place_building(Catalog.BLD_FLOWER, wx, wy)
+				if sim.player_tools.can_place_building(Catalog.BLD_FLOWER, wx, wy):
+					var ok = sim.player_tools.place_building(Catalog.BLD_FLOWER, wx, wy)
 					print("placed=", ok, " at ", wx, ",", wy)
 					placed_at = Vector2(wx, wy)
 					r = 999

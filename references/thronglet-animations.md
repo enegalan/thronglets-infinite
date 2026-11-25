@@ -963,6 +963,6 @@ flowchart LR
 - Gaps / checklist: [`video-gaps.md`](video-gaps.md) § Thronglet animations & sprites catalog
 - Runtime clips: [`scripts/data/throng_clips.gd`](../scripts/data/throng_clips.gd)
 - Frame select: [`scripts/presentation/Main.gd`](../scripts/presentation/Main.gd) `_frame`
-- Penned bark: [`scripts/core/ThrongletSimServer.gd`](../scripts/core/ThrongletSimServer.gd) `_is_penned` / `_thought_icon`
+- Penned bark: [`scripts/core/ThrongletSimServer.gd`](../scripts/core/ThrongletSimServer.gd) `dialogue._thought_icon` / `dialogue._thought_icon`
 - Unity sprites: `references/Assets/Sprite/Throng*.json`, `Char_Throng*.json`
 - Timelines (names only today): `references/Assets/ScriptableObjectGroup/ThrongletTalkTimeline.json`, `SEQ_1.json`–`SEQ_8.json`

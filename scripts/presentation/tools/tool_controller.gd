@@ -17,7 +17,7 @@ func setup(p_host: Node2D, p_cam_rig: CameraRig) -> void:
 func world_click() -> void:
 	var sim: ThrongletSim = ThrongletSimServer
 	var aim = aim_thronglet(false)
-	host.selected = sim.find_thronglet(aim.x, aim.y, 14.0, false)
+	host.selected = sim.spatial.find_thronglet(aim.x, aim.y, 14.0, false)
 	if host.selected >= 0:
 		if sim.mito_t[host.selected] > 0.0 or sim.mito_charge[host.selected] > 0.0:
 			host.selected = -1
@@ -35,7 +35,7 @@ func world_click() -> void:
 		at = host.cam_rig.grid_pointer_world()
 	elif used == Catalog.TOOL_EYE:
 		at = aim
-	sim.use_tool(used, at.x, at.y)
+	sim.player_tools.use_tool(used, at.x, at.y)
 	if used != Catalog.TOOL_EYE:
 		host.tool = Catalog.TOOL_EYE
 
@@ -48,7 +48,7 @@ func is_charge_tool(tool_id: int) -> bool:
 ## Active charge tool while dragging or holding.
 func charge_tool_id() -> int:
 	var sim: ThrongletSim = ThrongletSimServer
-	if sim.has_scoop():
+	if sim.player_tools.has_scoop():
 		return -1
 	if not host.kit_drag.is_empty() and str(host.kit_drag.get("type", "")) == "tool":
 		var drag_id = int(host.kit_drag.get("id", -1))
@@ -70,16 +70,16 @@ func clear_tool_charge() -> void:
 func tick_tool_charge(delta: float) -> void:
 	var sim: ThrongletSim = ThrongletSimServer
 	var at = host.cam_rig.pointer_world()
-	if sim.has_scoop():
+	if sim.player_tools.has_scoop():
 		clear_tool_charge()
 		if (not host.kit_drag.is_empty() or Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)) and drop_on_island():
-			sim.scoop_follow(at.x, at.y)
+			sim.player_tools.scoop_follow(at.x, at.y)
 		return
 	var used = charge_tool_id()
 	if used < 0 or sim.frozen or sim.paused or not drop_on_island():
 		clear_tool_charge()
 		return
-	var target: Dictionary = sim.charge_tool_target(used, at.x, at.y)
+	var target: Dictionary = sim.player_tools.charge_tool_target(used, at.x, at.y)
 	if target.is_empty():
 		clear_tool_charge()
 		return
@@ -100,10 +100,10 @@ func tick_tool_charge(delta: float) -> void:
 	if host.tool_charge < 1.0:
 		return
 	if used == Catalog.TOOL_GRAB:
-		sim.scoop_gather(float(target.x), float(target.y))
+		sim.player_tools.scoop_gather(float(target.x), float(target.y))
 		clear_tool_charge()
 		return
-	sim.use_tool(used, float(target.x), float(target.y))
+	sim.player_tools.use_tool(used, float(target.x), float(target.y))
 	clear_tool_charge()
 
 
@@ -127,7 +127,7 @@ func tick_hand_hold(delta: float) -> void:
 		return
 	var id = host.hand_pending_id
 	clear_hand_pending()
-	if sim.grab_thronglet(id):
+	if sim.player_tools.grab_thronglet(id):
 		host.selected = -1
 		host.selected_bld = -1
 
@@ -148,11 +148,11 @@ func hand_press() -> void:
 		host.hand_pending_id = throng
 		host.hand_hold_t = 0.0
 		return
-	if sim.grab_at(at.x, at.y):
+	if sim.player_tools.grab_at(at.x, at.y):
 		host.selected_bld = -1
 		host.selected = -1
 		return
-	var hit: Dictionary = sim.eye_use(at.x, at.y)
+	var hit: Dictionary = sim.player_tools.eye_use(at.x, at.y)
 	var kind = str(hit.get("type", ""))
 	if kind == "thronglet":
 		var tid = int(hit.id)
@@ -179,7 +179,7 @@ func hand_release() -> void:
 	var pending_click_id = host.hand_pending_id if host.hand_pending else -1
 	clear_hand_pending()
 	var sim: ThrongletSim = ThrongletSimServer
-	if not sim.is_holding():
+	if not sim.player_tools.is_holding():
 		if pending_click_id >= 0:
 			var short_click = host.get_viewport().get_mouse_position().distance_to(host.hand_from) < 12.0
 			if short_click and pending_click_id < sim.slot_count and sim.state[pending_click_id] != Catalog.ST_VACANT:
@@ -192,18 +192,18 @@ func hand_release() -> void:
 		return
 	var short_click = host.get_viewport().get_mouse_position().distance_to(host.hand_from) < 12.0
 	if not drop_on_island():
-		sim.cancel_hold()
+		sim.player_tools.cancel_hold()
 		return
 	var at = host.cam_rig.pointer_world()
 	if sim.held_kind == "building" or sim.held_kind == "rock":
 		at = host.cam_rig.grid_pointer_world()
 	elif sim.hand_id != -1:
-		var held: Dictionary = sim.hand_item()
+		var held: Dictionary = sim.player_tools.hand_item()
 		if not held.is_empty() and Catalog.item_snaps_grid(int(held.kind)):
 			at = host.cam_rig.grid_pointer_world()
 	var held_thronglet: bool = sim.held_kind == "thronglet"
 	var throw_v = Vector2.ZERO if short_click else host.hand_vel
-	var hit: Dictionary = sim.release_at(at.x, at.y, short_click, true, throw_v.x, throw_v.y)
+	var hit: Dictionary = sim.player_tools.release_at(at.x, at.y, short_click, true, throw_v.x, throw_v.y)
 	var kind = str(hit.get("type", ""))
 	if kind == "thronglet":
 		host.selected = int(hit.id)
@@ -238,7 +238,7 @@ func throng_under_cursor(living_only: bool) -> int:
 	var best = -1
 	var best_feet = -1.0e9
 	var best_live = false
-	for raw in sim.query_radius(probe.x, probe.y, 40.0):
+	for raw in sim.spatial.query_radius(probe.x, probe.y, 40.0):
 		var i = int(raw)
 		var st = int(sim.state[i])
 		if st != Catalog.ST_LIVING and st != Catalog.ST_DEAD:
@@ -298,7 +298,7 @@ func want_place_grid() -> bool:
 			return true
 		return int(host.kit_drag.get("id", -1)) == Catalog.TOOL_TNT
 	if sim.hand_id != -1:
-		var hand: Dictionary = sim.hand_item()
+		var hand: Dictionary = sim.player_tools.hand_item()
 		return not hand.is_empty() and Catalog.item_snaps_grid(int(hand.kind))
 	if sim.held_kind == "building" or sim.held_kind == "rock":
 		return true

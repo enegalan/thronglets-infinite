@@ -69,7 +69,7 @@ func throng_special_body(sim: ThrongletSim, i: int) -> bool:
 		return true
 	if sim.mito_t[i] > 0.0 or sim.mito_charge[i] > 0.0:
 		return true
-	if sim.near_fire(i):
+	if sim.world_entities.near_fire(i):
 		return true
 	if i < sim.penned_flag.size() and sim.penned_flag[i] != 0:
 		return true
@@ -142,7 +142,7 @@ func frame(i: int, time: float) -> int:
 			along = clampf(sim.mito_charge[i] / ThrongletSimServer.MITOSIS_CHARGE, 0.0, 1.0) * ThrongletSimServer.MITOSIS_SPLIT_ALONG
 		return ThrongClips.frame_along("ThrongA_Mitosis_Spritesheet", along)
 	# Critical bodies use one clip each — never mix the whole PANIC pool live.
-	if sim.near_fire(i):
+	if sim.world_entities.near_fire(i):
 		return ThrongClips.frame_at("ThrongA_PanicRunFire", int(time * 10.0 + float(i)))
 	if i < sim.penned_flag.size() and sim.penned_flag[i] != 0:
 		return ThrongClips.frame_at("ThrongA_FreakOut", int(time * 10.0 + float(i)))
@@ -153,7 +153,7 @@ func frame(i: int, time: float) -> int:
 		return ThrongClips.frame_at(effect_look_clip("act:eat", "ThrongA_Eat"), int(time * 6.0))
 	if doing == ThrongletSimServer.ACT_BATH:
 		var bath_clip := effect_look_clip("act:bath", "Throng_FallInBath_Spritesheet")
-		var tub: Dictionary = sim.seat_of(i)
+		var tub: Dictionary = sim.building_sim.seat_of(i)
 		if tub.is_empty():
 			return ThrongClips.frame_at(effect_look_clip("act:bath_exit", "ThrongA_Happy"), int(time * 6.0))
 		var age := float(tub.get("bath_t", 0.0))
@@ -167,23 +167,23 @@ func frame(i: int, time: float) -> int:
 		# Stable Happy loop while scrubbing — do not restart from act_t pulses.
 		return ThrongClips.frame_at(effect_look_clip("act:sponge", "ThrongA_Happy"), int(time * 6.0 + float(i) * 0.37))
 	if doing == ThrongletSimServer.ACT_PLAY:
-		if sim.has_ball(i):
+		if sim.building_sim.has_ball(i):
 			if moving:
 				return walk_clip(i, time, sim)
 			return ThrongClips.frame_at(effect_look_clip("act:ball", "ThrongA_Happy"), int(time * 6.0))
-		var ride: Dictionary = sim.ride_of(i)
+		var ride: Dictionary = sim.building_sim.ride_of(i)
 		if not ride.is_empty():
 			var clip := effect_look_clip("act:round", "ThrongA_Roundabout_SpriteSheet")
 			var car := TiovivoLabTune.carousel()
 			var nframes := int(ThrongClips.CLIPS[clip].y) if ThrongClips.CLIPS.has(clip) else 8
 			var idx := 0
 			if bool(car.get("sprite_dir_follow", true)):
-				var seat := sim._ride_slot_of(ride, i)
+				var seat: int = sim.agent_tick._ride_slot_of(ride, i)
 				var ang := 0.0
 				if seat >= 0:
-					ang = sim._ride_slot_ang(ride, seat)
+					ang = sim.agent_tick._ride_slot_ang(ride, seat)
 				else:
-					var mid := sim._ride_center_of(ride)
+					var mid: Vector2 = sim.agent_tick._ride_center_of(ride)
 					ang = atan2(sim.pos_y[i] - mid.y, sim.pos_x[i] - mid.x)
 				var dir_off := int(car.get("sprite_dir_offset", 0))
 				idx = posmod(-int(round(ang / TAU * float(maxi(1, nframes)))) + dir_off, maxi(1, nframes))
@@ -192,7 +192,7 @@ func frame(i: int, time: float) -> int:
 			return ThrongClips.frame_at(clip, idx)
 		return ThrongClips.frame_at(effect_look_clip("act:play", "ThrongA_Jump_VariantA_Spritesheet"), int(time * 8.0))
 	if doing == ThrongletSimServer.ACT_WORK and not moving:
-		if sim.is_mining(i):
+		if sim.world_entities.is_mining(i):
 			var cycle: float = ThrongletSimServer.MINE_SWING_T + ThrongletSimServer.MINE_WAIT_T
 			var beat := fposmod(time + float(i) * 0.37, cycle)
 			if beat >= ThrongletSimServer.MINE_SWING_T:
@@ -207,7 +207,7 @@ func frame(i: int, time: float) -> int:
 			return ThrongClips.frame_at("ThrongA_LiftProp", int(time * 6.0))
 		return ThrongClips.frame_at("Throng_Think_Spritesheet", int(time * 6.0))
 	# Thought bubble up: one-shot Sing B–E from bark start; stand until it ends.
-	var bark: Dictionary = sim.bark_of(i)
+	var bark: Dictionary = sim.dialogue.bark_of(i)
 	var bark_sing := str(bark.get("sing", ""))
 	if bark_sing != "" and ThrongClips.has_clip(bark_sing):
 		var bark_life := maxf(float(bark.get("life", float(bark.get("t", 1.0)))), 0.01)
@@ -234,7 +234,7 @@ func walk_clip(i: int, time: float, sim: ThrongletSim) -> int:
 	var tick := int(time * 8.0 + float(i))
 	if absf(sim.dir_y[i]) > absf(sim.dir_x[i]) and sim.dir_y[i] < 0.0:
 		return ThrongClips.frame_at("Throng_WalkBack_Anim_Spritesheet", tick)
-	if sim.approaching_home(i) and ThrongClips.has_clip("Throng_Walk_Homed_Spritesheet"):
+	if sim.world_entities.approaching_home(i) and ThrongClips.has_clip("Throng_Walk_Homed_Spritesheet"):
 		return ThrongClips.frame_at("Throng_Walk_Homed_Spritesheet", tick)
 	var sad_move := sim.clean[i] < 12.0 or sim.fed[i] < 25.0
 	var happy_move := sim.fed[i] >= Catalog.NEED_OK and sim.amused[i] >= Catalog.NEED_OK and sim.clean[i] >= Catalog.NEED_OK
@@ -260,7 +260,7 @@ func throng_flip(i: int) -> float:
 	var moving := absf(sim.dir_x[i]) + absf(sim.dir_y[i]) >= 0.01
 	if doing == ThrongletSimServer.ACT_EAT or doing == ThrongletSimServer.ACT_BATH or doing == ThrongletSimServer.ACT_WASH:
 		return 1.0
-	if doing == ThrongletSimServer.ACT_PLAY and not sim.has_ball(i):
+	if doing == ThrongletSimServer.ACT_PLAY and not sim.building_sim.has_ball(i):
 		return 1.0
 	if doing == ThrongletSimServer.ACT_WORK and not moving:
 		return 1.0

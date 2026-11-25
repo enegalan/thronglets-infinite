@@ -33,7 +33,7 @@ static func metric_value(sim, metric: String) -> float:
 static func pollution_percent(sim) -> float:
 	# Pollution as percentage of walkable/known land cells covered by goo, scaled for thresholds.
 	# Spec: mop unlock at pollution >= 25 (%). Use goo_count vs a reasonable baseline.
-	var base := float(maxi(1, sim._walk_cells()))
+	var base := float(maxi(1, sim.world_entities._walk_cells()))
 	var goo := float(sim.goo_count)
 	return clampf((goo / base) * 100.0, 0.0, 100.0)
 
@@ -215,7 +215,7 @@ static func apply_progression_hooks(sim, announce: bool = true) -> void:
 	# Narrative/world side effects not modeled in the progression catalog.
 	# Tutorial gate: axe unlocks once the colony has reached 6 (peak), even if pop later drops.
 	if sim.peak >= 6 and not bool(sim.unlocks.get("axe", false)):
-		sim._grant("axe", "", announce)
+		sim.dialogue._grant("axe", "", announce)
 	if sim.peak >= 25:
 		var mono1 := false
 		for feat in sim.features:
@@ -229,24 +229,24 @@ static func apply_progression_hooks(sim, announce: bool = true) -> void:
 			bug = false
 		if spawned1 and not bug and not mono1:
 			sim.monolith_tier_spawned.erase(1)
-		sim._ensure_monolith(1)
-	if sim._has_building(Catalog.BLD_ROUND) and sim.peak >= 12 and not sim.part_two:
-		sim._expand_super_island(announce)
-	if announce and sim.peak >= 12 and sim._ethics_choice("what_is_care") == -1 and sim.living >= 3:
-		sim._queue_talk("what_is_care", {})
-	if announce and _house_count(sim) >= 3 and sim._ethics_choice("work_life") == -1:
-		sim._queue_talk("work_life", {})
+		sim.dialogue._ensure_monolith(1)
+	if sim.building_sim._has_building(Catalog.BLD_ROUND) and sim.peak >= 12 and not sim.part_two:
+		sim.world_entities._expand_super_island(announce)
+	if announce and sim.peak >= 12 and sim.dialogue._ethics_choice("what_is_care") == -1 and sim.living >= 3:
+		sim.dialogue._queue_talk("what_is_care", {})
+	if announce and _house_count(sim) >= 3 and sim.dialogue._ethics_choice("work_life") == -1:
+		sim.dialogue._queue_talk("work_life", {})
 	elif announce and sim.peak >= 8 and sim.living >= 2:
-		sim._queue_ambient_talk()
+		sim.dialogue._queue_ambient_talk()
 
-	sim._check_milestones(announce)
+	sim.dialogue._check_milestones(announce)
 
 ## Celebration, sfx, and talk queued when an unlock fires.
 static func _on_granted(sim, id: String) -> void:
 	sim.sfx_queue.append("unlock_" + id)
 	sim.celebrate_t = sim.CELEBRATE_DUR
 	if Catalog.UNLOCK_TALK.has(id):
-		sim._queue_talk(str(Catalog.UNLOCK_TALK[id]), {})
+		sim.dialogue._queue_talk(str(Catalog.UNLOCK_TALK[id]), {})
 	elif ProgressionCatalog.by_id(id).has("name"):
 		sim.notes.append("DESBLOQUEADO: " + str(ProgressionCatalog.by_id(id).name))
 	# Auto-upgrade: when a replacement tool unlocks, ensure active selection moves if needed handled in UI.
