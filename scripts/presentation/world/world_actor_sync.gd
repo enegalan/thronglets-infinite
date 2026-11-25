@@ -558,6 +558,7 @@ func clear_throng_crowd() -> void:
 func push_throng_crowd_draws(draws: Array, ids: Array, time: float, far_view: bool) -> void:
 	# Cheap thronglet LOD into the shared prop draw list (y-sorted; every id is in-view).
 	# Special bodies (act / carry / timers / panic) still go through anim_frames.frame_lod.
+	# Riders keep seat pos / lift / sort / no-flip so the carousel still reads in crowd mode.
 	ensure_crowd_frames()
 	var sim: ThrongletSim = ThrongletSimServer
 	var tint_n = Catalog.TINTS.size()
@@ -569,22 +570,37 @@ func push_throng_crowd_draws(draws: Array, ids: Array, time: float, far_view: bo
 		if throng_hidden_indoors(sim, i):
 			continue
 		var pos = Vector2(sim.pos_x[i], sim.pos_y[i])
+		var lift := 0.0
+		var sort_y := NAN
+		var riding := false
 		var frame = host._crowd_default_frame
 		if sim.state[i] == Catalog.ST_DEAD:
 			frame = ThrongClips.frame_at("ThrongA_Dead_001" if sim.dir_x[i] >= 0.0 else "ThrongA_Dead_002", 0)
 		elif host.anim_frames.throng_special_body(sim, i):
 			frame = host.anim_frames.frame_lod(i, time, far_view)
+			if int(sim.act[i]) == ThrongletSim.ACT_PLAY and not sim.has_ball(i):
+				var ride: Dictionary = sim.ride_of(i)
+				if not ride.is_empty():
+					riding = true
+					lift = iso.effect_look_lift(EffectTune.get_tune("act:round"), time, float(i))
+					var seat = sim._ride_slot_of(ride, i)
+					if seat >= 0:
+						pos = sim._ride_slot_pos(ride, seat)
+					sort_y = iso.prop_front_sort_y(
+						iso.building_active_draw_at(Catalog.BLD_ROUND, Vector2(float(ride.x), float(ride.y)))
+					)
 		elif absf(sim.dir_x[i]) + absf(sim.dir_y[i]) >= 0.01:
 			frame = ThrongClips.frame_at("Throng_Walk_Anim_Spritesheet", walk_tick + i) if not far_view else host._crowd_walk_frame
 		elif sim.clean[i] < 12.0 or sim.fed[i] < 25.0:
 			frame = host._crowd_sad_frame
 		var tint: Color = Color.WHITE if sim.state[i] == Catalog.ST_DEAD else Catalog.TINTS[int(sim.tint[i]) % tint_n]
 		var flip = 1.0
-		if not far_view and absf(sim.dir_x[i]) > absf(sim.dir_y[i]) and sim.dir_x[i] < 0.0:
+		if not riding and not far_view and absf(sim.dir_x[i]) > absf(sim.dir_y[i]) and sim.dir_x[i] < 0.0:
 			flip = -1.0
 		if sim.state[i] == Catalog.ST_DEAD:
 			push_corpse_blood(draws, sim, i, pos, cam_rig.to_iso(pos).y)
-		iso.push_iso(draws, pos, frame, tint, 0.0, host.anim_frames.throng_sprite_scale(frame))
+		var throng_scale = host.anim_frames.throng_sprite_scale(frame)
+		iso.push_iso(draws, pos, frame, tint, lift, throng_scale, sort_y)
 		draws[draws.size() - 1]["flip"] = flip
 		draws[draws.size() - 1]["dirty"] = host.anim_frames.throng_dirty(sim.clean[i])
 		# Carry must stay readable at any zoom — haul feedback is core gameplay.
