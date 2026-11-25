@@ -2,6 +2,11 @@
 
 ## [Unreleased](https://github.com/enegalan/thronglets-infinite/compare/v2.8.5...HEAD)
 
+### 2026-11-26
+
+- The colony simulation code is organized into clearer pieces so the game is easier to maintain and keep stable.
+- Fixed a crash that could happen when closing or refreshing the dialogue console.
+
 ### 2026-11-25
 
 - `Main.gd` presentation split by domain under `scripts/presentation/`; Main is the thin orchestrator.
