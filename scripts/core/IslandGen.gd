@@ -3,7 +3,6 @@ extends RefCounted
 
 # Home-island shape, water, prop scatter, and mine-node seeding.
 
-## Back-reference to the colony sim that owns terrain and features.
 var sim
 
 

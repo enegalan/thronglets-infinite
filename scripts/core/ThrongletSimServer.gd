@@ -2,17 +2,11 @@ extends Node
 
 # Colony simulation.
 
-## Dialogue trees for gaze/console events and choice resolution.
 const DialogueBook := preload("res://scripts/data/dialogue/dialogue_book.gd")
-## Unlock and cost helpers for kit progression during play.
 const ProgressionManager := preload("res://scripts/core/progression_manager.gd")
-## Static unlock tables and task signatures for progression checks.
 const ProgressionCatalog := preload("res://scripts/data/progression_catalog.gd")
-## Roundabout seat/radius lab overrides applied when a carousel is active.
 const TiovivoLabTune := preload("res://scripts/data/tune/tiovivo_lab_tune.gd")
-## Save/load implementation constructed as [member save_system].
 const SaveSystemScript := preload("res://scripts/core/save_system.gd")
-## Procedural island terrain generator for new games and expansions.
 const IslandGenScript := preload("res://scripts/core/IslandGen.gd")
 
 ## Per-second drain on the fed need while a thronglet is alive.
