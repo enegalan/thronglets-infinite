@@ -1,8 +1,8 @@
 class_name LineBook
 extends RefCounted
 
-# Each key is one situation. The value is that situation's variant pool,
-# not the whole localization dump.
+## Each key is one situation. The value is that situation's variant pool,
+## not the whole localization dump.
 const POOL := {
 	"first_born": "3S02_THRONGLET",
 	"unlock_axe": "3S02_AXETOOL",
@@ -31,10 +31,13 @@ const POOL := {
 	"shot_check": "3S02_THRONGLET",
 }
 
+## Parsed lines.json table cache keyed by localization id.
 static var tables := {}
+## True after lines.json has been loaded into tables.
 static var ready := false
 
 
+## Lazy-loads lines.json once before any line lookup.
 static func ensure() -> void:
 	if ready:
 		return
@@ -51,6 +54,7 @@ static func ensure() -> void:
 	tables = raw
 
 
+## Returns all non-empty variant strings for an event or gaze tree.
 static func lines_for(event: String) -> Array:
 	ensure()
 	var key := ""
@@ -69,6 +73,7 @@ static func lines_for(event: String) -> Array:
 	return out
 
 
+## Picks a rotating ambient bark string from pooled unlock tables.
 static func bark_line(n: int) -> String:
 	ensure()
 	var keys: Array = POOL.values()
@@ -81,6 +86,7 @@ static func bark_line(n: int) -> String:
 	return str(rows[0])
 
 
+## Returns the first variant line for an event, if any.
 static func line_for(event: String) -> String:
 	var rows := lines_for(event)
 	if rows.is_empty():
@@ -88,6 +94,7 @@ static func line_for(event: String) -> String:
 	return str(rows[0])
 
 
+## Fetches one indexed row from a named localization table.
 static func row(table: String, index: int) -> String:
 	ensure()
 	var rows = tables.get(table, [])

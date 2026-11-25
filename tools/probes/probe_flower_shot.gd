@@ -1,8 +1,12 @@
 extends SceneTree
 
+
+## Scene-tree probe that captures flower placement for shot/regression checks.
+
 func _init() -> void:
 	call_deferred("_go")
 
+## Boots the scene harness, runs checks, and quits with pass/fail status.
 func _go() -> void:
 	# Load main scene
 	var packed = load("res://main/Main.tscn")
@@ -25,12 +29,10 @@ func _go() -> void:
 	var sim = root.get_node("ThrongletSimServer")
 	sim.new_sandbox_game()
 	main.in_title = false
-	if main.has_method("_leave_title"):
-		main._leave_title()
-	elif main.has_method("_start_sandbox_game"):
-		pass
+	if main.has_method("_start_sandbox_game"):
+		main._start_sandbox_game()
 	main.in_title = false
-	if main.title_root: main.title_root.visible = false
+	if main.title.title_root: main.title.title_root.visible = false
 	sim.sandbox_mode = true
 	sim.unlocks["flower"] = true
 	await process_frame

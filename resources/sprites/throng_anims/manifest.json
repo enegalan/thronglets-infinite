@@ -570,12 +570,6 @@
       "file": "Throng_Prop_Shadow_A.png",
       "frames": 1
     },
-    "Throng_Prop_Shadow_A 1": {
-      "cell_h": 9,
-      "cell_w": 30,
-      "file": "Throng_Prop_Shadow_A_1.png",
-      "frames": 1
-    },
     "Throng_SarcasticSquint2": {
       "cell_h": 37,
       "cell_w": 37,

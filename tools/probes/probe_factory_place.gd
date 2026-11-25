@@ -1,13 +1,21 @@
 extends SceneTree
 
+
+## Loads slot_0 and scans chunks for a valid factory pad placement.
+
+## Preloaded ThrongletSimServer script used for headless simulation steps.
 const SimScript := preload("res://scripts/core/ThrongletSimServer.gd")
+
+## On-disk slot_0 save path exercised for regression probes.
 const SAVE := "/Users/egalan/Library/Application Support/Godot/app_userdata/Thronglets- Infinite/thronglets_slot_0.save"
 
 
+## Defers probe execution until the SceneTree root is ready.
 func _init() -> void:
 	call_deferred("_run")
 
 
+## Boots the sim, runs assertions, and quits with pass/fail status.
 func _run() -> void:
 	var sim = SimScript.new()
 	sim.testing = true

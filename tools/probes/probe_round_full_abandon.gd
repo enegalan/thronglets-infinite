@@ -1,12 +1,18 @@
 extends SceneTree
 
+
+## Headless check that a full roundabout is skipped and campers abandon.
+
+## Preloaded ThrongletSimServer script used for headless simulation steps.
 const SimScript := preload("res://scripts/core/ThrongletSimServer.gd")
 
 
+## Defers probe execution until the SceneTree root is ready.
 func _init() -> void:
 	call_deferred("_run")
 
 
+## Boots the sim, runs assertions, and quits with pass/fail status.
 func _run() -> void:
 	var sim = SimScript.new()
 	sim.testing = true
@@ -124,6 +130,7 @@ func _run() -> void:
 	quit(0)
 
 
+## Euclidean distance between two world points.
 func _dist(ax: float, ay: float, bx: float, by: float) -> float:
 	var dx := ax - bx
 	var dy := ay - by

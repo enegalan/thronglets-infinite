@@ -1,6 +1,7 @@
 class_name ProgressionManager
 
 
+## Evaluates one progression catalog predicate against live sim stats.
 static func condition_met(sim, cond: Dictionary) -> bool:
 	var t: int = int(cond.get("type", -1))
 	if t == ProgressionCatalog.ConditionType.POPULATION:
@@ -18,6 +19,7 @@ static func condition_met(sim, cond: Dictionary) -> bool:
 		return kind >= 0 and building_count(sim, kind) >= 1
 	return false
 
+## Resolves a named analytics metric for threshold unlocks.
 static func metric_value(sim, metric: String) -> float:
 	if metric == "pollution":
 		return pollution_percent(sim)
@@ -27,6 +29,7 @@ static func metric_value(sim, metric: String) -> float:
 		return float(sim.trees_chopped)
 	return 0.0
 
+## Expresses goo coverage as a percent of walkable land.
 static func pollution_percent(sim) -> float:
 	# Pollution as percentage of walkable/known land cells covered by goo, scaled for thresholds.
 	# Spec: mop unlock at pollution >= 25 (%). Use goo_count vs a reasonable baseline.
@@ -34,6 +37,7 @@ static func pollution_percent(sim) -> float:
 	var goo := float(sim.goo_count)
 	return clampf((goo / base) * 100.0, 0.0, 100.0)
 
+## True when an id's conditions pass and it is not already owned.
 static func can_unlock(sim, id: String) -> bool:
 	if bool(sim.unlocks.get(id, false)):
 		return false
@@ -49,24 +53,28 @@ static func can_unlock(sim, id: String) -> bool:
 			return false
 	return true
 
+## True when a tool is unlocked and not replaced by a newer tier.
 static func effective_tool_unlock(sim, id: String) -> bool:
 	# A tool is available if unlocked and not superseded by an unlocked replacement.
 	if not bool(sim.unlocks.get(id, false)):
 		return false
 	return not replaced_by_unlocked(sim, id)
 
+## True when a catalog entry supersedes the given tool id.
 static func replaced_by_unlocked(sim, id: String) -> bool:
 	for e in ProgressionCatalog.CATALOG:
 		if str(e.get("replaces", "")) == id and bool(sim.unlocks.get(str(e.id), false)):
 			return true
 	return false
 
+## Returns the catalog id that replaces a legacy tool, if any.
 static func replacement_for(sim, id: String) -> String:
 	for e in ProgressionCatalog.CATALOG:
 		if str(e.get("replaces", "")) == id:
 			return str(e.id)
 	return ""
 
+## Counts non-dead buildings of one footprint kind.
 static func building_count(sim, build_kind: int) -> int:
 	var n := 0
 	for b in sim.buildings:
@@ -74,9 +82,11 @@ static func building_count(sim, build_kind: int) -> int:
 			n += 1
 	return n
 
+## Counts dwellings plus fancy homes for ethics hooks.
 static func _house_count(sim) -> int:
 	return building_count(sim, Catalog.BLD_DWELL) + building_count(sim, Catalog.BLD_FANCY)
 
+## Maps a catalog building string id to an internal kind enum.
 static func build_kind_for_id(id: String) -> int:
 	match id:
 		"bathtub": return Catalog.BLD_TUB
@@ -93,6 +103,7 @@ static func build_kind_for_id(id: String) -> int:
 		"sculpture": return Catalog.BLD_STATUE
 	return -1
 
+## Returns wood or gem price for the next instance of a building.
 static func placement_cost(sim, id: String) -> Dictionary:
 	var kind := build_kind_for_id(id)
 	var count := 0 if kind < 0 else building_count(sim, kind)
@@ -124,20 +135,24 @@ static func placement_cost(sim, id: String) -> Dictionary:
 			return {"resource": "wood", "amount": wood}
 	return {"resource": "", "amount": 0}
 
+## Gem-only portion of placement_cost for UI previews.
 static func scaled_cost(sim, id: String) -> int:
 	var cost := placement_cost(sim, id)
 	if str(cost.get("resource", "")) == "gem":
 		return int(cost.get("amount", 0))
 	return 0
 
+## Stepped wood price curve for additional mines.
 static func _mine_wood_cost(count: int) -> int:
 	# 0, 56, 137, 272, 461, 703, ...
 	return _stepped_cost(count, [0, 56, 137, 272, 461, 703], 54)
 
+## Stepped gem price curve for additional factories.
 static func _factory_gem_cost(count: int) -> int:
 	# 20, 24, 39, 69, 96, 254, ...
 	return _stepped_cost(count, [20, 24, 39, 69, 96, 254], 15)
 
+## Generic escalating cost from tabulated early steps.
 static func _stepped_cost(count: int, steps: Array, delta_grow: int) -> int:
 	if count < steps.size():
 		return int(steps[count])
@@ -148,6 +163,7 @@ static func _stepped_cost(count: int, steps: Array, delta_grow: int) -> int:
 		delta += delta_grow
 	return amount
 
+## Geometric gem pricing for repeatable catalog buildings.
 static func _exponential_gem_cost(sim, id: String) -> int:
 	var e := ProgressionCatalog.by_id(id)
 	if e.is_empty():
@@ -162,6 +178,7 @@ static func _exponential_gem_cost(sim, id: String) -> int:
 	var count := building_count(sim, kind)
 	return int(round(float(base) * pow(mult, float(count))))
 
+## Compact string invalidating build-menu prices after changes.
 static func kit_cost_signature(sim) -> String:
 	return "%d:%d:%d:%d:%d:%d:%d:%d:%d" % [
 		int(sim.unlock_serial),
@@ -175,6 +192,7 @@ static func kit_cost_signature(sim) -> String:
 		building_count(sim, Catalog.BLD_FACTORY2) + building_count(sim, Catalog.BLD_MINE2),
 	]
 
+## Fixpoint grant pass over the catalog; returns newly unlocked ids.
 static func evaluate_unlocks(sim, announce: bool = true) -> Array[String]:
 	var granted: Array[String] = []
 	var changed := true
@@ -192,6 +210,7 @@ static func evaluate_unlocks(sim, announce: bool = true) -> Array[String]:
 	return granted
 
 
+## World and narrative side effects tied to population milestones.
 static func apply_progression_hooks(sim, announce: bool = true) -> void:
 	# Narrative/world side effects not modeled in the progression catalog.
 	# Tutorial gate: axe unlocks once the colony has reached 6 (peak), even if pop later drops.
@@ -205,7 +224,6 @@ static func apply_progression_hooks(sim, announce: bool = true) -> void:
 				break
 		var bug := bool(sim.unlocks.get("bug", false))
 		var spawned1 := bool(sim.monolith_tier_spawned.get(1, false))
-		# Migración/reparación: bug huérfano de progresión antigua o monolito marcado sin entidad.
 		if bug and not spawned1:
 			sim.unlocks["bug"] = false
 			bug = false
@@ -223,6 +241,7 @@ static func apply_progression_hooks(sim, announce: bool = true) -> void:
 
 	sim._check_milestones(announce)
 
+## Celebration, sfx, and talk queued when an unlock fires.
 static func _on_granted(sim, id: String) -> void:
 	sim.sfx_queue.append("unlock_" + id)
 	sim.celebrate_t = sim.CELEBRATE_DUR
@@ -232,6 +251,7 @@ static func _on_granted(sim, id: String) -> void:
 		sim.notes.append("DESBLOQUEADO: " + str(ProgressionCatalog.by_id(id).name))
 	# Auto-upgrade: when a replacement tool unlocks, ensure active selection moves if needed handled in UI.
 
+## Brush radius from catalog data for area tools.
 static func tool_area_radius(id: String) -> int:
 	var e := ProgressionCatalog.by_id(id)
 	if e.is_empty():

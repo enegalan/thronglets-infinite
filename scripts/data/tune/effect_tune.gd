@@ -1,13 +1,15 @@
 class_name EffectTune
 
-# Dev bench overrides for thronglet need rates and presentation.
-# res://dev/effect_tune.json is the handoff dump — commit by updating LOOK/DEFAULTS here.
+## Dev bench overrides for thronglet need rates and presentation.
+## res://dev/effect_tune.json is the handoff dump — commit by updating LOOK/DEFAULTS here.
 
 const PATH := "res://dev/effect_tune.json"
+## Editable JSON keys for effect presentation in the dev bench.
 const LOOK_KEYS := ["clip", "fx", "lift", "bob", "orbit", "scale", "fx_x", "fx_y"]
+## Allowed effect hook names selectable in the tune UI.
 const FX_CHOICES := ["none", "spark", "suds", "splash", "aura", "fire", "clean"]
 
-# Rate defaults match ThrongletSimServer / Catalog literals.
+## Rate defaults match ThrongletSimServer / Catalog literals.
 const DEFAULTS := {
 	"goo": {"fed": 0.35, "clean": 0.9, "clean_adapt": 0.35},
 	"need": {"ok": 85.0, "hungry": 75.0, "seek": 40.0, "fun": 82.0},
@@ -30,7 +32,7 @@ const DEFAULTS := {
 	"act:mop": {"radius": 48.0, "clean": 100.0},
 }
 
-# Presentation — Main reads via _effect_look_clip / _effect_look_lift / painters.
+## Presentation — Main reads via anim_frames.effect_look_clip / iso_draw.effect_look_lift.
 const LOOK := {
 	"goo": {"clip": "ThrongA_Sad", "fx": "none", "lift": 0.0, "bob": 0.0, "orbit": 0.0},
 	"need": {"clip": "ThrongA_Default", "fx": "none", "lift": 0.0, "bob": 0.0, "orbit": 0.0},
@@ -55,22 +57,28 @@ const LOOK := {
 	"act:mop": {"clip": "ThrongA_Happy", "fx": "clean", "lift": 0.0, "bob": 0.0, "orbit": 0.0},
 }
 
+## Internal cache backing effect tune tune lookups.
 static var _rows: Array = []
+## Internal cache backing effect tune tune lookups.
 static var _index := {}
+## Runtime effect tune edits not yet saved to disk.
 static var overrides := {}
 
 
+## All effect tune rows for dev bench listing.
 static func entries() -> Array:
 	if _rows.is_empty():
 		_build()
 	return _rows
 
 
+## Looks up one effect tune row by string id.
 static func entry(id: String) -> Dictionary:
 	entries()
 	return _index.get(id, {})
 
 
+## Merged defaults and overrides for one effect id.
 static func get_tune(id: String) -> Dictionary:
 	var tune := _defaults(id)
 	if not overrides.has(id):
@@ -81,10 +89,12 @@ static func get_tune(id: String) -> Dictionary:
 	return tune
 
 
+## Whether an effect row differs from shipped defaults.
 static func is_dirty(id: String) -> bool:
 	return overrides.has(id) and not (overrides[id] as Dictionary).is_empty()
 
 
+## Count of effect rows with unsaved overrides.
 static func change_count() -> int:
 	var n := 0
 	for row in entries():
@@ -93,10 +103,12 @@ static func change_count() -> int:
 	return n
 
 
+## Whether a tune field stores a string rather than a number.
 static func is_str_field(key: String) -> bool:
 	return key == "clip" or key == "fx"
 
 
+## UI metadata for one effect field in the dev bench.
 static func field_meta(id: String, key: String) -> Dictionary:
 	if is_str_field(key):
 		return {"min": 0.0, "max": 0.0, "step": 1.0, "whole": false, "str": true}
@@ -165,6 +177,7 @@ static func field_meta(id: String, key: String) -> Dictionary:
 	return {"min": lo, "max": hi, "step": step, "whole": whole, "str": false}
 
 
+## Sets a numeric override on an effect tune row.
 static func set_num(id: String, key: String, value: float) -> void:
 	if is_str_field(key):
 		return
@@ -177,6 +190,7 @@ static func set_num(id: String, key: String, value: float) -> void:
 	_assign(id, key, snapped)
 
 
+## Sets a string override on an effect tune row.
 static func set_str(id: String, key: String, value: String) -> void:
 	if not is_str_field(key):
 		return
@@ -188,10 +202,12 @@ static func set_str(id: String, key: String, value: String) -> void:
 	_assign(id, key, text)
 
 
+## Clears overrides for one effect id back to defaults.
 static func reset(id: String) -> void:
 	overrides.erase(id)
 
 
+## Loads effect_tune.json overrides from user storage.
 static func load_saved() -> void:
 	overrides.clear()
 	if not FileAccess.file_exists(PATH):
@@ -221,6 +237,7 @@ static func load_saved() -> void:
 			_assign(id, str(key), value)
 
 
+## Writes current effect overrides to effect_tune.json.
 static func save_file() -> String:
 	var dir := ProjectSettings.globalize_path("res://dev")
 	DirAccess.make_dir_recursive_absolute(dir)
@@ -233,6 +250,7 @@ static func save_file() -> String:
 	return ProjectSettings.globalize_path(PATH)
 
 
+## Internal helper for effect tune tune serialization or bench rows.
 static func _build() -> void:
 	_push("GLOBAL", "goo", "GOO", ["fed", "clean", "clean_adapt"])
 	_push("GLOBAL", "need", "NEED", ["ok", "hungry", "seek", "fun"])
@@ -257,6 +275,7 @@ static func _build() -> void:
 	_push("ACTION", "act:mop", "FREGONA", ["radius", "clean"])
 
 
+## Internal helper for effect tune tune serialization or bench rows.
 static func _push(group: String, id: String, label: String, keys: Array) -> void:
 	var packed := PackedStringArray()
 	for key in keys:
@@ -273,6 +292,7 @@ static func _push(group: String, id: String, label: String, keys: Array) -> void
 	_index[id] = row
 
 
+## Internal helper for effect tune tune serialization or bench rows.
 static func _defaults(id: String) -> Dictionary:
 	var out := {}
 	var base = DEFAULTS.get(id, {})
@@ -290,12 +310,14 @@ static func _defaults(id: String) -> Dictionary:
 	return out
 
 
+## Internal helper for effect tune tune serialization or bench rows.
 static func _same(key: String, a, b) -> bool:
 	if is_str_field(key):
 		return str(a) == str(b)
 	return is_equal_approx(float(a), float(b))
 
 
+## Internal helper for effect tune tune serialization or bench rows.
 static func _assign(id: String, key: String, value) -> void:
 	var row := entry(id)
 	if row.is_empty():
@@ -318,6 +340,7 @@ static func _assign(id: String, key: String, value) -> void:
 	overrides[id][key] = value
 
 
+## Internal helper for effect tune tune serialization or bench rows.
 static func _read_value(id: String, key: String, raw):
 	if raw == null:
 		return null
@@ -338,12 +361,14 @@ static func _read_value(id: String, key: String, raw):
 	return snappedf(clampf(float(raw), float(meta.min), float(meta.max)), 0.01)
 
 
+## Internal helper for effect tune tune serialization or bench rows.
 static func _json_value(key: String, value):
 	if is_str_field(key):
 		return str(value)
 	return snappedf(float(value), 0.01)
 
 
+## Internal helper for effect tune tune serialization or bench rows.
 static func _document() -> Dictionary:
 	var changes: Array = []
 	for row in entries():
@@ -380,7 +405,7 @@ static func _document() -> Dictionary:
 			"radius_orbit": "world pixels",
 			"lift_bob": "preview motion. lift is bob amplitude, bob is cycles-ish speed",
 			"scale": "preview VFX scale (e.g. suds/bubbles)",
-			"clip": "thronglet clip name used by Main._frame for the matching ACT_*",
+			"clip": "thronglet clip name used by Main.anim_frames.frame for the matching ACT_*",
 			"fx": "preview VFX id: none|spark|suds|splash|aura|fire|clean",
 			"need_thresholds": "0-100 need scores in Catalog.NEED_*",
 			"buff": "seconds of buff_t",
@@ -389,9 +414,10 @@ static func _document() -> Dictionary:
 	}
 
 
+## Internal helper for effect tune tune serialization or bench rows.
 static func _apply_in(id: String, key: String) -> String:
 	if key == "clip":
-		return "Main._effect_look_clip / Main._frame for %s." % id
+		return "Main.anim_frames.effect_look_clip / Main.anim_frames.frame for %s." % id
 	if key == "fx" or key == "scale" or key == "fx_x" or key == "fx_y":
 		match id:
 			"act:sponge":
@@ -498,6 +524,7 @@ static func _apply_in(id: String, key: String) -> String:
 	return "ThrongletSimServer / Catalog / Main for %s.%s" % [id, key]
 
 
+## Internal helper for effect tune tune serialization or bench rows.
 static func _how() -> String:
 	return " ".join(PackedStringArray([
 		"Apply each object in changes and nothing else.",
@@ -505,7 +532,7 @@ static func _how() -> String:
 		"from is the bench default at save time. to is the absolute value the bench showed.",
 		"Follow apply_in on each field.",
 		"Skip fields that are not listed.",
-		"LOOK clip/lift/bob/fx/scale/fx_x/fx_y are live through Main._effect_look_* and painters.",
+		"LOOK clip/lift/bob/fx/scale/fx_x/fx_y are live through Main.iso_draw.effect_look_lift and painters.",
 		"Visit fed/clean/fun and aura fun/fed/clean are points per second unless apply_in says otherwise.",
 		"Do not change costs, unlocks, dialogue ops, or unlisted rates.",
 	]))

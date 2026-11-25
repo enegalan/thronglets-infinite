@@ -2,325 +2,574 @@ extends Node
 
 # Colony simulation.
 
+## Dialogue trees for gaze/console events and choice resolution.
 const DialogueBook := preload("res://scripts/data/dialogue/dialogue_book.gd")
+## Unlock and cost helpers for kit progression during play.
 const ProgressionManager := preload("res://scripts/core/progression_manager.gd")
+## Static unlock tables and task signatures for progression checks.
 const ProgressionCatalog := preload("res://scripts/data/progression_catalog.gd")
+## Roundabout seat/radius lab overrides applied when a carousel is active.
 const TiovivoLabTune := preload("res://scripts/data/tune/tiovivo_lab_tune.gd")
+## Save/load implementation constructed as [member save_system].
 const SaveSystemScript := preload("res://scripts/core/save_system.gd")
+## Procedural island terrain generator for new games and expansions.
 const IslandGenScript := preload("res://scripts/core/IslandGen.gd")
 
+## Per-second drain on the fed need while a thronglet is alive.
 const DECAY_FED := 0.24
+## Per-second drain on the amusement need.
 const DECAY_FUN := 0.14
+## Per-second drain on the cleanliness need.
 const DECAY_CLEAN := 0.16
+## Default walking speed in world units per second.
 const MOVE_SPEED := 26.0
+## Maximum cells expanded in one pathfinding query.
 const PATH_BFS_MAX := 256
+## Wellness time required before mitosis can begin.
 const MITOSIS_CHARGE := 6.0
+## Length of the mitosis split presentation.
 const MITOSIS_ANIM := 0.45
+## Normalized split timeline when the child agent is spawned.
 const MITOSIS_SPLIT_ALONG := 0.72
+## Spawn separation between parent and child during mitosis.
 const MITOSIS_OFFSET := 12.0
+## Delay after hunger reaches zero before starvation death.
 const STARVE_GRACE := 30.0
+## Population milestone before the opening egg may hatch.
 const EGG_NEED := 4
+## Drop height for the tutorial egg prop.
 const EGG_FALL := 140.0
+## Lifetime of an unattended ball item before despawn.
 const BALL_LIFE := 60.0
+## Lifetime of a corpse pile before cleanup.
 const CORPSE_LIFE := 60.0
-# The ring art is eight wedges: a time meter for one ore→energy cycle, not stock.
+## The ring art is eight wedges: a time meter for one ore→energy cycle, not stock.
 const FACTORY_WEDGES := 8
+## Duration of one Mk I factory smelt cycle.
 const FACTORY_PROCESS_TIME := 8.0
+## Duration of one Mk II factory smelt cycle.
 const FACTORY_PROCESS_TIME2 := 4.0
-# Per ore unit spent. Early original cycles paid ~+10; Mk II pays more.
+## Per ore unit spent. Early original cycles paid ~+10; Mk II pays more.
 const FACTORY_GEM_PAY := 10
+## Gems paid per ore when a Mk II factory completes.
 const FACTORY_GEM_PAY2 := 25
-# Chance that a finished factory cycle spills goo (was always on; too aggressive).
+## Chance that a finished factory cycle spills goo (was always on; too aggressive).
 const FACTORY_GOO_CHANCE := 0.25
-# Mine ore stock (blue bar). Fills on a timer; diggers enter and leave with a load.
+## Mine ore stock (blue bar). Fills on a timer; diggers enter and leave with a load.
 const MINE_STOCK_CAP := 5
+## Maximum ore units stored in a Mk II mine.
 const MINE_STOCK_CAP2 := 8
+## Seconds to add one ore unit to mine stock.
 const MINE_FILL_TIME := 8.0
+## In-mine work time per ore haul.
 const MINE_DIG_TIME := 2.5
+## Grace before a queued modal talk may take focus.
 const TALK_OPEN_DELAY := 1.0
+## Cleanliness recovered per second in a tub.
 const BATH_CLEAN_RATE := 3.0
+## Clean level required before a bather may leave.
 const BATH_DONE := 95.0
+## Minimum soak duration before bathtub exit is allowed.
 const BATH_MIN_STAY := 8.0
+## Approach time before tub soaking begins.
 const BATH_ENTER_T := 1.2
+## Fallback fun-per-second on the carousel if lab tune is missing.
 const RIDE_FUN_RATE := 2.5
+## Fun threshold that ends a carousel visit.
 const RIDE_DONE := 95.0
+## Minimum carousel ride before exit is allowed.
 const RIDE_MIN_STAY := 8.0
 
+## Carousel lab tuning (seat count, rates) cached via TiovivoLabTune for roundabout fun.
 func _ride_cfg() -> Dictionary:
 	# TiovivoLabTune caches by file mtime, so this stays cheap.
 	return TiovivoLabTune.carousel()
 
+## Per-second amusement gain while a thronglet rides the carousel, from lab tune.
 func _ride_fun_rate() -> float:
 	return float(_ride_cfg().get("ride_fun_rate", RIDE_FUN_RATE))
 
+## Amusement level that marks the fun need satisfied so riders may exit the roundabout.
 func _ride_done_need() -> float:
 	return float(_ride_cfg().get("ride_done", RIDE_DONE))
 
+## Minimum dwell time on the carousel before fun counts as fulfilled and exit is allowed.
 func _ride_min_stay_need() -> float:
 	return float(_ride_cfg().get("min_stay", RIDE_MIN_STAY))
+## Amusement passed to neighbors during play animations.
 const PLAY_AURA_FUN := 6.0
+## Amusement added when a thronglet strikes a ball.
 const BALL_KICK_FUN := 8.0
-# Open grass around the egg so the opening shot stays clear of trees.
+## Open grass around the egg so the opening shot stays clear of trees.
 const SPAWN_CLEAR := 110.0
 
+## Automated harness is running instead of a normal player session.
 var testing := false
+## Pauses advancement after bootstrap for deterministic smoke captures.
 var smoke_hold := false
+## Samples frame cost without pacing gameplay for benchmarks.
 var perf_mode := false
+## Measures save/load only, without smoke-world hold.
 var save_perf_mode := false
+## user:// path used for the next write or read of colony state.
 var save_path := ""
+## Drives island shape, prop scatter, and seeded random rolls.
 var world_seed := 1
+## Loaded biome palette rows for special regions.
 var biomes: Array = []
+## Fast lookup from biome id string to biome record.
 var biome_by_id := {}
 
+## Set of progression catalog ids the player has earned.
 var unlocks := {}
+## Monotonic counter bumped on every grant for UI cache busting.
 var unlock_serial := 0
+## Recorded answers to branching ethics prompts.
 var ethics: Array = []
+## Helper that owns slots, autosave, and sandbox files.
 var save_system: SaveSystem
+## Transient Spanish toast strings shown in the HUD.
 var notes: Array = []
+## Sound ids to play on the next audio pump.
 var sfx_queue: Array = []
+## Remaining cooldown before another voice line may start.
 var voice_wait := 0.0
+## Active blocking UI state (talk, gaze, game over) if non-empty.
 var modal := {}
+## Talk ids waiting for a free moment to open.
 var talk_pending := {}
+## Monolith or spectacle ids lined up for forced camera beats.
 var gaze_queue: Array = []
+## Simulation time is halted for gaze, modal, or endgame.
 var frozen := false
+## Aggregate ethics score influencing rare outcomes.
 var moral := 0
+## Per-agent cosmetic mutation flags keyed by slot.
 var mutations := {}
+## Tree features already used for learn-to-talk milestones.
 var talked_trees := {}
+## Colony has completed the teaching-tree introduction.
 var learn_talked := false
 
+## Super-island expansion chapter is active.
 var part_two := false
+## Player has been shown the mountain landmark beat.
 var mountain_seen := false
+## Biome ids already spawned on this save.
 var special_biomes := {}
+## Lifetime trees felled; gates axe and pollution talks.
 var trees_chopped := 0
+## Stumps removed after chopping.
 var stumps_cleared := 0
+## Times the debug bug tool was fired.
 var bug_uses := 0
+## Times explosives cleared terrain or props.
 var tnt_used := 0
+## Live pollution piles; feeds pollution-percent unlocks.
 var goo_count := 0
+## Spendable gem currency in the colony wallet.
 var gems := 0
+## High-water gem balance for achievements and saves.
 var gems_peak := 0
+## Lifetime gems collected across the campaign.
 var total_gems_earned := 0
+## Cumulative colony deaths tracked for progression.
 var deaths_total := 0
+## Highest population ever reached on this save.
 var peak := 0
+## Home island growth stage controlling radius and scatter.
 var land_tier := 0
+## Unlimited cheats and tier sliders without slot progression.
 var sandbox_mode := false
+## Lowest land tier allowed in sandbox sliders.
 const SANDBOX_TIER_MIN := 0
+## Highest land tier allowed in sandbox sliders.
 const SANDBOX_TIER_MAX := 16
+## Default land tier when opening a fresh sandbox.
 const SANDBOX_START_TIER := 2
+## Gem balance granted in sandbox for free building.
 const SANDBOX_GEMS := 99999
+## Re-entrancy guard while island geometry is being rebuilt.
 var _shaping_island := false
+## Story glitch spectacle has already triggered once.
 var glitch_seen := false
+## Countdown or hold timer during the glitch presentation.
 var glitch_t := 0.0
+## Saved camera framing to restore after a gaze sequence.
 var gaze_home := {}
+## Short ambient bark events awaiting playback.
 var barks: Array = []
+## Ground wear intensity sampled per world cell.
 var wear := {}
+## Maps worn cells back to the agent or tool that caused them.
 var wear_from := {}
+## CLI flag to render marketing stills instead of playing.
 var shot_mode := false
+## Capture pass includes particle and pop effects.
 var shot_fx := false
+## Capture pass stages thronglets carrying haulables.
 var shot_carry := false
+## Capture pass stages the carousel scene.
 var shot_round := false
+## Capture pass stages apple-tree food loop.
 var shot_apple := false
+## Capture pass exaggerates need meters for readability.
 var shot_needs := false
+## Capture pass cycles showcase animation states.
 var shot_anims := false
+## Capture pass highlights dirt and cleaning.
 var shot_dirt := false
+## Capture pass highlights ball play.
 var shot_ball := false
+## Capture pass highlights sponge scrubbing.
 var shot_wash := false
+## Capture pass highlights goo on buildings.
 var shot_bld_goo := false
+## Capture pass highlights violent death residue.
 var shot_blood := false
+## World point the marketing camera orbits.
 var shot_focus := Vector2(256, 256)
+## Radius around the focus point included in still framing.
 var shot_span := 210.0
+## Agent slot staged as hero for stills, or -1 for auto.
 var shot_throng := -1
+## Building id staged for factory stills, or -1.
 var shot_factory := -1
+## Waypoint used to pose walkers in still shots.
 var shot_path := Vector2(256, 256)
+## Counter driving low-rate ambient sound variety.
 var ambient_n := 0
+## Clean level below which ground wear decals accumulate.
 const WEAR_NEED := 120
+## Discrete wear intensity levels painted on tiles.
 const WEAR_STEPS := 4
+## Current count of non-dead thronglet agents.
 var living := 0
+## Flags which monolith tiers already exist in the world.
 var monolith_tier_spawned := {}
 
+## Chunk keys the player has uncovered on the map.
 var revealed := {}
+## Terrain tile buffers keyed by chunk coordinate string.
 var chunks := {}
+## Chunk keys needing a client mesh or texture refresh.
 var dirty_chunks: Array = []
+## Version stamp bumped when terrain painting changes globally.
 var paint_epoch := 0
-# Bumped when features are added/removed so presentation can rebuild static prop meshes.
+## Bumped when features are added/removed so presentation can rebuild static prop meshes.
 var feat_mesh_epoch := 0
+## Partitioned seek lists need rebuilding after entity churn.
 var lists_dirty := false
 
+## Live world props (trees, rocks, nodes, monoliths).
 var features: Array = []
+## Feature records indexed by stable id.
 var feature_by_id := {}
+## Grid cell to feature id for O(1) spatial queries.
 var feature_cell := {}
+## Allocator for new feature entity ids.
 var next_feature_id := 1
+## Deferred tree sprouts waiting for valid ground.
 var tree_seeds: Array = []
 
+## Loose world items (food, ore, balls, corpses).
 var items: Array = []
+## Item records indexed by stable id.
 var item_by_id := {}
+## Allocator for new item entity ids.
 var next_item_id := 1
+## Agent slot currently controlled by direct player pick.
 var hand_id := -1
+## Catalog kind string for the object in the cursor hand.
 var held_kind := ""
+## Entity id attached to the hand, or -1 when empty.
 var held_ref := -1
+## Hand anchor X in world space.
 var held_x := 0.0
+## Hand anchor Y in world space.
 var held_y := 0.0
+## Batch harvest of item ids collected by one scoop tool action.
 var scoop_item_ids: Array = []
+## Corpses queued for removal by the same scoop pass.
 var scoop_dead_ids: Array = []
+## True after a successful load or new game has begun.
 var session_live := false
+## Display name entered for the colony founder.
 var player_name := ""
+## Index into the guided tutorial step sequence, or -1 when done.
 var tutorial_i := -1
+## Population readout is hidden until the naming beat completes.
 var count_unknown := false
+## Custom alphabet rules loaded for thronglet naming.
 var _name_rules := false
+## Allowed characters string for generated names.
 var _name_chars := ""
+## Forbidden substrings rejected during name entry.
 var _name_bans: PackedStringArray = PackedStringArray()
+## Item id of the sponge currently in the cleaning hand.
 var sponge_id := -1
+## Seconds the sponge has been held continuously while scrubbing.
 var sponge_hold := 0.0
 ## Thronglets cleaned while scrubbing; sparkle+Happy fire on mouse/kit release.
 var wash_fx_pending: Array = []
 
+## Placed structures with sim state (homes, mines, baths, etc.).
 var buildings: Array = []
+## Building records indexed by stable id.
 var building_by_id := {}
+## Grid cell to building id for footprint queries.
 var building_cell := {}
+## Allocator for new building entity ids.
 var next_building_id := 1
 
+## Allocated thronglet slots in the structure-of-arrays.
 var slot_count := 0
+## Selected tool or kit id in the player UI.
 var cursor := 0
+## Aggregate colony mood label driving HUD face art.
 var mood_face := "base"
+## Smoothed baseline mood sample for HUD blending.
 var _mood_base := 0
+## Smoothed happy-mood contribution.
 var _mood_happy := 0
+## Smoothed distressed-mood contribution.
 var _mood_cry := 0
+## Smoothed suspicious-mood contribution.
 var _mood_sus := 0
+## Smoothed frantic-mood contribution.
 var _mood_freak := 0
+## Simulation frame counter for staggered cheap checks.
 var frame_i := 0
+## World rectangle currently visible to the client camera.
 var view_rect := Rect2()
+## Population cap warning has already been shown to the player.
 var cap_told := false
 
+## World X coordinates per thronglet slot.
 var pos_x := PackedFloat32Array()
+## World Y coordinates per thronglet slot.
 var pos_y := PackedFloat32Array()
+## Facing X per thronglet slot.
 var dir_x := PackedFloat32Array()
+## Facing Y per thronglet slot.
 var dir_y := PackedFloat32Array()
+## Hunger need level per slot.
 var fed := PackedFloat32Array()
+## Fun need level per slot.
 var amused := PackedFloat32Array()
+## Cleanliness need level per slot.
 var clean := PackedFloat32Array()
+## Heat comfort need level per slot.
 var cool := PackedFloat32Array()
+## Seconds at zero hunger before death per slot.
 var starve := PackedFloat32Array()
+## Timer gating eating retries per slot.
 var hungry_t := PackedFloat32Array()
+## Idle wander phase timer per slot.
 var wander_t := PackedFloat32Array()
+## Repulsion timer after bumping hazards per slot.
 var avoid_t := PackedFloat32Array()
+## Mitosis animation timer per slot.
 var mito_t := PackedFloat32Array()
+## Wellness buildup toward mitosis per slot.
 var mito_charge := PackedFloat32Array()
+## Hit-react wobble timer per slot.
 var shake_t := PackedFloat32Array()
+## Temporary boost timer per slot.
 var buff_t := PackedFloat32Array()
+## Shock reaction after witnessing death per slot.
 var react_t := PackedFloat32Array()
+## Celebration loop timer per slot.
 var cheer_t := PackedFloat32Array()
+## Nap animation timer per slot.
 var sleep_t := PackedFloat32Array()
 ## Peer social beat: stand, face partner, talk or sing body clips.
 var peer_t := PackedFloat32Array()
+## Partner slot id during social peer beats, or -1.
 var peer_of := PackedInt32Array()
+## Whether the peer beat uses sing vs talk body clips per slot.
 var peer_sing := PackedByteArray()
 ## One-shot DropProp after putting down a haul.
 var drop_t := PackedFloat32Array()
 ## 1 = violent corpse (saw / tnt / nuke); draw Throng_Prop_Blood_A under it.
 var bloody := PackedByteArray()
+## High-level life state enum per slot (living, dead, etc.).
 var state := PackedInt32Array()
+## Carried item kind id per slot, or none.
 var carry := PackedInt32Array()
+## Ore units or stack count for the carried haul per slot.
 var carry_value := PackedInt32Array()
+## Cosmetic palette index per slot.
 var tint := PackedInt32Array()
+## World item id reserved for this agent's current job.
 var claim := PackedInt32Array()
+## Mine building id assigned to this digger, or -1.
 var mine_job := PackedInt32Array()
+## Active behavior act id (eat, wash, work) per slot.
 var act := PackedInt32Array()
+## Elapsed time within the current act per slot.
 var act_t := PackedFloat32Array()
+## Last simulation frame that updated AI for this slot.
 var tick_stamp := PackedInt32Array()
+## Floating UI feedback sprites awaiting draw.
 var pops: Array = []
+## Campaign save slot index, or -1 for sandbox/ephemeral.
 var current_slot := -1
+## Player has paused simulation time.
 var paused := false
+## Colony wipe state blocking normal play.
 var game_over := false
 ## Swarm celebration window after unlock / milestone (seconds).
 var celebrate_t := 0.0
+## Radius to pair thronglets for talk or sing peer beats.
 const PEER_R := 40.0
+## Radius within which agents react to a violent death.
 const REACT_KILL_R := 72.0
+## Length of the death-shock reaction animation.
 const REACT_DUR := 0.85
+## Length of the cheer loop after local good news.
 const CHEER_DUR := 0.9
+## Swarm celebration window after unlocks or milestones.
 const CELEBRATE_DUR := 1.4
 ## One ThrongA_Happy loop @ 6fps (5 frames) — matches CLEAN sparkle life.
 const WASH_FX_LIFE := 5.0 / 6.0
 ## World units of sponge motion per frame to count as scrub (clean gain + start wash).
 ## Kept low: at zoom 2 a gentle rub is often < 1.0 world/frame; 2.0 never lit suds in play.
 const SCRUB_STROKE_MIN := 0.35
+## Length of a voluntary nap animation.
 const SLEEP_DUR := 3.2
+## Length of a paired social interaction.
 const PEER_DUR := 2.4
+## One-shot timer after placing a carried haul.
 const DROP_DUR := 0.5
 ## Mine dig body: pickaxe swing then Twiddle wait (seconds each).
 const MINE_SWING_T := 0.7
+## Idle twiddle time between pickaxe swings in a mine.
 const MINE_WAIT_T := 0.55
-# Seconds between autosaves. A later settings screen can change this. Zero turns it off.
+## Seconds between autosaves. A later settings screen can change this. Zero turns it off.
 var autosave_interval := 60.0
+## Elapsed seconds since the last autosave attempt.
 var autosave_t := 0.0
+## Incremented on each successful write for UI acknowledgment.
 var save_pulse := 0
+## Spatial hash bucket heads for thronglet slot indices.
 var hash_head := PackedInt32Array()
+## Spatial hash singly-linked next slot per thronglet.
 var hash_next := PackedInt32Array()
+## Spatial hash bucket count / cell list heads.
 var hash_cell := PackedInt32Array()
-# O(1) reverse links: thronglet slot -> entity id (-1 = none).
+## O(1) reverse links: thronglet slot -> entity id (-1 = none).
 var link_tub := PackedInt32Array()
+## Roundabout building id bound to each rider slot.
 var link_ride := PackedInt32Array()
+## Guest seat building link per slot for theatres or rides.
 var link_guest := PackedInt32Array()
+## Reserved claim target mirrored for fast invalidation.
 var link_claim := PackedInt32Array()
+## Ball item id a thronglet is dribbling, per slot.
 var link_ball := PackedInt32Array()
+## Compact list of slot indices that are currently alive.
 var living_ids := PackedInt32Array()
+## Inverse map from slot index to position in living_ids.
 var living_at := PackedInt32Array()
+## Per-slot cooldown before another ambient bark may fire.
 var bark_cool := PackedFloat32Array()
 ## Cached penned flag (expensive probe); refreshed on the same cadence as rock bark.
 var penned_flag := PackedByteArray()
+## Active ground fire patches with spread state.
 var fires: Array = []
-# Features keyed by chunk ("cx,cy") so draw/sync only walks visible chunks.
+## Features keyed by chunk ("cx,cy") so draw/sync only walks visible chunks.
 var features_by_chunk := {}
-# Cached colony walkable-cell count; invalidated when terrain/props change.
+## Cached colony walkable-cell count; invalidated when terrain/props change.
 var _walk_cells_cache := -1
+## Memoized answer to whether any factory exists.
 var _has_factory_cache := false
+## Whether the factory-exists memo is valid.
 var _has_factory_known := false
-# Per-cell inland (cliff) cache: depends only on tiles, not props.
+## Per-cell inland (cliff) cache: depends only on tiles, not props.
 var inland_cache := {}
-# bid -> assigned mine workers (avoids O(living) scans in _seek_mine).
+## bid -> assigned mine workers (avoids O(living) scans in _seek_mine).
 var mine_job_n := {}
-# Full AI while the colony fits — LOD budgets only above this (50k–120k scale).
+## Full AI while the colony fits — LOD budgets only above this (50k–120k scale).
 const AGENT_FULL_CAP := 220
+## Agents allowed to keep chasing their current goal each frame once population exceeds full AI.
 const AGENT_STICKY_BUDGET := 160
+## Fresh seek-job assignments permitted per frame under population LOD.
 const AGENT_SEEK_BUDGET := 48
+## Agents that may run the lightweight think pass per frame when the colony is huge.
 const AGENT_CHEAP_BUDGET := 256
+## Agents near the camera that still get full interaction and collision work per frame.
 const AGENT_NEAR_BUDGET := 420
+## World padding added around the view rect when classifying near-camera agents.
 const AGENT_NEAR_PAD := 160.0
+## Cap on neighbor slots examined while sticking to an existing target under LOD.
 const AGENT_STICKY_SCAN_CAP := 4000
+## Frame index when need-decay LOD scale was last computed.
 var _decay_scale_frame := -1
+## Population-based multiplier slowing need decay at scale.
 var _decay_scale_cached := 1.0
+## Last frame each slot finished a full AI tick under LOD budgets.
 var _agent_done_frame := PackedInt32Array()
-# Kind-partitioned live lists so seeks skip full items/buildings scans.
+## Kind-partitioned live lists so seeks skip full items/buildings scans.
 var items_apple: Array = []
+## Live ball items for sports seek jobs.
 var items_ball: Array = []
+## Loose wood piles on the ground.
 var items_wood: Array = []
+## Bone pickups from corpses or crafting.
 var items_bone: Array = []
+## Ore piles dropped by miners or explosions.
 var items_ore: Array = []
+## Bathtub buildings eligible for wash seeks.
 var blds_tub: Array = []
+## Carousel buildings eligible for fun seeks.
 var blds_round: Array = []
+## Dwellings counted for housing and ethics hooks.
 var blds_home: Array = []
+## Mines accepting digger assignments.
 var blds_mine: Array = []
+## Theatres or show buildings for guest routing.
 var blds_show: Array = []
-# Generation cache for ground piles; carried resources stay O(1) via carry_*_n.
+## Generation cache for ground piles; carried resources stay O(1) via carry_*_n.
 var _item_count_gen := 0
+## Cached total ground items when built count is trusted.
 var _item_count_built := -1
+## Cached loose wood count for milestone checks.
 var _item_count_wood := 0
+## Cached loose bone count.
 var _item_count_bone := 0
+## Cached loose ore count.
 var _item_count_ore := 0
+## Cached counts for minor item kinds keyed by kind id.
 var _item_count_other := {}
+## Wood units currently held in inventory by all living agents.
 var carry_wood_n := 0
+## Bone units carried collectively.
 var carry_bone_n := 0
+## Ore units carried collectively.
 var carry_ore_n := 0
+## Throttle timer between duplicate milestone announcements.
 var _milestone_cool := 0.0
+## Number of corpse agents tracked without a full slot scan.
 var dead_n := 0
+## Slot indices currently in the dead state list.
 var dead_ids := PackedInt32Array()
+## Transient AI seek target X per slot.
 var seek_x := PackedFloat32Array()
+## Transient AI seek target Y per slot.
 var seek_y := PackedFloat32Array()
+## Time remaining on the current seek goal per slot.
 var seek_t := PackedFloat32Array()
 
+## Dedicated RNG instance for gameplay rolls.
 var _rng := RandomNumberGenerator.new()
+## Delegated integrator for airborne and bouncing items.
 var item_physics: ItemPhysics
+## Delegated helper for island growth and prop scatter.
 var island_gen
 
 
+## Initializes physics, island gen, save slot, CLI modes, and bootstrap or smoke harness worlds.
 func _ready() -> void:
 	item_physics = ItemPhysics.new(self)
 	island_gen = IslandGenScript.new(self)
@@ -378,6 +627,7 @@ func _ready() -> void:
 		_begin_smoke()
 
 
+## Godot frame driver: runs one simulation step unless paused or held for smoke captures.
 func _process(delta: float) -> void:
 	if smoke_hold or paused:
 		return
@@ -391,11 +641,13 @@ func _process(delta: float) -> void:
 		_step(delta)
 
 
+## Persists the live colony when the player closes the game outside test harnesses.
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST and not testing and session_live and not game_over:
 		save_system.save_progress()
 
 
+## After one frame, runs screenshot prep scenes or the automated smoke assertion suite.
 func _begin_smoke() -> void:
 	await get_tree().process_frame
 	if shot_mode:
@@ -423,6 +675,7 @@ func _begin_smoke() -> void:
 	_run_checks()
 
 
+## Central per-frame simulation pass: world systems, agents, barks, milestones, voice, and autosave.
 func _step(delta: float) -> void:
 	frame_i += 1
 	if frame_i > 1000000:
@@ -524,6 +777,7 @@ func _step(delta: float) -> void:
 	save_system.tick_autosave(delta)
 
 
+## Updates every living thronglet with full AI or budgeted LOD when the colony is huge.
 func _tick_agents(delta: float) -> void:
 	if living_ids.is_empty():
 		return
@@ -658,6 +912,7 @@ func _tick_agents(delta: float) -> void:
 	_publish_mood()
 
 
+## Resizes the per-slot once-per-frame guard array when thronglet capacity grows.
 func _ensure_agent_done_frame() -> void:
 	var need := slot_count
 	if _agent_done_frame.size() == need:
@@ -668,6 +923,7 @@ func _ensure_agent_done_frame() -> void:
 		_agent_done_frame[k] = -1
 
 
+## Whether this agent must run full pathing each frame due to haul, mine job, or item claim.
 func _agent_has_hard_goal(i: int) -> bool:
 	if i < 0 or i >= slot_count:
 		return false
@@ -680,6 +936,7 @@ func _agent_has_hard_goal(i: int) -> bool:
 	return false
 
 
+## True when the thronglet is seeking or holding a goal that needs continuous movement.
 func _agent_has_goal(i: int) -> bool:
 	# Any active walk needs every-frame _walk — coast cannot peel around buildings.
 	if _agent_has_hard_goal(i):
@@ -689,6 +946,7 @@ func _agent_has_goal(i: int) -> bool:
 	return false
 
 
+## Tallies this agent into colony mood histogram buckets from fed, fun, and clean needs.
 func _sample_mood(i: int) -> void:
 	if state[i] != Catalog.ST_LIVING:
 		return
@@ -707,6 +965,7 @@ func _sample_mood(i: int) -> void:
 		_mood_base += 1
 
 
+## Picks the dominant colony mood face for UI from aggregated need samples this frame.
 func _publish_mood() -> void:
 	var best := "base"
 	var best_n := -1
@@ -730,6 +989,7 @@ func _publish_mood() -> void:
 	_mood_freak = 0
 
 
+## Full per-agent tick: needs decay, sticky actions, then seek decisions when allowed.
 func _tick_one(i: int, dt: float, decay: float = -1.0, allow_seek: bool = true) -> void:
 	if i < 0 or i >= slot_count:
 		return
@@ -752,6 +1012,7 @@ func _tick_one(i: int, dt: float, decay: float = -1.0, allow_seek: bool = true) 
 	_tick_decide(i, dt)
 
 
+## Budget LOD tick: advances needs and motion without new seeks or obstacle peeling.
 func _tick_cheap(i: int, dt: float, decay: float) -> void:
 	# Life + continue current motion/action. No seeks, no open_dir peeling.
 	if i < 0 or i >= slot_count:
@@ -768,6 +1029,7 @@ func _tick_cheap(i: int, dt: float, decay: float) -> void:
 	_tick_busy_or_coast(i, dt)
 
 
+## Decays needs, starvation, mitosis, social freezes; returns false when movement should stop.
 func _tick_life(i: int, dt: float, decay: float) -> bool:
 	# Returns false when the agent should not move/decide further this tick.
 	if mito_t[i] > 0.0:
@@ -871,6 +1133,7 @@ func _tick_life(i: int, dt: float, decay: float) -> bool:
 	return true
 
 
+## Whether the current body action must persist while tied to food, tub, ride, ball, or mine.
 func _act_is_sticky(i: int) -> bool:
 	match int(act[i]):
 		ACT_EAT:
@@ -894,6 +1157,7 @@ func _act_is_sticky(i: int) -> bool:
 			return false
 
 
+## Low-budget motion: finish eats and building visits, else coast along seek or wander heading.
 func _tick_busy_or_coast(i: int, dt: float) -> void:
 	# Cheap ticks still advance sticky interactions so body clips do not flicker to idle/walk.
 	if i < drop_t.size() and drop_t[i] > 0.0:
@@ -938,6 +1202,7 @@ func _tick_busy_or_coast(i: int, dt: float) -> void:
 		_coast_dir(i, speed, dt)
 
 
+## Handles bath, carousel, and guest-building occupancy; may charge mitosis when needs are met.
 func _tick_busy(i: int, dt: float, hard_unstick: bool) -> bool:
 	# Tub / ride / guest. Returns false when occupied for the rest of the tick.
 	var tub_here := seat_of(i)
@@ -1004,11 +1269,13 @@ func _tick_busy(i: int, dt: float, hard_unstick: bool) -> bool:
 	return true
 
 
+## Inertia walk toward a seek target using the same cardinal pathing as active goals.
 func _coast(i: int, tx: float, ty: float, speed: float, dt: float) -> void:
 	# Same cardinal/BFS stepper as _walk — coast must not charge diagonals into trees.
 	_walk(i, tx, ty, speed, dt)
 
 
+## Drifts along the current facing, peeling around trees when the forward cell is blocked.
 func _coast_dir(i: int, speed: float, dt: float) -> void:
 	var step := speed * dt
 	if absf(dir_x[i]) + absf(dir_y[i]) < 0.01 or step < 0.01:
@@ -1034,6 +1301,7 @@ func _coast_dir(i: int, speed: float, dt: float) -> void:
 		seek_t[i] = 0.0
 
 
+## Snaps movement intent to a single cardinal axis for grid-safe locomotion.
 func _snap_dir_cardinal(i: int) -> void:
 	if absf(dir_x[i]) >= absf(dir_y[i]):
 		dir_x[i] = 0.0 if is_zero_approx(dir_x[i]) else signf(dir_x[i])
@@ -1043,6 +1311,7 @@ func _snap_dir_cardinal(i: int) -> void:
 		dir_x[i] = 0.0
 
 
+## Priority planner: hunger, hygiene, haul, fun, mining, top-up needs, peers, then wander.
 func _tick_decide(i: int, dt: float) -> void:
 	if i < drop_t.size() and drop_t[i] > 0.0:
 		dir_x[i] = 0.0
@@ -1068,7 +1337,7 @@ func _tick_decide(i: int, dt: float) -> void:
 		if _seek_food(i, speed, dt):
 			_release_mine_job(i)
 			return
-		_release_apple_claim(i)
+		_release_item_claims(i)
 	if clean[i] < Catalog.NEED_SEEK:
 		if _seek_clean(i, speed, dt):
 			_release_item_claims(i)
@@ -1097,7 +1366,7 @@ func _tick_decide(i: int, dt: float) -> void:
 			if _seek_food(i, speed, dt):
 				_release_mine_job(i)
 				return
-			_release_apple_claim(i)
+			_release_item_claims(i)
 		elif lack_clean >= lack_fun:
 			if _seek_clean(i, speed, dt):
 				_release_item_claims(i)
@@ -1122,7 +1391,7 @@ func _tick_decide(i: int, dt: float) -> void:
 				_release_mine_job(i)
 				return
 	else:
-		_release_apple_claim(i)
+		_release_item_claims(i)
 		_release_claim(i)
 	_release_mine_job(i)
 	_release_item_claims(i)
@@ -1135,6 +1404,7 @@ func _tick_decide(i: int, dt: float) -> void:
 	_wander(i, speed, dt)
 
 
+## Begins the split animation when colony space allows and clears competing jobs.
 func _start_mitosis(i: int) -> void:
 	if _space_blocks_mitosis(i):
 		cool[i] = Catalog.MITOSIS_WAIT
@@ -1146,6 +1416,7 @@ func _start_mitosis(i: int) -> void:
 	mito_t[i] = MITOSIS_ANIM
 
 
+## Spawns a daughter thronglet beside the parent and plays colony growth feedback.
 func _finish_mitosis(i: int) -> void:
 	if _space_blocks_mitosis(i):
 		return
@@ -1159,14 +1430,17 @@ func _finish_mitosis(i: int) -> void:
 	sfx_queue.append("uplink")
 
 
+## Maximum living thronglets allowed from walkable open cells on the revealed island.
 func colony_cap() -> int:
 	return maxi(2, int(floor(float(_walk_cells()) / float(Catalog.SPACE_PER_THRONG))))
 
 
+## Drops cached walkable-cell tally when terrain, props, or buildings change footprint.
 func _invalidate_walk_cells() -> void:
 	_walk_cells_cache = -1
 
 
+## Counts unobstructed tile cells in revealed chunks for population cap and mitosis checks.
 func _walk_cells() -> int:
 	if save_perf_mode:
 		set_meta("_ap_walk_cells_n", int(get_meta("_ap_walk_cells_n", 0)) + 1)
@@ -1191,6 +1465,7 @@ func _walk_cells() -> int:
 	return n
 
 
+## Blocks reproduction when at slot cap, colony cap, or local crowding around the parent.
 func _space_blocks_mitosis(i: int) -> bool:
 	if slot_count >= Catalog.MAX_SLOTS or living >= colony_cap():
 		_tell_space_cap()
@@ -1201,6 +1476,7 @@ func _space_blocks_mitosis(i: int) -> bool:
 	return false
 
 
+## One-shot UI note and tutorial ping when mitosis fails for lack of buildable space.
 func _tell_space_cap() -> void:
 	if cap_told:
 		return
@@ -1211,6 +1487,7 @@ func _tell_space_cap() -> void:
 		_queue_talk("learn_self", {})
 
 
+## Routes a hungry agent to the nearer of a claimable apple or a resting home visit.
 func _seek_food(i: int, speed: float, dt: float) -> bool:
 	var apple := _nearest_apple(i, 240.0)
 	var home := _nearest_building_kinds(pos_x[i], pos_y[i], [Catalog.BLD_DWELL, Catalog.BLD_FANCY], 280.0, i)
@@ -1220,7 +1497,7 @@ func _seek_food(i: int, speed: float, dt: float) -> bool:
 		return false
 	# Prefer the nearer option; houses feed while resting.
 	if home_d + 8.0 < apple_d:
-		_release_apple_claim(i)
+		_release_item_claims(i)
 		return _approach_home_visit(i, home, speed, dt)
 	if apple.is_empty():
 		return _approach_home_visit(i, home, speed, dt)
@@ -1237,6 +1514,7 @@ func _seek_food(i: int, speed: float, dt: float) -> bool:
 	return true
 
 
+## Returns the ground apple this slot owns via link_claim, or empty if stale.
 func _claimed_apple(i: int) -> Dictionary:
 	if i < 0 or i >= link_claim.size():
 		return {}
@@ -1251,6 +1529,7 @@ func _claimed_apple(i: int) -> Dictionary:
 	return it
 
 
+## Bite animation that refills fed and may despawn the apple when bites are exhausted.
 func _chew_apple(i: int, apple: Dictionary, dt: float) -> void:
 	# Eat while biting; on bite land return to idle (video: Happy stand, not Celebrate/Rotund).
 	act[i] = ACT_EAT
@@ -1269,7 +1548,7 @@ func _chew_apple(i: int, apple: Dictionary, dt: float) -> void:
 	act_t[i] = 0.0
 	sfx_queue.append("apple")
 	hungry_t[i] = 0.0
-	_release_apple_claim(i)
+	_release_item_claims(i)
 	if left <= 0:
 		apple.dead = true
 		apple.claimer = -1
@@ -1277,6 +1556,7 @@ func _chew_apple(i: int, apple: Dictionary, dt: float) -> void:
 		apple.claimer = -1
 
 
+## Keeps chewing an in-range claimed apple across busy or cheap agent ticks.
 func _continue_eat(i: int, dt: float) -> bool:
 	var apple := _claimed_apple(i)
 	if apple.is_empty():
@@ -1289,6 +1569,7 @@ func _continue_eat(i: int, dt: float) -> bool:
 	return true
 
 
+## Maintains ball play or mine commute animations when full seek AI is skipped.
 func _continue_sticky_play_or_work(i: int, dt: float) -> bool:
 	# Keep ACT_PLAY / ACT_WORK body clips alive when seek budget skips full AI.
 	var ball := _linked_ball(i)
@@ -1320,6 +1601,7 @@ func _continue_sticky_play_or_work(i: int, dt: float) -> bool:
 	return false
 
 
+## Resolves the ball item this agent is kicking via link_ball and claimer consistency.
 func _linked_ball(i: int) -> Dictionary:
 	if i < 0 or i >= link_ball.size():
 		return {}
@@ -1336,6 +1618,7 @@ func _linked_ball(i: int) -> Dictionary:
 	return it
 
 
+## Walks to a dwelling rim and enters as guest for passive fed recovery indoors.
 func _approach_home_visit(i: int, home: Dictionary, speed: float, dt: float) -> bool:
 	if home.is_empty():
 		return false
@@ -1352,6 +1635,7 @@ func _approach_home_visit(i: int, home: Dictionary, speed: float, dt: float) -> 
 	return true
 
 
+## Finds the closest unheld apple respecting rival hunger priority and airborne items.
 func _nearest_apple(i: int, max_dist: float) -> Dictionary:
 	var best := {}
 	var best_d := max_dist
@@ -1373,6 +1657,7 @@ func _nearest_apple(i: int, max_dist: float) -> Dictionary:
 	return best
 
 
+## Breaks apple claim ties by hunger timers and fed levels between two living agents.
 func _food_priority_beats(a: int, b: int) -> bool:
 	if b < 0 or b >= slot_count or state[b] != Catalog.ST_LIVING:
 		return true
@@ -1391,6 +1676,7 @@ func _food_priority_beats(a: int, b: int) -> bool:
 	return a < b
 
 
+## Reserves a ground apple for this agent, preempting weaker rivals when rules allow.
 func _claim_apple(i: int, apple: Dictionary) -> bool:
 	if apple.is_empty():
 		return false
@@ -1400,15 +1686,12 @@ func _claim_apple(i: int, apple: Dictionary) -> bool:
 	if who >= 0 and who != i and who < slot_count and state[who] == Catalog.ST_LIVING:
 		if not _food_priority_beats(i, who):
 			return false
-	_release_apple_claim(i)
+	_release_item_claims(i)
 	_bind_item_claimer(apple, i)
 	return true
 
 
-func _release_apple_claim(i: int) -> void:
-	_release_item_claims(i)
-
-
+## Returns the kind-partitioned live item list used for fast nearby pickup queries.
 func _items_of_kind(kind: int) -> Array:
 	match kind:
 		Catalog.ITEM_APPLE:
@@ -1424,6 +1707,7 @@ func _items_of_kind(kind: int) -> Array:
 	return items
 
 
+## Nearest ground item of [param kind] that is unclaimed or has a releasable claimer.
 func _nearest_free_item(i: int, kind: int, max_dist: float) -> Dictionary:
 	var best := {}
 	var best_d := max_dist
@@ -1444,6 +1728,7 @@ func _nearest_free_item(i: int, kind: int, max_dist: float) -> Dictionary:
 	return best
 
 
+## Whether another agent's claim on haul or play items should block this pickup attempt.
 func _item_claim_holds(who: int) -> bool:
 	# Keep the lock while this thronglet can still walk haul this tick.
 	# NEED_OK thronglets also haul; dropping the lock there left every plank
@@ -1461,6 +1746,7 @@ func _item_claim_holds(who: int) -> bool:
 	return true
 
 
+## Attempts exclusive reservation of a world item for haul or ball play.
 func _claim_item(i: int, item: Dictionary) -> void:
 	if item.is_empty():
 		return
@@ -1473,6 +1759,7 @@ func _claim_item(i: int, item: Dictionary) -> void:
 	_bind_item_claimer(item, i)
 
 
+## Writes claimer on the item and syncs link_claim/link_ball back-pointers for the slot.
 func _bind_item_claimer(item: Dictionary, i: int) -> void:
 	var prev := int(item.get("claimer", -1))
 	if prev >= 0 and prev != i and prev < link_claim.size():
@@ -1487,6 +1774,7 @@ func _bind_item_claimer(item: Dictionary, i: int) -> void:
 	link_ball[i] = int(item.id) if int(item.kind) == Catalog.ITEM_BALL else -1
 
 
+## Frees an item's claim and clears the prior owner's link slots when stale.
 func _clear_item_claimer(item: Dictionary) -> void:
 	var who := int(item.get("claimer", -1))
 	item.claimer = -1
@@ -1498,6 +1786,7 @@ func _clear_item_claimer(item: Dictionary) -> void:
 		link_ball[who] = -1
 
 
+## Drops all world-item reservations held by this thronglet slot.
 func _release_item_claims(i: int) -> void:
 	if i < 0 or i >= link_claim.size():
 		return
@@ -1511,6 +1800,7 @@ func _release_item_claims(i: int) -> void:
 		it.claimer = -1
 
 
+## Directs a dirty agent to an open tub or home visit for hygiene recovery.
 func _seek_clean(i: int, speed: float, dt: float) -> bool:
 	var tub := _nearest_tub(i)
 	var home := _nearest_building_kinds(pos_x[i], pos_y[i], [Catalog.BLD_DWELL, Catalog.BLD_FANCY], 280.0, i)
@@ -1548,6 +1838,7 @@ func _seek_clean(i: int, speed: float, dt: float) -> bool:
 	return _approach_home_visit(i, target, speed, dt)
 
 
+## Seats the agent in a tub and raises clean until soak goals or minimum stay are met.
 func _do_bath(i: int, b: Dictionary, dt: float) -> void:
 	if b.is_empty():
 		return
@@ -1575,6 +1866,7 @@ func _do_bath(i: int, b: Dictionary, dt: float) -> void:
 		_finish_bath(i, b)
 
 
+## Ejects a clean bather to the building rim with sparkle feedback and frees the tub.
 func _finish_bath(i: int, b: Dictionary) -> void:
 	var rim := _approach_building(b, i)
 	_release_claim(i)
@@ -1586,6 +1878,7 @@ func _finish_bath(i: int, b: Dictionary) -> void:
 	_pop(pos_x[i], pos_y[i], AssetFrames.CLEAN, 1.0, i, 0.9, "bath")
 
 
+## Picks a carousel with a free seat within range, skipping full rides unless already boarding.
 func _nearest_roundabout(i: int, max_dist: float) -> Dictionary:
 	var best := {}
 	var best_d := max_dist
@@ -1605,6 +1898,7 @@ func _nearest_roundabout(i: int, max_dist: float) -> Dictionary:
 	return best
 
 
+## Normalizes the building's rider id array for carousel occupancy bookkeeping.
 func _rider_list(b: Dictionary) -> Array:
 	var raw = b.get("riders", [])
 	if raw is Array:
@@ -1612,6 +1906,7 @@ func _rider_list(b: Dictionary) -> Array:
 	return []
 
 
+## True when thronglet [param i] is listed as seated on carousel building [param b].
 func _is_rider(b: Dictionary, i: int) -> bool:
 	for raw in _rider_list(b):
 		if int(raw) == i:
@@ -1619,6 +1914,7 @@ func _is_rider(b: Dictionary, i: int) -> bool:
 	return false
 
 
+## Adds or removes a thronglet from the ride roster and updates link_ride occupancy.
 func _set_rider(b: Dictionary, i: int, on: bool, clear_slot: bool = true) -> void:
 	var kept: Array = []
 	for raw in _rider_list(b):
@@ -1637,6 +1933,7 @@ func _set_rider(b: Dictionary, i: int, on: bool, clear_slot: bool = true) -> voi
 	b.riders = kept
 
 
+## Resolves which carousel this agent is riding, refreshing link_ride when needed.
 func _ride_building(i: int) -> Dictionary:
 	if i < 0 or i >= link_ride.size():
 		return {}
@@ -1655,6 +1952,7 @@ func _ride_building(i: int) -> Dictionary:
 	return {}
 
 
+## Removes the agent from any carousel rider list and clears link_ride.
 func _clear_ride(i: int) -> void:
 	if i >= 0 and i < link_ride.size() and link_ride[i] >= 0:
 		var b: Dictionary = building_by_id.get(link_ride[i], {})
@@ -1666,6 +1964,7 @@ func _clear_ride(i: int) -> void:
 			_set_rider(b, i, false)
 
 
+## World center of a building's footprint cells for ride geometry and approach math.
 func _footprint_center_of(b: Dictionary) -> Vector2:
 	var size := Catalog.footprint_for_building(int(b.kind))
 	var cells := _footprint_cells(float(b.x), float(b.y), size)
@@ -1677,21 +1976,25 @@ func _footprint_center_of(b: Dictionary) -> Vector2:
 	return acc / float(cells.size())
 
 
+## Orbit hub of the carousel using lab-tuned offset from the building anchor.
 func _ride_center_of(b: Dictionary) -> Vector2:
 	var car := _ride_cfg()
 	var off: Vector2 = car.get("center_offset", Catalog.ROUND_RIDE_OFF)
 	return Vector2(float(b.x), float(b.y)) + off
 
 
+## Seat ring radius from carousel slot count and spacing in TiovivoLabTune.
 func _ride_radius(_b: Dictionary) -> float:
 	var car := _ride_cfg()
 	return TiovivoLabTune.seat_radius(int(car.get("slots", Catalog.ROUND_RIDE_SLOTS)), float(car.get("seat_spacing", 12.0)))
 
 
+## Number of simultaneous seats on the roundabout from tuned or default slot count.
 func _ride_slot_count() -> int:
 	return maxi(1, int(_ride_cfg().get("slots", Catalog.ROUND_RIDE_SLOTS)))
 
 
+## Seconds this rider has been on the carousel since boarding, or -1 if not tracked.
 func _ride_age_of(b: Dictionary, i: int) -> float:
 	var ages: Variant = b.get("ride_age", {})
 	if ages is Dictionary and ages.has(i):
@@ -1699,6 +2002,7 @@ func _ride_age_of(b: Dictionary, i: int) -> float:
 	return -1.0
 
 
+## Stores per-rider dwell time on the building for min-stay and fun completion rules.
 func _set_ride_age(b: Dictionary, i: int, age: float) -> void:
 	var ages: Dictionary = {}
 	var raw: Variant = b.get("ride_age", {})
@@ -1711,6 +2015,7 @@ func _set_ride_age(b: Dictionary, i: int, age: float) -> void:
 	b.ride_age = ages
 
 
+## Reserved seat index for this agent while approaching or riding, or -1 if none.
 func _ride_slot_of(b: Dictionary, i: int) -> int:
 	var slots: Variant = b.get("ride_slot", {})
 	if slots is Dictionary and slots.has(i):
@@ -1718,6 +2023,7 @@ func _ride_slot_of(b: Dictionary, i: int) -> int:
 	return -1
 
 
+## Assigns or clears a carousel seat reservation before boarding completes.
 func _set_ride_slot(b: Dictionary, i: int, slot: int) -> void:
 	var slots: Dictionary = {}
 	var raw: Variant = b.get("ride_slot", {})
@@ -1730,6 +2036,7 @@ func _set_ride_slot(b: Dictionary, i: int, slot: int) -> void:
 	b.ride_slot = slots
 
 
+## Map of occupied seat indices to living riders, optionally ignoring one agent.
 func _taken_ride_slots(b: Dictionary, except_i: int = -1) -> Dictionary:
 	var taken := {}
 	var raw: Variant = b.get("ride_slot", {})
@@ -1744,11 +2051,13 @@ func _taken_ride_slots(b: Dictionary, except_i: int = -1) -> Dictionary:
 	return taken
 
 
+## Shortest absolute angle difference on the circle for seat scoring.
 func _ang_delta(a: float, b: float) -> float:
 	var d := fposmod(a - b + PI, TAU) - PI
 	return absf(d)
 
 
+## Chooses a free carousel seat favoring spacing from others and alignment with approach angle.
 func _pick_ride_slot(b: Dictionary, approach_ang: float) -> int:
 	var n := _ride_slot_count()
 	var taken := _taken_ride_slots(b)
@@ -1772,6 +2081,7 @@ func _pick_ride_slot(b: Dictionary, approach_ang: float) -> int:
 	return best
 
 
+## World angle of a seat on the spinning carousel ring from lab base offset and spin.
 func _ride_slot_ang(b: Dictionary, slot: int) -> float:
 	# Angle follows building spin plus the tuned base offset, matching the lab.
 	var car := _ride_cfg()
@@ -1780,6 +2090,7 @@ func _ride_slot_ang(b: Dictionary, slot: int) -> float:
 	return float(b.get("spin", 0.0)) + base + float(slot) * TAU / n
 
 
+## World position of a carousel seat on the orbit ring around the ride center.
 func _ride_slot_pos(b: Dictionary, slot: int) -> Vector2:
 	var center := _ride_center_of(b)
 	var ang := _ride_slot_ang(b, slot)
@@ -1787,6 +2098,7 @@ func _ride_slot_pos(b: Dictionary, slot: int) -> Vector2:
 	return Vector2(center.x + cos(ang) * r, center.y + sin(ang) * r)
 
 
+## Teleports the agent onto a seat facing the ring tangent when the spot is unobstructed.
 func _place_on_ride_slot(i: int, b: Dictionary, slot: int) -> bool:
 	var seat := _ride_slot_pos(b, slot)
 	if _ride_spot_blocked(seat.x, seat.y, b):
@@ -1798,6 +2110,7 @@ func _place_on_ride_slot(i: int, b: Dictionary, slot: int) -> bool:
 	return true
 
 
+## Dismounts to the building approach rim and clears ride slot, age, and play action state.
 func _leave_ride(i: int, b: Dictionary) -> void:
 	_set_rider(b, i, false)
 	_set_ride_age(b, i, -1.0)
@@ -1815,6 +2128,7 @@ func _leave_ride(i: int, b: Dictionary) -> void:
 	dir_y[i] = 0.0
 
 
+## Fixed compass boarding point outside the ring for a reserved seat, not tied to spin.
 func _ride_gate_pos(b: Dictionary, slot: int) -> Vector2:
 	# Fixed compass gate (no spin). A spinning gate makes approachers chase forever.
 	var center := _ride_center_of(b)
@@ -1827,6 +2141,7 @@ func _ride_gate_pos(b: Dictionary, slot: int) -> Vector2:
 	return gate
 
 
+## Full carousel state machine: approach gate, seat, amuse, and leave when fun goals hit.
 func _do_roundabout_ride(i: int, b: Dictionary, dt: float) -> void:
 	_release_item_claims(i)
 	var center := _ride_center_of(b)
@@ -1899,6 +2214,7 @@ func _do_roundabout_ride(i: int, b: Dictionary, dt: float) -> void:
 		_leave_ride(i, b)
 
 
+## Continues an active ride or searches for balls, shows, and carousels to raise amusement.
 func _tend_fun(i: int, speed: float, dt: float) -> bool:
 	var riding_b := _ride_building(i)
 	if not riding_b.is_empty():
@@ -1907,9 +2223,10 @@ func _tend_fun(i: int, speed: float, dt: float) -> bool:
 	return _seek_fun(i, speed, dt)
 
 
+## Picks the best fun source nearby: carousel, kickball, theatre, or aura buildings.
 func _seek_fun(i: int, speed: float, dt: float) -> bool:
 	var round := _nearest_roundabout(i, 320.0)
-	var ball := _nearest_ball(i, 260.0)
+	var ball := _nearest_free_item(i, Catalog.ITEM_BALL, 260.0)
 	var play := _nearest_building_kinds(pos_x[i], pos_y[i], [Catalog.BLD_THEATRE, Catalog.BLD_FLOWER, Catalog.BLD_STATUE, Catalog.BLD_WOOD], 320.0, i)
 	var tx := 0.0
 	var ty := 0.0
@@ -1982,7 +2299,7 @@ func _seek_fun(i: int, speed: float, dt: float) -> bool:
 			_walk(i, float(rim.x), float(rim.y), speed, dt)
 			return true
 	if use_ball:
-		_claim_ball(i, ball)
+		_claim_item(i, ball)
 	else:
 		_release_item_claims(i)
 	# Theatre: enter at the approach rim like homes/mines. Pad edges are often
@@ -2042,25 +2359,19 @@ func _seek_fun(i: int, speed: float, dt: float) -> bool:
 	return true
 
 
-func _nearest_ball(i: int, max_dist: float) -> Dictionary:
-	return _nearest_free_item(i, Catalog.ITEM_BALL, max_dist)
-
-
-func _claim_ball(i: int, ball: Dictionary) -> void:
-	_claim_item(i, ball)
-
-
+## Delivers carried ore to a factory or seeks ground ore when industry exists and hands are free.
 func _try_haul(i: int, speed: float, dt: float) -> bool:
 	if carry[i] != Catalog.CARRY_NONE:
 		_release_item_claims(i)
 		return _deliver(i, speed, dt)
 	if _has_factory():
-		var ore := _nearest_free_item(i, Catalog.ITEM_ORE, 180.0)
+		var ore := _nearest_free_item(i, Catalog.ITEM_ORE, Catalog.NEAR_BUILDING)
 		if not ore.is_empty():
 			return _walk_pickup(i, ore, Catalog.CARRY_ORE, speed, dt)
 	return false
 
 
+## Walks to a claimed haul item and lifts it into carry state when in pickup range.
 func _walk_pickup(i: int, item: Dictionary, carry_kind: int, speed: float, dt: float) -> bool:
 	_claim_item(i, item)
 	var tx := float(item.x)
@@ -2087,6 +2398,7 @@ func _walk_pickup(i: int, item: Dictionary, carry_kind: int, speed: float, dt: f
 	return true
 
 
+## Pathfinds ore haulers to a factory rim and feeds the building buffer on arrival.
 func _deliver(i: int, speed: float, dt: float) -> bool:
 	var factory := {}
 	if carry[i] == Catalog.CARRY_ORE:
@@ -2120,6 +2432,7 @@ func _deliver(i: int, speed: float, dt: float) -> bool:
 	return true
 
 
+## Detects convex corners or obstacles blocking the straight haul line toward the factory.
 func _haul_path_blocked(i: int, tx: float, ty: float) -> bool:
 	var dx := tx - pos_x[i]
 	var dy := ty - pos_y[i]
@@ -2129,6 +2442,7 @@ func _haul_path_blocked(i: int, tx: float, ty: float) -> bool:
 	return _goal_path_blocked(pos_x[i], pos_y[i], dx / dist, dy / dist, mini(dist, 56.0))
 
 
+## Picks a local inland hop that still progresses ore delivery when the direct path is blocked.
 func _haul_waypoint(i: int, tx: float, ty: float) -> Vector2:
 	# Local inland hop that still progresses toward the factory rim.
 	var origin := Vector2(pos_x[i], pos_y[i])
@@ -2175,11 +2489,13 @@ func _haul_waypoint(i: int, tx: float, ty: float) -> Vector2:
 	return goal
 
 
+## Effective work reach of a building kind for mine assignment and guest checks.
 func _work_radius(b: Dictionary) -> float:
 	var reach := Catalog.building_reach(int(b.kind))
 	return maxf(reach.x, reach.y)
 
 
+## Assigns or clears a thronglet's mine building job and updates per-mine worker counts.
 func _set_mine_job(i: int, bid: int) -> void:
 	if i < 0 or i >= mine_job.size():
 		return
@@ -2193,14 +2509,17 @@ func _set_mine_job(i: int, bid: int) -> void:
 		mine_job_n[bid] = int(mine_job_n.get(bid, 0)) + 1
 
 
+## Clears this agent's reserved mine work slot when priorities or capacity change.
 func _release_mine_job(i: int) -> void:
 	_set_mine_job(i, -1)
 
 
+## Count of thronglets currently assigned to dig at mine building [param b].
 func _mine_jobs(b: Dictionary) -> int:
 	return int(mine_job_n.get(int(b.id), 0))
 
 
+## Finds an assigned empty-handed miner inside reach to consume a reserved ore stock unit.
 func _mine_taker(b: Dictionary, cap: int) -> int:
 	var bid := int(b.id)
 	var radius := _work_radius(b) + 8.0
@@ -2220,6 +2539,7 @@ func _mine_taker(b: Dictionary, cap: int) -> int:
 	return -1
 
 
+## Sends work-ready agents to a stocked mine with capacity, entering as guests to dig.
 func _seek_mine(i: int, speed: float, dt: float) -> bool:
 	# Dirty / hungry thronglets must not mine. Jobs are claimed on the walk so
 	# the whole colony cannot rush the rim before ACT_WORK sticks.
@@ -2264,6 +2584,7 @@ func _seek_mine(i: int, speed: float, dt: float) -> bool:
 	return true
 
 
+## Idle exploration movement when no need or job owns the agent this tick.
 func _wander(i: int, speed: float, dt: float) -> void:
 	# Drop stale seek (tub/food/…) or debug path and coast keep chasing it.
 	if i < seek_t.size():
@@ -2282,6 +2603,7 @@ func _wander(i: int, speed: float, dt: float) -> void:
 	_move_cardinal_toward(i, pos_x[i] + dir_x[i] * 32.0, pos_y[i] + dir_y[i] * 32.0, speed * dt)
 
 
+## Chooses a new wander heading from curiosity, shore bias, and local clearance.
 func _pick_wander(i: int) -> void:
 	if randf() < 0.14:
 		dir_x[i] = 0.0
@@ -2301,6 +2623,7 @@ func _pick_wander(i: int) -> void:
 	wander_t[i] = randf_range(0.9, 2.8)
 
 
+## Blends shore push, nearby building pull, and random exploration for wander steering.
 func _curious_dir(i: int) -> Vector2:
 	var shore := _shore_push(i)
 	if shore != Vector2.ZERO and randf() < 0.75:
@@ -2317,6 +2640,7 @@ func _curious_dir(i: int) -> Vector2:
 	return mixed.normalized()
 
 
+## Unit direction toward a random nearby building or open map point for casual roaming.
 func _curiosity_spot(i: int) -> Vector2:
 	var px := pos_x[i]
 	var py := pos_y[i]
@@ -2345,6 +2669,7 @@ func _curiosity_spot(i: int) -> Vector2:
 	return Vector2(cos(ang), sin(ang))
 
 
+## Steering away from water and hard blocks so wanderers stay on buildable land.
 func _shore_push(i: int) -> Vector2:
 	var push := Vector2.ZERO
 	for n in 8:
@@ -2360,6 +2685,7 @@ func _shore_push(i: int) -> Vector2:
 	return push.normalized()
 
 
+## Bias toward the island interior center for haul waypoints and path scoring.
 func _inland_dir(i: int) -> Vector2:
 	var to := Vector2(256.0 - pos_x[i], 256.0 - pos_y[i])
 	if to.length_squared() < 1.0:
@@ -2367,10 +2693,12 @@ func _inland_dir(i: int) -> Vector2:
 	return to.normalized()
 
 
+## Unobstructed distance along a direction from the agent's current position.
 func _clear_run(i: int, dx: float, dy: float) -> float:
 	return _clear_run_at(pos_x[i], pos_y[i], dx, dy)
 
 
+## Best cardinal escape direction around obstacles favoring clearance and preferred bearing.
 func _open_dir(i: int, prefer: Vector2) -> Vector2:
 	var base := prefer
 	if base.length_squared() < 0.01:
@@ -2403,6 +2731,7 @@ func _open_dir(i: int, prefer: Vector2) -> Vector2:
 	return best
 
 
+## Picks left or right tangent around a blocked forward goal for corner peeling.
 func _side_dir(i: int, goal: Vector2) -> Vector2:
 	# Tangents around a blocked goal. Shore-push aims backward and restarts the corner loop.
 	var left := Vector2(-goal.y, goal.x)
@@ -2418,12 +2747,14 @@ func _side_dir(i: int, goal: Vector2) -> Vector2:
 	return left if run_l >= run_r else right
 
 
+## Briefly suppresses replanned seeks after an unstick or failed step to reduce oscillation.
 func _hold_avoid(i: int, secs: float = 0.2) -> void:
 	if i < 0 or i >= avoid_t.size():
 		return
 	avoid_t[i] = maxf(avoid_t[i], secs)
 
 
+## Goal-directed locomotion with BFS hops, peeling, unstick, and seek memory for agents.
 func _walk(i: int, tx: float, ty: float, speed: float, dt: float) -> void:
 	var _walk_t0 := 0
 	if save_perf_mode:
@@ -2495,6 +2826,7 @@ func _walk(i: int, tx: float, ty: float, speed: float, dt: float) -> void:
 		set_meta("_ap_walk_us", int(get_meta("_ap_walk_us", 0)) + (Time.get_ticks_usec() - _walk_t0))
 
 
+## Steps one frame toward a hop using cardinal alignment on grid neighbors else free steer.
 func _steer_toward(i: int, tx: float, ty: float, step: float) -> bool:
 	# Cardinal BFS hops stay on one axis (no cell-center zigzag). Open space steers linearly.
 	var hop_cell := _cell_vec(tx, ty)
@@ -2530,6 +2862,7 @@ func _steer_toward(i: int, tx: float, ty: float, step: float) -> bool:
 	return _move_cardinal_toward(i, tx, ty, step)
 
 
+## Moves along one axis per frame to avoid wedging agents into tree corners.
 func _move_cardinal_toward(i: int, tx: float, ty: float, step: float) -> bool:
 	# One axis per frame — diagonals wedge thronglets into tree/rock corners.
 	var adx := tx - pos_x[i]
@@ -2559,6 +2892,7 @@ func _move_cardinal_toward(i: int, tx: float, ty: float, step: float) -> bool:
 	return false
 
 
+## Next world waypoint toward a goal via axis clearance or one BFS grid step.
 func _path_hop(fx: float, fy: float, tx: float, ty: float) -> Vector2:
 	# Next waypoint: open-field goal, else one BFS cell (never a far L-corner —
 	# steering at a distant corner chords through tree walls / enclosure gaps).
@@ -2576,6 +2910,7 @@ func _path_hop(fx: float, fy: float, tx: float, ty: float) -> Vector2:
 	return _cell_world(next_cell)
 
 
+## True when a straight segment between two points has no blocking tiles along it.
 func _axis_clear(ax: float, ay: float, bx: float, by: float) -> bool:
 	var dx := bx - ax
 	var dy := by - ay
@@ -2590,6 +2925,7 @@ func _axis_clear(ax: float, ay: float, bx: float, by: float) -> bool:
 	return true
 
 
+## First walkable grid step from [param start] toward [param goal] within PATH_BFS_MAX.
 func _bfs_next_cell(start: Vector2i, goal: Vector2i) -> Vector2i:
 	var miss := Vector2i(-999999, -999999)
 	if start == goal:
@@ -2633,6 +2969,7 @@ func _bfs_next_cell(start: Vector2i, goal: Vector2i) -> Vector2i:
 	return step
 
 
+## Full cardinal cell path from start to goal or best approach when the goal cell is blocked.
 func _bfs_path_cells(start: Vector2i, goal: Vector2i) -> Array[Vector2i]:
 	var out: Array[Vector2i] = []
 	if start == goal:
@@ -2684,6 +3021,7 @@ func _bfs_path_cells(start: Vector2i, goal: Vector2i) -> Array[Vector2i]:
 	return out
 
 
+## Whether a diagonal step hits an inside corner between two axis blockers.
 func _convex_corner_at(px: float, py: float, dx: float, dy: float) -> bool:
 	var sx := 0.0 if absf(dx) < 0.001 else signf(dx)
 	var sy := 0.0 if absf(dy) < 0.001 else signf(dy)
@@ -2695,6 +3033,7 @@ func _convex_corner_at(px: float, py: float, dx: float, dy: float) -> bool:
 	return can_x and can_y and _move_blocked(px + sx * probe, py + sy * probe)
 
 
+## Raycast along a move intent for blockers or convex corners within a limit.
 func _goal_path_blocked(px: float, py: float, dx: float, dy: float, limit: float) -> bool:
 	# Scan the approach. A late 4px probe wasted a walk into the corner.
 	var span := minf(limit, 40.0)
@@ -2713,6 +3052,7 @@ func _goal_path_blocked(px: float, py: float, dx: float, dy: float, limit: float
 	return false
 
 
+## Axis-separated slide for one agent against blockers; updates wear and spatial hash.
 func _move(i: int, dx: float, dy: float) -> void:
 	var ox := pos_x[i]
 	var oy := pos_y[i]
@@ -2781,6 +3121,7 @@ func _move(i: int, dx: float, dy: float) -> void:
 		_hash_relocate(i)
 
 
+## Footstep wear on grass until a path forms and neighbor chunks need redraw.
 func _wear_ground(i: int) -> void:
 	var cell := _cell_vec(pos_x[i], pos_y[i])
 	var key := "%d,%d" % [cell.x, cell.y]
@@ -2797,10 +3138,12 @@ func _wear_ground(i: int) -> void:
 		_mark_path(cell)
 
 
+## Whether a map cell has been worn into a walked trail.
 func path_at(cx: int, cy: int) -> bool:
 	return int(wear.get("%d,%d" % [cx, cy], 0)) >= WEAR_NEED
 
 
+## Dirty path cell plus cardinals so ground art can show trails.
 func _mark_path(cell: Vector2i) -> void:
 	var spots: Array[Vector2i] = [
 		cell,
@@ -2813,16 +3156,19 @@ func _mark_path(cell: Vector2i) -> void:
 		_mark_dirty(_ck(_floor_div(spot.x, Catalog.CHUNK), _floor_div(spot.y, Catalog.CHUNK)))
 
 
+## Wear amount mapped to discrete ground trail visual stage.
 func wear_stage(cx: int, cy: int) -> int:
 	var n := int(wear.get("%d,%d" % [cx, cy], 0))
 	var per := maxi(1, WEAR_NEED / (WEAR_STEPS + 1))
 	return mini(WEAR_STEPS, n / per)
 
 
+## Whether colony progression unlocked a thought-bubble topic.
 func _thought_known(key: String) -> bool:
 	return bool(unlocks.get(key, false))
 
 
+## Thought-bubble icon from needs, unlocks, hazards, and current action.
 func _thought_icon(i: int) -> int:
 	# Only desire things the colony has already discovered.
 	var doing := int(act[i])
@@ -2881,6 +3227,7 @@ func _thought_icon(i: int) -> int:
 	return -1
 
 
+## Whether an agent is boxed in by blockers (drives trapped thought icon).
 func _is_penned(i: int) -> bool:
 	var blocked_n := 0
 	for d in [
@@ -2892,6 +3239,7 @@ func _is_penned(i: int) -> bool:
 	return blocked_n >= 6
 
 
+## Rare world bark when urgent thought icons pass caps, cooldown, and visibility.
 func _maybe_bark(i: int) -> void:
 	if barks.size() >= 2:
 		bark_cool[i] = Catalog.BARK_COOL
@@ -2952,6 +3300,7 @@ func _maybe_bark(i: int) -> void:
 	})
 
 
+## Active bark record for an agent id, if any.
 func bark_of(i: int) -> Dictionary:
 	for bark in barks:
 		if int(bark.get("id", -1)) == i:
@@ -2959,10 +3308,12 @@ func bark_of(i: int) -> Dictionary:
 	return {}
 
 
+## Sing clip name on an agent's bark bubble, when present.
 func bark_sing_of(i: int) -> String:
 	return str(bark_of(i).get("sing", ""))
 
 
+## Whether agent state allows a singing bark (not bathing, carrying, etc.).
 func bark_can_sing(i: int) -> bool:
 	# Sing B–E only when free enough for a thought bubble (not bath/theatre/carry/…).
 	if i < 0 or i >= slot_count or state[i] != Catalog.ST_LIVING:
@@ -2991,6 +3342,7 @@ func bark_can_sing(i: int) -> bool:
 	return true
 
 
+## Periodic ambient voice SFX from sampled colony mood and movement.
 func _tick_voice(delta: float) -> void:
 	voice_wait = maxf(0.0, voice_wait - delta)
 	if voice_wait > 0.0 or living <= 0 or frozen:
@@ -3026,6 +3378,7 @@ func _tick_voice(delta: float) -> void:
 		sfx_queue.append("speed")
 
 
+## Age bark bubbles and keep their world anchors on agents.
 func _tick_barks(delta: float, age: bool = true) -> void:
 	var kept: Array = []
 	for bark in barks:
@@ -3042,6 +3395,7 @@ func _tick_barks(delta: float, age: bool = true) -> void:
 	barks = kept
 
 
+## Remove an agent's bark bubble from the live list.
 func clear_bark(id: int) -> void:
 	if barks.is_empty():
 		return
@@ -3052,6 +3406,7 @@ func clear_bark(id: int) -> void:
 	barks = kept
 
 
+## Bathtub building dict when the agent is the seated occupant.
 func seat_of(i: int) -> Dictionary:
 	if i < 0 or i >= link_tub.size():
 		return {}
@@ -3065,6 +3420,7 @@ func seat_of(i: int) -> Dictionary:
 	return b
 
 
+## Interior guest of a visit building (hides thought bubbles off-world).
 func indoors(i: int) -> bool:
 	# Guest of a visit building (home / theatre / mine). Roundabout and tub keep
 	# their on-world animations; flower/statue auras never register guests.
@@ -3076,12 +3432,14 @@ func indoors(i: int) -> bool:
 	return not _visit_rule(int(visit.kind)).is_empty()
 
 
+## Roundabout building while the agent is in the play-on-ride act.
 func ride_of(i: int) -> Dictionary:
 	if i < 0 or i >= slot_count or int(act[i]) != ACT_PLAY:
 		return {}
 	return _ride_building(i)
 
 
+## Whether play act still owns a claimed ball item link.
 func has_ball(i: int) -> bool:
 	if i < 0 or i >= link_ball.size() or int(act[i]) != ACT_PLAY:
 		return false
@@ -3095,6 +3453,7 @@ func has_ball(i: int) -> bool:
 	return true
 
 
+## Ball item dict for a playing agent, refreshing the link cache.
 func ball_of(i: int) -> Dictionary:
 	if i < 0 or i >= slot_count or int(act[i]) != ACT_PLAY:
 		return {}
@@ -3114,6 +3473,7 @@ func ball_of(i: int) -> Dictionary:
 	return {}
 
 
+## Per-building guest caps, stay, cooldown, and need-restore rates.
 func _visit_rule(kind: int) -> Dictionary:
 	if kind == Catalog.BLD_DWELL:
 		return {"cap": 4, "stay": 18.0, "cool": 14.0, "fed": 8.0, "clean": 8.0, "fun": 0.0}
@@ -3128,18 +3488,22 @@ func _visit_rule(kind: int) -> Dictionary:
 	return {}
 
 
+## Whether building kind uses theatre-style show visit rules.
 func _is_show(kind: int) -> bool:
 	return kind == Catalog.BLD_THEATRE
 
 
+## Whether building kind is a diggable mine variant.
 func _is_mine_kind(kind: int) -> bool:
 	return kind == Catalog.BLD_MINE or kind == Catalog.BLD_MINE2
 
 
+## Ore buffer capacity for the mine building tier.
 func _mine_stock_cap(b: Dictionary) -> int:
 	return MINE_STOCK_CAP2 if int(b.kind) == Catalog.BLD_MINE2 else MINE_STOCK_CAP
 
 
+## Ore feature kind mapped to mine placement tier.
 func _ore_tier(kind: int) -> int:
 	if kind == Catalog.FEAT_NODE or kind == Catalog.FEAT_MNODE:
 		return 1
@@ -3154,10 +3518,12 @@ func _ore_tier(kind: int) -> int:
 	return 0
 
 
+## Boulder feature kinds that respond to hammer/pick, not ore nodes.
 func _is_rock(kind: int) -> bool:
 	return kind == Catalog.FEAT_ROCK or kind == Catalog.FEAT_BIGROCK
 
 
+## Guest visit duration scaled by active colony mutations.
 func _stay_for(kind: int, base: float) -> float:
 	if _is_show(kind):
 		return base
@@ -3172,6 +3538,7 @@ func _stay_for(kind: int, base: float) -> float:
 	return stay
 
 
+## Whether agent id is listed on a building guest roster.
 func _is_guest(b: Dictionary, i: int) -> bool:
 	for guest in b.get("guests", []):
 		if int(guest.id) == i:
@@ -3179,6 +3546,7 @@ func _is_guest(b: Dictionary, i: int) -> bool:
 	return false
 
 
+## Living agents currently counted as building guests.
 func _live_guests(b: Dictionary) -> int:
 	var n := 0
 	for guest in b.get("guests", []):
@@ -3188,6 +3556,7 @@ func _live_guests(b: Dictionary) -> int:
 	return n
 
 
+## Whether agent is on post-visit re-entry cooldown for a building.
 func _banned(b: Dictionary, i: int) -> bool:
 	for away in b.get("away", []):
 		if int(away.id) == i and float(away.t) > 0.0:
@@ -3195,6 +3564,7 @@ func _banned(b: Dictionary, i: int) -> bool:
 	return false
 
 
+## Pollution, capacity, ban, and roster checks before admitting a guest.
 func _can_enter(b: Dictionary, i: int) -> bool:
 	if building_is_polluted(b):
 		return false
@@ -3208,6 +3578,7 @@ func _can_enter(b: Dictionary, i: int) -> bool:
 	return _live_guests(b) < int(rule.cap)
 
 
+## Visit building hosting an agent, via link cache or roster scan.
 func _guest_building(i: int) -> Dictionary:
 	if i < 0 or i >= link_guest.size():
 		return {}
@@ -3226,6 +3597,7 @@ func _guest_building(i: int) -> Dictionary:
 	return {}
 
 
+## Eject a guest to nearby walkable ground (tub exit splash when relevant).
 func _push_out(b: Dictionary, i: int) -> void:
 	var ang := randf() * TAU
 	var nx := pos_x[i] + cos(ang) * 22.0
@@ -3236,6 +3608,7 @@ func _push_out(b: Dictionary, i: int) -> void:
 		sfx_queue.append("tub_out")
 
 
+## Remove guest from roster, start cooldown, and push them outside.
 func _drop_guest(b: Dictionary, i: int) -> void:
 	var guests: Array = []
 	for guest in b.get("guests", []):
@@ -3251,6 +3624,7 @@ func _drop_guest(b: Dictionary, i: int) -> void:
 	_push_out(b, i)
 
 
+## Admit agent to building guest list and wire guest link when allowed.
 func _enter_visit(i: int, b: Dictionary) -> bool:
 	if b.is_empty() or _is_guest(b, i) or not _can_enter(b, i):
 		return false
@@ -3272,6 +3646,7 @@ func _enter_visit(i: int, b: Dictionary) -> bool:
 	return true
 
 
+## End of mine visit: spend buffer ore into carry when factory exists.
 func _mine_finish_dig(b: Dictionary, id: int) -> void:
 	if id < 0 or id >= slot_count or state[id] != Catalog.ST_LIVING:
 		return
@@ -3284,6 +3659,7 @@ func _mine_finish_dig(b: Dictionary, id: int) -> void:
 	_release_mine_job(id)
 
 
+## Tick guest stay timers, apply visit need buffs, and eject when done.
 func _tick_visit(b: Dictionary, dt: float) -> void:
 	var rule := _visit_rule(int(b.kind))
 	var kind := int(b.kind)
@@ -3323,6 +3699,7 @@ func _tick_visit(b: Dictionary, dt: float) -> void:
 		b.active = not kept.is_empty()
 
 
+## Pick valid ground near an apple tree for a falling fruit landing.
 func _apple_land_spot(bx: float, by: float) -> Vector2:
 	for _n in 8:
 		var ang := randf() * TAU
@@ -3338,6 +3715,7 @@ func _apple_land_spot(bx: float, by: float) -> Vector2:
 	return Catalog.snap_world(bx, by)
 
 
+## Grow apple slots on tree buildings and launch ripe fruit with physics.
 func _tick_apple_tree(b: Dictionary, dt: float) -> void:
 	var fruits: Array = b.get("fruits", [])
 	b.fruits = fruits
@@ -3385,6 +3763,7 @@ func _tick_apple_tree(b: Dictionary, dt: float) -> void:
 	item_physics.launch_item(dropped, lift, 0.0, (dest.x - start.x) / fall_t, (dest.y - start.y) / fall_t)
 
 
+## Whether tub, visit, or ride building has no remaining capacity.
 func structure_full(b: Dictionary) -> bool:
 	var kind := int(b.kind)
 	if kind == Catalog.BLD_TUB:
@@ -3398,6 +3777,7 @@ func structure_full(b: Dictionary) -> bool:
 	return false
 
 
+## Agent has at most one open neighbor — considered geometrically trapped.
 func _corner_trap(i: int) -> bool:
 	# Truly boxed in — a 1-tile corridor still has 2+ opens and must stay walkable.
 	var open := 0
@@ -3408,6 +3788,7 @@ func _corner_trap(i: int) -> bool:
 	return open <= 1
 
 
+## Every short escape probe blocked after a failed move step.
 func _move_failed_escape(i: int) -> bool:
 	# Stuck if every short step fails — used after a move into a true trap.
 	for n in 8:
@@ -3417,6 +3798,7 @@ func _move_failed_escape(i: int) -> bool:
 	return true
 
 
+## Nudge or teleport stuck agents toward clear space along open axes.
 func _unstick(i: int) -> void:
 	var prefer := _shore_push(i)
 	if prefer == Vector2.ZERO:
@@ -3486,6 +3868,7 @@ func _unstick(i: int) -> void:
 	wander_t[i] = 0.0
 
 
+## Walkable distance along a ray before a blocker is hit (unstick scoring).
 func _clear_run_at(px: float, py: float, dx: float, dy: float) -> float:
 	var clear := 0.0
 	var step := 8.0
@@ -3496,6 +3879,7 @@ func _clear_run_at(px: float, py: float, dx: float, dy: float) -> float:
 	return 32.0
 
 
+## Regrow stumps into trees and expire queued tree seed plantings.
 func _tick_trees(dt: float) -> void:
 	for feat in features:
 		if feat.dead or int(feat.kind) != Catalog.FEAT_STUMP:
@@ -3523,6 +3907,7 @@ func _tick_trees(dt: float) -> void:
 	tree_seeds = kept
 
 
+## Spawn a tree feature when the tile is clear of blockers.
 func _try_plant_tree(x: float, y: float) -> void:
 	if _blocked(x, y):
 		return
@@ -3533,6 +3918,7 @@ func _try_plant_tree(x: float, y: float) -> void:
 	_add_feature(Catalog.FEAT_TREE, x, y, 1, 0, true)
 
 
+## Airborne egg item fall and landing prompt when it touches ground.
 func _tick_egg(it: Dictionary, dt: float) -> void:
 	it.shake = maxf(0.0, float(it.get("shake", 0.0)) - dt)
 	var air := float(it.get("air", 0.0))
@@ -3549,6 +3935,7 @@ func _tick_egg(it: Dictionary, dt: float) -> void:
 		sfx_queue.append("egg_land")
 
 
+## South footprint edge used as haul loot approach point for a building.
 func _loot_spot(b: Dictionary) -> Vector2:
 	var size := Catalog.footprint_for_building(int(b.kind))
 	var south := float(size.y) * float(Catalog.TILE)
@@ -3558,6 +3945,7 @@ func _loot_spot(b: Dictionary) -> Vector2:
 	return _approach_spot(float(b.x), float(b.y), south + 8.0)
 
 
+## Whether goo under footprint forces a visit building to shut down.
 func building_is_polluted(b: Dictionary) -> bool:
 	if b.is_empty() or bool(b.get("dead", false)):
 		return false
@@ -3568,6 +3956,7 @@ func building_is_polluted(b: Dictionary) -> bool:
 	return _refresh_building_pollution(b)
 
 
+## Recompute and cache goo-under-footprint for one building.
 func _refresh_building_pollution(b: Dictionary) -> bool:
 	var polluted := false
 	if not b.is_empty() and not bool(b.get("dead", false)) and Catalog.building_has_goo(int(b.kind)):
@@ -3579,11 +3968,13 @@ func _refresh_building_pollution(b: Dictionary) -> bool:
 	return polluted
 
 
+## Clear cached pollution flags after terrain or footprint edits.
 func _invalidate_building_pollution() -> void:
 	for b in buildings:
 		b.erase("polluted")
 
 
+## Eject guests and mark building inactive when pollution is detected.
 func _shut_polluted_building(b: Dictionary) -> void:
 	for guest in b.get("guests", []):
 		var gid := int(guest.get("id", -1))
@@ -3598,6 +3989,7 @@ func _shut_polluted_building(b: Dictionary) -> void:
 		b.burn = 0.0
 
 
+## Per-building tick: food trees, mines, factories, tub, roundabout, visits.
 func _tick_buildings(dt: float) -> void:
 	for b in buildings:
 		if b.dead:
@@ -3689,6 +4081,7 @@ func _tick_buildings(dt: float) -> void:
 			_tick_visit(b, dt)
 
 
+## UI-facing mine buffer or visit occupancy counts for a building.
 func capacity_info(b: Dictionary) -> Dictionary:
 	if b.is_empty() or bool(b.get("dead", false)):
 		return {}
@@ -3709,6 +4102,7 @@ func capacity_info(b: Dictionary) -> Dictionary:
 	return {"n": n2, "cap": cap2, "full": n2 >= cap2, "mine": false, "visit": true}
 
 
+## Pulse flower, statue, and wood building fun auras each frame.
 func _tick_auras(dt: float) -> void:
 	for b in buildings:
 		if b.dead or bool(b.get("lifted", false)):
@@ -3718,6 +4112,7 @@ func _tick_auras(dt: float) -> void:
 			_boost(float(b.x), float(b.y), 28.0, 3, 0.0, 0.0, 3.5 * dt, 0.0, ACT_PLAY)
 		elif kind == Catalog.BLD_STATUE or kind == Catalog.BLD_WOOD:
 			_boost(float(b.x), float(b.y), 36.0, 4, 0.0, 0.0, 5.0 * dt, 0.8, ACT_PLAY)
+## Restore needs for nearest living agents inside a capped radius.
 func _boost(x: float, y: float, radius: float, limit: int, fed_r: float, clean_r: float, fun_r: float, buff: float, mark_act: int = 0) -> void:
 	var ids := query_radius(x, y, radius)
 	var scored: Array = []
@@ -3742,6 +4137,7 @@ func _boost(x: float, y: float, radius: float, limit: int, fed_r: float, clean_r
 			act_t[id] = maxf(act_t[id], 0.35)
 
 
+## Player tool dispatch: drops, terrain tools, confirms, and side effects.
 func use_tool(tool: int, x: float, y: float) -> void:
 	if frozen:
 		return
@@ -3779,6 +4175,7 @@ func use_tool(tool: int, x: float, y: float) -> void:
 		_confirm("nuke", {"op": "nuke", "cx": c.x, "cy": c.y})
 
 
+## Spawn a loose item at the cursor with terrain checks and physics launch.
 func _drop_loose(kind: int, x: float, y: float, value: int) -> void:
 	var at := Vector2(x, y)
 	if Catalog.item_snaps_grid(kind):
@@ -3807,6 +4204,7 @@ func _drop_loose(kind: int, x: float, y: float, value: int) -> void:
 	sfx_queue.append("ball" if kind == Catalog.ITEM_BALL else "place")
 
 
+## Axe trees, reject cosmetic trees, or leave mountain stumps.
 func _tool_axe(x: float, y: float) -> void:
 	var feat := _axe_feature_at(x, y)
 	if not feat.is_empty() and int(feat.kind) == Catalog.FEAT_TREE:
@@ -3828,6 +4226,7 @@ func _tool_axe(x: float, y: float) -> void:
 			sfx_queue.append("chop")
 
 
+## Fell a tree into a regrowing stump, drop wood, and hook progression.
 func _chop(feat: Dictionary) -> void:
 	feat.kind = Catalog.FEAT_STUMP
 	feat.grow = Catalog.TREE_REGROW
@@ -3843,6 +4242,7 @@ func _chop(feat: Dictionary) -> void:
 		_grant("grabber", "DOCE ARBOLES. LA MANO JUNTA LO SUELTO.")
 
 
+## Hammer loose ore patches, world features, or demolish buildings.
 func _tool_hammer(x: float, y: float) -> void:
 	# Ore piles near mines: smash a whole patch into energy, not one crystal per click.
 	if part_two and _smash_ore_near(x, y) > 0:
@@ -3860,6 +4260,7 @@ func _tool_hammer(x: float, y: float) -> void:
 		return
 
 
+## Convert nearby ore pile items into energy gems in one stroke.
 func _smash_ore_near(x: float, y: float) -> int:
 	var gained := 0
 	var smashed := 0
@@ -3883,6 +4284,7 @@ func _smash_ore_near(x: float, y: float) -> int:
 	return smashed
 
 
+## Hammer outcomes per feature kind: rocks, stumps, fire, monolith guard.
 func _hammer_feature(feat: Dictionary) -> void:
 	var kind := int(feat.kind)
 	if kind == Catalog.FEAT_MONOLITH:
@@ -3926,6 +4328,7 @@ func _hammer_feature(feat: Dictionary) -> void:
 		return
 
 
+## Pick rocks, stumps, and ore; plant mountain ore nodes when needed.
 func _tool_pick(x: float, y: float) -> void:
 	# Ore piles: pick can also collect energy (additive with hammer).
 	if part_two and _smash_ore_near(x, y) > 0:
@@ -3955,6 +4358,7 @@ func _tool_pick(x: float, y: float) -> void:
 		sfx_queue.append("pick")
 
 
+## Saw every tree in radius and splash-kill agents in the cut zone.
 func _tool_saw(x: float, y: float) -> void:
 	var hit := false
 	for feat in features:
@@ -3968,6 +4372,7 @@ func _tool_saw(x: float, y: float) -> void:
 		sfx_queue.append("saw")
 
 
+## Hold-to-use UI anchor: target key, hit count, and radius for a tool.
 func charge_tool_target(tool: int, x: float, y: float) -> Dictionary:
 	if tool == Catalog.TOOL_AXE:
 		var tree := _axe_feature_at(x, y)
@@ -4059,6 +4464,7 @@ func charge_tool_target(tool: int, x: float, y: float) -> Dictionary:
 	return {}
 
 
+## Enumerate entities a charged tool stroke will hit for VFX and validation.
 func area_tool_hits(tool: int, x: float, y: float) -> Array:
 	var hits: Array = []
 	if tool == Catalog.TOOL_PICK:
@@ -4149,6 +4555,7 @@ func area_tool_hits(tool: int, x: float, y: float) -> Array:
 	return hits
 
 
+## Count goo tiles in radius (sizes mop charge bars).
 func _count_goo_near(x: float, y: float, radius: float) -> int:
 	var n := 0
 	var c0 := _cell_vec(x - radius, y - radius)
@@ -4164,6 +4571,7 @@ func _count_goo_near(x: float, y: float, radius: float) -> int:
 	return n
 
 
+## Count living features of a kind within radius.
 func _count_features_near(kind: int, x: float, y: float, radius: float) -> int:
 	var n := 0
 	for feat in features:
@@ -4174,6 +4582,7 @@ func _count_features_near(kind: int, x: float, y: float, radius: float) -> int:
 	return n
 
 
+## Count haulable items and corpses in grab-tool radius.
 func _count_scoopables(x: float, y: float, radius: float) -> int:
 	var n := 0
 	for it in items:
@@ -4192,10 +4601,12 @@ func _count_scoopables(x: float, y: float, radius: float) -> int:
 	return n
 
 
+## Whether grab tool is dragging a scoop pile of items or corpses.
 func has_scoop() -> bool:
 	return not scoop_item_ids.is_empty() or not scoop_dead_ids.is_empty()
 
 
+## Vacuum wood, bone, ore, and corpses into orbiting scoop follow mode.
 func scoop_gather(x: float, y: float) -> int:
 	if frozen or has_scoop() or hand_id != -1 or held_kind != "":
 		return 0
@@ -4224,6 +4635,7 @@ func scoop_gather(x: float, y: float) -> int:
 	return got
 
 
+## Orbit scooped items and corpses around the cursor each frame.
 func scoop_follow(x: float, y: float) -> void:
 	var i := 0
 	for raw in scoop_item_ids:
@@ -4245,6 +4657,7 @@ func scoop_follow(x: float, y: float) -> void:
 		i += 1
 
 
+## Scatter scooped pickups at release with physics and valid placement tries.
 func scoop_drop(x: float, y: float) -> void:
 	if not has_scoop():
 		return
@@ -4301,6 +4714,7 @@ func scoop_drop(x: float, y: float) -> void:
 
 
 
+## Open confirm to debug-act on one thronglet under the cursor.
 func _tool_bug(x: float, y: float) -> void:
 	var id := find_thronglet(x, y, 14.0, false)
 	if id < 0:
@@ -4308,10 +4722,12 @@ func _tool_bug(x: float, y: float) -> void:
 	_confirm("bug", {"op": "bug", "id": id})
 
 
+## Open confirm for area swarm celebration at a world point.
 func _tool_swarm(x: float, y: float) -> void:
 	_confirm("bug", {"op": "swarm", "x": x, "y": y})
 
 
+## Place new TNT charge or detonate existing charge at snap point.
 func _tool_tnt(x: float, y: float) -> void:
 	var at := Catalog.snap_world(x, y)
 	x = at.x
@@ -4330,6 +4746,7 @@ func _tool_tnt(x: float, y: float) -> void:
 	sfx_queue.append("tnt_place")
 
 
+## TNT blast: kill features, reshape tiles, splash agents; story monolith hook.
 func _detonate(charge: Dictionary) -> void:
 	var x := float(charge.x)
 	var y := float(charge.y)
@@ -4350,6 +4767,7 @@ func _detonate(charge: Dictionary) -> void:
 	sfx_queue.append("explode")
 
 
+## Blast disk converts mountain, rubble, and goo tiles to dirt.
 func _explode_tiles(x: float, y: float, radius: float) -> void:
 	var c0 := _cell_vec(x - radius, y - radius)
 	var c1 := _cell_vec(x + radius, y + radius)
@@ -4364,10 +4782,12 @@ func _explode_tiles(x: float, y: float, radius: float) -> void:
 				_set_world_cell(cx, cy, Catalog.TILE_DIRT, true)
 
 
+## Grab-tool alias that starts scoop gather at a point.
 func _grab(x: float, y: float) -> void:
 	scoop_gather(x, y)
 
 
+## Mop goo tiles and max clean for nearby living agents instantly.
 func _mop(x: float, y: float) -> void:
 	var radius := Catalog.MOP_RADIUS
 	var c0 := _cell_vec(x - radius, y - radius)
@@ -4395,6 +4815,7 @@ func _mop(x: float, y: float) -> void:
 	sfx_queue.append("mop")
 
 
+## Sponge drag: lock wash target, gain clean while rubbing, queue sparkle FX.
 func scrub(x: float, y: float, stroke: float, rubbing: bool = false) -> void:
 	if frozen:
 		return
@@ -4440,6 +4861,7 @@ func scrub(x: float, y: float, stroke: float, rubbing: bool = false) -> void:
 		sfx_queue.append("scrub")
 
 
+## Keep sponge on current target if still in range, else nearest washable agent.
 func _scrub_pick_target(ids: Array) -> int:
 	# Prefer current sponge_id if still in range; else nearest living thronglet.
 	for raw in ids:
@@ -4454,6 +4876,7 @@ func _scrub_pick_target(ids: Array) -> int:
 	return -1
 
 
+## Whether post-wash sparkle FX is already queued for an agent.
 func _wash_fx_queued(id: int) -> bool:
 	for pending in wash_fx_pending:
 		if int(pending) == id:
@@ -4461,6 +4884,7 @@ func _wash_fx_queued(id: int) -> bool:
 	return false
 
 
+## Freeze agent and queue wash-complete sparkle pending sponge release.
 func _queue_wash_fx(id: int) -> void:
 	_ensure_agent_timers(id)
 	dir_x[id] = 0.0
@@ -4470,6 +4894,7 @@ func _queue_wash_fx(id: int) -> void:
 	wash_fx_pending.append(id)
 
 
+## End scrub hold: clear pose and fire sparkles for all queued clean agents.
 func sponge_release() -> void:
 	# End scrub pose; sparkles for every thronglet cleaned during this hold.
 	var pending: Array = wash_fx_pending.duplicate()
@@ -4482,6 +4907,7 @@ func sponge_release() -> void:
 		_finish_wash(int(raw))
 
 
+## Complete one wash: clear act, cheer timer, and spawn clean sparkle pop.
 func _finish_wash(id: int) -> void:
 	_clear_wash_pose(id)
 	if sponge_id == id:
@@ -4494,6 +4920,7 @@ func _finish_wash(id: int) -> void:
 	dir_y[id] = 0.0
 
 
+## Spawn clean sparkle pop tied to an agent without duplicating.
 func _pop_wash_sparkle(id: int) -> void:
 	if id < 0 or id >= slot_count:
 		return
@@ -4503,6 +4930,7 @@ func _pop_wash_sparkle(id: int) -> void:
 	_pop(pos_x[id], pos_y[id], AssetFrames.CLEAN, 1.0, id, WASH_FX_LIFE, "wash")
 
 
+## Drop wash action state without running full finish celebration.
 func _clear_wash_pose(id: int) -> void:
 	if id < 0 or id >= slot_count:
 		return
@@ -4512,6 +4940,7 @@ func _clear_wash_pose(id: int) -> void:
 		act_t[id] = 0.0
 
 
+## Stop wash on one agent and detach sponge tracking if it was focused.
 func _stop_wash(id: int) -> void:
 	_clear_wash_pose(id)
 	if sponge_id == id:
@@ -4519,6 +4948,7 @@ func _stop_wash(id: int) -> void:
 		sponge_hold = 0.0
 
 
+## Eye-tool inspect: monolith, factory burn, market, blurb, or thronglet pick.
 func eye_use(x: float, y: float) -> Dictionary:
 	if frozen:
 		return {"type": "frozen"}
@@ -4545,6 +4975,7 @@ func eye_use(x: float, y: float) -> Dictionary:
 	return {"type": "empty"}
 
 
+## Push flavor notes describing what a building does when inspected.
 func _describe_building(b: Dictionary) -> void:
 	var kind := int(b.kind)
 	match kind:
@@ -4571,6 +5002,7 @@ func _describe_building(b: Dictionary) -> void:
 				notes.append(str(Catalog.BUILD_INFO[kind].label))
 
 
+## Pick up a ground item into the hand slot (blocks fixed and eggs).
 func take_hand(x: float, y: float) -> bool:
 	if hand_id != -1 or frozen:
 		return false
@@ -4591,6 +5023,7 @@ func take_hand(x: float, y: float) -> bool:
 	return true
 
 
+## Release hand-held item with optional throw velocity.
 func drop_hand(x: float, y: float, throw_vx: float = 0.0, throw_vy: float = 0.0) -> void:
 	if hand_id == -1:
 		return
@@ -4621,10 +5054,12 @@ func drop_hand(x: float, y: float, throw_vx: float = 0.0, throw_vy: float = 0.0)
 		sfx_queue.append("place")
 
 
+## Whether player holds an item, scoop pile, or lifted agent/feature.
 func is_holding() -> bool:
 	return held_kind != "" or hand_id != -1 or has_scoop()
 
 
+## Grow per-agent timer arrays when loading older saves missing fields.
 func _ensure_agent_timers(i: int) -> void:
 	# TODO: May be removed
 	# Old saves lack react/cheer/sleep/peer/drop/penned arrays; grow on demand.
@@ -4648,6 +5083,7 @@ func _ensure_agent_timers(i: int) -> void:
 		bloody.append(0)
 
 
+## Lift a living agent into held state and clear movement, acts, and barks.
 func grab_thronglet(id: int) -> bool:
 	if frozen or is_holding():
 		return false
@@ -4672,6 +5108,7 @@ func grab_thronglet(id: int) -> bool:
 	return true
 
 
+## Cursor grab: thronglet, movable rock, egg hatch help, or hand item.
 func grab_at(x: float, y: float) -> bool:
 	if frozen or is_holding():
 		return false
@@ -4698,6 +5135,7 @@ func grab_at(x: float, y: float) -> bool:
 	return take_hand(x, y)
 
 
+## Valid stand or drop tile for agents, including mine walk pads.
 func _thronglet_ground_ok(px: float, py: float) -> bool:
 	# Mine zones are walkable ground pads: allow dropping/standing on them.
 	if _on_mine_pad(px, py):
@@ -4707,6 +5145,7 @@ func _thronglet_ground_ok(px: float, py: float) -> bool:
 	return _land_inland(px, py)
 
 
+## Spiral search for legal thronglet placement near a bad release point.
 func _find_safe_thronglet_spot(x: float, y: float) -> Vector2:
 	for ring in 32:
 		var rays := 1 if ring == 0 else 12
@@ -4719,6 +5158,7 @@ func _find_safe_thronglet_spot(x: float, y: float) -> Vector2:
 	return Vector2(INF, INF)
 
 
+## Release hand item, held thronglet, or rock with void and water safety.
 func release_at(x: float, y: float, short_click: bool, _allow_use: bool = true, throw_vx: float = 0.0, throw_vy: float = 0.0) -> Dictionary:
 	if hand_id != -1:
 		var it = item_by_id.get(hand_id, {})
@@ -4786,43 +5226,52 @@ func release_at(x: float, y: float, short_click: bool, _allow_use: bool = true, 
 	return {}
 
 
+## Cancel drag by short-click release at original grab position.
 func cancel_hold() -> void:
 	if not is_holding():
 		return
 	release_at(held_x, held_y, true, false)
 
 
+## Reset held_kind and held_ref without moving world entities.
 func _clear_held() -> void:
 	held_kind = ""
 	held_ref = -1
 
 
+## Revealed chunk tile that is not movement-blocked for placement.
 func _can_drop(x: float, y: float, allow_ore: bool = false, allow_soft: bool = false) -> bool:
 	return revealed.has(_ck_of(x, y)) and not _blocked(x, y, allow_ore, allow_soft)
 
 
+## Whether world point is on holdable ground (not void/water/fog).
 func _tile_holds(px: float, py: float) -> bool:
 	return _tile_holds_cell(_cell_vec(px, py))
 
 
+## Tile type counts as solid ground for building and walking.
 func _tile_holds_kind(tile: int) -> bool:
 	return tile != Catalog.TILE_VOID and tile != Catalog.TILE_WATER and tile != Catalog.TILE_FOG
 
 
+## Grid cell uses holdable ground for footprints and inland checks.
 func _tile_holds_cell(cell: Vector2i) -> bool:
 	return _tile_holds_kind(_tile_at_cell(cell))
 
 
+## Invalidate inland cache for a cell and its Moore neighbors.
 func _invalidate_inland_around(cell: Vector2i) -> void:
 	for oy in range(-1, 2):
 		for ox in range(-1, 2):
 			inland_cache.erase(cell + Vector2i(ox, oy))
 
 
+## World point sits on inland ground, not a void cliff edge.
 func _land_inland(px: float, py: float) -> bool:
 	return _land_inland_cell(_cell_vec(px, py))
 
 
+## Cached Moore-neighbor test so iso sprites avoid hanging over void.
 func _land_inland_cell(cell: Vector2i) -> bool:
 	# Center must hold, and no Moore neighbor may be void/water/fog.
 	# Diagonal cliffs still read as "in the void" under iso sprites.
@@ -4845,6 +5294,7 @@ func _land_inland_cell(cell: Vector2i) -> bool:
 	return ok
 
 
+## Horizontal footprint span used when testing feature footing.
 func _span_for_feature(kind: int) -> Vector2:
 	if kind == Catalog.FEAT_ROCK or kind == Catalog.FEAT_FLOWER or kind == Catalog.FEAT_STUMP or kind == Catalog.FEAT_MSTUMP:
 		return Vector2(8.0, 14.0)
@@ -4853,6 +5303,7 @@ func _span_for_feature(kind: int) -> Vector2:
 	return Vector2(16.0, 52.0)
 
 
+## Multi-sample footing along feature height so sprites stand on solid cells.
 func _stands(x: float, y: float, span: Vector2) -> bool:
 	if not _land_inland(x, y):
 		return false
@@ -4872,11 +5323,13 @@ func _stands(x: float, y: float, span: Vector2) -> bool:
 	return true
 
 
+## Whether another item occupies a point, optionally ignoring one id.
 func _item_spot_free(x: float, y: float, ignore_id: int = -1) -> bool:
 	var other := _item_at(x, y, 10.0)
 	return other.is_empty() or int(other.id) == ignore_id
 
 
+## Feature kinds auto-cleared when a building pad claims their cells.
 func _pad_feature_soft(kind: int) -> bool:
 	# Cleared when a building claims the pad. Ore nodes and monuments stay hard.
 	return kind == Catalog.FEAT_TREE or kind == Catalog.FEAT_STUMP or kind == Catalog.FEAT_MSTUMP \
@@ -4884,12 +5337,14 @@ func _pad_feature_soft(kind: int) -> bool:
 		or kind == Catalog.FEAT_COSMETIC or kind == Catalog.FEAT_COSMETIC_BAD or kind == Catalog.FEAT_FIRE
 
 
+## Item kinds auto-removed when a building pad claims their cells.
 func _pad_item_soft(kind: int) -> bool:
 	# Ground clutter claimed with the pad. Ore / TNT / eggs stay hard.
 	return kind == Catalog.ITEM_WOOD or kind == Catalog.ITEM_APPLE \
 		or kind == Catalog.ITEM_BALL or kind == Catalog.ITEM_BONE
 
 
+## Whether a hard item at a point blocks building pad placement.
 func _pad_item_blocks(x: float, y: float, ignore_id: int = -1) -> bool:
 	var other := _item_at(x, y, 10.0)
 	if other.is_empty() or int(other.id) == ignore_id:
@@ -4897,6 +5352,7 @@ func _pad_item_blocks(x: float, y: float, ignore_id: int = -1) -> bool:
 	return not _pad_item_soft(int(other.kind))
 
 
+## Kill soft features and items occupying cells in a building footprint.
 func _clear_pad_soft(cells: Array[Vector2i]) -> void:
 	# Pad claim only clears blockers. Wood comes from the axe, not from placement.
 	var seen := {}
@@ -4923,6 +5379,7 @@ func _clear_pad_soft(cells: Array[Vector2i]) -> void:
 		_invalidate_item_counts()
 
 
+## Full footprint placement check for new builds or building relocation.
 func _building_spot_free(id: int, x: float, y: float, kind: int = -1) -> bool:
 	var b = building_by_id.get(id, {})
 	var size_kind := kind
@@ -4966,6 +5423,7 @@ func _building_spot_free(id: int, x: float, y: float, kind: int = -1) -> bool:
 	return true
 
 
+## Grid cells covered by a snapped footprint at a world anchor.
 func _footprint_cells(x: float, y: float, size: Vector2i) -> Array[Vector2i]:
 	var origin := _cell_vec(x, y)
 	var cells: Array[Vector2i] = []
@@ -4974,10 +5432,12 @@ func _footprint_cells(x: float, y: float, size: Vector2i) -> Array[Vector2i]:
 	return cells
 
 
+## World center position for a grid cell (catalog helper).
 func _cell_world(cell: Vector2i) -> Vector2:
 	return Catalog.cell_world(cell)
 
 
+## Every cell in a footprint sits on holdable ground.
 func _footprint_holds(cells: Array[Vector2i]) -> bool:
 	for cell in cells:
 		var at := _cell_world(cell)
@@ -4986,6 +5446,7 @@ func _footprint_holds(cells: Array[Vector2i]) -> bool:
 	return true
 
 
+## Remove a world feature from the per-cell spatial index.
 func _unbind_feature(feat: Dictionary) -> void:
 	var id := int(feat.id)
 	var doomed: Array = []
@@ -4996,6 +5457,7 @@ func _unbind_feature(feat: Dictionary) -> void:
 		feature_cell.erase(cell)
 
 
+## Snap, validate, and index a feature at a new world position.
 func _bind_feature_at(feat: Dictionary, x: float, y: float) -> bool:
 	var at := Catalog.snap_world(x, y)
 	x = at.x
@@ -5023,6 +5485,7 @@ func _bind_feature_at(feat: Dictionary, x: float, y: float) -> bool:
 	return true
 
 
+## Remove a building from the per-cell building index.
 func _unbind_building(b: Dictionary) -> void:
 	var id := int(b.id)
 	var doomed: Array = []
@@ -5033,6 +5496,7 @@ func _unbind_building(b: Dictionary) -> void:
 		building_cell.erase(cell)
 
 
+## Place building footprint, clear soft pad clutter, and index cells.
 func _bind_building_at(b: Dictionary, x: float, y: float) -> bool:
 	var cells := _footprint_cells(x, y, Catalog.footprint_for_building(int(b.kind)))
 	if not _footprint_holds(cells):
@@ -5055,6 +5519,7 @@ func _bind_building_at(b: Dictionary, x: float, y: float) -> bool:
 	return true
 
 
+## World positions of all cells in a building or feature footprint.
 func footprint_world(kind: int, x: float, y: float, is_building: bool = true) -> Array:
 	var size := Catalog.footprint_for_building(kind) if is_building else Catalog.footprint_for_feature(kind)
 	var out: Array = []
@@ -5063,6 +5528,7 @@ func footprint_world(kind: int, x: float, y: float, is_building: bool = true) ->
 	return out
 
 
+## Whether a relocated feature fits without cell ownership conflicts.
 func can_drop_feature(id: int, x: float, y: float) -> bool:
 	var feat = feature_by_id.get(id, {})
 	if feat.is_empty() or feat.dead:
@@ -5080,12 +5546,14 @@ func can_drop_feature(id: int, x: float, y: float) -> bool:
 	return true
 
 
+## Item dict for the object currently held in the hand slot.
 func hand_item() -> Dictionary:
 	if hand_id == -1:
 		return {}
 	return item_by_id.get(hand_id, {})
 
 
+## Whether a tool is unlocked and not superseded by progression.
 func _tool_open(tool: int) -> bool:
 	for entry in Catalog.TOOL_INFO:
 		if int(entry.tool) != tool:
@@ -5099,6 +5567,7 @@ func _tool_open(tool: int) -> bool:
 	return true
 
 
+## Placement sound id chosen from building kind.
 func _place_sfx(kind: int) -> String:
 	if kind == Catalog.BLD_DWELL or kind == Catalog.BLD_FANCY:
 		return "place_house"
@@ -5119,6 +5588,7 @@ func _place_sfx(kind: int) -> String:
 	return "place"
 
 
+## Spend costs, validate spot, consume ore node, and spawn a building.
 func place_building(kind: int, x: float, y: float) -> bool:
 	if frozen:
 		return false
@@ -5179,6 +5649,7 @@ func place_building(kind: int, x: float, y: float) -> bool:
 	return true
 
 
+## Unified snap-point validity for building placement or item drops.
 func spot_ok(x: float, y: float, building_id: int = -1, ignore_item_id: int = -1, build_kind: int = -1) -> bool:
 	var at := Catalog.snap_world(x, y)
 	var allow_ore := build_kind == Catalog.BLD_MINE or build_kind == Catalog.BLD_MINE2
@@ -5208,6 +5679,7 @@ func spot_ok(x: float, y: float, building_id: int = -1, ignore_item_id: int = -1
 	return int(building_cell.get(_cell_vec(at.x, at.y), -1)) < 0
 
 
+## Affordable building placement including campaign mine-node rules.
 func can_place_building(kind: int, x: float, y: float) -> bool:
 	if kind == Catalog.BLD_MARKET and _has_building(Catalog.BLD_MARKET):
 		return false
@@ -5223,6 +5695,7 @@ func can_place_building(kind: int, x: float, y: float) -> bool:
 	return spot_ok(at.x, at.y, -1, -1, kind)
 
 
+## Market purchase: spend gems, grant unlock, refresh progression gates.
 func buy(key: String) -> bool:
 	if not _has_building(Catalog.BLD_MARKET):
 		notes.append("COLOCA EL MERCADO PRIMERO.")
@@ -5244,6 +5717,7 @@ func buy(key: String) -> bool:
 	return true
 
 
+## Current tutorial sign text row for the HUD.
 func tutorial_line() -> String:
 	var signs: Array[int] = [0, 1, 15]
 	if tutorial_i < 0 or tutorial_i >= signs.size():
@@ -5251,6 +5725,7 @@ func tutorial_line() -> String:
 	return LineBook.row("SYS.MESSAGES", signs[tutorial_i])
 
 
+## Advance tutorial signs; may unlock count thoughts and queue ethics talk.
 func advance_tutorial() -> void:
 	var signs: Array[int] = [0, 1, 15]
 	if tutorial_i < 0:
@@ -5264,16 +5739,19 @@ func advance_tutorial() -> void:
 		_queue_talk("first_born", {})
 
 
+## Mark population count as known so UI thoughts can reference it.
 func _know_count() -> void:
 	count_unknown = false
 
 
+## Substitute player name tokens in dialogue and notification strings.
 func address(text: String) -> String:
 	if player_name == "":
 		return text
 	return text.replace("[NAME]", player_name).replace("{name}", player_name)
 
 
+## Open frozen modal prompting the player to enter a display name.
 func _open_name_ask() -> void:
 	var ask := LineBook.row("SYS.PLAYERINPUT", 0)
 	modal = {
@@ -5288,6 +5766,7 @@ func _open_name_ask() -> void:
 	_begin_gaze()
 
 
+## Validate name entry and advance the name modal to confirm or error.
 func submit_name(raw: String) -> void:
 	if modal.is_empty() or str(modal.get("event", "")) != "player_name":
 		return
@@ -5312,6 +5791,7 @@ func submit_name(raw: String) -> void:
 	modal["seq"] = int(modal.get("seq", 1)) + 1
 
 
+## Handle name-modal menu indices across ask, confirm, and echo steps.
 func _choose_name(index: int) -> void:
 	var step := str(modal.get("step", ""))
 	if step == "ask":
@@ -5340,6 +5820,7 @@ func _choose_name(index: int) -> void:
 	modal["seq"] = int(modal.get("seq", 1)) + 1
 
 
+## Charset and length rules for an acceptable player display name.
 func _name_chars_ok(called: String) -> bool:
 	_ensure_name_rules()
 	if _name_chars == "" or called.length() > 24:
@@ -5350,6 +5831,7 @@ func _name_chars_ok(called: String) -> bool:
 	return true
 
 
+## Profanity filter using flattened name against banned substrings.
 func _name_banned(called: String) -> bool:
 	_ensure_name_rules()
 	var flat := _flat_name(called)
@@ -5359,6 +5841,7 @@ func _name_banned(called: String) -> bool:
 	return false
 
 
+## Normalizes a player name for profanity checks by lowercasing and stripping separators.
 func _flat_name(raw: String) -> String:
 	var out := ""
 	var lower := raw.to_lower()
@@ -5370,6 +5853,7 @@ func _flat_name(raw: String) -> String:
 	return out
 
 
+## Lazy-loads allowed character set and banned substrings used during player naming dialogue.
 func _ensure_name_rules() -> void:
 	if _name_rules:
 		return
@@ -5385,6 +5869,7 @@ func _ensure_name_rules() -> void:
 		_name_chars = chars.get_as_text()
 
 
+## Handles gaze UI picks: player name flow, line advance, or branching DialogueBook ethics choices.
 func choose(index: int) -> void:
 	if modal.is_empty():
 		return
@@ -5444,6 +5929,7 @@ func choose(index: int) -> void:
 	_open_next_talk()
 
 
+## Snapshot one agent slot for HUD debug: needs, combined mood, and living/dead status.
 func inspect(id: int) -> Dictionary:
 	if id < 0 or id >= slot_count or state[id] == Catalog.ST_VACANT:
 		return {}
@@ -5460,6 +5946,7 @@ func inspect(id: int) -> Dictionary:
 	}
 
 
+## Player-facing ethics readout tying moral score to the latest colony judgment line.
 func moral_line() -> String:
 	if ethics.is_empty():
 		return "AUN NO TE JUZGAN."
@@ -5467,6 +5954,7 @@ func moral_line() -> String:
 	return "%s (%+d)  %s" % [mark, moral, str(ethics[ethics.size() - 1].text)]
 
 
+## World tally for a loot kind, including wood/bone/ore on the ground plus agents currently hauling.
 func count_item(kind: int) -> int:
 	_ensure_item_counts()
 	match kind:
@@ -5487,10 +5975,12 @@ func count_item(kind: int) -> int:
 			return n
 
 
+## Bumps the item-count cache generation so the next inventory read recomputes tallies.
 func _invalidate_item_counts() -> void:
 	_item_count_gen += 1
 
 
+## Decrements global haul counters when an agent stops carrying wood, bone, or ore.
 func _carry_dec(i: int) -> void:
 	if i < 0 or i >= carry.size():
 		return
@@ -5503,6 +5993,7 @@ func _carry_dec(i: int) -> void:
 			carry_ore_n = maxi(0, carry_ore_n - 1)
 
 
+## Increments global haul counters when an agent's carry slot holds a resource.
 func _carry_inc(i: int) -> void:
 	if i < 0 or i >= carry.size():
 		return
@@ -5515,6 +6006,7 @@ func _carry_inc(i: int) -> void:
 			carry_ore_n += 1
 
 
+## Assigns haul state on a slot, keeps aggregate counts in sync, and arms drop animation on release.
 func _set_carry(i: int, kind: int, value: int = 0) -> void:
 	if i < 0 or i >= carry.size():
 		return
@@ -5533,6 +6025,7 @@ func _set_carry(i: int, kind: int, value: int = 0) -> void:
 		dir_y[i] = 0.0
 
 
+## Recounts every living agent's carry slot into the wood/bone/ore haul aggregates.
 func _rebuild_carry_counts() -> void:
 	carry_wood_n = 0
 	carry_bone_n = 0
@@ -5541,6 +6034,7 @@ func _rebuild_carry_counts() -> void:
 		_carry_inc(int(raw))
 
 
+## Refreshes cached ground-loot counts when generation changed, folding in carried stock.
 func _ensure_item_counts() -> void:
 	if _item_count_built == _item_count_gen:
 		return
@@ -5563,10 +6057,12 @@ func _ensure_item_counts() -> void:
 	_item_count_ore = ore + carry_ore_n
 
 
+## Returns how many corpse slots exist for rendering and neglect mechanics.
 func count_dead() -> int:
 	return dead_n
 
 
+## Builds a polyline the client can draw for path debug: current cell, seek target, and BFS waypoints.
 func debug_agent_path(i: int) -> PackedVector2Array:
 	var pts := PackedVector2Array()
 	if i < 0 or i >= slot_count or state[i] == Catalog.ST_VACANT:
@@ -5594,12 +6090,14 @@ func debug_agent_path(i: int) -> PackedVector2Array:
 	return pts
 
 
+## Whether this agent could start a food seek right now (apple or home visit in range).
 func _debug_can_food(i: int) -> bool:
 	if not _nearest_apple(i, 240.0).is_empty():
 		return true
 	return not _nearest_building_kinds(pos_x[i], pos_y[i], [Catalog.BLD_DWELL, Catalog.BLD_FANCY], 280.0, i).is_empty()
 
 
+## Whether bathing is actionable: tub seat, nearby tub building, or home visit.
 func _debug_can_clean(i: int) -> bool:
 	var tub_seat := seat_of(i)
 	if not tub_seat.is_empty() and float(tub_seat.get("bath_t", -1.0)) >= 0.0:
@@ -5609,12 +6107,13 @@ func _debug_can_clean(i: int) -> bool:
 	return not _nearest_building_kinds(pos_x[i], pos_y[i], [Catalog.BLD_DWELL, Catalog.BLD_FANCY], 280.0, i).is_empty()
 
 
+## Whether fun seeks are viable: ride, roundabout, ball, or amusement buildings nearby.
 func _debug_can_fun(i: int) -> bool:
 	if not _ride_building(i).is_empty():
 		return true
 	if not _nearest_roundabout(i, 320.0).is_empty():
 		return true
-	if not _nearest_ball(i, 260.0).is_empty():
+	if not _nearest_free_item(i, Catalog.ITEM_BALL, 260.0).is_empty():
 		return true
 	return not _nearest_building_kinds(
 		pos_x[i], pos_y[i],
@@ -5623,14 +6122,16 @@ func _debug_can_fun(i: int) -> bool:
 	).is_empty()
 
 
+## Whether hauling/mining logistics apply: already carrying or ore pickup with a factory online.
 func _debug_can_haul(i: int) -> bool:
 	if i < carry.size() and carry[i] != Catalog.CARRY_NONE:
 		return true
 	if not _has_factory():
 		return false
-	return not _nearest_free_item(i, Catalog.ITEM_ORE, 180.0).is_empty()
+	return not _nearest_free_item(i, Catalog.ITEM_ORE, Catalog.NEAR_BUILDING).is_empty()
 
 
+## Whether mine guest work is allowed given stock, capacity, and current mine job links.
 func _debug_can_mine(i: int) -> bool:
 	if not _work_ready(i) or not _has_factory() or carry[i] != Catalog.CARRY_NONE:
 		return false
@@ -5650,6 +6151,7 @@ func _debug_can_mine(i: int) -> bool:
 	return true
 
 
+## Ranks need-driven tasks with the same gating as _tick_decide so overlays show real priorities.
 func debug_agent_tasks(i: int) -> Array:
 	# Mirrors _tick_decide: urgency only counts when the seek can actually run.
 	var out: Array = []
@@ -5746,6 +6248,7 @@ func debug_agent_tasks(i: int) -> Array:
 	return out
 
 
+## Cheat spawn of living agents around a point for stress tests and local population bursts.
 func debug_spawn(amount: int, around: Vector2) -> void:
 	var rx := 360.0 + sqrt(float(maxi(0, amount))) * 8.0
 	var ry := 220.0 + sqrt(float(maxi(0, amount))) * 5.0
@@ -5762,6 +6265,7 @@ func debug_spawn(amount: int, around: Vector2) -> void:
 	notes.append("ENJAMBRE DE PRUEBA: %d" % living)
 
 
+## Fills the island with buildings, loot, and worn paths to benchmark rendering and pathfinding load.
 func debug_perf_busy(around: Vector2, scale: int = 1) -> Dictionary:
 	# Populate a mid-game-like island so perf measures props/paths/AI seeks, not an empty field.
 	# scale=1 ≈ early mid-game; scale=3+ packs many more props/paths for stress.
@@ -5848,6 +6352,7 @@ func debug_perf_busy(around: Vector2, scale: int = 1) -> Dictionary:
 	return {"scale": scale, "buildings": placed_bld, "items": placed_item, "paths": placed_path}
 
 
+## Places a building at a snapped point or searches outward rings until footprint fits.
 func _try_add_building_near(kind: int, x: float, y: float) -> bool:
 	if not _add_building(kind, x, y).is_empty():
 		return true
@@ -5864,21 +6369,25 @@ func _try_add_building_near(kind: int, x: float, y: float) -> bool:
 	return false
 
 
+## Tells the renderer whether a chunk key has left fog and has terrain data.
 func chunk_shown(ck: String) -> bool:
 	return revealed.has(ck)
 
 
+## True when world coordinates sit on a revealed island home chunk (spawn chunk semantics).
 func chunk_at_home(x: float, y: float) -> bool:
 	var c := _chunk_at(x, y)
 	var key := _ck(c.x, c.y)
 	return revealed.has(key) and _is_island_chunk(c.x, c.y)
 
 
+## Resolves world coordinates to the chunk string key used in reveal and paint maps.
 func chunk_key_at(x: float, y: float) -> String:
 	var c := _chunk_at(x, y)
 	return _ck(c.x, c.y)
 
 
+## Reveals every island chunk overlapping a camera or brush rectangle for fog-of-war.
 func explore_rect(rect: Rect2) -> void:
 	if rect.size == Vector2.ZERO:
 		return
@@ -5892,6 +6401,7 @@ func explore_rect(rect: Rect2) -> void:
 			_try_reveal(cx, cy)
 
 
+## Spatial hash query over an axis-aligned view box; optional cap for AI sampling density.
 func query_rect(rect: Rect2, limit: int = 0) -> Array:
 	# AABB over hash cells — circle(half.diagonal) massively over-included at wide zooms.
 	# limit > 0 stops early (AI priority / density sampling).
@@ -5924,6 +6434,7 @@ func query_rect(rect: Rect2, limit: int = 0) -> Array:
 	return out
 
 
+## Returns agent slot ids within a circle using hash buckets, deduping bucket visits.
 func query_radius(x: float, y: float, radius: float) -> Array:
 	var out: Array = []
 	if hash_head.is_empty():
@@ -5952,6 +6463,7 @@ func query_radius(x: float, y: float, radius: float) -> Array:
 	return out
 
 
+## Picks the nearest agent under the cursor for tools, preferring living over corpses when allowed.
 func find_thronglet(x: float, y: float, radius: float, living_only: bool) -> int:
 	var ids := query_radius(x, y, radius)
 	var best_live := -1
@@ -5975,42 +6487,53 @@ func find_thronglet(x: float, y: float, radius: float, living_only: bool) -> int
 	return best_dead
 
 
+## Drains the one-shot narrative note queue to the HUD and clears it for the next frame.
 func take_notes() -> Array:
 	var copy := notes.duplicate()
 	notes.clear()
 	return copy
 
 
+## Drains pending sound cue ids accumulated during the sim step for the audio layer.
 func take_sfx() -> Array:
 	var copy := sfx_queue.duplicate()
 	sfx_queue.clear()
 	return copy
 
 
+## Hands off chunk keys that need terrain repaint this frame, then clears the dirty set.
 func take_dirty() -> Array:
 	var copy := dirty_chunks.duplicate()
 	dirty_chunks.clear()
 	return copy
 
 
+## Returns packed tile ids for a loaded chunk, or empty if the chunk is not materialized.
 func chunk_tiles(ck: String) -> PackedByteArray:
 	if not chunks.has(ck):
 		return PackedByteArray()
 	return chunks[ck].tiles
 
 
+## Tile-space origin of a chunk from its string key for aligning tilemaps and props.
 func chunk_origin(ck: String) -> Vector2i:
 	var c := _parse_ck(ck)
 	return Vector2i(c.x * Catalog.CHUNK, c.y * Catalog.CHUNK)
 
 
+## Behavior act id while chewing food.
 const ACT_EAT := 1
+## Behavior act id while playing with props or peers.
 const ACT_PLAY := 2
+## Behavior act id while scrubbing with a sponge.
 const ACT_WASH := 3
+## Behavior act id while soaking in a tub.
 const ACT_BATH := 4
+## Behavior act id while working a building job.
 const ACT_WORK := 5
 
 
+## Queues a floating feedback icon; can follow a living agent id until it expires or dies.
 func _pop(x: float, y: float, icon: int, sprite_scale: float = 1.0, throng_id: int = -1, life: float = 0.55, kind: String = "") -> void:
 	pops.append({
 		"x": x,
@@ -6025,6 +6548,7 @@ func _pop(x: float, y: float, icon: int, sprite_scale: float = 1.0, throng_id: i
 	})
 
 
+## Advances pop lifetimes, lifts detached icons, and drops pops tied to dead agents.
 func _tick_pops(dt: float, age: bool = true) -> void:
 	var kept: Array = []
 	for pop in pops:
@@ -6042,6 +6566,7 @@ func _tick_pops(dt: float, age: bool = true) -> void:
 	pops = kept
 
 
+## Entry from _ready: resumes last save or starts a fresh campaign bootstrap.
 func _boot_game() -> void:
 	var last := save_system.last_slot()
 	if last >= 0 and save_system.load_slot(last):
@@ -6049,6 +6574,7 @@ func _boot_game() -> void:
 	_bootstrap_new()
 
 
+## Wipes saves and seeds a new campaign run with starter egg and default progression.
 func new_game() -> void:
 	# One run only: wipe the live save and its autosave history.
 	save_system.clear_saves()
@@ -6066,6 +6592,7 @@ func new_game() -> void:
 	notes.append("PARTIDA NUEVA.")
 
 
+## Starts sandbox mode with full unlocks, chosen island tier, and stripped campaign props.
 func new_sandbox_game(tier: int = SANDBOX_START_TIER) -> void:
 	save_system.clear_sandbox_save()
 	current_slot = -1
@@ -6078,6 +6605,7 @@ func new_sandbox_game(tier: int = SANDBOX_START_TIER) -> void:
 	notes.append("SANDBOX.")
 
 
+## Resizes the playable island in sandbox without wiping player-placed structures.
 func set_sandbox_land_tier(tier: int) -> void:
 	if not sandbox_mode:
 		return
@@ -6090,14 +6618,17 @@ func set_sandbox_land_tier(tier: int) -> void:
 	notes.append("ISLA %d" % land_tier)
 
 
+## Sandbox UI hook to expand land tier by one step.
 func sandbox_grow() -> void:
 	set_sandbox_land_tier(land_tier + 1)
 
 
+## Sandbox UI hook to contract land tier by one step.
 func sandbox_shrink() -> void:
 	set_sandbox_land_tier(land_tier - 1)
 
 
+## Executes destructive ethics or unlock actions (bug, swarm, burn, nuke) from dialogue choices.
 func _apply_action(action: Dictionary) -> void:
 	var op := str(action.get("op", ""))
 	if op == "bug":
@@ -6113,6 +6644,7 @@ func _apply_action(action: Dictionary) -> void:
 		_nuke(int(action.get("cx", 0)), int(action.get("cy", 0)))
 
 
+## Spawns the agent's haul as a world item with toss physics and clears carry state.
 func _drop_carried(i: int) -> void:
 	if i < 0 or i >= slot_count or carry[i] == Catalog.CARRY_NONE:
 		return
@@ -6126,6 +6658,7 @@ func _drop_carried(i: int) -> void:
 	_set_carry(i, Catalog.CARRY_NONE)
 
 
+## Demolish/move prep: evicts guests, riders, and occupants then marks the building inactive.
 func _lift_building(b: Dictionary) -> void:
 	var occ := int(b.get("occupant", -1))
 	if occ >= 0 and occ < claim.size():
@@ -6152,6 +6685,7 @@ func _lift_building(b: Dictionary) -> void:
 	_unbind_building(b)
 
 
+## Bug tool removal: vacates the slot, drops bone loot, may count toward swarm unlock progress.
 func _deflesh(id: int, count_use: bool) -> void:
 	if id < 0 or id >= slot_count or state[id] == Catalog.ST_VACANT:
 		return
@@ -6189,6 +6723,7 @@ func _deflesh(id: int, count_use: bool) -> void:
 		_enter_game_over()
 
 
+## Radial wipe of every agent in swarm radius without per-kill bug progression.
 func _swarm(x: float, y: float) -> void:
 	var ids := query_radius(x, y, Catalog.SWARM_RADIUS)
 	for id in ids:
@@ -6200,6 +6735,7 @@ func _swarm(x: float, y: float) -> void:
 			_grant("swarm", "EL BICHO, TRES VECES. EL ENJAMBRE ABRE UN RADIO.")
 
 
+## Cleans one chunk of goo/rubble, removes props and corpses, keeps living colony intact.
 func _nuke(cx: int, cy: int) -> void:
 	var ck := _ck(cx, cy)
 	if not chunks.has(ck):
@@ -6240,6 +6776,7 @@ func _nuke(cx: int, cy: int) -> void:
 	sfx_queue.append("nuked")
 
 
+## Violent area kill that marks corpses bloody and may trigger tool ethics reflection.
 func _splash_kill(x: float, y: float, radius: float) -> void:
 	var ids := query_radius(x, y, radius)
 	var any := false
@@ -6252,12 +6789,14 @@ func _splash_kill(x: float, y: float, radius: float) -> void:
 		_reflect("tool")
 
 
+## Starvation or hygiene failure death path that queues neglect dialogue reflection.
 func _die_neglect(i: int) -> void:
 	_become_corpse(i, false)
 	sfx_queue.append("bones")
 	_reflect("neglect")
 
 
+## Soft death: living slot becomes timed corpse with links cleared and colony tallies updated.
 func _become_corpse(i: int, with_blood: bool = false) -> void:
 	if state[i] != Catalog.ST_LIVING:
 		return
@@ -6287,6 +6826,7 @@ func _become_corpse(i: int, with_blood: bool = false) -> void:
 		_enter_game_over()
 
 
+## Brief frightened react timer on nearby living agents after a violent death in radius.
 func _pulse_react_near(x: float, y: float, skip: int = -1) -> void:
 	for id in query_radius(x, y, REACT_KILL_R):
 		var j := int(id)
@@ -6298,6 +6838,7 @@ func _pulse_react_near(x: float, y: float, skip: int = -1) -> void:
 		react_t[j] = REACT_DUR
 
 
+## Public check used by animation/logic for whether another living agent is close enough to socialize.
 func has_living_peer(i: int, radius: float = PEER_R) -> bool:
 	if i < 0 or i >= slot_count or state[i] != Catalog.ST_LIVING:
 		return false
@@ -6308,6 +6849,7 @@ func has_living_peer(i: int, radius: float = PEER_R) -> bool:
 	return false
 
 
+## True when the agent is a guest at an active mine building (pickaxe work animation gate).
 func is_mining(i: int) -> bool:
 	# Guest of a mine / mine2 — dig stay uses Pickaxe ↔ Twiddle.
 	if i < 0 or i >= link_guest.size():
@@ -6321,10 +6863,12 @@ func is_mining(i: int) -> bool:
 	return _is_mine_kind(int(b.kind))
 
 
+## All core needs at OK or better, so the agent may idly socialize instead of seeking.
 func _peer_content(i: int) -> bool:
 	return fed[i] >= Catalog.NEED_OK and amused[i] >= Catalog.NEED_OK and clean[i] >= Catalog.NEED_OK
 
 
+## Agent has no sticky act, haul, mitosis, sleep, facility link, or active social beat.
 func _peer_free(i: int) -> bool:
 	if i < 0 or i >= slot_count or state[i] != Catalog.ST_LIVING:
 		return false
@@ -6349,6 +6893,7 @@ func _peer_free(i: int) -> bool:
 	return true
 
 
+## Finds the closest eligible neighbor for a spontaneous talk or sing interaction.
 func _nearest_peer_partner(i: int) -> int:
 	var best := -1
 	var best_d := PEER_R
@@ -6365,6 +6910,7 @@ func _nearest_peer_partner(i: int) -> int:
 	return best
 
 
+## Rare idle beat: pairs two content agents, stops movement, and runs peer talk timers.
 func _try_peer_social(i: int) -> bool:
 	# Content thronglets stop, face a free peer, and hold a talk/sing beat.
 	_ensure_agent_timers(i)
@@ -6395,6 +6941,7 @@ func _try_peer_social(i: int) -> bool:
 	return true
 
 
+## Ends peer social state on one agent and mirrors cleanup on its paired partner.
 func _clear_peer_social(i: int) -> void:
 	if i < 0 or i >= peer_t.size():
 		return
@@ -6410,6 +6957,7 @@ func _clear_peer_social(i: int) -> void:
 			peer_sing[j] = 0
 
 
+## Detects campfire features near an agent for mood, damage, or bark logic.
 func near_fire(i: int, radius: float = 48.0) -> bool:
 	if i < 0 or i >= slot_count:
 		return false
@@ -6421,6 +6969,7 @@ func near_fire(i: int, radius: float = 48.0) -> bool:
 	return false
 
 
+## True when a living agent is wandering toward a dwelling without being a building guest.
 func approaching_home(i: int) -> bool:
 	if i < 0 or i >= slot_count or state[i] != Catalog.ST_LIVING:
 		return false
@@ -6434,6 +6983,7 @@ func approaching_home(i: int) -> bool:
 	return false
 
 
+## Decays corpse timers and vacates slots when bodies expire from neglect.
 func _tick_corpses(dt: float) -> void:
 	if dead_ids.is_empty():
 		return
@@ -6450,10 +7000,12 @@ func _tick_corpses(dt: float) -> void:
 		k += 1
 
 
+## Registers a corpse slot id in the dead iteration list.
 func _dead_add(i: int) -> void:
 	dead_ids.append(i)
 
 
+## Removes one id from the dead list when the corpse is cleared or vacated.
 func _dead_remove(i: int) -> void:
 	for k in dead_ids.size():
 		if int(dead_ids[k]) == i:
@@ -6461,6 +7013,7 @@ func _dead_remove(i: int) -> void:
 			return
 
 
+## Swap-removes index k from the dense dead id array.
 func _dead_remove_at(k: int) -> void:
 	var last := dead_ids.size() - 1
 	if k < 0 or k > last:
@@ -6469,6 +7022,7 @@ func _dead_remove_at(k: int) -> void:
 	dead_ids.resize(last)
 
 
+## Fully recycles a slot: clears links, haul, hash entry, and may trigger game over if last living.
 func _vacate(i: int) -> void:
 	if i < 0 or i >= slot_count or state[i] == Catalog.ST_VACANT:
 		return
@@ -6493,6 +7047,7 @@ func _vacate(i: int) -> void:
 		_enter_game_over()
 
 
+## Locks the sim when the campaign loses its last living agent after having peaked.
 func _enter_game_over() -> void:
 	if sandbox_mode or game_over or living > 0 or peak <= 0:
 		return
@@ -6506,6 +7061,7 @@ func _enter_game_over() -> void:
 	notes.append("EL ULTIMO MULTI HA MUERTO.")
 
 
+## Ethics confirm path: sandbox runs tools immediately; campaign may open gaze dialogue first.
 func _confirm(event: String, action: Dictionary) -> void:
 	# Sandbox has no ethics dialogue; apply destructive tools immediately.
 	if sandbox_mode:
@@ -6523,12 +7079,14 @@ func _confirm(event: String, action: Dictionary) -> void:
 	_queue_talk(event, action)
 
 
+## Queues a non-destructive ethics line when the player has not yet chosen on that event.
 func _reflect(event: String) -> void:
 	if _ethics_choice(event) != -1:
 		return
 	_queue_talk(event, {})
 
 
+## Serializes gaze events into pending talk, avoiding duplicate modals for the same event.
 func _queue_talk(event: String, action: Dictionary) -> void:
 	if sandbox_mode or game_over or not Catalog.GAZE.has(event):
 		return
@@ -6547,6 +7105,7 @@ func _queue_talk(event: String, action: Dictionary) -> void:
 		gaze_queue.append({"event": event, "action": action})
 
 
+## Pops the gaze queue, skipping already-resolved ambient lines, and schedules the next modal.
 func _open_next_talk() -> void:
 	while not gaze_queue.is_empty():
 		var next: Dictionary = gaze_queue.pop_front()
@@ -6561,6 +7120,7 @@ func _open_next_talk() -> void:
 		return
 
 
+## Delays opening a talk modal by TALK_OPEN_DELAY unless testing skips the wait.
 func _schedule_talk(event: String, action: Dictionary) -> void:
 	var wait := 0.0 if testing else TALK_OPEN_DELAY
 	if wait <= 0.0:
@@ -6569,6 +7129,7 @@ func _schedule_talk(event: String, action: Dictionary) -> void:
 	talk_pending = {"event": event, "action": action, "wait": wait}
 
 
+## Counts down talk_pending and opens the modal when delay expires and UI is idle.
 func _tick_talk_wait(delta: float) -> void:
 	if talk_pending.is_empty() or not modal.is_empty() or frozen or game_over:
 		return
@@ -6582,6 +7143,7 @@ func _tick_talk_wait(delta: float) -> void:
 	_open_talk_modal(event, action, tree_id)
 
 
+## Steps through non-branching LineBook gaze scripts and applies ethics on the final line.
 func _advance_lines() -> void:
 	var lines: Array = modal.get("lines", [])
 	var at := int(modal.get("line", 0)) + 1
@@ -6606,6 +7168,7 @@ func _advance_lines() -> void:
 	_open_next_talk()
 
 
+## Chooses dialogue tree, line script, or confirm tree for an event and enters gaze layout.
 func _open_talk_modal(event: String, action: Dictionary, tree_override: String = "") -> void:
 	var gaze: Dictionary = Catalog.GAZE.get(event, {})
 	var confirm := str(gaze.get("kind", "")) == "confirm" or tree_override.begins_with("confirm")
@@ -6642,6 +7205,7 @@ func _open_talk_modal(event: String, action: Dictionary, tree_override: String =
 	_open_tree_modal(event, action, opened)
 
 
+## Binds an opened DialogueBook session into modal state and freezes colony motion for choices.
 func _open_tree_modal(event: String, action: Dictionary, opened: Dictionary) -> void:
 	modal = {
 		"event": event,
@@ -6654,6 +7218,7 @@ func _open_tree_modal(event: String, action: Dictionary, opened: Dictionary) -> 
 	_begin_gaze()
 
 
+## Increments ambient talk counter when the world can accept background colony chatter.
 func _queue_ambient_talk() -> void:
 	# World bubbles are icon-only; ambient lines stay in the console / gaze path.
 	if game_over or testing or living <= 0 or not modal.is_empty() or not talk_pending.is_empty():
@@ -6661,6 +7226,7 @@ func _queue_ambient_talk() -> void:
 	ambient_n += 1
 
 
+## Like _schedule_talk but forces a specific dialogue tree id after the standard delay.
 func _schedule_talk_tree(event: String, action: Dictionary, tree_id: String) -> void:
 	var wait := 0.0 if testing else TALK_OPEN_DELAY
 	if wait <= 0.0:
@@ -6669,6 +7235,7 @@ func _schedule_talk_tree(event: String, action: Dictionary, tree_id: String) -> 
 	talk_pending = {"event": event, "action": action, "wait": wait, "tree": tree_id}
 
 
+## Freezes simulation input, clears tool motion, stages thronglets, and plays talk sting.
 func _begin_gaze() -> void:
 	# Dialogue freeze only — do not force glitch_t (that drove POSSESSED on every talk).
 	# Screen/body glitch stays for monolith / late package paths that set glitch_t themselves.
@@ -6678,6 +7245,7 @@ func _begin_gaze() -> void:
 	sfx_queue.append("talk")
 
 
+## Staggers up to eight living agents into a readable formation facing the dialogue camera.
 func _line_up_gaze() -> void:
 	_restore_gaze()
 	var focus := _gaze_clearing()
@@ -6711,6 +7279,7 @@ func _line_up_gaze() -> void:
 	_tick_barks(0.0, false)
 
 
+## Searches near the view center for open ground that fits the gaze grid without canopy cover.
 func _gaze_clearing() -> Vector2:
 	var seed := view_rect.get_center()
 	if view_rect.size == Vector2.ZERO:
@@ -6739,6 +7308,7 @@ func _gaze_clearing() -> Vector2:
 	return best
 
 
+## Grid slot position for gaze lineup, stepping outward until uncovered walkable space is found.
 func _gaze_spot(focus: Vector2, col: int, row: int) -> Vector2:
 	var base := focus + Vector2((float(col) - 1.5) * 22.0, 36.0 + float(row) * 18.0)
 	var fallback := Vector2(INF, INF)
@@ -6754,6 +7324,7 @@ func _gaze_spot(focus: Vector2, col: int, row: int) -> Vector2:
 	return fallback
 
 
+## Fallback placement spiral when the ideal gaze grid cell is blocked or taken.
 func _safe_gaze_spot(focus: Vector2, here_x: float, here_y: float) -> Vector2:
 	var seeds: Array[Vector2] = [focus, Vector2(here_x, here_y)]
 	for seed in seeds:
@@ -6770,6 +7341,7 @@ func _safe_gaze_spot(focus: Vector2, here_x: float, here_y: float) -> Vector2:
 	return Vector2(INF, INF)
 
 
+## True if another gaze-staged agent already occupies this world point.
 func _gaze_taken(x: float, y: float) -> bool:
 	var at := Vector2(x, y)
 	for key in gaze_home.keys():
@@ -6781,11 +7353,13 @@ func _gaze_taken(x: float, y: float) -> bool:
 	return false
 
 
+## Converts world feet to isometric screen space for canopy overlap tests during gaze.
 func _iso_of(x: float, y: float) -> Vector2:
 	var cell := Vector2(x, y) / float(Catalog.TILE) - Vector2(0.5, 0.5)
 	return Vector2(16.0 * (1.0 + cell.x - cell.y), 8.0 * (1.0 + cell.x + cell.y))
 
 
+## Whether tree canopies or tall buildings would hide a thronglet standing at world xy in gaze.
 func _gaze_covered(x: float, y: float) -> bool:
 	var me := _iso_of(x, y)
 	var body := Rect2(me.x - 12.0, me.y - 22.0, 24.0, 22.0)
@@ -6808,6 +7382,7 @@ func _gaze_covered(x: float, y: float) -> bool:
 	return false
 
 
+## Axis-aligned canopy rect intersection test in iso space for gaze and axe targeting.
 func _canopy_hits(me: Vector2, body: Rect2, x: float, y: float, half_w: float, height: float) -> bool:
 	var base := _iso_of(x, y)
 	if base.y + 2.0 < me.y:
@@ -6816,6 +7391,7 @@ func _canopy_hits(me: Vector2, body: Rect2, x: float, y: float, half_w: float, h
 	return canopy.intersects(body)
 
 
+## Resolves chop target: trunk under feet, cosmetic canopy, or tallest blocking tree crown.
 func _axe_feature_at(x: float, y: float) -> Dictionary:
 	var feat := _feature_at(x, y, 14.0)
 	var kind := int(feat.get("kind", -1))
@@ -6827,6 +7403,7 @@ func _axe_feature_at(x: float, y: float) -> Dictionary:
 	return feat
 
 
+## Picks the highest tree or cosmetic feature whose canopy covers the iso point under the cursor.
 func _canopy_feature_at(x: float, y: float) -> Dictionary:
 	var tip := _iso_of(x, y)
 	var body := Rect2(tip.x - 2.0, tip.y - 2.0, 4.0, 4.0)
@@ -6851,6 +7428,7 @@ func _canopy_feature_at(x: float, y: float) -> Dictionary:
 	return best
 
 
+## Teleports gaze-staged agents back to stored home positions and clears gaze_home map.
 func _restore_gaze() -> void:
 	for key in gaze_home.keys():
 		var i := int(key)
@@ -6863,10 +7441,12 @@ func _restore_gaze() -> void:
 	_tick_barks(0.0, false)
 
 
+## Clears sponge/tool wash state together with per-agent action motion flags.
 func _clear_wash_all() -> void:
 	_clear_action_motion()
 
 
+## Resets global tool handlers and action timers so dialogue freeze does not leave stuck anims.
 func _clear_action_motion() -> void:
 	sponge_id = -1
 	sponge_hold = 0.0
@@ -6876,6 +7456,7 @@ func _clear_action_motion() -> void:
 		act_t[i] = 0.0
 
 
+## Looks up which dialogue choice index the player already committed to for an ethics event.
 func _ethics_choice(event: String) -> int:
 	var found := -1
 	for entry in ethics:
@@ -6884,6 +7465,7 @@ func _ethics_choice(event: String) -> int:
 	return found
 
 
+## Records or updates one ethics journal entry after a gaze choice or line completion.
 func _set_ethics(event: String, index: int, text: String) -> void:
 	for entry in ethics:
 		if str(entry.event) == event:
@@ -6893,6 +7475,7 @@ func _set_ethics(event: String, index: int, text: String) -> void:
 	ethics.append({"event": event, "choice": index, "text": text})
 
 
+## Applies dialogue edge moral delta and unlocks narrative mutations with HUD notes.
 func _apply_moral_edge(edge: Dictionary) -> void:
 	if edge.has("moral"):
 		moral = clampi(moral + int(edge.moral), -5, 5)
@@ -6913,6 +7496,7 @@ func _apply_moral_edge(edge: Dictionary) -> void:
 			notes.append("PASAN MENOS TIEMPO EN LAS VIVIENDAS.")
 
 
+## Per-frame cache of need decay multiplier from care/hard ethics mutations and moral tone.
 func _decay_scale() -> float:
 	if _decay_scale_frame == frame_i:
 		return _decay_scale_cached
@@ -6926,6 +7510,7 @@ func _decay_scale() -> float:
 	return scale
 
 
+## Rolls newborn color variant when adapt/numb/hard mutations are active.
 func _birth_tint(fallback: int) -> int:
 	if bool(mutations.get("adapt", false)) and randf() < 0.55:
 		return Catalog.TINT_ADAPT
@@ -6936,6 +7521,7 @@ func _birth_tint(fallback: int) -> int:
 	return fallback % Catalog.TINTS.size()
 
 
+## First-time unlock: sets flag, celebrates, may queue unlock talk or append a note.
 func _grant(key: String, message: String = "", talk: bool = true) -> bool:
 	if bool(unlocks.get(key, false)):
 		return false
@@ -6950,6 +7536,7 @@ func _grant(key: String, message: String = "", talk: bool = true) -> bool:
 	return true
 
 
+## Re-evaluates progression unlocks and hooks when population peak or gems change.
 func _refresh_pop_gates(announce: bool = true) -> void:
 	ProgressionManager.evaluate_unlocks(self, announce)
 	if sandbox_mode:
@@ -6957,10 +7544,12 @@ func _refresh_pop_gates(announce: bool = true) -> void:
 	ProgressionManager.apply_progression_hooks(self, announce)
 
 
+## Delegates late-game super-island expansion to island_gen when milestones demand it.
 func _expand_super_island(announce: bool = true) -> void:
 	island_gen.expand_super_island(announce)
 
 
+## Static campaign ladder of population, gem, and part-two expansion thresholds.
 func _milestone_defs() -> Array:
 	return [
 		{"kind": "pop", "n": 6},
@@ -6974,6 +7563,7 @@ func _milestone_defs() -> Array:
 	]
 
 
+## Returns the milestone requirement for current land_tier, extrapolating after the defined list.
 func _milestone_at(tier: int) -> Dictionary:
 	var defs := _milestone_defs()
 	if tier < defs.size():
@@ -6984,6 +7574,7 @@ func _milestone_at(tier: int) -> Dictionary:
 	return {"kind": "gem", "n": 20 + n_base * 25}
 
 
+## Tests whether peak population, gem peak, or part_two satisfies one milestone row.
 func _milestone_met(step: Dictionary) -> bool:
 	var kind := str(step.kind)
 	if kind == "pop":
@@ -6995,6 +7586,7 @@ func _milestone_met(step: Dictionary) -> bool:
 	return false
 
 
+## Advances land tier when met, shapes island, spawns monoliths, and refreshes unlock hooks.
 func _check_milestones(announce: bool = true) -> void:
 	if gems > gems_peak:
 		gems_peak = gems
@@ -7030,6 +7622,7 @@ func _check_milestones(announce: bool = true) -> void:
 		notes.append("LA ISLA CRECE.")
 
 
+## Single HUD goal string for tutorial beats, milestones, or sandbox build checklist.
 func goal_line() -> String:
 	if sandbox_mode:
 		return "SANDBOX  ISLA %d" % land_tier
@@ -7072,6 +7665,7 @@ func goal_line() -> String:
 	return "EXPANSION LIBRE  %d MULTIS · %d ENERGIA" % [living, gems]
 
 
+## Post-market sandbox build order hints (market, factories, theatre) when milestones are done.
 func _sandbox_goal() -> String:
 	# Building goals only; land growth keeps using milestones forever.
 	if not _has_building(Catalog.BLD_MARKET):
@@ -7092,6 +7686,7 @@ func _sandbox_goal() -> String:
 	return ""
 
 
+## Formats a wood-gathering sub-goal before a named construction step.
 func _goal_build(label: String, cost: int) -> String:
 	if cost <= 0:
 		return label
@@ -7101,6 +7696,7 @@ func _goal_build(label: String, cost: int) -> String:
 	return "%s  (%d MADERA)" % [label, cost]
 
 
+## Formats gem or wood placement goals using ProgressionManager costs for an unlock id.
 func _goal_place(label: String, unlock_id: String) -> String:
 	var cost := ProgressionManager.placement_cost(self, unlock_id)
 	var resource := str(cost.get("resource", ""))
@@ -7116,6 +7712,7 @@ func _goal_place(label: String, unlock_id: String) -> String:
 	return label
 
 
+## Resolves wood and gem price for placing a building kind in the current mode and unlock state.
 func _building_costs(kind: int) -> Dictionary:
 	var wood_cost := 0
 	var gem_cost := 0
@@ -7133,6 +7730,7 @@ func _building_costs(kind: int) -> Dictionary:
 	return {"wood": wood_cost, "gem": gem_cost}
 
 
+## Shop gate before placement: compares cached building costs to gems and wood stock.
 func _can_afford_building(kind: int) -> bool:
 	var costs := _building_costs(kind)
 	if int(costs.gem) > 0 and gems < int(costs.gem):
@@ -7142,6 +7740,7 @@ func _can_afford_building(kind: int) -> bool:
 	return true
 
 
+## Flips campaign to expansion phase, grants market-related unlocks, and seeds surface ore.
 func _enter_part_two(reason: String, talk_market: bool = true) -> void:
 	var first := not part_two
 	part_two = true
@@ -7156,6 +7755,7 @@ func _enter_part_two(reason: String, talk_market: bool = true) -> void:
 	_check_milestones()
 
 
+## Scatters rooted rock nodes with ore on the home chunk after market unlock for mining tutorial.
 func _seed_early_ore(want: int = 12) -> void:
 	if want <= 0:
 		return
@@ -7188,6 +7788,7 @@ func _seed_early_ore(want: int = 12) -> void:
 			placed += 1
 
 
+## Spawns tiered monolith features once progression allows, optionally opening reveal dialogue.
 func _ensure_monolith(tier: int) -> void:
 	if bool(monolith_tier_spawned.get(tier, false)):
 		return
@@ -7234,6 +7835,7 @@ func _ensure_monolith(tier: int) -> void:
 		_begin_gaze()
 
 
+## Agent contact grants bug or nuke tools, triggers glitch beat, and removes the monolith.
 func _touch_monolith(feat: Dictionary) -> void:
 	if feat.is_empty() or feat.get("dead", false):
 		return
@@ -7247,6 +7849,7 @@ func _touch_monolith(feat: Dictionary) -> void:
 	sfx_queue.append("monolith")
 
 
+## Factory mishap paints nearby grass/dirt with goo tiles and may unlock mop plus ethics talk.
 func _spill_goo(x: float, y: float, amount: int) -> void:
 	for _n in amount:
 		var ang := randf() * TAU
@@ -7263,6 +7866,7 @@ func _spill_goo(x: float, y: float, amount: int) -> void:
 		_reflect("goo")
 
 
+## Campaign world setup after reset: home reveal, starter egg, and live session flag.
 func _bootstrap_new() -> void:
 	var keep := world_seed
 	_reset_world()
@@ -7276,6 +7880,7 @@ func _bootstrap_new() -> void:
 	session_live = true
 
 
+## Sandbox world setup: full unlocks, gem stipend, shaped island, stripped scatter props.
 func _bootstrap_sandbox(tier: int) -> void:
 	var keep := world_seed
 	_reset_world()
@@ -7299,6 +7904,7 @@ func _bootstrap_sandbox(tier: int) -> void:
 	session_live = true
 
 
+## Editor-style placement of trees, rocks, water, grass, thronglets, or flower building in sandbox.
 func sandbox_place_prop(prop: String, x: float, y: float) -> bool:
 	if not sandbox_mode or frozen:
 		return false
@@ -7346,6 +7952,7 @@ func sandbox_place_prop(prop: String, x: float, y: float) -> bool:
 			return false
 
 
+## Marks every catalog and market unlock true for sandbox tooling and cheat starts.
 func _unlock_all() -> void:
 	_init_unlocks()
 	for key in unlocks.keys():
@@ -7360,6 +7967,7 @@ func _unlock_all() -> void:
 	unlock_serial += 1
 
 
+## Removes procedurally scattered features so sandbox starts from a clean shaped island.
 func _sandbox_strip_props() -> void:
 	if not sandbox_mode:
 		return
@@ -7369,6 +7977,7 @@ func _sandbox_strip_props() -> void:
 		_kill_feature(feat)
 
 
+## Drops the fixed falling egg item that begins the campaign before first hatch.
 func _spawn_starter_egg() -> void:
 	var it := _add_item(Catalog.ITEM_EGG, 256.0, 256.0, 0)
 	it.fixed = true
@@ -7381,6 +7990,7 @@ func _spawn_starter_egg() -> void:
 	sfx_queue.append("egg_fall")
 
 
+## Player click on egg advances hatch counter, shake feedback, and crack audio.
 func _help_egg(it: Dictionary) -> void:
 	if it.is_empty() or it.dead or int(it.kind) != Catalog.ITEM_EGG:
 		return
@@ -7395,6 +8005,7 @@ func _help_egg(it: Dictionary) -> void:
 		notes.append("SIGUE TOCANDALO. QUIERE NACER.")
 
 
+## Finishes egg: removes item, spawns first thronglet if colony empty, opens first_born talk.
 func _hatch_egg(it: Dictionary) -> void:
 	if it.is_empty() or it.dead:
 		return
@@ -7415,6 +8026,7 @@ func _hatch_egg(it: Dictionary) -> void:
 		_queue_talk("first_born", {})
 
 
+## Hard reset of all simulation containers, agent arrays, progression flags, and spatial indexes.
 func _reset_world() -> void:
 	revealed.clear()
 	chunks.clear()
@@ -7559,6 +8171,7 @@ func _reset_world() -> void:
 	feat_mesh_epoch += 1
 
 
+## Spawns a living agent and updates peak population gates when a new high is reached.
 func _push_slot(x: float, y: float, fed_v: float, fun_v: float, clean_v: float, cool_v: float, tint_i: int) -> int:
 	var id := _push_slot_quiet(x, y, fed_v, fun_v, clean_v, cool_v, tint_i)
 	if id < 0:
@@ -7569,6 +8182,7 @@ func _push_slot(x: float, y: float, fed_v: float, fun_v: float, clean_v: float, 
 	return id
 
 
+## Allocates parallel agent arrays and spatial hash link without milestone side effects.
 func _push_slot_quiet(x: float, y: float, fed_v: float, fun_v: float, clean_v: float, cool_v: float, tint_i: int) -> int:
 	if slot_count >= Catalog.MAX_SLOTS:
 		return -1
@@ -7627,6 +8241,7 @@ func _push_slot_quiet(x: float, y: float, fed_v: float, fun_v: float, clean_v: f
 	return id
 
 
+## Marks a chunk known, materializes terrain, and invalidates walk and inland caches on first sight.
 func _reveal(cx: int, cy: int) -> void:
 	var ck := _ck(cx, cy)
 	var fresh := not revealed.has(ck)
@@ -7641,15 +8256,18 @@ func _reveal(cx: int, cy: int) -> void:
 	_mark_dirty(ck)
 
 
+## Reveals home or island chunks only, skipping pure ocean fog tiles.
 func _try_reveal(cx: int, cy: int) -> void:
 	if cx == 0 and cy == 0 or _is_island_chunk(cx, cy):
 		_reveal(cx, cy)
 
 
+## Whether chunk coordinates have been pulled out of fog for simulation and rendering.
 func _is_known_chunk(cx: int, cy: int) -> bool:
 	return revealed.has(_ck(cx, cy))
 
 
+## Lazy chunk creation: biome fill, island shape on home chunk, scatter props, dirty mark.
 func _ensure(cx: int, cy: int) -> void:
 	var ck := _ck(cx, cy)
 	if chunks.has(ck):
@@ -7666,6 +8284,7 @@ func _ensure(cx: int, cy: int) -> void:
 	_mark_dirty(ck)
 
 
+## Procedural tile buffer for a chunk from biome id and special circular patches.
 func _fill_tiles(cx: int, cy: int, biome: String) -> PackedByteArray:
 	var tiles := PackedByteArray()
 	tiles.resize(Catalog.CHUNK * Catalog.CHUNK)
@@ -7696,22 +8315,27 @@ func _fill_tiles(cx: int, cy: int, biome: String) -> PackedByteArray:
 	return tiles
 
 
+## Delegates to island_gen for whether coordinates belong on the shaped landmass.
 func _is_island_chunk(cx: int, cy: int) -> bool:
 	return island_gen.is_island_chunk(cx, cy)
 
 
+## Counts placed mine node features on a chunk for progression and scatter budgets.
 func _count_mine_nodes(cx: int, cy: int) -> int:
 	return island_gen.count_mine_nodes(cx, cy)
 
 
+## Island_gen hook to place guaranteed mine nodes when home terrain is first built.
 func _seed_mine_nodes(cx: int, cy: int) -> void:
 	island_gen.seed_mine_nodes(cx, cy)
 
 
+## Feature kind filter for node, super, and mnode types used in mining placement rules.
 func _is_mine_node(kind: int) -> bool:
 	return kind == Catalog.FEAT_NODE or kind == Catalog.FEAT_SUPER or kind == Catalog.FEAT_MNODE
 
 
+## Campaign spacing check so scatter does not stack props on adjacent feature cells.
 func _feature_crowded(x: float, y: float, kind: int) -> bool:
 	if _is_mine_node(kind):
 		return false
@@ -7733,6 +8357,7 @@ func _feature_crowded(x: float, y: float, kind: int) -> bool:
 	return false
 
 
+## Guards placement away from existing mine node footprints in neighboring cells.
 func _near_mine_node(x: float, y: float) -> bool:
 	var cell := _cell_vec(x, y)
 	for oy in range(-3, 4):
@@ -7746,11 +8371,13 @@ func _near_mine_node(x: float, y: float) -> bool:
 	return false
 
 
+## Feedback when something steps off the island into void tiles without ending the run.
 func _fall_void(x: float, y: float) -> void:
 	notes.append("SE CAE AL VACIO. LA PARTIDA SIGUE.")
 	sfx_queue.append("crush")
 
 
+## Short LLENO label for building UI when guest capacity is saturated.
 func occupancy_text(b: Dictionary) -> String:
 	var info := capacity_info(b)
 	if info.is_empty():
@@ -7760,6 +8387,7 @@ func occupancy_text(b: Dictionary) -> String:
 	return ""
 
 
+## Per-frame aura on fire, totem, and curer features: soiling, fun boost, heal SFX.
 func _tick_props(dt: float) -> void:
 	for feat in features:
 		if feat.dead:
@@ -7787,6 +8415,7 @@ func _tick_props(dt: float) -> void:
 					sfx_queue.append("heal")
 
 
+## Advances monolith spawn animation and fires _touch_monolith when a living agent enters range.
 func _tick_monoliths(dt: float, allow_touch: bool = true) -> void:
 	var to_touch: Array = []
 	for feat in features:
@@ -7819,14 +8448,17 @@ func _tick_monoliths(dt: float, allow_touch: bool = true) -> void:
 		_touch_monolith(feat)
 
 
+## Delegates home-chunk prop scatter to IslandGen after reveal.
 func _scatter_island(cx: int, cy: int) -> void:
 	island_gen.scatter_island(cx, cy)
 
 
+## Counts features of one kind on a chunk for scatter density caps.
 func _count_kind_on(cx: int, cy: int, kind: int) -> int:
 	return island_gen.count_kind_on(cx, cy, kind)
 
 
+## Low-rate roll for rare cosmetics, mega ores, fire, totem, and curer on one tile.
 func _scatter_one(cx: int, cy: int, wx: float, wy: float, lx: int, ly: int) -> void:
 	var roll := _rand(cx, cy, lx, ly, 31)
 	if roll < 0.008:
@@ -7850,6 +8482,7 @@ func _scatter_one(cx: int, cy: int, wx: float, wy: float, lx: int, ly: int) -> v
 		_add_feature(Catalog.FEAT_CURER, wx, wy, 1, 0, true)
 
 
+## Fills a newly revealed chunk with biome-weighted trees, rocks, nodes, and rare props.
 func _scatter(cx: int, cy: int, biome: String) -> void:
 	if _is_island_chunk(cx, cy):
 		_scatter_island(cx, cy)
@@ -7882,22 +8515,27 @@ func _scatter(cx: int, cy: int, biome: String) -> void:
 				_scatter_one(cx, cy, wx, wy, lx, ly)
 
 
+## Current island radius metric from island_gen for spawn and placement rules.
 func _island_reach() -> float:
 	return island_gen.island_reach()
 
 
+## Rebuilds land mask from land_tier and returns how many new land cells were added.
 func _shape_island() -> int:
 	return island_gen.shape_island()
 
 
+## Keeps egg clearing and early tutorial zone free of clutter features.
 func _near_spawn(x: float, y: float) -> bool:
 	return island_gen.near_spawn(x, y)
 
 
+## Resets island_gen spawn anchors when bootstrapping a new session.
 func _clear_spawn() -> void:
 	island_gen.clear_spawn()
 
 
+## Places a rooted feature when campaign spacing and footprint rules pass, then indexes cells.
 func _add_feature(kind: int, x: float, y: float, hp: int, ore: int, rooted: bool = false) -> Dictionary:
 	var at := Catalog.snap_world(x, y)
 	x = at.x
@@ -7945,6 +8583,7 @@ func _add_feature(kind: int, x: float, y: float, hp: int, ore: int, rooted: bool
 	return feat
 
 
+## Removes a feature from the world, fires list, and spatial indexes when destroyed.
 func _kill_feature(feat: Dictionary) -> void:
 	if feat.is_empty() or feat.dead:
 		return
@@ -7960,6 +8599,7 @@ func _kill_feature(feat: Dictionary) -> void:
 	_invalidate_walk_cells()
 
 
+## Spawns a ground item, registers it in item_by_id, and updates kind indexes and counts.
 func _add_item(kind: int, x: float, y: float, value: int) -> Dictionary:
 	var id := next_item_id
 	next_item_id += 1
@@ -7976,6 +8616,7 @@ func _add_item(kind: int, x: float, y: float, value: int) -> Dictionary:
 	return it
 
 
+## Places a building when the footprint binds, then indexes it and refreshes factory and walk caches.
 func _add_building(kind: int, x: float, y: float) -> Dictionary:
 	var id := next_building_id
 	next_building_id += 1
@@ -8004,6 +8645,7 @@ func _add_building(kind: int, x: float, y: float) -> Dictionary:
 	return b
 
 
+## Appends a live item dict into per-kind lists used for fast nearest-item seeks.
 func _index_item(it: Dictionary) -> void:
 	match int(it.kind):
 		Catalog.ITEM_APPLE:
@@ -8018,6 +8660,7 @@ func _index_item(it: Dictionary) -> void:
 			items_ore.append(it)
 
 
+## Routes a live building into per-kind lists for fast nearest-building queries.
 func _index_building(b: Dictionary) -> void:
 	match int(b.kind):
 		Catalog.BLD_TUB:
@@ -8032,6 +8675,7 @@ func _index_building(b: Dictionary) -> void:
 			blds_show.append(b)
 
 
+## Rebuilds item and building kind buckets after load, deaths, or bulk edits.
 func _rebuild_kind_indexes() -> void:
 	items_apple.clear()
 	items_ball.clear()
@@ -8054,6 +8698,7 @@ func _rebuild_kind_indexes() -> void:
 		_index_building(b)
 
 
+## Marks a building dead, clears occupant claims, and refreshes walk and factory caches.
 func _remove_building(b: Dictionary) -> void:
 	b.dead = true
 	_unbind_building(b)
@@ -8066,6 +8711,7 @@ func _remove_building(b: Dictionary) -> void:
 	_invalidate_walk_cells()
 
 
+## Pays a recipe cost by removing nearby ground items then agents' carried haul stacks.
 func _consume_kind(kind: int, count: int, near_x: float, near_y: float) -> bool:
 	if count <= 0:
 		return true
@@ -8109,6 +8755,7 @@ func _consume_kind(kind: int, count: int, near_x: float, near_y: float) -> bool:
 	return left <= 0
 
 
+## Tests whether an agent's carried haul satisfies a requested ingredient kind.
 func _carry_matches(i: int, kind: int) -> bool:
 	if i < 0 or i >= slot_count:
 		return false
@@ -8121,6 +8768,7 @@ func _carry_matches(i: int, kind: int) -> bool:
 	return false
 
 
+## Reserves a bathtub occupant slot and link_tub entry for bath seek and soak logic.
 func _claim_tub(i: int, tub: Dictionary) -> void:
 	var occ := int(tub.occupant)
 	if occ == i:
@@ -8137,6 +8785,7 @@ func _claim_tub(i: int, tub: Dictionary) -> void:
 		link_tub[i] = int(tub.id)
 
 
+## Drops an agent's building claim, ending tub soak and queuing tub-out SFX when needed.
 func _release_claim(i: int) -> void:
 	if i < 0 or i >= claim.size():
 		return
@@ -8156,6 +8805,7 @@ func _release_claim(i: int) -> void:
 			sfx_queue.append("tub_out")
 
 
+## Picks the closest bath building within range, optionally ignoring other occupants.
 func _nearest_tub(i: int, allow_busy: bool = false) -> Dictionary:
 	var best := {}
 	var best_d := 999999.0
@@ -8172,6 +8822,7 @@ func _nearest_tub(i: int, allow_busy: bool = false) -> Dictionary:
 	return best
 
 
+## Returns the pre-indexed building array for one or two catalog kinds.
 func _buildings_for_kinds(kinds: Array) -> Array:
 	if kinds.size() == 1:
 		match int(kinds[0]):
@@ -8195,6 +8846,7 @@ func _buildings_for_kinds(kinds: Array) -> Array:
 	return buildings
 
 
+## Nearest enterable, unpolluted building whose kind is in the filter list.
 func _nearest_building_kinds(x: float, y: float, kinds: Array, max_dist: float, who: int = -1) -> Dictionary:
 	var best := {}
 	var best_d := max_dist
@@ -8212,6 +8864,7 @@ func _nearest_building_kinds(x: float, y: float, kinds: Array, max_dist: float, 
 	return best
 
 
+## Closest unheld ground item of a kind within max_dist of a world point.
 func _nearest_item(x: float, y: float, kind: int, max_dist: float) -> Dictionary:
 	var best := {}
 	var best_d := max_dist
@@ -8226,10 +8879,12 @@ func _nearest_item(x: float, y: float, kind: int, max_dist: float) -> Dictionary
 	return best
 
 
+## Proximity pick used by grab and tool code to resolve items under a point.
 func _item_at(x: float, y: float, radius: float) -> Dictionary:
 	return _nearest_item_any(x, y, radius)
 
 
+## Nearest unheld item of any kind inside a radius for generic pickup queries.
 func _nearest_item_any(x: float, y: float, radius: float) -> Dictionary:
 	var best := {}
 	var best_d := radius
@@ -8243,6 +8898,7 @@ func _nearest_item_any(x: float, y: float, radius: float) -> Dictionary:
 	return best
 
 
+## Resolves features via cell ownership and footprint reach for tool and eye hits.
 func _feature_at(x: float, y: float, radius: float) -> Dictionary:
 	var cell := _cell_vec(x, y)
 	var owned := int(feature_cell.get(cell, -1))
@@ -8269,6 +8925,7 @@ func _feature_at(x: float, y: float, radius: float) -> Dictionary:
 	return best
 
 
+## Resolves buildings via building_cell or footprint distance for placement checks.
 func _building_at(x: float, y: float, radius: float) -> Dictionary:
 	var cell := _cell_vec(x, y)
 	var owned := int(building_cell.get(cell, -1))
@@ -8291,10 +8948,12 @@ func _building_at(x: float, y: float, radius: float) -> Dictionary:
 
 
 
+## Finds the closest living thronglet near a point inside the search radius.
 func _nearest_living(x: float, y: float, radius: float) -> int:
 	return find_thronglet(x, y, radius, true)
 
 
+## Finds the closest corpse agent for neglect and corpse interaction logic.
 func _nearest_corpse(x: float, y: float, radius: float) -> int:
 	var best := -1
 	var best_d := radius
@@ -8308,6 +8967,7 @@ func _nearest_corpse(x: float, y: float, radius: float) -> int:
 	return best
 
 
+## Fed, fun, and clean threshold required before an agent may start ACT_WORK.
 func _work_need() -> float:
 	if bool(mutations.get("hard", false)):
 		return 32.0
@@ -8316,6 +8976,7 @@ func _work_need() -> float:
 	return 50.0
 
 
+## Whether a living agent meets work_need and may mine or haul for a building.
 func _work_ready(i: int) -> bool:
 	if i < 0 or i >= slot_count or state[i] != Catalog.ST_LIVING:
 		return false
@@ -8323,6 +8984,7 @@ func _work_ready(i: int) -> bool:
 	return fed[i] >= need and amused[i] >= need and clean[i] >= need
 
 
+## Counts ready ACT_WORK agents in radius to enforce mine and factory job caps.
 func _workers_near(b: Dictionary, cap: int) -> int:
 	var radius := _work_radius(b) + 8.0
 	var ids := query_radius(float(b.x), float(b.y), radius)
@@ -8339,6 +9001,7 @@ func _workers_near(b: Dictionary, cap: int) -> int:
 	return n
 
 
+## Maps mine building kind and ore node tier to stock payout value.
 func _mine_value(b: Dictionary) -> int:
 	var node := int(b.get("node", 1))
 	var mine := 1 if int(b.kind) == Catalog.BLD_MINE else 2
@@ -8351,6 +9014,7 @@ func _mine_value(b: Dictionary) -> int:
 	return 2
 
 
+## True when any live egg item exists for hatch and progression gates.
 func _has_egg() -> bool:
 	for it in items:
 		if not it.dead and int(it.kind) == Catalog.ITEM_EGG:
@@ -8358,10 +9022,12 @@ func _has_egg() -> bool:
 	return false
 
 
+## Public probe whether the colony currently owns a building of this kind.
 func has_building_kind(kind: int) -> bool:
 	return _has_building(kind)
 
 
+## Scans live buildings for a catalog kind (unlocks and milestone checks).
 func _has_building(kind: int) -> bool:
 	for b in buildings:
 		if not b.dead and int(b.kind) == kind:
@@ -8369,10 +9035,12 @@ func _has_building(kind: int) -> bool:
 	return false
 
 
+## Clears the cached factory-present flag after building set changes.
 func _invalidate_factory_cache() -> void:
 	_has_factory_known = false
 
 
+## Cached check that a live factory or factory2 exists for haul and unlock logic.
 func _has_factory() -> bool:
 	if _has_factory_known:
 		return _has_factory_cache
@@ -8388,6 +9056,7 @@ func _has_factory() -> bool:
 	return _has_factory_cache
 
 
+## Tallies living agents inside a spatial query radius.
 func _count_living_near(x: float, y: float, radius: float) -> int:
 	var n := 0
 	for id in query_radius(x, y, radius):
@@ -8396,6 +9065,7 @@ func _count_living_near(x: float, y: float, radius: float) -> int:
 	return n
 
 
+## Counts loose unheld ground items of a kind near a point.
 func _count_items_near(kind: int, x: float, y: float, radius: float) -> int:
 	var n := 0
 	for it in items:
@@ -8406,6 +9076,7 @@ func _count_items_near(kind: int, x: float, y: float, radius: float) -> int:
 	return n
 
 
+## Scans revealed chunks for pollution goo tiles used by mop limits and UI.
 func _count_goo() -> int:
 	var n := 0
 	for ck in chunks.keys():
@@ -8416,10 +9087,12 @@ func _count_goo() -> int:
 	return n
 
 
+## Point probe for terrain, features, and buildings that block solid placement.
 func _blocked(px: float, py: float, allow_ore: bool = false, allow_soft: bool = false) -> bool:
 	return _blocked_cell(_cell_vec(px, py), allow_ore, allow_soft)
 
 
+## Cell blocking with ore-node walk exceptions and soft cosmetic pads.
 func _blocked_cell(cell: Vector2i, allow_ore: bool = false, allow_soft: bool = false) -> bool:
 	var tile := _tile_at_cell(cell)
 	if Catalog.tile_blocks(tile):
@@ -8440,10 +9113,12 @@ func _blocked_cell(cell: Vector2i, allow_ore: bool = false, allow_soft: bool = f
 	return false
 
 
+## Whether world coordinates lie on a mine footprint walk pad.
 func _on_mine_pad(px: float, py: float) -> bool:
 	return _on_mine_pad_cell(_cell_vec(px, py))
 
 
+## Cell-level mine pad test used by movement blocking exceptions.
 func _on_mine_pad_cell(cell: Vector2i) -> bool:
 	# Mine footprints are walkable ground pads above terrain.
 	if blds_mine.is_empty() or not building_cell.has(cell):
@@ -8455,6 +9130,7 @@ func _on_mine_pad_cell(cell: Vector2i) -> bool:
 	return kind == Catalog.BLD_MINE or kind == Catalog.BLD_MINE2
 
 
+## Agent path blocking: pads, cliffs, inland rules, and save perf counters.
 func _move_blocked(px: float, py: float) -> bool:
 	if save_perf_mode:
 		set_meta("_ap_move_n", int(get_meta("_ap_move_n", 0)) + 1)
@@ -8470,6 +9146,7 @@ func _move_blocked(px: float, py: float) -> bool:
 	return not _land_inland_cell(cell)
 
 
+## Carousel walk test allowing only the painted ride disk and pad cells.
 func _ride_spot_blocked(px: float, py: float, ride_b: Dictionary) -> bool:
 	# Riders stand on their own pad / painted disk. Everything else still blocks.
 	var cell := _cell_vec(px, py)
@@ -8486,16 +9163,19 @@ func _ride_spot_blocked(px: float, py: float, ride_b: Dictionary) -> bool:
 	return _move_blocked(px, py)
 
 
+## Walkable stand on a circular approach ring around a world point.
 func _approach_spot(x: float, y: float, radius: float, who: int = -1) -> Vector2:
 	return _approach_ellipse(x, y, radius, radius, who)
 
 
+## Walkable gate on the building reach ellipse for seek and work entry.
 func _approach_building(b: Dictionary, who: int = -1) -> Vector2:
 	var center := _footprint_center_of(b)
 	var reach := Catalog.building_reach(int(b.kind))
 	return _approach_ellipse(center.x, center.y, reach.x, reach.y, who)
 
 
+## Point-in-ellipse test for at-building interactions and occupancy.
 func _inside_building_reach(px: float, py: float, b: Dictionary) -> bool:
 	var center := _footprint_center_of(b)
 	var reach := Catalog.building_reach(int(b.kind))
@@ -8506,6 +9186,7 @@ func _inside_building_reach(px: float, py: float, b: Dictionary) -> bool:
 	return u * u + v * v <= 1.0
 
 
+## Samples an ellipse for the nearest unblocked stand tile toward an agent.
 func _approach_ellipse(x: float, y: float, rx: float, ry: float, who: int = -1) -> Vector2:
 	var best := Vector2(x, y)
 	var best_d := 1.0e9
@@ -8539,10 +9220,12 @@ func _approach_ellipse(x: float, y: float, rx: float, ry: float, who: int = -1) 
 
 
 
+## Surface tile at world pixels, including fog outside revealed chunks.
 func _tile_at(px: float, py: float) -> int:
 	return _tile_at_cell(_cell_vec(px, py))
 
 
+## Chunk-local surface tile lookup with lazy chunk allocation.
 func _tile_at_cell(cell: Vector2i) -> int:
 	var chunk_x := _floor_div(cell.x, Catalog.CHUNK)
 	var chunk_y := _floor_div(cell.y, Catalog.CHUNK)
@@ -8560,6 +9243,7 @@ func _tile_at_cell(cell: Vector2i) -> int:
 	return int(ch.tiles[ly * Catalog.CHUNK + lx])
 
 
+## Underlying base terrain tile beneath the painted surface layer.
 func _base_at(px: float, py: float) -> int:
 	var c := _chunk_at(px, py)
 	var ck := _ck(c.x, c.y)
@@ -8569,6 +9253,7 @@ func _base_at(px: float, py: float) -> int:
 	return int(chunks[ck].base[local.y * Catalog.CHUNK + local.x])
 
 
+## Writes a tile into the chunk grid and invalidates inland, walk, and goo caches.
 func _set_world_cell(cx: int, cy: int, tile: int, also_base: bool) -> void:
 	var chunk_x := _floor_div(cx, Catalog.CHUNK)
 	var chunk_y := _floor_div(cy, Catalog.CHUNK)
@@ -8581,6 +9266,7 @@ func _set_world_cell(cx: int, cy: int, tile: int, also_base: bool) -> void:
 	_set_local_tile(ck, lx, ly, tile, also_base)
 
 
+## Low-level chunk tile write that marks chunk dirty and refreshes derived caches.
 func _set_local_tile(ck: String, lx: int, ly: int, tile: int, also_base: bool) -> void:
 	if not chunks.has(ck):
 		return
@@ -8598,6 +9284,7 @@ func _set_local_tile(ck: String, lx: int, ly: int, tile: int, also_base: bool) -
 	_mark_dirty(ck)
 
 
+## Registers a slot in the dense living_ids roster when an agent becomes alive.
 func _living_add(i: int) -> void:
 	if i < 0 or i >= living_at.size():
 		return
@@ -8607,6 +9294,7 @@ func _living_add(i: int) -> void:
 	living_ids.append(i)
 
 
+## Swap-removes a slot from living_ids when an agent dies or vacates.
 func _living_remove(i: int) -> void:
 	if i < 0 or i >= living_at.size():
 		return
@@ -8622,6 +9310,7 @@ func _living_remove(i: int) -> void:
 	living_at[i] = -1
 
 
+## Removes an agent from its spatial hash bucket linked list.
 func _hash_unlink(i: int) -> void:
 	if i < 0 or i >= hash_cell.size():
 		return
@@ -8645,6 +9334,7 @@ func _hash_unlink(i: int) -> void:
 	hash_next[i] = -1
 
 
+## Inserts an agent into the hash grid bucket for query_radius lookups.
 func _hash_link(i: int) -> void:
 	if i < 0 or i >= slot_count or state[i] == Catalog.ST_VACANT:
 		return
@@ -8656,6 +9346,7 @@ func _hash_link(i: int) -> void:
 	hash_head[b] = i
 
 
+## Re-buckets an agent after movement crosses a hash cell boundary.
 func _hash_relocate(i: int) -> void:
 	if i < 0 or i >= hash_cell.size():
 		return
@@ -8669,6 +9360,7 @@ func _hash_relocate(i: int) -> void:
 	_hash_link(i)
 
 
+## Updates agent coordinates and refreshes spatial hash indexing.
 func _set_agent_pos(i: int, x: float, y: float) -> void:
 	if i < 0 or i >= slot_count:
 		return
@@ -8677,6 +9369,7 @@ func _set_agent_pos(i: int, x: float, y: float) -> void:
 	_hash_relocate(i)
 
 
+## Rebuilds the full agent spatial hash after load or shot sandbox resets.
 func _rebuild_hash() -> void:
 	if hash_cell.size() != slot_count:
 		hash_cell.resize(slot_count)
@@ -8691,6 +9384,7 @@ func _rebuild_hash() -> void:
 		_hash_link(i)
 
 
+## Whether a feature may be grabbed (loose rocks, not rooted terrain props).
 func _feature_movable(feat: Dictionary) -> bool:
 	if feat.is_empty() or feat.dead or bool(feat.get("rooted", false)):
 		return false
@@ -8698,12 +9392,14 @@ func _feature_movable(feat: Dictionary) -> bool:
 	return int(feat.kind) == Catalog.FEAT_ROCK
 
 
+## Marks trees, stumps, and cosmetics rooted so they cannot be dragged.
 func _anchor_terrain_feature(feat: Dictionary) -> void:
 	var kind := int(feat.kind)
 	if kind == Catalog.FEAT_TREE or kind == Catalog.FEAT_STUMP or kind == Catalog.FEAT_MSTUMP or kind == Catalog.FEAT_COSMETIC or kind == Catalog.FEAT_COSMETIC_BAD:
 		feat.rooted = true
 
 
+## Adds a feature to its chunk bucket for culling and rect queries.
 func _feat_chunk_index(feat: Dictionary) -> void:
 	var ck := _ck(int(feat.cx), int(feat.cy))
 	if not features_by_chunk.has(ck):
@@ -8711,6 +9407,7 @@ func _feat_chunk_index(feat: Dictionary) -> void:
 	features_by_chunk[ck].append(feat)
 
 
+## Removes a feature from its chunk bucket when moved or killed.
 func _feat_chunk_unindex(feat: Dictionary) -> void:
 	var ck := _ck(int(feat.cx), int(feat.cy))
 	var bucket = features_by_chunk.get(ck, null)
@@ -8721,6 +9418,7 @@ func _feat_chunk_unindex(feat: Dictionary) -> void:
 		features_by_chunk.erase(ck)
 
 
+## Lists live features whose chunks overlap a camera or world rectangle.
 func features_in_rect(rect: Rect2) -> Array:
 	# Only features whose chunks overlap rect (+1 chunk pad for tall sprites).
 	var out: Array = []
@@ -8743,6 +9441,7 @@ func features_in_rect(rect: Rect2) -> Array:
 	return out
 
 
+## Full world rebind after load: ids, cells, links, living roster, and spatial hash.
 func _reindex() -> void:
 	feature_by_id.clear()
 	feature_cell.clear()
@@ -8799,6 +9498,7 @@ func _reindex() -> void:
 	_rebuild_hash()
 
 
+## Sizes per-agent link, seek, and hash side arrays to slot_count.
 func _ensure_link_arrays() -> void:
 	var n := slot_count
 	if link_tub.size() != n:
@@ -8839,6 +9539,7 @@ func _ensure_link_arrays() -> void:
 		hash_next.fill(-1)
 
 
+## Reconstructs agent-building and agent-item links from saved occupant fields.
 func _rebuild_links() -> void:
 	_ensure_link_arrays()
 	link_tub.fill(-1)
@@ -8880,6 +9581,7 @@ func _rebuild_links() -> void:
 			link_ball[who] = int(it.id)
 
 
+## Rebuilds living_ids, dead counts, and legacy corpse starve timers.
 func _rebuild_living() -> void:
 	living_ids = PackedInt32Array()
 	if living_at.size() != slot_count:
@@ -8898,6 +9600,7 @@ func _rebuild_living() -> void:
 				starve[i] = CORPSE_LIFE
 
 
+## Refreshes living tally, peak population, carry counts, and item tally caches.
 func _recount() -> void:
 	_rebuild_living()
 	living = living_ids.size()
@@ -8906,6 +9609,7 @@ func _recount() -> void:
 	_invalidate_item_counts()
 
 
+## Strips dead dictionaries from a features, items, or buildings array in place.
 func _compact(list: Array) -> void:
 	var w := 0
 	for i in list.size():
@@ -8915,6 +9619,7 @@ func _compact(list: Array) -> void:
 	list.resize(w)
 
 
+## Sets the default tool and building unlock table for a new colony.
 func _init_unlocks() -> void:
 	unlocks = {
 		"apple": true,
@@ -8947,6 +9652,7 @@ func _init_unlocks() -> void:
 	}
 
 
+## Loads biomes.json into runtime tables for procedural chunk generation.
 func _load_biomes() -> void:
 	biomes = []
 	biome_by_id = {}
@@ -8961,6 +9667,7 @@ func _load_biomes() -> void:
 		biome_by_id[str(biome.id)] = biome
 
 
+## Picks biome id for unrevealed chunks (meadow, grove, sea, special).
 func _biome_formula(cx: int, cy: int) -> String:
 	var special := str(special_biomes.get(_ck(cx, cy), ""))
 	if special != "":
@@ -8972,6 +9679,7 @@ func _biome_formula(cx: int, cy: int) -> String:
 	return "sea"
 
 
+## Scatters glitch, anomaly, epilogue, and mountain décor when those biomes generate.
 func _scatter_biome_props(cx: int, cy: int, biome: String) -> void:
 	if biome != "glitch" and biome != "anomaly" and biome != "epilogue" and biome != "mountain":
 		return
@@ -8995,11 +9703,13 @@ func _scatter_biome_props(cx: int, cy: int, biome: String) -> void:
 		_add_feature(kind, wx, wy, 1, ore, true)
 
 
+## Biome name at world coordinates from chunk data or generation formula.
 func biome_at(x: float, y: float) -> String:
 	var cell := _chunk_at(x, y)
 	return _biome_of(cell.x, cell.y)
 
 
+## Biome string for chunk coords, preferring stored chunk.biome when revealed.
 func _biome_of(cx: int, cy: int) -> String:
 	var ck := _ck(cx, cy)
 	if chunks.has(ck):
@@ -9007,59 +9717,72 @@ func _biome_of(cx: int, cy: int) -> String:
 	return _biome_formula(cx, cy)
 
 
+## Deterministic chunk-local RNG float seeded from world seed and coordinates.
 func _rand(cx: int, cy: int, lx: int, ly: int, salt: int) -> float:
 	_rng.seed = int(world_seed) ^ (cx * 83492791) ^ (cy * 19349663) ^ (lx * 97) ^ (ly * 57) ^ (salt * 131)
 	return _rng.randf()
 
 
+## Spatial hash bucket index for a world position.
 func _bucket(px: float, py: float) -> int:
 	return _bucket_cell(int(floor(px / Catalog.HASH_CELL)), int(floor(py / Catalog.HASH_CELL)))
 
 
+## Hash bucket from pre-quantized hash cell coordinates.
 func _bucket_cell(cx: int, cy: int) -> int:
 	return (cx * 73856093 ^ cy * 19349663) & (Catalog.HASH_SIZE - 1)
 
 
+## Maps world position to chunk grid indices.
 func _chunk_at(px: float, py: float) -> Vector2i:
 	return Vector2i(_floor_div(_cell_of(px), Catalog.CHUNK), _floor_div(_cell_of(py), Catalog.CHUNK))
 
 
+## Chunk dictionary key string for a world point.
 func _ck_of(px: float, py: float) -> String:
 	var c := _chunk_at(px, py)
 	return _ck(c.x, c.y)
 
 
+## Intra-chunk tile offset for a world position.
 func _local_cell(px: float, py: float) -> Vector2i:
 	var c := _chunk_at(px, py)
 	return Vector2i(_cell_of(px) - c.x * Catalog.CHUNK, _cell_of(py) - c.y * Catalog.CHUNK)
 
 
+## Converts world pixels to integer tile cell coordinates.
 func _cell_vec(px: float, py: float) -> Vector2i:
 	return Vector2i(_cell_of(px), _cell_of(py))
 
 
+## Converts one world axis coordinate to a tile index.
 func _cell_of(p: float) -> int:
 	return int(floor(p / float(Catalog.TILE)))
 
 
+## Floor division that behaves correctly for negative chunk indexing.
 func _floor_div(a: int, b: int) -> int:
 	return int(floor(float(a) / float(b)))
 
 
+## World-space center of a chunk for camera and spawn math.
 func _chunk_center(cx: int, cy: int) -> Vector2:
 	var size := float(Catalog.CHUNK * Catalog.TILE)
 	return Vector2(float(cx) * size + size * 0.5, float(cy) * size + size * 0.5)
 
 
+## Formats chunk coordinates as the chunks dictionary key.
 func _ck(cx: int, cy: int) -> String:
 	return "%d,%d" % [cx, cy]
 
 
+## Parses a chunk key string back into chunk grid indices.
 func _parse_ck(key: String) -> Vector2i:
 	var parts := key.split(",")
 	return Vector2i(int(parts[0]), int(parts[1]))
 
 
+## Positive modular arithmetic for wrapping indices.
 func _pmod(a: int, m: int) -> int:
 	var r := a % m
 	if r < 0:
@@ -9067,23 +9790,27 @@ func _pmod(a: int, m: int) -> int:
 	return r
 
 
+## Distance from agent slot i to a world point.
 func _dist_i(i: int, x: float, y: float) -> float:
 	var dx := pos_x[i] - x
 	var dy := pos_y[i] - y
 	return sqrt(dx * dx + dy * dy)
 
 
+## Euclidean distance between two world points.
 func _dist_point(x0: float, y0: float, x1: float, y1: float) -> float:
 	var dx := x0 - x1
 	var dy := y0 - y1
 	return sqrt(dx * dx + dy * dy)
 
 
+## Flags a chunk key for renderer and sync dirty propagation.
 func _mark_dirty(ck: String) -> void:
 	if not dirty_chunks.has(ck):
 		dirty_chunks.append(ck)
 
 
+## Coerces serialized arrays to PackedFloat32Array for agent stat columns.
 func _as_f32(value) -> PackedFloat32Array:
 	if value is PackedFloat32Array:
 		return value
@@ -9095,6 +9822,7 @@ func _as_f32(value) -> PackedFloat32Array:
 	return out
 
 
+## Coerces serialized arrays to PackedInt32Array for integral agent fields.
 func _as_i32(value) -> PackedInt32Array:
 	if value is PackedInt32Array:
 		return value
@@ -9107,6 +9835,7 @@ func _as_i32(value) -> PackedInt32Array:
 
 
 
+## Building kind rows used by the goo comparison screenshot harness.
 func _shot_bld_goo_kinds() -> Array:
 	return [
 		{"kind": Catalog.BLD_DWELL, "name": "dwell"},
@@ -9119,6 +9848,7 @@ func _shot_bld_goo_kinds() -> Array:
 	]
 
 
+## Paints grass under a building footprint for clean capture staging.
 func _shot_force_pad(kind: int, x: float, y: float) -> Vector2:
 	var at := Catalog.snap_world(x, y)
 	for cell in _footprint_cells(at.x, at.y, Catalog.footprint_for_building(kind)):
@@ -9126,12 +9856,14 @@ func _shot_force_pad(kind: int, x: float, y: float) -> Vector2:
 	return at
 
 
+## Marks a staged building footprint with pollution goo tiles.
 func _shot_paint_building_goo(b: Dictionary) -> void:
 	for cell in _footprint_cells(float(b.x), float(b.y), Catalog.footprint_for_building(int(b.kind))):
 		_set_world_cell(cell.x, cell.y, Catalog.TILE_GOO, false)
 	goo_count = _count_goo()
 
 
+## Runs mop over every footprint cell of a staged building for capture.
 func _shot_mop_building(b: Dictionary) -> void:
 	# Sweep the mop over every footprint cell (mines exceed one MOP_RADIUS).
 	for cell in _footprint_cells(float(b.x), float(b.y), Catalog.footprint_for_building(int(b.kind))):
@@ -9139,6 +9871,7 @@ func _shot_mop_building(b: Dictionary) -> void:
 		_mop(at.x, at.y)
 
 
+## Activates a staged building with guests, factory ore, or mine buffer for shots.
 func _shot_activate_building(b: Dictionary) -> void:
 	var kind := int(b.kind)
 	if kind == Catalog.BLD_DWELL or kind == Catalog.BLD_FANCY or kind == Catalog.BLD_THEATRE:
@@ -9159,6 +9892,7 @@ func _shot_activate_building(b: Dictionary) -> void:
 		b.buffer = maxi(1, int(b.get("buffer", 0)))
 
 
+## Places idle, active, and goo columns of one kind for overlay alignment captures.
 func _shot_place_bld_row(kind: int) -> Dictionary:
 	# Left idle | mid active | right goo. Same kind for overlay alignment checks.
 	_clear_shot_props()
@@ -9200,6 +9934,7 @@ func _shot_place_bld_row(kind: int) -> Dictionary:
 	return out
 
 
+## Screenshot setup: unlocks major buildings and frames the goo comparison scene.
 func _prep_shot_bld_goo() -> void:
 	# Capture harness places each idle|active|goo row and the mop pair.
 	unlocks.dwelling = true
@@ -9218,6 +9953,7 @@ func _prep_shot_bld_goo() -> void:
 	print("SHOT BLD GOO READY")
 
 
+## Stages neglect corpse, living thronglet, and splash-kill blood for capture.
 func _prep_shot_blood() -> void:
 	_clear_shot_props()
 	# Left: neglect corpse (no blood). Mid: living. Right: splash-kill corpse + Throng_Prop_Blood_A.
@@ -9254,6 +9990,7 @@ func _prep_shot_blood() -> void:
 	])
 
 
+## Stages scrubbing versus post-wash happy and clean VFX for sponge shots.
 func _prep_shot_wash() -> void:
 	_clear_shot_props()
 	# Left: ACT_WASH + bubbles on body. Right: post-wash Happy stand + one CLEAN burst.
@@ -9287,6 +10024,7 @@ func _prep_shot_wash() -> void:
 	print("SHOT WASH READY scrub=%s done=%s" % [scrub_id, done_id])
 
 
+## Stages stand, walk, and kick ball poses for play animation regression.
 func _prep_shot_ball() -> void:
 	_clear_shot_props()
 	# Left: Default stand. Mid: content Happy_Walk + ball claim (bug was 1.0 scale).
@@ -9307,7 +10045,7 @@ func _prep_shot_ball() -> void:
 		act[walk_id] = ACT_PLAY
 		act_t[walk_id] = 0.55
 		if not ball.is_empty():
-			_claim_ball(walk_id, ball)
+			_claim_item(walk_id, ball)
 	if kick_id >= 0:
 		dir_x[kick_id] = 0.0
 		dir_y[kick_id] = 0.0
@@ -9328,6 +10066,7 @@ func _prep_shot_ball() -> void:
 	])
 
 
+## Stages filthy walking versus held thronglet for cleanliness UI capture.
 func _prep_shot_dirt() -> void:
 	_clear_shot_props()
 	# Two filthy thronglets at default zoom: left walks, right is held (Default body).
@@ -9367,6 +10106,7 @@ func _prep_shot_dirt() -> void:
 	])
 
 
+## Stages low mixed needs HUD with nearby apple and ball props.
 func _prep_shot_needs() -> void:
 	_clear_shot_props()
 	# One thronglet with mixed needs so the HUD card matches the video card.
@@ -9401,6 +10141,7 @@ func _prep_shot_needs() -> void:
 	])
 
 
+## Stages hungry pair and three-bite apple for eating animation capture.
 func _prep_shot_apple() -> void:
 	_clear_shot_props()
 	# Two hungry thronglets and one apple with 3 bites.
@@ -9436,6 +10177,7 @@ func _prep_shot_apple() -> void:
 	smoke_hold = true
 	print("SHOT APPLE READY a=%s b=%s apple_bites=%s" % [a, b, apple.get("bites_left", -1)])
 
+## Stages wood, bone, and ore carry poses beside ground haul items.
 func _prep_shot_carry() -> void:
 	_clear_shot_props()
 	var rows := [
@@ -9465,6 +10207,7 @@ func _prep_shot_carry() -> void:
 	print("SHOT CARRY READY throng=%s items=%s living=%s" % [shot_throng, items.size(), living])
 
 
+## Plants an isolated roundabout framed for carousel idle capture.
 func _prep_shot_round() -> void:
 	_clear_shot_props()
 	unlocks.roundabout = true
@@ -9498,6 +10241,7 @@ func _prep_shot_round() -> void:
 	print("SHOT ROUND READY at=(%.1f,%.1f) id=%s" % [at.x, at.y, str(round_b.get("id", -1))])
 
 
+## Fills the smoke island with buildings, items, features, path wear, and factory.
 func _prep_shot_world() -> void:
 	_clear_shot_props()
 	var taken := {}
@@ -9584,6 +10328,7 @@ func _prep_shot_world() -> void:
 	print("SHOT READY buildings=%s features=%s items=%s factory=%s path=%s missed=%s" % [buildings.size(), features.size(), items.size(), shot_factory, path_cells, missed])
 
 
+## Tests whether a grass cell can host shot path stamping without void neighbors.
 func _shot_open_grass(cell: Vector2i) -> bool:
 	if building_cell.has(cell) or feature_cell.has(cell):
 		return false
@@ -9597,6 +10342,7 @@ func _shot_open_grass(cell: Vector2i) -> bool:
 	return true
 
 
+## Carves and marks worn footpath cells for the world overview shot.
 func _stamp_shot_path() -> int:
 	var origin := Vector2i(-1, -1)
 	var best := -1
@@ -9642,6 +10388,7 @@ func _stamp_shot_path() -> int:
 	return cells.size()
 
 
+## Clears features, buildings, items, and agents for a fresh capture sandbox.
 func _clear_shot_props() -> void:
 	features.clear()
 	feature_by_id.clear()
@@ -9662,6 +10409,7 @@ func _clear_shot_props() -> void:
 	_invalidate_walk_cells()
 
 
+## Finds a non-overlapping grass anchor on the shot island for a footprint.
 func _shot_spot(taken: Dictionary, size: Vector2i, halo: int = 1, margin: float = 40.0, skirt: int = 0) -> Vector2:
 	var reach := _island_reach() - margin
 	for y in range(6, 27):
@@ -9698,6 +10446,7 @@ func _shot_spot(taken: Dictionary, size: Vector2i, halo: int = 1, margin: float 
 	return Vector2(-1, -1)
 
 
+## Adds a rooted feature for capture layout without campaign placement rules.
 func _shot_add_feature(kind: int, x: float, y: float, ore: int) -> Dictionary:
 	var id := next_feature_id
 	next_feature_id += 1
@@ -9721,6 +10470,7 @@ func _shot_add_feature(kind: int, x: float, y: float, ore: int) -> Dictionary:
 	return feat
 
 
+## Searches hints then the home chunk for a valid building site in tests.
 func _smoke_find_spot(kind: int, hints: Array) -> Vector2:
 	for spot in hints:
 		var at: Vector2 = spot
@@ -9735,6 +10485,7 @@ func _smoke_find_spot(kind: int, hints: Array) -> Vector2:
 	return Vector2.ZERO
 
 
+## Preloads factory pile and buffer for factory visual and smoke checks.
 func _shot_fill_factory(b: Dictionary) -> void:
 	var piled: Array = []
 	for n in 24:
@@ -9743,6 +10494,7 @@ func _shot_fill_factory(b: Dictionary) -> void:
 	b.buffer = piled.size()
 
 
+## Returns or creates the FIFO ore token pile array on a factory building.
 func _factory_pile(b: Dictionary) -> Array:
 	var found = b.get("pile", [])
 	if found is Array:
@@ -9752,10 +10504,12 @@ func _factory_pile(b: Dictionary) -> Array:
 	return fresh
 
 
+## Seconds per ore processing cycle for factory versus factory2.
 func _factory_cycle_time(kind: int) -> float:
 	return FACTORY_PROCESS_TIME2 if kind == Catalog.BLD_FACTORY2 else FACTORY_PROCESS_TIME
 
 
+## UI progress 0–1 through the current factory processing timer.
 func factory_process_progress(b: Dictionary) -> float:
 	# 0 at cycle start → 1 when the current ore is about to become energy.
 	if b.is_empty() or bool(b.get("dead", true)):
@@ -9768,6 +10522,7 @@ func factory_process_progress(b: Dictionary) -> float:
 	return clampf(1.0 - float(b.get("timer", 0.0)) / cycle, 0.0, 1.0)
 
 
+## Pushes ore tokens onto the factory pile and starts the timer when idle.
 func _factory_stack(b: Dictionary, n: int) -> void:
 	var pile := _factory_pile(b)
 	var was_empty := pile.is_empty() and int(b.get("buffer", 0)) <= 0
@@ -9781,6 +10536,7 @@ func _factory_stack(b: Dictionary, n: int) -> void:
 		b.timer = _factory_cycle_time(int(b.kind))
 
 
+## Pops one processed ore from pile or buffer when energy is granted.
 func _factory_spend(b: Dictionary) -> void:
 	var pile := _factory_pile(b)
 	if pile.is_empty():
@@ -9791,6 +10547,7 @@ func _factory_spend(b: Dictionary) -> void:
 	b.buffer = pile.size()
 
 
+## Smoke assertion for factory ring wedges, delivery, pile order, and spend.
 func _check_factory_fill(errors: Array) -> void:
 	var factory := {}
 	for b in buildings:
@@ -9824,7 +10581,8 @@ func _check_factory_fill(errors: Array) -> void:
 		errors.append("factory fill: no building")
 		return
 	var main := get_tree().current_scene
-	if main == null or not main.has_method("_sync_factory_mark"):
+	var marks = null if main == null else main.get("world_marks_ui")
+	if marks == null or not marks.has_method("sync_factory_mark"):
 		errors.append("factory fill: no view")
 		return
 	factory.buffer = 0
@@ -9842,25 +10600,25 @@ func _check_factory_fill(errors: Array) -> void:
 		errors.append("factory fill: deposit failed")
 		return
 	factory.timer = cycle
-	main._sync_factory_mark(self)
+	marks.sync_factory_mark(self)
 	var shown0 := 0
-	for slice in main.factory_slices:
+	for slice in marks.factory_slices:
 		if slice.visible:
 			shown0 += 1
 	if shown0 != 0:
 		errors.append("factory fill: expected 0 slices at cycle start got %d" % shown0)
 	factory.timer = cycle * 0.5
-	main._sync_factory_mark(self)
+	marks.sync_factory_mark(self)
 	var shown_mid := 0
-	for slice in main.factory_slices:
+	for slice in marks.factory_slices:
 		if slice.visible:
 			shown_mid += 1
 	if shown_mid != FACTORY_WEDGES / 2:
 		errors.append("factory fill: expected %d slices at mid-cycle got %d" % [FACTORY_WEDGES / 2, shown_mid])
 	factory.timer = 0.0
-	main._sync_factory_mark(self)
+	marks.sync_factory_mark(self)
 	var shown_end := 0
-	for slice in main.factory_slices:
+	for slice in marks.factory_slices:
 		if slice.visible:
 			shown_end += 1
 	if shown_end != FACTORY_WEDGES:
@@ -9895,6 +10653,7 @@ func _check_factory_fill(errors: Array) -> void:
 		errors.append("factory pile spend")
 
 
+## Smoke assertion for DOS intro copy, tutorial signs, and opening count mark.
 func _check_opening(errors: Array) -> void:
 	var dos := LineBook.row("SYS.GAME_INTRO", 3)
 	var clean := LineBook.row("SYS.MESSAGES", 15)
@@ -9922,6 +10681,7 @@ func _check_opening(errors: Array) -> void:
 		errors.append("count mark")
 
 
+## Smoke assertion for name modal validation, confirm flow, and persistence.
 func _check_player_name(errors: Array) -> void:
 	if str(modal.get("event", "")) != "player_name":
 		errors.append("name prompt missing")
@@ -9957,6 +10717,7 @@ func _check_player_name(errors: Array) -> void:
 		errors.append("name confirm")
 
 
+## Automated smoke suite: hatch, unlocks, buildings, movement, save, and game over.
 func _run_checks() -> void:
 	var errors: Array = []
 	DialogueBook.ensure()
@@ -10286,7 +11047,7 @@ func _run_checks() -> void:
 							_count_kind_on(0, 0, Catalog.FEAT_ROCK) + _count_kind_on(0, 0, Catalog.FEAT_BIGROCK),
 						])
 					else:
-						var ore_it := _nearest_free_item(0, Catalog.ITEM_ORE, 180.0)
+						var ore_it := _nearest_free_item(0, Catalog.ITEM_ORE, Catalog.NEAR_BUILDING)
 						if ore_it.is_empty():
 							errors.append("ore missing for haul")
 						else:

@@ -3,15 +3,22 @@ extends SceneTree
 ## Headless pathing probe: corner trap, 1-tile gap, rock/tree wall detour, maze.
 ## Asserts progress, never stands on blocked cells, and path length stays near-optimal.
 
+## Preloaded ThrongletSimServer script used for headless simulation steps.
 const SimScript := preload("res://scripts/core/ThrongletSimServer.gd")
+
+## Fixed sim step delta used while walking throngs in path probes.
 const DT := 0.08
+
+## Throng walk speed in world units per second for path stepping.
 const SPEED := 26.0
 
 
+## Defers probe execution until the SceneTree root is ready.
 func _init() -> void:
 	call_deferred("_run")
 
 
+## Boots the sim, runs assertions, and quits with pass/fail status.
 func _run() -> void:
 	var sim = SimScript.new()
 	sim.testing = true
@@ -49,6 +56,7 @@ func _run() -> void:
 		quit(1)
 
 
+## Finds inland grass pads outside spawn for isolated path scenarios.
 func _pick_pads(sim, need: int) -> Array[Vector2i]:
 	var mid: float = float(sim.island_gen.island_mid())
 	var reach: float = float(sim.island_gen.island_reach())
@@ -86,6 +94,7 @@ func _pick_pads(sim, need: int) -> Array[Vector2i]:
 	return out
 
 
+## Clears features and buildings in a square around a test origin.
 func _clear_pad(sim, origin: Vector2i, half: int) -> void:
 	for oy in range(-half, half + 1):
 		for ox in range(-half, half + 1):
@@ -105,12 +114,14 @@ func _clear_pad(sim, origin: Vector2i, half: int) -> void:
 			sim._set_world_cell(key.x, key.y, Catalog.TILE_GRASS, true)
 
 
+## Plants a feature kind on a cell and returns the feature dict.
 func _plant(sim, kind: int, cell: Vector2i, ore: int = 0) -> Dictionary:
 	var at: Vector2 = Catalog.cell_world(cell)
 	var feat: Dictionary = sim._add_feature(kind, at.x, at.y, 1 + ore, ore, false)
 	return feat
 
 
+## Spawns a throng on a cell and returns its slot id.
 func _spawn_at(sim, cell: Vector2i) -> int:
 	var at: Vector2 = Catalog.cell_world(cell)
 	if sim._move_blocked(at.x, at.y):
@@ -126,6 +137,7 @@ func _spawn_at(sim, cell: Vector2i) -> int:
 	return id
 
 
+## Steps sim toward a goal and returns throng position and blocked flags.
 func _walk_until(sim, id: int, goal: Vector2, steps: int) -> Dictionary:
 	var blocked_hits: int = 0
 	var path_len: float = 0.0
@@ -147,10 +159,12 @@ func _walk_until(sim, id: int, goal: Vector2, steps: int) -> Dictionary:
 	}
 
 
+## Manhattan distance between two world points.
 func _manhattan(a: Vector2, b: Vector2) -> float:
 	return absf(a.x - b.x) + absf(a.y - b.y)
 
 
+## Path scenario: throng must escape a corner pocket.
 func _case_corner_trap(sim, origin: Vector2i) -> Array[String]:
 	var errors: Array[String] = []
 	_clear_pad(sim, origin, 6)
@@ -186,6 +200,7 @@ func _case_corner_trap(sim, origin: Vector2i) -> Array[String]:
 	return errors
 
 
+## Path scenario: single-tile gap through a rock wall.
 func _case_narrow_gap(sim, origin: Vector2i) -> Array[String]:
 	var errors: Array[String] = []
 	_clear_pad(sim, origin, 8)
@@ -218,6 +233,7 @@ func _case_narrow_gap(sim, origin: Vector2i) -> Array[String]:
 	return errors
 
 
+## Path scenario: detour around a rock/tree barrier.
 func _case_rock_detour(sim, origin: Vector2i) -> Array[String]:
 	# Rock sits on the straight line; sparse trees thicken the wall without crowded-fail.
 	var errors: Array[String] = []
@@ -256,6 +272,7 @@ func _case_rock_detour(sim, origin: Vector2i) -> Array[String]:
 	return errors
 
 
+## Path scenario: weave through a forest maze.
 func _case_forest_maze(sim, origin: Vector2i) -> Array[String]:
 	var errors: Array[String] = []
 	_clear_pad(sim, origin, 10)
@@ -290,6 +307,7 @@ func _case_forest_maze(sim, origin: Vector2i) -> Array[String]:
 	return errors
 
 
+## Path scenario: straight walk with no obstacles.
 func _case_linear_up(sim, origin: Vector2i) -> Array[String]:
 	# Off-center start walking pure north must not stairstep / zigzag on X.
 	var errors: Array[String] = []

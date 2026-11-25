@@ -1,13 +1,21 @@
 extends SceneTree
 
+
+## Renders gem HUD plaque layout off-screen and asserts expected dimensions.
+
+## Preloaded UI atlas helper for gem plaque layout checks.
 const UIAssets := preload("res://scripts/presentation/ui/ui_assets.gd")
+
+## Expected gem plaque height in pixels for HUD layout asserts.
 const PLAQUE_H := 36
 
 
+## Defers probe execution until the SceneTree root is ready.
 func _init() -> void:
 	call_deferred("_run")
 
 
+## Boots the sim, runs assertions, and quits with pass/fail status.
 func _run() -> void:
 	var ui_assets: UIAssets = UIAssets.new()
 	var vp := SubViewport.new()

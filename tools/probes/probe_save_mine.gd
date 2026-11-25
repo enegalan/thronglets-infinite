@@ -1,13 +1,21 @@
 extends SceneTree
 
+
+## Loads slot_0 and verifies throngs can reach and work assigned mines.
+
+## Preloaded ThrongletSimServer script used for headless simulation steps.
 const SimScript := preload("res://scripts/core/ThrongletSimServer.gd")
+
+## On-disk slot_0 save path exercised for regression probes.
 const SAVE := "/Users/egalan/Library/Application Support/Godot/app_userdata/Thronglets- Infinite/thronglets_slot_0.save"
 
 
+## Defers probe execution until the SceneTree root is ready.
 func _init() -> void:
 	call_deferred("_run")
 
 
+## Boots the sim, runs assertions, and quits with pass/fail status.
 func _run() -> void:
 	var sim = SimScript.new()
 	sim.testing = true
@@ -165,6 +173,7 @@ func _run() -> void:
 	quit(0)
 
 
+## Returns a short reason throng i cannot start mining.
 func _why_not_mine(sim, i: int) -> String:
 	if not sim._work_ready(i):
 		return "not_ready"
@@ -177,7 +186,7 @@ func _why_not_mine(sim, i: int) -> String:
 	if int(sim.carry[i]) != Catalog.CARRY_NONE:
 		return "carrying"
 	if sim._has_factory():
-		var ore_it = sim._nearest_free_item(i, Catalog.ITEM_ORE, 180.0)
+		var ore_it = sim._nearest_free_item(i, Catalog.ITEM_ORE, Catalog.NEAR_BUILDING)
 		if not ore_it.is_empty():
 			return "haul_ore"
 	var mine = sim._nearest_building_kinds(sim.pos_x[i], sim.pos_y[i], [Catalog.BLD_MINE, Catalog.BLD_MINE2], 360.0)

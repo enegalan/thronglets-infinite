@@ -2,129 +2,250 @@ extends Node2D
 
 # Layout bench. Places every prop and edits footprint, reach, scale, offset, z, and rotation live.
 
+## Minimum grid coordinate for valid prop placement cells.
 const PAD_MIN := -8
+## Maximum grid coordinate for valid prop placement cells.
 const PAD_MAX := 40
+## Synthetic palette id for the thronglet preview instance.
 const THRONG_ID := "throng:0"
+## Anim clip name that uses tub partner offsets in prop mode.
 const BATH_CLIP := "Throng_FallInBath_Spritesheet"
+## Roundabout body clip used when painting structure anims.
 const RIDE_CLIP := "ThrongA_Roundabout_SpriteSheet"
+## World scale multiplier when staging effect previews.
 const EFFECT_PREVIEW_SCALE := 8.0
+## Per-clip throng scale/offset/rotation persistence for anim review.
 const ThrongTune := preload("res://scripts/data/tune/throng_tune.gd")
+## Per-clip FPS and frame overrides saved from the throng anim strip.
 const AnimTune := preload("res://scripts/data/tune/anim_tune.gd")
+## Carousel lab JSON schema loader for roundabout admission tuning.
 const TiovivoLabTune := preload("res://scripts/data/tune/tiovivo_lab_tune.gd")
+const WorldBootstrap := preload("res://scripts/presentation/world/world_bootstrap.gd")
 
+## Main scene host providing camera, world drawer, and dev entry.
 var main = null
+## Left scrollable rail for prop palette and layout actions.
 var rail: PanelContainer
+## Bottom inspector bar for footprint, reach, and transform spin boxes.
 var bar: PanelContainer
+## VBox listing grouped prop palette buttons.
 var list: VBoxContainer
+## Shows armed prop id or MULTI when several uids are selected.
 var name_label: Label
+## Footprint edit status line in prop layout mode.
 var status: Label
+## Inspector spin for prop footprint width in cells.
 var grid_x: SpinBox
+## Inspector spin for prop footprint height in cells.
 var grid_y: SpinBox
+## Inspector spin for horizontal interaction reach in cells.
 var reach_x: SpinBox
+## Inspector spin for vertical interaction reach in cells.
 var reach_y: SpinBox
+## Inspector spin for prop world sprite scale.
 var scale_box: SpinBox
+## Inspector spin for prop sprite X offset in world units.
 var off_x: SpinBox
+## Inspector spin for prop sprite Y offset in world units.
 var off_y: SpinBox
+## Inspector spin for lit/active sprite X offset.
 var active_x: SpinBox
+## Inspector spin for lit/active sprite Y offset.
 var active_y: SpinBox
+## Inspector spin for prop draw sort bias (z).
 var z_box: SpinBox
+## Inspector spin for prop rotation in degrees.
 var rot_box: SpinBox
+## Returns to normal play from layout mode.
 var quit_button: Button
+## Toggles lit building preview for supported structure kinds.
 var active_button: Button
+## Palette prop id to toggle Button map.
 var buttons := {}
+## Currently armed prop kind id for placement and inspector.
 var armed := ""
+## Prop id being dragged from palette before drop.
 var drag_id := ""
+## Uid of placed instance being repositioned, or -1.
 var move_uid := -1
+## Grid delta from grab cell to instance origin while moving.
 var move_grab := Vector2i.ZERO
+## Spawned bench instances with uid, id, and world at.
 var placed: Array = []
+## Uid list for multi-select footprint editing.
 var selected_uids: Array = []
+## Monotonic uid issued to the next placed instance.
 var next_uid := 1
+## Uid to pooled Node2D used for structure or throng draws.
 var nodes := {}
+## Uid set marking pooled nodes claimed during the current paint pass.
 var _node_used := {}
+## Guard suppressing cfg write-back while UI is being populated.
 var _fill := false
+## Whether lit structure sprites are shown in prop mode.
 var show_active := false
+## True when anim review UI is active instead of props.
 var throng_mode := false
+## True when isolated effect preview UI is active.
 var effect_mode := false
+## True when carousel tiovivo lab UI is active.
 var lab_mode := false
+## Reserved uid for the staged effect thronglet instance.
 const EFFECT_ACTIVE_UID := -2
+## Left rail for clip list and anim tuning in throng mode.
 var throng_rail: PanelContainer
+## Bottom bar with FPS, mirror, and play controls for clips.
 var throng_bar: PanelContainer
+## Left rail listing aura/act effect ids to preview.
 var effect_rail: PanelContainer
+## Bottom bar with effect metrics and replay controls.
 var effect_bar: PanelContainer
+## Left rail of carousel/spawn/sync tuning controls.
 var lab_rail: PanelContainer
+## Bottom lab action bar with pause, step, and save.
 var lab_bar: PanelContainer
+## Title label on the carousel lab bar.
 var lab_name: Label
+## Right-aligned lab status and admit metrics label.
 var lab_status: Label
+## Maps lab cfg group:key to SpinBox, OptionButton, or CheckBox.
 var lab_spins := {}
+## In-memory tiovivo lab tune dictionary mirrored to JSON.
 var lab_cfg := {}
+## Synthetic thronglet dicts used only in carousel lab simulation.
 var lab_agents: Array = []
+## Roundabout state dict: spin, slots, riders, center offset.
 var lab_carousel := {}
+## Whether lab simulation advances each tick.
 var lab_running := true
+## Accumulated lab simulation time in seconds.
 var lab_sim_t := 0.0
+## Time since last agent was admitted to the carousel.
 var lab_admit_t := 0.0
+## Agents admitted in the current wave when in wave mode.
 var lab_wave_count := 0
+## Countdown between waves in wave sync mode.
 var lab_wave_pause_t := 0.0
+## Next synthetic agent id for lab spawns.
 var lab_next_id := 1
+## Wall ms of last lab tick for step timing display.
 var lab_last_ms := 0
+## Selected lab agent id for delete/drag, or -1.
 var lab_selected_agent := -1
+## Agent id being dragged in lab view, or -1.
 var lab_drag_agent := -1
+## Whether the carousel center is being dragged.
 var lab_drag_carousel := false
+## Recent lab admit/status strings for the status line.
 var lab_messages: Array = []
 
+## VBox of effect id toggle buttons.
 var effect_list: VBoxContainer
+## Effect id to palette Button in effect mode.
 var effect_buttons := {}
+## Armed effect tune id (e.g. aura:flower).
 var effect_id := ""
+## Label showing human title of the armed effect.
 var effect_name: Label
+## Effect mode status and save outcome line.
 var effect_status: Label
+## Live metric readout for staged effect preview.
 var effect_live: Label
+## HBox of need and timing labels beside effect preview.
 var effect_metrics: HBoxContainer
+## HBox of clip and FX option rows for the effect.
 var effect_look: HBoxContainer
+## Numeric effect tune fields bound to SpinBoxes.
 var effect_spins := {}
+## OptionButton picking throng body clip during effect preview.
 var effect_clip_box: OptionButton
+## OptionButton picking overlay FX clip for the effect.
 var effect_fx_box: OptionButton
+## Toggles effect timeline play/pause.
 var effect_play_button: Button
+## Whether effect preview time is advancing.
 var effect_playing := true
+## Staged throng hunger need for effect gauge display.
 var effect_fed := 50.0
+## Staged throng fun need for effect gauge display.
 var effect_fun := 50.0
+## Staged throng clean need for effect gauge display.
 var effect_clean := 50.0
+## Elapsed seconds within the looping effect preview.
 var effect_t := 0.0
+## Short impulse timer for replay and ring flash.
 var effect_pulse := 0.0
+## Body clip name used when painting the effect thronglet.
 var effect_clip := "ThrongA_Default"
+## Line2D showing effect radius in world space.
 var effect_ring: Line2D
+## Need-bar overlay control beside the staged throng.
 var effect_gauge: Control
+## ColorRect fills for fed/fun/clean on the gauge.
 var effect_gauge_fills: Array = []
+## Labels beside each need segment on the gauge.
 var effect_gauge_labels: Array = []
+## Scrollable clip name buttons for anim mode.
 var clip_list: VBoxContainer
+## Text filter narrowing visible clip palette entries.
 var clip_filter: LineEdit
+## Clip name to toggle Button in anim review.
 var clip_buttons := {}
+## Primary armed animation clip for editing and preview.
 var clip_name := ""
+## Multi-selected clip names for batch anim edits.
 var selected_clips: Array = []
+## Multi-selected frame indexes on the current clip strip.
 var selected_frames: Array = []
+## Ordered clip names driving multi-clip preview playback.
 var clip_order: Array = []
+## Shift-range anchor clip name for multi-select.
 var clip_anchor := ""
+## Shift-range anchor frame index on the strip.
 var frame_anchor := 0
+## Shift-range anchor placed uid in prop mode.
 var uid_anchor := -1
+## Per-frame pin buttons on the anim strip.
 var frame_buttons: Array = []
+## HBox container holding frame pin buttons.
 var strip: HBoxContainer
+## SpinBox for preview frames-per-second of armed clip.
 var fps_box: SpinBox
+## SpinBox for throng sprite scale in anim review.
 var throng_scale: SpinBox
+## SpinBox for throng sprite X offset in anim review.
 var throng_x: SpinBox
+## SpinBox for throng sprite Y offset in anim review.
 var throng_y: SpinBox
+## SpinBox for throng rotation in anim review.
 var throng_rot: SpinBox
+## Play/pause toggle for clip preview.
 var play_button: Button
+## Toggles horizontal mirror on throng preview.
 var mirror_button: Button
+## Toggles apply-all-edits vs single-clip edits.
 var all_button: Button
+## Label for armed clip title in anim mode.
 var throng_name: Label
+## Anim mode status including save paths.
 var throng_status: Label
+## Whether clip playhead is advancing in throng mode.
 var playing := true
+## When true, frame edits apply to every selected clip.
 var apply_all := false
+## Current preview frame index on the armed clip.
 var frame_i := 0
+## Accumulated time driving automatic frame advance.
 var play_t := 0.0
+## Last rotation degrees pushed to rot spin to avoid feedback.
 var _rot_shown := -1
+## Wall timestamp of last playhead sync.
 var play_ms := 0
+## Whether throng preview is mirrored on X.
 var mirror := false
 
 
+## Attaches to Main, creates the effect ring, and builds prop UI and gauge.
 func setup(host) -> void:
 	main = host
 	z_index = 6
@@ -139,6 +260,7 @@ func setup(host) -> void:
 	_build_effect_gauge()
 
 
+## Resets modes, loads saved tunes, shows prop rail, and frames the pad.
 func open() -> void:
 	_clear_placed()
 	_paint_ground()
@@ -180,6 +302,7 @@ func open() -> void:
 	tick()
 
 
+## Tears down placed props, frees bench UI, and hides all dev rails.
 func close() -> void:
 	_clear_placed()
 	_hide_effect_need_bars()
@@ -228,6 +351,7 @@ func close() -> void:
 		lab_bar = null
 
 
+## Paints placed props or lab/effect previews and syncs playheads each frame.
 func tick() -> void:
 	if main == null:
 		return
@@ -256,7 +380,7 @@ func tick() -> void:
 			var origin := Catalog.cell_world(_cursor_cell())
 			_paint_inst(draws, ghost, origin, 0.45, -1, _node_used)
 	draws.sort_custom(func(a, b): return float(a.sy) < float(b.sy))
-	main._paint_props(draws)
+	main.world_drawer.paint_props(draws)
 	_lift_nodes()
 	_drop_nodes(_node_used)
 	if throng_mode:
@@ -270,6 +394,7 @@ func tick() -> void:
 	queue_redraw()
 
 
+## Routes mouse and keyboard to prop edit, anim, effect, or lab handlers.
 func input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT:
 		if event.pressed and (drag_id != "" or move_uid >= 0):
@@ -347,6 +472,7 @@ func input(event: InputEvent) -> void:
 			main.get_viewport().set_input_as_handled()
 
 
+## Overlays grid, footprints, reach, selection marks, and placement ghost.
 func _draw() -> void:
 	if main == null:
 		return
@@ -355,7 +481,7 @@ func _draw() -> void:
 		return
 	if effect_mode:
 		return
-	var poly: PackedVector2Array = main._place_cell_poly()
+	var poly: PackedVector2Array = main.placement_overlay.place_cell_poly()
 	if poly.is_empty():
 		return
 	var grid := Color(1, 1, 1, 0.16)
@@ -390,6 +516,7 @@ func _draw() -> void:
 	_stroke_reach(ghost_at, ghost_tune, Color(0.55, 0.86, 1.0, 0.7))
 
 
+## Handles selection, multi-select, and move grab on the placement pad.
 func _click(shift: bool = false, meta: bool = false) -> void:
 	if drag_id != "":
 		return
@@ -416,12 +543,14 @@ func _click(shift: bool = false, meta: bool = false) -> void:
 	move_grab = cell - _cell_of(inst.at)
 
 
+## Arms palette drag for a prop id without placing yet.
 func _begin_drag(id: String) -> void:
 	drag_id = id
 	move_uid = -1
 	_mark_buttons()
 
 
+## Commits move or drops a new instance when drag ends on the pad.
 func release_drag() -> void:
 	if move_uid >= 0 and drag_id == "":
 		_finish_move()
@@ -445,6 +574,7 @@ func release_drag() -> void:
 	_mark_buttons()
 
 
+## Sets armed prop id and primary selection for the inspector.
 func _arm(id: String, uid: int) -> void:
 	armed = id
 	selected_uids.clear()
@@ -456,6 +586,7 @@ func _arm(id: String, uid: int) -> void:
 	_refresh_prop_edit()
 
 
+## Adds or removes one placed uid from the selection set.
 func _toggle_uid(uid: int, id: String) -> void:
 	var at := selected_uids.find(uid)
 	if at >= 0:
@@ -475,6 +606,7 @@ func _toggle_uid(uid: int, id: String) -> void:
 	_refresh_prop_edit()
 
 
+## Shift-selects all instances whose cells fall in the rubber band.
 func _range_uids(uid: int, id: String, cell: Vector2i) -> void:
 	var anchor_uid := uid_anchor if uid_anchor >= 0 else _primary_uid()
 	var index := _index_of(anchor_uid)
@@ -504,6 +636,7 @@ func _range_uids(uid: int, id: String, cell: Vector2i) -> void:
 	_refresh_prop_edit()
 
 
+## Refreshes inspector fields, buttons, and status for selection.
 func _refresh_prop_edit() -> void:
 	if armed == "":
 		_clear_edit()
@@ -520,16 +653,19 @@ func _refresh_prop_edit() -> void:
 	_refresh_status()
 
 
+## Last uid in selected_uids used as inspector primary.
 func _primary_uid() -> int:
 	if selected_uids.is_empty():
 		return -1
 	return int(selected_uids[selected_uids.size() - 1])
 
 
+## Whether a placed uid is in the current selection.
 func _uid_picked(uid: int) -> bool:
 	return selected_uids.find(uid) >= 0
 
 
+## Distinct prop ids among selected uids for batch tune edits.
 func _edit_ids() -> Array:
 	var ids: Array = []
 	var seen := {}
@@ -547,6 +683,7 @@ func _edit_ids() -> Array:
 	return ids
 
 
+## Deletes all selected placed instances and frees nodes.
 func _remove_selected() -> void:
 	if selected_uids.is_empty():
 		return
@@ -571,6 +708,7 @@ func _remove_selected() -> void:
 	_refresh_status()
 
 
+## Resets PropTune defaults for every distinct id in the selection.
 func _reset_kind() -> void:
 	var ids := _edit_ids()
 	if ids.is_empty():
@@ -582,6 +720,7 @@ func _reset_kind() -> void:
 	_refresh_status()
 
 
+## Persists prop, throng, anim, and effect tunes then reloads.
 func _save_restart() -> void:
 	var prop_path: String = PropTune.save_file()
 	var throng_path: String = ThrongTune.save_file()
@@ -603,14 +742,16 @@ func _save_restart() -> void:
 	main.get_tree().reload_current_scene()
 
 
+## Fills the pad tiles via Main world ground helper.
 func _paint_ground() -> void:
 	main.tilemap.clear()
-	main._clear_paths()
+	main.path_overlay.clear_paths(main.pathmap)
 	for y in range(PAD_MIN, PAD_MAX + 1):
 		for x in range(PAD_MIN, PAD_MAX + 1):
 			main.tilemap.set_cell(Vector2i(x, y), 0, Vector2i(0, 0))
 
 
+## Removes every placed instance and frees pooled nodes.
 func _clear_placed() -> void:
 	placed.clear()
 	selected_uids.clear()
@@ -621,16 +762,19 @@ func _clear_placed() -> void:
 	nodes.clear()
 
 
+## Catalog palette row dict for a prop id string.
 func _row_for(id: String) -> Dictionary:
 	if id == THRONG_ID:
 		return {"id": THRONG_ID, "node": false}
 	return PropTune.entry(id)
 
 
+## Idle clip name for throng preview at a given time.
 func _throng_idle_clip(time: float) -> String:
 	return "ThrongA_Default Blink" if int(time * 2.0) % 5 == 4 else "ThrongA_Default"
 
 
+## Appends world draw entries and structure sprites for one placement.
 func _paint_inst(draws: Array, row: Dictionary, origin: Vector2, alpha: float, uid: int, used: Dictionary) -> void:
 	if str(row.get("id", "")) == THRONG_ID:
 		if throng_mode:
@@ -641,7 +785,7 @@ func _paint_inst(draws: Array, row: Dictionary, origin: Vector2, alpha: float, u
 			var clip := _throng_idle_clip(Time.get_ticks_msec() / 1000.0)
 			var frame := ThrongClips.frame_at(clip, 0)
 			var off: Vector2 = ThrongTune.frame_offset(clip, 0)
-			main._push_iso(draws, origin + off, frame, Color(1, 1, 1, alpha), 0.0, ThrongTune.frame_scale(clip, 0))
+			main.iso_draw.push_iso(draws, origin + off, frame, Color(1, 1, 1, alpha), 0.0, ThrongTune.frame_scale(clip, 0))
 			draws[draws.size() - 1]["rot"] = ThrongTune.frame_rot(clip, 0)
 		return
 	var tune: Dictionary = PropTune.get_tune(str(row.id))
@@ -663,50 +807,53 @@ func _paint_inst(draws: Array, row: Dictionary, origin: Vector2, alpha: float, u
 	if str(row.get("group", "")) == "building" and (kind == Catalog.BLD_ROUND or kind == Catalog.BLD_FLOWER):
 		_paint_structure_anim(draws, kind, origin, alpha, _frame_of(row), tune, uid, used)
 		return
-	if str(row.get("group", "")) == "building" and main._idle_structure_texture(kind) != null:
+	if str(row.get("group", "")) == "building" and main.structure_tex.idle_structure_texture(kind) != null:
 		_paint_idle_structure(draws, kind, origin, alpha, tune, uid, used)
 		return
 	var frame := _frame_of(row)
 	var at: Vector2 = _anchor(row, origin, tune, frame)
-	main._push_iso(draws, at, frame, Color(1, 1, 1, alpha), 0.0, float(tune.scale))
+	main.iso_draw.push_iso(draws, at, frame, Color(1, 1, 1, alpha), 0.0, float(tune.scale))
 	var last: Dictionary = draws[draws.size() - 1]
 	last["sy"] = float(last.get("sy", last.p.y)) + float(tune.z)
 	last["rot"] = float(tune.rot)
 	if str(row.group) == "feature" and int(row.kind) == Catalog.FEAT_ANOMALY:
-		main._push_iso(draws, at, AssetFrames.ANOMALY_RAY, Color(1, 1, 1, alpha), 0.0, float(tune.scale))
+		main.iso_draw.push_iso(draws, at, AssetFrames.ANOMALY_RAY, Color(1, 1, 1, alpha), 0.0, float(tune.scale))
 		var ray: Dictionary = draws[draws.size() - 1]
 		ray["sy"] = float(last.sy) + 0.5
 		ray["rot"] = float(tune.rot)
 
 
+## World anchor point for a prop given tune offsets and frame.
 func _anchor(row: Dictionary, origin: Vector2, tune: Dictionary, frame: int) -> Vector2:
 	var extra: Vector2 = tune.offset
 	if bool(row.get("node", false)):
 		return origin + extra
 	var size: Vector2i = tune.footprint
-	return origin + Catalog.footprint_center(size) + main._pad_nudge(frame, float(tune.scale), size) + extra
+	return origin + Catalog.footprint_center(size) + main.iso_draw.pad_nudge(frame, float(tune.scale), size) + extra
 
 
+## Atlas frame index for a placed row including anim and structure.
 func _frame_of(row: Dictionary) -> int:
 	var kind := int(row.kind)
 	var ore := int(row.ore)
 	var time := Time.get_ticks_msec() / 1000.0
 	if str(row.group) == "feature":
-		var frame: int = main._feature_frame(kind, time, ore)
+		var frame: int = main.anim_frames.feature_frame(kind, time, ore)
 		if frame < 0:
-			frame = main._prop_frame(Catalog.icon_for_feature(kind, ore))
+			frame = main.anim_frames.prop_frame(Catalog.icon_for_feature(kind, ore))
 		return frame
 	if str(row.group) == "item":
 		if kind == Catalog.ITEM_EGG:
-			return main.EGG_ANIM + posmod(int(time * 4.0), 5)
-		return main._prop_frame(Catalog.icon_for_item(kind))
+			return AnimTune.sheet_frame("egg", posmod(int(time * 4.0), 5))
+		return main.anim_frames.prop_frame(Catalog.icon_for_item(kind))
 	if kind == Catalog.BLD_ROUND:
-		return posmod(int(time * 8.0), main.ROUND_ANIM_N)
+		return posmod(int(time * 8.0), StructureTextures.ROUND_ANIM_N)
 	if kind == Catalog.BLD_FLOWER:
-		return posmod(int(time * 6.0), main.FLOWER_ANIM_N)
-	return main._prop_frame(int(row.icon))
+		return posmod(int(time * 6.0), StructureTextures.FLOWER_ANIM_N)
+	return main.anim_frames.prop_frame(int(row.icon))
 
 
+## Borrows or creates a pooled Node2D for a placed uid.
 func _take_node(uid: int) -> Node2D:
 	if nodes.has(uid) and is_instance_valid(nodes[uid]) and not (nodes[uid] is Sprite2D):
 		return nodes[uid]
@@ -719,6 +866,7 @@ func _take_node(uid: int) -> Node2D:
 	return node
 
 
+## Whether this building kind has a lit active texture.
 func _want_active_sprite(kind: int) -> bool:
 	if not Catalog.building_has_active(kind):
 		return false
@@ -727,8 +875,9 @@ func _want_active_sprite(kind: int) -> bool:
 	return effect_mode and str(effect_id).begins_with("visit:")
 
 
+## Borrows a Sprite2D for the lit building overlay.
 func _take_active_sprite(uid: int, kind: int) -> Sprite2D:
-	var tex: Texture2D = main._active_structure_texture(kind)
+	var tex: Texture2D = main.structure_tex.active_structure_texture(kind)
 	if nodes.has(uid) and is_instance_valid(nodes[uid]) and nodes[uid] is Sprite2D:
 		var kept: Sprite2D = nodes[uid]
 		kept.texture = tex
@@ -745,6 +894,7 @@ func _take_active_sprite(uid: int, kind: int) -> Sprite2D:
 	return node
 
 
+## Draws idle, active, or goo building layers for one uid.
 func _paint_active_building(
 	_draws: Array,
 	kind: int,
@@ -754,25 +904,26 @@ func _paint_active_building(
 	used: Dictionary,
 	tune: Dictionary
 ) -> void:
-	var tex: Texture2D = main._active_structure_texture(kind)
+	var tex: Texture2D = main.structure_tex.active_structure_texture(kind)
 	if tex == null:
 		return
 	# Active offset is independent of the idle/default offset.
-	var frame: int = main._prop_frame(Catalog.icon_for_building(kind))
+	var frame: int = main.anim_frames.prop_frame(Catalog.icon_for_building(kind))
 	var size: Vector2i = tune.get("footprint", Vector2i(1, 1))
 	var sprite_scale := float(tune.scale)
 	var active_off: Vector2 = tune.active_offset if tune.has("active_offset") else Vector2.ZERO
-	var at: Vector2 = origin + Catalog.footprint_center(size) + main._pad_nudge(frame, sprite_scale, size) + active_off
+	var at: Vector2 = origin + Catalog.footprint_center(size) + main.iso_draw.pad_nudge(frame, sprite_scale, size) + active_off
 	var screen_p: Vector2 = main.cam_rig.to_iso(at)
 	var node: Sprite2D = _take_active_sprite(uid, kind)
 	node.scale = Vector2(sprite_scale, sprite_scale)
 	node.rotation_degrees = float(tune.rot)
 	node.modulate = Color(1, 1, 1, alpha)
-	node.position = screen_p + main._structure_sprite_lift(tex, sprite_scale)
+	node.position = screen_p + main.structure_tex.structure_sprite_lift(tex, sprite_scale)
 	node.visible = true
 	used[uid] = true
 
 
+## Pulls pooled nodes off-screen before sorting world draws.
 func _lift_nodes() -> void:
 	for uid in nodes.keys():
 		var node: Node2D = nodes[uid]
@@ -782,6 +933,7 @@ func _lift_nodes() -> void:
 			main.world_layer.move_child(node, -1)
 
 
+## Returns unused pooled nodes to the cache after painting.
 func _drop_nodes(used: Dictionary) -> void:
 	var drop: Array = []
 	for uid in nodes.keys():
@@ -799,12 +951,14 @@ func _drop_nodes(used: Dictionary) -> void:
 			node.queue_free()
 
 
+## Whether a semi-transparent placement ghost should draw.
 func _show_ghost() -> bool:
 	if drag_id == "" or _over_ui():
 		return false
 	return _in_pad(_cursor_cell())
 
 
+## True when the cursor is over a dev bench control, not the pad.
 func _over_ui() -> bool:
 	var hovered: Control = main.get_viewport().gui_get_hovered_control()
 	if hovered == null:
@@ -820,19 +974,23 @@ func _over_ui() -> bool:
 	return false
 
 
+## Placement pad cell under the mouse in grid coordinates.
 func _cursor_cell() -> Vector2i:
 	return _cell_of(main.cam_rig.grid_pointer_world())
 
 
+## Grid cell containing a world position on the pad.
 func _cell_of(at: Vector2) -> Vector2i:
 	var tile := float(Catalog.TILE)
 	return Vector2i(int(floor(at.x / tile)), int(floor(at.y / tile)))
 
 
+## Whether a grid cell lies inside PAD_MIN..PAD_MAX.
 func _in_pad(cell: Vector2i) -> bool:
 	return cell.x >= PAD_MIN and cell.x <= PAD_MAX and cell.y >= PAD_MIN and cell.y <= PAD_MAX
 
 
+## All grid cells covered by a footprint at an origin.
 func _cells(origin: Vector2, size: Vector2i) -> Array[Vector2i]:
 	var origin_cell := _cell_of(origin)
 	var out: Array[Vector2i] = []
@@ -841,12 +999,14 @@ func _cells(origin: Vector2, size: Vector2i) -> Array[Vector2i]:
 	return out
 
 
+## World origin for an instance, including in-progress move.
 func _live_at(inst: Dictionary) -> Vector2:
 	if int(inst.uid) != move_uid or _over_ui():
 		return inst.at
 	return Catalog.cell_world(_cursor_cell() - move_grab)
 
 
+## Commits move_uid position when drag ends on a valid cell.
 func _finish_move() -> void:
 	var uid := move_uid
 	move_uid = -1
@@ -862,6 +1022,7 @@ func _finish_move() -> void:
 	inst.at = origin
 
 
+## Whether a footprint at origin avoids overlap excluding one uid.
 func _fits(origin: Vector2, size: Vector2i, ignore_uid: int) -> bool:
 	for cell in _cells(origin, size):
 		if not _in_pad(cell):
@@ -871,6 +1032,7 @@ func _fits(origin: Vector2, size: Vector2i, ignore_uid: int) -> bool:
 	return true
 
 
+## Whether any placed instance covers a cell except ignore_uid.
 func _occupied(cell: Vector2i, ignore_uid: int) -> bool:
 	for inst in placed:
 		if int(inst.uid) == ignore_uid:
@@ -882,6 +1044,7 @@ func _occupied(cell: Vector2i, ignore_uid: int) -> bool:
 	return false
 
 
+## Whether tune footprint size is allowed for prop id.
 func _foot_fits(id: String, size: Vector2i) -> bool:
 	for inst in placed:
 		if str(inst.id) != id:
@@ -891,6 +1054,7 @@ func _foot_fits(id: String, size: Vector2i) -> bool:
 	return true
 
 
+## Brief status flash when placement is rejected.
 func _refuse() -> void:
 	if status:
 		status.text = "NO CABE"
@@ -898,6 +1062,7 @@ func _refuse() -> void:
 		throng_status.text = "NO CABE"
 
 
+## Uid index into placed at a grid cell, or -1.
 func _hit(cell: Vector2i) -> int:
 	for i in range(placed.size() - 1, -1, -1):
 		var inst: Dictionary = placed[i]
@@ -907,6 +1072,7 @@ func _hit(cell: Vector2i) -> int:
 	return -1
 
 
+## Whether a footprint at origin includes a given cell.
 func _covers(origin: Vector2, size: Vector2i, cell: Vector2i) -> bool:
 	for spot in _cells(origin, size):
 		if spot == cell:
@@ -914,6 +1080,7 @@ func _covers(origin: Vector2, size: Vector2i, cell: Vector2i) -> bool:
 	return false
 
 
+## Index in placed for a uid, or -1.
 func _index_of(uid: int) -> int:
 	for i in placed.size():
 		if int(placed[i].uid) == uid:
@@ -921,6 +1088,7 @@ func _index_of(uid: int) -> int:
 	return -1
 
 
+## Pad cells currently visible for grid overlay drawing.
 func _view_cells() -> Array[Vector2i]:
 	var rect: Rect2 = main.cam_rig.world_view().grow(24.0)
 	var tile := float(Catalog.TILE)
@@ -937,6 +1105,7 @@ func _view_cells() -> Array[Vector2i]:
 	return out
 
 
+## Draws one cell isometric outline with edge and fill colors.
 func _stroke(cell: Vector2i, poly: PackedVector2Array, edge: Color, fill: Color) -> void:
 	var pos: Vector2 = main.cam_rig.to_iso(Catalog.cell_world(cell))
 	var pts := PackedVector2Array()
@@ -949,12 +1118,14 @@ func _stroke(cell: Vector2i, poly: PackedVector2Array, edge: Color, fill: Color)
 	draw_polyline(loop, edge, 1.0, false)
 
 
+## Draws selection crosshair at a world point.
 func _cross(at: Vector2) -> void:
 	var p: Vector2 = main.cam_rig.to_iso(at)
 	draw_line(p + Vector2(-4, 0), p + Vector2(4, 0), Color.WHITE, 1.0, false)
 	draw_line(p + Vector2(0, -3), p + Vector2(0, 3), Color.WHITE, 1.0, false)
 
 
+## Constructs prop-mode rails, palette, and inspector spin boxes.
 func _build_ui() -> void:
 	var theme := _theme()
 	var root: Control = main.ui.get_child(0)
@@ -1071,6 +1242,7 @@ func _build_ui() -> void:
 	_build_lab_ui(theme, root)
 
 
+## Populates grouped prop buttons from the catalog.
 func _build_list() -> void:
 	_section("MULTI")
 	var multi := Button.new()
@@ -1096,6 +1268,7 @@ func _build_list() -> void:
 			_add_palette(row)
 
 
+## Adds a centered section title label to the palette list.
 func _section(text: String) -> void:
 	var label := Label.new()
 	label.text = text
@@ -1103,12 +1276,13 @@ func _section(text: String) -> void:
 	list.add_child(label)
 
 
+## Appends one prop toggle button to the palette list.
 func _add_palette(row: Dictionary) -> void:
 	var button := Button.new()
 	if str(row.group) == "feature" and int(row.kind) == Catalog.FEAT_ANOMALY:
-		button.icon = main._cell_tex(AssetFrames.ANOMALY)
+		button.icon = main.world_drawer.cell_tex(AssetFrames.ANOMALY)
 	else:
-		button.icon = main._atlas_icon(int(row.icon))
+		button.icon = main.world_marks_ui.atlas_icon(int(row.icon))
 	button.tooltip_text = str(row.label)
 	button.custom_minimum_size = Vector2(32, 32)
 	button.expand_icon = true
@@ -1118,6 +1292,7 @@ func _add_palette(row: Dictionary) -> void:
 	buttons[str(row.id)] = button
 
 
+## Creates a themed bench button wired to a Callable.
 func _text_button(text: String, call: Callable) -> Button:
 	var button := Button.new()
 	button.text = text
@@ -1126,6 +1301,7 @@ func _text_button(text: String, call: Callable) -> Button:
 	return button
 
 
+## Factory for bounded SpinBox controls with shared bench theme.
 func _spin(lo: float, hi: float, step: float, whole: bool = false) -> SpinBox:
 	var box := SpinBox.new()
 	box.min_value = lo
@@ -1140,6 +1316,7 @@ func _spin(lo: float, hi: float, step: float, whole: bool = false) -> SpinBox:
 	return box
 
 
+## Adds a titled row with one inspector SpinBox.
 func _pair(row: HBoxContainer, title: String, box: SpinBox) -> void:
 	var label := Label.new()
 	label.text = title
@@ -1148,6 +1325,7 @@ func _pair(row: HBoxContainer, title: String, box: SpinBox) -> void:
 	row.add_child(box)
 
 
+## Shared green/wood Theme for all dev bench controls.
 func _theme() -> Theme:
 	var theme := Theme.new()
 	if main.ui_theme != null:
@@ -1173,6 +1351,7 @@ func _theme() -> Theme:
 	return theme
 
 
+## StyleBoxFlat helper for panel fills and borders.
 func _flat(fill: Color, edge: Color) -> StyleBoxFlat:
 	var box := StyleBoxFlat.new()
 	box.bg_color = fill
@@ -1182,11 +1361,13 @@ func _flat(fill: Color, edge: Color) -> StyleBoxFlat:
 	return box
 
 
+## Clears inspector labels and disables footprint spins.
 func _clear_edit() -> void:
 	name_label.text = "ARRASTRA UN ICONO"
 	_set_edit_enabled(false)
 
 
+## Enables or locks footprint and reach inspector spins.
 func _set_edit_enabled(on: bool) -> void:
 	for box in [grid_x, grid_y, scale_box, off_x, off_y, z_box, rot_box]:
 		box.editable = on
@@ -1199,6 +1380,7 @@ func _set_edit_enabled(on: bool) -> void:
 	active_y.editable = has_active
 
 
+## Whether active offset spins are the focused edit target.
 func _editing_active_offset() -> bool:
 	if not show_active:
 		return false
@@ -1206,6 +1388,7 @@ func _editing_active_offset() -> bool:
 	return not row.is_empty() and Catalog.building_has_active(int(row.get("kind", -1)))
 
 
+## Pushes PropTune fields into inspector spins for selection.
 func _fill_inspector() -> void:
 	var row: Dictionary = PropTune.entry(armed)
 	if row.is_empty():
@@ -1244,6 +1427,7 @@ func _fill_inspector() -> void:
 	_sync_active_button()
 
 
+## Updates pressed state on palette and clip/effect buttons.
 func _mark_buttons() -> void:
 	var picked := {}
 	for id in _edit_ids():
@@ -1261,11 +1445,13 @@ func _mark_buttons() -> void:
 			button.modulate = Color.WHITE
 
 
+## Sets quit button label based on active dev mode.
 func _sync_quit() -> void:
 	if quit_button:
 		quit_button.disabled = selected_uids.is_empty()
 
 
+## Refreshes prop, throng, effect, and lab status lines.
 func _refresh_status() -> void:
 	var props: int = PropTune.change_count()
 	var clips: int = ThrongTune.change_count() + AnimTune.change_count()
@@ -1281,6 +1467,7 @@ func _refresh_status() -> void:
 		effect_status.text = text
 
 
+## Applies footprint dimension edits to PropTune for selection.
 func _on_foot(_v: float) -> void:
 	if _fill:
 		return
@@ -1304,6 +1491,7 @@ func _on_foot(_v: float) -> void:
 	_refresh_status()
 
 
+## Writes prop scale from scale_box to PropTune.
 func _on_scale(v: float) -> void:
 	if _fill:
 		return
@@ -1316,6 +1504,7 @@ func _on_scale(v: float) -> void:
 	_refresh_status()
 
 
+## Writes sprite offset from off_x/off_y spins.
 func _on_offset(_v: float) -> void:
 	if _fill:
 		return
@@ -1336,6 +1525,7 @@ func _on_offset(_v: float) -> void:
 	_refresh_status()
 
 
+## Writes lit-sprite offset for structures that support it.
 func _on_active_offset(_v: float) -> void:
 	if _fill:
 		return
@@ -1353,6 +1543,7 @@ func _on_active_offset(_v: float) -> void:
 	_refresh_status()
 
 
+## Flips show_active and repaints structure overlays.
 func _toggle_active_preview() -> void:
 	show_active = not show_active
 	_sync_active_button()
@@ -1360,6 +1551,7 @@ func _toggle_active_preview() -> void:
 		_fill_inspector()
 
 
+## Updates active_button pressed state from show_active.
 func _sync_active_button() -> void:
 	if active_button == null:
 		return
@@ -1367,6 +1559,7 @@ func _sync_active_button() -> void:
 	active_button.text = "ACTIVE ON" if show_active else "ACTIVE"
 
 
+## Applies draw sort z from z_box to selected prop tunes.
 func _on_z(v: float) -> void:
 	if _fill:
 		return
@@ -1379,6 +1572,7 @@ func _on_z(v: float) -> void:
 	_refresh_status()
 
 
+## Applies rotation degrees from rot_box to selection.
 func _on_rot(v: float) -> void:
 	if _fill:
 		return
@@ -1391,6 +1585,7 @@ func _on_rot(v: float) -> void:
 	_refresh_status()
 
 
+## Applies interaction reach cells from reach spins.
 func _on_reach(_v: float) -> void:
 	if _fill:
 		return
@@ -1406,6 +1601,7 @@ func _on_reach(_v: float) -> void:
 	queue_redraw()
 
 
+## Draws reach diamond outline for one tuned prop.
 func _stroke_reach(origin: Vector2, tune: Dictionary, color: Color) -> void:
 	var reach: Vector2 = tune.get("reach", Vector2.ZERO)
 	if reach.x < 1.0 or reach.y < 1.0:
@@ -1422,6 +1618,7 @@ func _stroke_reach(origin: Vector2, tune: Dictionary, color: Color) -> void:
 		draw_line(pts[i], pts[i + 1], color, 1.2, false)
 
 
+## Builds anim-mode rails, clip list, strip, and transport bar.
 func _build_throng_ui(theme: Theme, root: Control) -> void:
 	throng_rail = PanelContainer.new()
 	throng_rail.set_anchors_preset(Control.PRESET_LEFT_WIDE)
@@ -1531,6 +1728,7 @@ func _build_throng_ui(theme: Theme, root: Control) -> void:
 	throng_rot.value_changed.connect(_on_throng_rot)
 
 
+## Builds effect-mode palette rail and metrics bar.
 func _build_effect_ui(theme: Theme, root: Control) -> void:
 	effect_rail = PanelContainer.new()
 	effect_rail.set_anchors_preset(Control.PRESET_LEFT_WIDE)
@@ -1602,6 +1800,7 @@ func _build_effect_ui(theme: Theme, root: Control) -> void:
 	root.add_child(effect_bar)
 
 
+## Fills effect_list buttons from EffectTune catalog.
 func _build_effect_list() -> void:
 	var last_group := ""
 	for row in EffectTune.entries():
@@ -1624,6 +1823,7 @@ func _build_effect_list() -> void:
 		effect_buttons[str(row.id)] = button
 
 
+## Arms one effect id and stages its preview scene.
 func _select_effect(id: String) -> void:
 	effect_id = id
 	_fill_effect()
@@ -1632,6 +1832,7 @@ func _select_effect(id: String) -> void:
 	_refresh_status()
 
 
+## Pushes EffectTune fields into effect inspector controls.
 func _fill_effect() -> void:
 	_fill = true
 	for child in effect_metrics.get_children():
@@ -1674,6 +1875,7 @@ func _fill_effect() -> void:
 	_sync_effect_live()
 
 
+## Populates clip and FX option rows for the armed effect.
 func _fill_effect_look(tune: Dictionary) -> void:
 	var clip_label := Label.new()
 	clip_label.text = "CLIP"
@@ -1703,6 +1905,7 @@ func _fill_effect_look(tune: Dictionary) -> void:
 	effect_look.add_child(effect_fx_box)
 
 
+## Selects OptionButton item matching a string value.
 func _select_option(box: OptionButton, value: String) -> void:
 	for i in box.item_count:
 		if box.get_item_text(i) == value:
@@ -1712,6 +1915,7 @@ func _select_option(box: OptionButton, value: String) -> void:
 		box.select(0)
 
 
+## Persists one numeric effect tune field from a spin.
 func _on_effect_num(key: String) -> void:
 	if _fill or effect_id == "":
 		return
@@ -1724,6 +1928,7 @@ func _on_effect_num(key: String) -> void:
 	queue_redraw()
 
 
+## Updates effect_clip when body clip option changes.
 func _on_effect_clip(index: int) -> void:
 	if _fill or effect_id == "" or effect_clip_box == null:
 		return
@@ -1735,6 +1940,7 @@ func _on_effect_clip(index: int) -> void:
 	queue_redraw()
 
 
+## Updates overlay FX when the FX option changes.
 func _on_effect_fx(index: int) -> void:
 	if _fill or effect_id == "" or effect_fx_box == null:
 		return
@@ -1744,6 +1950,7 @@ func _on_effect_fx(index: int) -> void:
 	queue_redraw()
 
 
+## Jumps to throng anim mode editing the effect body clip.
 func _open_effect_clip_anim() -> void:
 	var clip := effect_clip
 	if effect_id != "":
@@ -1753,6 +1960,7 @@ func _open_effect_clip_anim() -> void:
 		_select_clip(clip)
 
 
+## Restores EffectTune defaults for the armed effect id.
 func _reset_effect() -> void:
 	if effect_id == "":
 		return
@@ -1763,6 +1971,7 @@ func _reset_effect() -> void:
 	_refresh_status()
 
 
+## Refreshes pressed state on effect palette buttons.
 func _mark_effects() -> void:
 	for id in effect_buttons.keys():
 		var button: Button = effect_buttons[id]
@@ -1775,11 +1984,13 @@ func _mark_effects() -> void:
 			button.modulate = Color.WHITE
 
 
+## Toggles effect_playing and play button icon.
 func _toggle_effect_play() -> void:
 	effect_playing = not effect_playing
 	_sync_effect_play_button()
 
 
+## Resets effect_t and pulses the preview ring.
 func _replay_effect() -> void:
 	_effect_reset_needs()
 	effect_playing = true
@@ -1787,11 +1998,13 @@ func _replay_effect() -> void:
 	_sync_effect_live()
 
 
+## Updates effect play button from effect_playing.
 func _sync_effect_play_button() -> void:
 	if effect_play_button:
 		effect_play_button.text = "PAUSA" if effect_playing else "PLAY"
 
 
+## Refreshes live timing and metric labels each tick.
 func _sync_effect_live() -> void:
 	if effect_live == null:
 		return
@@ -1803,6 +2016,7 @@ func _sync_effect_live() -> void:
 	]
 
 
+## Default body clip for an effect id when staging.
 func _effect_clip_for(id: String) -> String:
 	var tune: Dictionary = EffectTune.get_tune(id)
 	var clip := str(tune.get("clip", ""))
@@ -1825,6 +2039,7 @@ func _effect_clip_for(id: String) -> String:
 			return "ThrongA_Default"
 
 
+## Sets staged fed/fun/clean for the effect preview throng.
 func _effect_reset_needs() -> void:
 	effect_t = 0.0
 	effect_pulse = 0.0
@@ -1859,6 +2074,7 @@ func _effect_reset_needs() -> void:
 			effect_clean = 40.0
 
 
+## Catalog building kind drawn as effect partner, if any.
 func _effect_partner_kind() -> int:
 	match effect_id:
 		"visit:dwell":
@@ -1881,6 +2097,7 @@ func _effect_partner_kind() -> int:
 			return -1
 
 
+## World feature kind staged beside certain effects.
 func _effect_partner_feature() -> int:
 	match effect_id:
 		"feat:totem":
@@ -1893,6 +2110,7 @@ func _effect_partner_feature() -> int:
 			return -1
 
 
+## Ensures effect throng instance and partners exist on the pad.
 func _stage_effect() -> void:
 	_clear_placed()
 	_paint_ground()
@@ -1905,7 +2123,7 @@ func _stage_effect() -> void:
 		for oy in range(-2, 3):
 			for ox in range(-2, 3):
 				var cell := throng_cell + Vector2i(ox, oy)
-				main.tilemap.set_cell(cell, 0, Vector2i(main.WASTE_ATLAS + absi((cell.x * 3 + cell.y * 5) % main.WASTE_VARIANTS), 0))
+				main.tilemap.set_cell(cell, 0, Vector2i(WorldBootstrap.WASTE_ATLAS + absi((cell.x * 3 + cell.y * 5) % WorldBootstrap.WASTE_VARIANTS), 0))
 	# Items sit beside the thronglet. Buildings/features are painted with the throng so sort stays correct.
 	var item_id := ""
 	if effect_id == "act:eat":
@@ -1923,6 +2141,7 @@ func _stage_effect() -> void:
 	_sync_effect_live()
 
 
+## Advances effect timeline, pulses, and partner anims.
 func _tick_effect(dt: float) -> void:
 	var tune: Dictionary = EffectTune.get_tune(effect_id)
 	var step := dt * EFFECT_PREVIEW_SCALE
@@ -1977,6 +2196,7 @@ func _tick_effect(dt: float) -> void:
 				effect_clean = 20.0
 
 
+## World anchor for the staged effect thronglet.
 func _effect_throng_origin() -> Vector2:
 	for inst in placed:
 		if str(inst.id) == THRONG_ID:
@@ -1984,6 +2204,7 @@ func _effect_throng_origin() -> Vector2:
 	return Catalog.cell_world(Vector2i(8, 16))
 
 
+## World position for partner prop/building beside throng.
 func _effect_partner_origin(throng_origin: Vector2) -> Vector2:
 	var kind := _effect_partner_kind()
 	if kind == Catalog.BLD_TUB or kind == Catalog.BLD_ROUND:
@@ -1999,6 +2220,7 @@ func _effect_partner_origin(throng_origin: Vector2) -> Vector2:
 	return throng_origin
 
 
+## Draws partner structures/features for effect preview.
 func _paint_effect_partner(draws: Array, origin: Vector2, alpha: float) -> float:
 	var partner_at := _effect_partner_origin(origin)
 	var kind := _effect_partner_kind()
@@ -2006,13 +2228,13 @@ func _paint_effect_partner(draws: Array, origin: Vector2, alpha: float) -> float
 		var before := draws.size()
 		var prop_frame := -1
 		if kind == Catalog.BLD_ROUND:
-			prop_frame = posmod(int(effect_t * 8.0), main.ROUND_ANIM_N)
+			prop_frame = posmod(int(effect_t * 8.0), StructureTextures.ROUND_ANIM_N)
 		elif kind == Catalog.BLD_FLOWER:
-			prop_frame = posmod(int(effect_t * 6.0), main.FLOWER_ANIM_N)
+			prop_frame = posmod(int(effect_t * 6.0), StructureTextures.FLOWER_ANIM_N)
 		_paint_building(draws, kind, partner_at, alpha, prop_frame)
 		if draws.size() > before:
 			return float(draws[draws.size() - 1].get("sy", 0.0)) + 1.0
-		return main._prop_front_sort_y(main._building_draw_at(kind, partner_at))
+		return main.iso_draw.prop_front_sort_y(main.iso_draw.building_draw_at(kind, partner_at))
 	var feat := _effect_partner_feature()
 	if feat >= 0:
 		var row: Dictionary = PropTune.entry("feature:%d" % feat)
@@ -2025,6 +2247,7 @@ func _paint_effect_partner(draws: Array, origin: Vector2, alpha: float) -> float
 	return NAN
 
 
+## Draws the staged thronglet body for effect mode.
 func _paint_effect_throng(draws: Array, origin: Vector2, alpha: float) -> void:
 	var tune: Dictionary = EffectTune.get_tune(effect_id)
 	var sort_y := _paint_effect_partner(draws, origin, alpha)
@@ -2043,7 +2266,7 @@ func _paint_effect_throng(draws: Array, origin: Vector2, alpha: float) -> void:
 	var frame := ThrongClips.frame_at(clip, index)
 	var off: Vector2 = ThrongTune.frame_offset(clip, index)
 	var pos := origin + off
-	var lift: float = main._effect_look_lift(tune, effect_t)
+	var lift: float = main.iso_draw.effect_look_lift(tune, effect_t)
 	if effect_id == "act:bath":
 		pos = origin + Catalog.TUB_SEAT_OFF + off
 		lift = _bath_lift(index)
@@ -2051,24 +2274,26 @@ func _paint_effect_throng(draws: Array, origin: Vector2, alpha: float) -> void:
 		sort_y = main.cam_rig.to_iso(origin).y + 8.0
 	else:
 		sort_y = maxf(sort_y, main.cam_rig.to_iso(origin).y + 8.0)
-	main._push_iso(draws, pos, frame, Color(1, 1, 1, alpha), lift, ThrongTune.frame_scale(clip, index), sort_y)
+	main.iso_draw.push_iso(draws, pos, frame, Color(1, 1, 1, alpha), lift, ThrongTune.frame_scale(clip, index), sort_y)
 	draws[draws.size() - 1]["rot"] = ThrongTune.frame_rot(clip, index)
 	draws[draws.size() - 1]["dirty"] = 1.0 - clampf(effect_clean / 100.0, 0.0, 1.0)
 	_paint_effect_fx(draws, pos, sort_y + 1.0, tune)
 
 
+## Queues overlay FX sprites for the effect preview.
 func _paint_effect_fx(draws: Array, pos: Vector2, sort_y: float, tune: Dictionary) -> void:
 	match effect_id:
 		"act:sponge":
-			main._paint_sponge_suds(draws, pos, sort_y, effect_t, tune)
+			main.iso_draw.paint_sponge_suds(draws, pos, sort_y, effect_t, tune)
 		"act:wash_sparkle", "act:bath_exit":
-			main._paint_clean_sparkle(draws, pos, sort_y + 0.4, tune, 1.0, -1.0, effect_t)
+			main.iso_draw.paint_clean_sparkle(draws, pos, sort_y + 0.4, tune, 1.0, -1.0, effect_t)
 		"act:mop":
-			main._paint_clean_sparkle(draws, pos, sort_y + 0.4, EffectTune.get_tune("act:wash_sparkle"), 1.0, -1.0, effect_t)
+			main.iso_draw.paint_clean_sparkle(draws, pos, sort_y + 0.4, EffectTune.get_tune("act:wash_sparkle"), 1.0, -1.0, effect_t)
 		_:
 			pass
 
 
+## Creates need-bar overlay beside the effect throng.
 func _build_effect_gauge() -> void:
 	var root: Control = main.ui.get_child(0)
 	effect_gauge = Control.new()
@@ -2109,6 +2334,7 @@ func _build_effect_gauge() -> void:
 		effect_gauge.add_child(row)
 
 
+## Updates gauge fills from effect_fed/fun/clean.
 func _sync_effect_need_bars() -> void:
 	if effect_gauge == null:
 		return
@@ -2130,6 +2356,7 @@ func _sync_effect_need_bars() -> void:
 		main.need_card.visible = false
 
 
+## Hides and clears gauge when leaving effect mode.
 func _hide_effect_need_bars() -> void:
 	if effect_gauge != null:
 		effect_gauge.visible = false
@@ -2140,10 +2367,12 @@ func _hide_effect_need_bars() -> void:
 		main.need_card.visible = false
 
 
+## World center for effect ring and radius tests.
 func _effect_radius_center() -> Vector2:
 	return _effect_throng_origin()
 
 
+## Positions and scales the Line2D effect radius ring.
 func _sync_effect_ring() -> void:
 	if effect_ring == null:
 		return
@@ -2162,6 +2391,7 @@ func _sync_effect_ring() -> void:
 	effect_ring.visible = true
 
 
+## Populates anim clips grouped by situation pools.
 func _build_clip_list() -> void:
 	clip_order.clear()
 	_clip_section("MULTIS")
@@ -2183,6 +2413,7 @@ func _build_clip_list() -> void:
 		_add_clip_button("anim:" + key, str(row.get("label", key)))
 
 
+## Section header in the scrollable clip list.
 func _clip_section(text: String) -> void:
 	var label := Label.new()
 	label.text = text
@@ -2190,6 +2421,7 @@ func _clip_section(text: String) -> void:
 	clip_list.add_child(label)
 
 
+## One clip toggle with shortened label in anim rail.
 func _add_clip_button(clip: String, title: String) -> void:
 	var button := Button.new()
 	button.text = title
@@ -2204,14 +2436,17 @@ func _add_clip_button(clip: String, title: String) -> void:
 	clip_order.append(clip)
 
 
+## Whether a clip name is a multi-frame animation strip.
 func _is_anim(clip: String) -> bool:
 	return clip.begins_with("anim:")
 
 
+## Filesystem key used by AnimTune for a clip.
 func _anim_key(clip: String) -> String:
 	return clip.substr(5)
 
 
+## Short display label derived from a long clip name.
 func _short(clip: String) -> String:
 	if _is_anim(clip):
 		return str(AnimTune.entry(_anim_key(clip)).get("label", clip))
@@ -2221,6 +2456,7 @@ func _short(clip: String) -> String:
 	return clip
 
 
+## Switches UI to anim review and ensures stage throng exists.
 func _show_throng() -> void:
 	throng_mode = true
 	effect_mode = false
@@ -2254,6 +2490,7 @@ func _show_throng() -> void:
 	_refresh_status()
 
 
+## Switches UI back to prop layout mode.
 func _show_props() -> void:
 	throng_mode = false
 	effect_mode = false
@@ -2281,6 +2518,7 @@ func _show_props() -> void:
 	_refresh_status()
 
 
+## Switches UI to isolated effect preview mode.
 func _show_effects() -> void:
 	throng_mode = false
 	effect_mode = true
@@ -2306,6 +2544,7 @@ func _show_effects() -> void:
 	_refresh_status()
 
 
+## Guarantees throng:0 placement exists for anim/effect staging.
 func _ensure_stage() -> void:
 	for inst in placed:
 		if str(inst.id) != THRONG_ID:
@@ -2319,6 +2558,7 @@ func _ensure_stage() -> void:
 	_arm(THRONG_ID, uid)
 
 
+## Arms one clip for editing and refreshes strip and inspector.
 func _select_clip(clip: String) -> void:
 	var shift := Input.is_key_pressed(KEY_SHIFT)
 	var meta := Input.is_key_pressed(KEY_META)
@@ -2343,6 +2583,7 @@ func _select_clip(clip: String) -> void:
 	_sync_play_button()
 
 
+## Adds or removes a clip from multi-select in anim mode.
 func _toggle_clip(clip: String) -> void:
 	var at := selected_clips.find(clip)
 	if at >= 0:
@@ -2366,6 +2607,7 @@ func _toggle_clip(clip: String) -> void:
 		throng_name.text = _clip_title()
 
 
+## Shift-selects a span of clip list buttons.
 func _range_clips(clip: String) -> void:
 	var anchor := clip_anchor if clip_anchor != "" else clip_name
 	var a := clip_order.find(anchor)
@@ -2394,6 +2636,7 @@ func _range_clips(clip: String) -> void:
 		throng_name.text = _clip_title()
 
 
+## Clip names receiving edits when apply_all or multi-select.
 func _edit_clips() -> Array:
 	if not selected_clips.is_empty():
 		return selected_clips.duplicate()
@@ -2402,6 +2645,7 @@ func _edit_clips() -> Array:
 	return []
 
 
+## Steps playhead to next frame or next clip in clip_order.
 func _advance() -> void:
 	var now := Time.get_ticks_msec()
 	if play_ms == 0:
@@ -2417,6 +2661,7 @@ func _advance() -> void:
 		_lab_step(dt)
 
 
+## Grid dimensions of one clip strip from ThrongClips metadata.
 func _box_of(clip: String) -> Vector2i:
 	if _is_anim(clip):
 		var row: Dictionary = AnimTune.entry(_anim_key(clip))
@@ -2425,16 +2670,19 @@ func _box_of(clip: String) -> Vector2i:
 	return raw
 
 
+## Grid dimensions of the currently armed clip.
 func _box() -> Vector2i:
 	return _box_of(clip_name)
 
 
+## Effective preview FPS from AnimTune or clip default.
 func _clip_fps() -> float:
 	if _is_anim(clip_name):
 		return float(AnimTune.get_tune(_anim_key(clip_name)).get("fps", 8.0))
 	return float(ThrongTune.get_tune(clip_name).get("fps", 8.0))
 
 
+## World offset applied to throng preview from ThrongTune.
 func _shown_off() -> Vector2:
 	var index := _shown_index()
 	if _is_anim(clip_name):
@@ -2442,6 +2690,7 @@ func _shown_off() -> Vector2:
 	return ThrongTune.frame_offset(clip_name, index)
 
 
+## Rotation degrees applied to throng preview.
 func _shown_rot() -> float:
 	var index := _shown_index()
 	if _is_anim(clip_name):
@@ -2449,6 +2698,7 @@ func _shown_rot() -> float:
 	return ThrongTune.frame_rot(clip_name, index)
 
 
+## Sprite scale applied to throng preview.
 func _shown_scale() -> float:
 	var index := _shown_index()
 	if _is_anim(clip_name):
@@ -2456,6 +2706,7 @@ func _shown_scale() -> float:
 	return ThrongTune.frame_scale(clip_name, index)
 
 
+## Frame index currently shown on the strip.
 func _shown_index() -> int:
 	var n := maxi(_box().y, 1)
 	if not playing:
@@ -2463,6 +2714,7 @@ func _shown_index() -> int:
 	return posmod(int(play_t * _clip_fps()), n)
 
 
+## Display string for throng_name including multi-select hint.
 func _clip_title() -> String:
 	var n := maxi(_box().y, 1)
 	var title := "%s   %d/%d" % [_short(clip_name), _shown_index() + 1, n]
@@ -2477,6 +2729,7 @@ func _clip_title() -> String:
 	return title
 
 
+## Draws throng preview meshes using ThrongTune offsets.
 func _paint_tuned(draws: Array, origin: Vector2, alpha: float) -> void:
 	if clip_name == "":
 		return
@@ -2493,14 +2746,14 @@ func _paint_tuned(draws: Array, origin: Vector2, alpha: float) -> void:
 		var before := draws.size()
 		var prop_frame := -1
 		if kind == Catalog.BLD_ROUND:
-			prop_frame = posmod(_shown_index(), main.ROUND_ANIM_N)
+			prop_frame = posmod(_shown_index(), StructureTextures.ROUND_ANIM_N)
 		_paint_building(draws, kind, origin, alpha, prop_frame)
 		if draws.size() > before:
 			sort_y = float(draws[draws.size() - 1].get("sy", 0.0)) + 1.0
 		if kind == Catalog.BLD_TUB:
 			pos = origin + Catalog.TUB_SEAT_OFF + off
 			lift = _bath_lift(_shown_index())
-	main._push_iso(draws, pos, frame, Color(1, 1, 1, alpha), lift, ThrongTune.frame_scale(clip_name, _shown_index()))
+	main.iso_draw.push_iso(draws, pos, frame, Color(1, 1, 1, alpha), lift, ThrongTune.frame_scale(clip_name, _shown_index()))
 	draws[draws.size() - 1]["rot"] = ThrongTune.frame_rot(clip_name, _shown_index())
 	if not is_nan(sort_y):
 		draws[draws.size() - 1]["sy"] = sort_y
@@ -2508,6 +2761,7 @@ func _paint_tuned(draws: Array, origin: Vector2, alpha: float) -> void:
 		draws[draws.size() - 1]["flip"] = -1.0
 
 
+## Draws one or more clips in sequence for live preview.
 func _paint_anim(draws: Array, origin: Vector2, alpha: float) -> void:
 	var key := _anim_key(clip_name)
 	var index := _shown_index()
@@ -2524,12 +2778,13 @@ func _paint_anim(draws: Array, origin: Vector2, alpha: float) -> void:
 			draws[draws.size() - 1]["rot"] = AnimTune.frame_rot(key, index)
 		return
 	var frame := _box().x + index
-	main._push_iso(draws, origin + off, frame, Color(1, 1, 1, alpha), 0.0, scale)
+	main.iso_draw.push_iso(draws, origin + off, frame, Color(1, 1, 1, alpha), 0.0, scale)
 	draws[draws.size() - 1]["rot"] = AnimTune.frame_rot(key, index)
 	if mirror:
 		draws[draws.size() - 1]["flip"] = -1.0
 
 
+## Building kind drawn as clip partner (tub, round, etc.).
 func _partner_kind(clip: String) -> int:
 	if clip == BATH_CLIP:
 		return Catalog.BLD_TUB
@@ -2538,12 +2793,14 @@ func _partner_kind(clip: String) -> int:
 	return -1
 
 
+## Extra Y lift for bath clip frames on the pad.
 func _bath_lift(index: int) -> float:
 	if index >= 5:
 		return Catalog.TUB_SOAK_LIFT
 	return lerpf(Catalog.TUB_ENTER_LIFT, Catalog.TUB_SOAK_LIFT, float(index) / 4.0)
 
 
+## Draws static or animated building preview for a kind.
 func _paint_building(draws: Array, kind: int, origin: Vector2, alpha: float, frame_override: int) -> void:
 	var row: Dictionary = PropTune.entry("building:%d" % kind)
 	if row.is_empty():
@@ -2555,7 +2812,7 @@ func _paint_building(draws: Array, kind: int, origin: Vector2, alpha: float, fra
 	if kind == Catalog.BLD_ROUND or kind == Catalog.BLD_FLOWER:
 		_paint_structure_anim(draws, kind, origin, alpha, frame_override, tune, EFFECT_ACTIVE_UID, _node_used)
 		return
-	if main._idle_structure_texture(kind) != null:
+	if main.structure_tex.idle_structure_texture(kind) != null:
 		_paint_idle_structure(draws, kind, origin, alpha, tune, EFFECT_ACTIVE_UID, _node_used)
 		return
 	var frame := frame_override
@@ -2565,12 +2822,13 @@ func _paint_building(draws: Array, kind: int, origin: Vector2, alpha: float, fra
 	var tint := Color(1, 1, 1, alpha)
 	if kind == Catalog.BLD_TUB:
 		tint = Color(0.85, 0.95, 1.0, alpha)
-	main._push_iso(draws, at, frame, tint, 0.0, float(tune.scale))
+	main.iso_draw.push_iso(draws, at, frame, tint, 0.0, float(tune.scale))
 	var last: Dictionary = draws[draws.size() - 1]
 	last["sy"] = float(last.get("sy", last.p.y)) + float(tune.z)
 	last["rot"] = float(tune.rot)
 
 
+## Paints idle structure texture for bench preview.
 func _paint_idle_structure(
 	draws: Array,
 	kind: int,
@@ -2580,14 +2838,14 @@ func _paint_idle_structure(
 	uid: int,
 	used: Dictionary
 ) -> void:
-	var tex: Texture2D = main._idle_structure_texture(kind)
+	var tex: Texture2D = main.structure_tex.idle_structure_texture(kind)
 	if tex == null:
 		return
-	var frame: int = main._prop_frame(Catalog.icon_for_building(kind))
+	var frame: int = main.anim_frames.prop_frame(Catalog.icon_for_building(kind))
 	var size: Vector2i = tune.get("footprint", Vector2i(1, 1))
 	var sprite_scale := float(tune.scale)
 	var extra: Vector2 = tune.offset if tune.has("offset") else Vector2.ZERO
-	var at: Vector2 = origin + Catalog.footprint_center(size) + main._pad_nudge(frame, sprite_scale, size) + extra
+	var at: Vector2 = origin + Catalog.footprint_center(size) + main.iso_draw.pad_nudge(frame, sprite_scale, size) + extra
 	var tint := Color(1, 1, 1, alpha)
 	if kind == Catalog.BLD_TUB:
 		tint = Color(0.85, 0.95, 1.0, alpha)
@@ -2596,7 +2854,7 @@ func _paint_idle_structure(
 	node.scale = Vector2(sprite_scale, sprite_scale)
 	node.rotation_degrees = float(tune.rot)
 	node.modulate = tint
-	node.position = screen_p + main._structure_sprite_lift(tex, sprite_scale)
+	node.position = screen_p + main.structure_tex.structure_sprite_lift(tex, sprite_scale)
 	node.visible = true
 	used[uid] = true
 	draws.append({
@@ -2609,6 +2867,7 @@ func _paint_idle_structure(
 	})
 
 
+## Paints looping structure animation frames.
 func _paint_structure_anim(
 	draws: Array,
 	kind: int,
@@ -2622,18 +2881,18 @@ func _paint_structure_anim(
 	var idx := anim_idx
 	if idx < 0:
 		idx = _frame_of(PropTune.entry("building:%d" % kind))
-	var tex: Texture2D = main._structure_anim_texture(kind, idx)
+	var tex: Texture2D = main.structure_tex.structure_anim_texture(kind, idx)
 	if tex == null:
-		tex = main._idle_structure_texture(kind)
+		tex = main.structure_tex.idle_structure_texture(kind)
 	if tex == null:
 		return
-	var frame: int = main._prop_frame(Catalog.icon_for_building(kind))
+	var frame: int = main.anim_frames.prop_frame(Catalog.icon_for_building(kind))
 	var size: Vector2i = tune.get("footprint", Vector2i(1, 1))
 	var sprite_scale := float(tune.scale)
 	if kind == Catalog.BLD_ROUND:
 		sprite_scale *= AnimTune.frame_scale("round", idx)
 	var extra: Vector2 = tune.offset if tune.has("offset") else Vector2.ZERO
-	var at: Vector2 = origin + Catalog.footprint_center(size) + main._pad_nudge(frame, sprite_scale, size) + extra
+	var at: Vector2 = origin + Catalog.footprint_center(size) + main.iso_draw.pad_nudge(frame, sprite_scale, size) + extra
 	if kind == Catalog.BLD_ROUND:
 		at += AnimTune.frame_offset("round", idx)
 	elif kind == Catalog.BLD_FLOWER:
@@ -2645,7 +2904,7 @@ func _paint_structure_anim(
 	if kind == Catalog.BLD_ROUND:
 		node.rotation_degrees += AnimTune.frame_rot("round", idx)
 	node.modulate = Color(1, 1, 1, alpha)
-	node.position = screen_p + main._structure_sprite_lift(tex, sprite_scale)
+	node.position = screen_p + main.structure_tex.structure_sprite_lift(tex, sprite_scale)
 	node.visible = true
 	used[uid] = true
 	# Sort bookkeeping only — Sprite2D already draws the frame. Painting this row
@@ -2660,6 +2919,7 @@ func _paint_structure_anim(
 	})
 
 
+## Borrows Sprite2D for a structure layer texture.
 func _take_structure_sprite(uid: int, tex: Texture2D) -> Sprite2D:
 	if nodes.has(uid) and is_instance_valid(nodes[uid]) and nodes[uid] is Sprite2D:
 		var kept: Sprite2D = nodes[uid]
@@ -2677,6 +2937,7 @@ func _take_structure_sprite(uid: int, tex: Texture2D) -> Sprite2D:
 	return node
 
 
+## Draws partner footprint outlines for clip partners.
 func _stroke_partner(poly: PackedVector2Array) -> void:
 	if not throng_mode:
 		return
@@ -2693,6 +2954,7 @@ func _stroke_partner(poly: PackedVector2Array) -> void:
 			_stroke(cell, poly, edge, fill)
 
 
+## Advances frame_i from play_t and clip FPS when playing.
 func _sync_playhead() -> void:
 	if throng_name and clip_name != "":
 		throng_name.text = _clip_title()
@@ -2700,6 +2962,7 @@ func _sync_playhead() -> void:
 	_sync_rot_box()
 
 
+## Pushes shown rotation into rot spin without feedback loop.
 func _sync_rot_box() -> void:
 	if throng_rot == null or clip_name == "":
 		return
@@ -2716,6 +2979,7 @@ func _sync_rot_box() -> void:
 	_fill = false
 
 
+## Toggles playing and play button state in anim mode.
 func _toggle_play() -> void:
 	if clip_name == "":
 		return
@@ -2728,11 +2992,13 @@ func _toggle_play() -> void:
 	_sync_playhead()
 
 
+## Flips mirror flag and repaints throng preview.
 func _toggle_mirror() -> void:
 	mirror = not mirror
 	_sync_play_button()
 
 
+## Steps playhead forward or backward by one frame.
 func _step(dir: int) -> void:
 	if clip_name == "":
 		return
@@ -2757,6 +3023,7 @@ func _step(dir: int) -> void:
 	_sync_playhead()
 
 
+## Updates play button label from playing flag.
 func _sync_play_button() -> void:
 	if play_button:
 		play_button.text = "PAUSA" if playing else "PLAY"
@@ -2766,6 +3033,7 @@ func _sync_play_button() -> void:
 		all_button.modulate = Color(1, 0.86, 0.4) if apply_all else Color.WHITE
 
 
+## Rebuilds per-frame pin buttons for the armed clip.
 func _build_strip() -> void:
 	for child in strip.get_children():
 		strip.remove_child(child)
@@ -2780,7 +3048,7 @@ func _build_strip() -> void:
 	selected_frames = keep
 	for i in box.y:
 		var button := Button.new()
-		button.icon = main._cell_tex(box.x + i)
+		button.icon = main.world_drawer.cell_tex(box.x + i)
 		button.custom_minimum_size = Vector2(28, 28)
 		button.expand_icon = true
 		button.focus_mode = Control.FOCUS_NONE
@@ -2789,6 +3057,7 @@ func _build_strip() -> void:
 		frame_buttons.append(button)
 
 
+## Toggles whether a frame index is pinned on the strip.
 func _pin_frame(i: int) -> void:
 	playing = false
 	var shift := Input.is_key_pressed(KEY_SHIFT)
@@ -2807,6 +3076,7 @@ func _pin_frame(i: int) -> void:
 	_sync_playhead()
 
 
+## Multi-select one frame index on the strip.
 func _toggle_frame(i: int) -> void:
 	apply_all = false
 	var at := selected_frames.find(i)
@@ -2828,6 +3098,7 @@ func _toggle_frame(i: int) -> void:
 	_sync_playhead()
 
 
+## Shift-selects a span of frame indexes.
 func _range_frames(i: int) -> void:
 	apply_all = false
 	var n := maxi(_box().y, 1)
@@ -2843,6 +3114,7 @@ func _range_frames(i: int) -> void:
 	_sync_playhead()
 
 
+## Loads AnimTune values into strip and transport controls.
 func _fill_clip() -> void:
 	if clip_name == "" or fps_box == null:
 		return
@@ -2857,6 +3129,7 @@ func _fill_clip() -> void:
 		throng_name.text = _clip_title()
 
 
+## Resets AnimTune defaults for edit target clips.
 func _reset_clip() -> void:
 	var clips := _edit_clips()
 	if clips.is_empty():
@@ -2871,6 +3144,7 @@ func _reset_clip() -> void:
 	_refresh_status()
 
 
+## Filters visible clip buttons by substring match.
 func _on_filter(text: String) -> void:
 	var q := text.strip_edges().to_lower()
 	for key in clip_buttons.keys():
@@ -2879,6 +3153,7 @@ func _on_filter(text: String) -> void:
 		button.visible = q == "" or q in clip.to_lower() or q in _short(clip).to_lower()
 
 
+## Updates pressed state for clip list buttons.
 func _mark_clips() -> void:
 	var picked := {}
 	for clip in _edit_clips():
@@ -2895,6 +3170,7 @@ func _mark_clips() -> void:
 			button.modulate = Color.WHITE
 
 
+## Updates pressed state for strip frame buttons.
 func _mark_frames() -> void:
 	var index := _shown_index()
 	var picked := {}
@@ -2913,6 +3189,7 @@ func _mark_frames() -> void:
 		button.modulate = Color(1, 0.86, 0.4) if picked.has(i) else Color.WHITE
 
 
+## Persists FPS override to AnimTune for edit targets.
 func _on_throng_fps(v: float) -> void:
 	if _fill or clip_name == "":
 		return
@@ -2926,6 +3203,7 @@ func _on_throng_fps(v: float) -> void:
 	_refresh_status()
 
 
+## Flips apply_all and refreshes clip status.
 func _toggle_all() -> void:
 	apply_all = not apply_all
 	if apply_all:
@@ -2934,6 +3212,7 @@ func _toggle_all() -> void:
 	_mark_frames()
 
 
+## Frame indexes edited on one clip via multi-select.
 func _edit_indexes_for(clip: String) -> Array:
 	var indexes: Array = []
 	var n := maxi(_box_of(clip).y, 1)
@@ -2953,6 +3232,7 @@ func _edit_indexes_for(clip: String) -> Array:
 	return indexes
 
 
+## Clip names that receive frame and offset edits.
 func _edit_targets() -> Array:
 	var targets: Array = []
 	for clip in _edit_clips():
@@ -2962,6 +3242,7 @@ func _edit_targets() -> Array:
 	return targets
 
 
+## Frame index held when play is paused on the strip.
 func _hold_frame() -> int:
 	var index := _shown_index()
 	if playing:
@@ -2973,6 +3254,7 @@ func _hold_frame() -> int:
 	return index
 
 
+## Writes throng scale from spin to ThrongTune.
 func _on_throng_scale(v: float) -> void:
 	if _fill or clip_name == "":
 		return
@@ -2989,6 +3271,7 @@ func _on_throng_scale(v: float) -> void:
 	_refresh_status()
 
 
+## Writes throng offset from spins to ThrongTune.
 func _on_throng_offset(_v: float) -> void:
 	if _fill or clip_name == "":
 		return
@@ -3005,6 +3288,7 @@ func _on_throng_offset(_v: float) -> void:
 	_refresh_status()
 
 
+## Writes throng rotation from spin to ThrongTune.
 func _on_throng_rot(v: float) -> void:
 	if _fill or clip_name == "":
 		return
@@ -3025,6 +3309,7 @@ func _on_throng_rot(v: float) -> void:
 # TIovivo / carousel lab
 # -------------------------------------------------------------------
 
+## Switches UI to tiovivo carousel lab and syncs cfg.
 func _show_lab() -> void:
 	throng_mode = false
 	effect_mode = false
@@ -3057,6 +3342,7 @@ func _show_lab() -> void:
 	_lab_set_status("LAB TIOVIVO LISTO")
 
 
+## Builds carousel tuning rail and lab action bar.
 func _build_lab_ui(theme: Theme, root: Control) -> void:
 	lab_rail = PanelContainer.new()
 	lab_rail.set_anchors_preset(Control.PRESET_LEFT_WIDE)
@@ -3156,6 +3442,7 @@ func _build_lab_ui(theme: Theme, root: Control) -> void:
 	root.add_child(lab_bar)
 
 
+## Centered section title for lab tuning groups.
 func _lab_section(text: String) -> Label:
 	var l := Label.new()
 	l.text = text
@@ -3163,6 +3450,7 @@ func _lab_section(text: String) -> Label:
 	return l
 
 
+## Reads nested lab_cfg group/key with optional default.
 func _lab_cfg_get(group: String, key: String, def = null):
 	if not lab_cfg.has(group):
 		return def
@@ -3172,12 +3460,14 @@ func _lab_cfg_get(group: String, key: String, def = null):
 	return def
 
 
+## Writes one key into nested lab_cfg group dict.
 func _lab_cfg_set(group: String, key: String, value) -> void:
 	if not lab_cfg.has(group) or typeof(lab_cfg[group]) != TYPE_DICTIONARY:
 		lab_cfg[group] = {}
 	lab_cfg[group][key] = value
 
 
+## Adds a labeled spin bound to lab_cfg with tooltip.
 func _lab_add_spin(parent: VBoxContainer, title: String, group: String, key: String, mn: float, mx: float, step: float, tip: String, whole: bool = false) -> SpinBox:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 4)
@@ -3197,6 +3487,7 @@ func _lab_add_spin(parent: VBoxContainer, title: String, group: String, key: Str
 	return box
 
 
+## Adds a labeled option row bound to lab_cfg.
 func _lab_add_option(parent: VBoxContainer, title: String, group: String, key: String, opts: Array, tip: String) -> OptionButton:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 4)
@@ -3218,6 +3509,7 @@ func _lab_add_option(parent: VBoxContainer, title: String, group: String, key: S
 	return ob
 
 
+## Adds a checkbox row bound to lab_cfg.
 func _lab_add_toggle(parent: VBoxContainer, title: String, group: String, key: String, tip: String) -> CheckBox:
 	var cb := CheckBox.new()
 	cb.text = title
@@ -3229,6 +3521,7 @@ func _lab_add_toggle(parent: VBoxContainer, title: String, group: String, key: S
 	return cb
 
 
+## Persists spin edits into lab_cfg including center_offset pair.
 func _lab_on_spin(group: String, key: String, v: float, whole: bool) -> void:
 	if _fill:
 		return
@@ -3250,6 +3543,7 @@ func _lab_on_spin(group: String, key: String, v: float, whole: bool) -> void:
 	_lab_apply_cfg_to_runtime()
 
 
+## Persists option button selection into lab_cfg.
 func _lab_on_option(group: String, key: String, ob: OptionButton) -> void:
 	if _fill:
 		return
@@ -3257,6 +3551,7 @@ func _lab_on_option(group: String, key: String, ob: OptionButton) -> void:
 	_lab_apply_cfg_to_runtime()
 
 
+## Persists checkbox value into lab_cfg.
 func _lab_on_toggle(group: String, key: String, v: bool) -> void:
 	if _fill:
 		return
@@ -3264,6 +3559,7 @@ func _lab_on_toggle(group: String, key: String, v: bool) -> void:
 	_lab_apply_cfg_to_runtime()
 
 
+## Pushes lab_cfg into all lab_spins without firing signals.
 func _lab_sync_ui_from_cfg() -> void:
 	_fill = true
 	var car: Dictionary = lab_cfg.get("carousel", {})
@@ -3298,6 +3594,7 @@ func _lab_sync_ui_from_cfg() -> void:
 	_fill = false
 
 
+## Sets one lab spin value by group:key string.
 func _lab_set_spin(key: String, v) -> void:
 	if not lab_spins.has(key):
 		return
@@ -3306,6 +3603,7 @@ func _lab_set_spin(key: String, v) -> void:
 		(n as SpinBox).set_value_no_signal(float(v))
 
 
+## Selects option text for one lab group:key control.
 func _lab_set_option(key: String, v: String) -> void:
 	if not lab_spins.has(key):
 		return
@@ -3318,6 +3616,7 @@ func _lab_set_option(key: String, v: String) -> void:
 				return
 
 
+## Sets checked state for one lab toggle control.
 func _lab_set_check(key: String, v: bool) -> void:
 	if not lab_spins.has(key):
 		return
@@ -3326,6 +3625,7 @@ func _lab_set_check(key: String, v: bool) -> void:
 		(n as CheckBox).set_pressed_no_signal(v)
 
 
+## Copies lab_cfg carousel fields into lab_carousel runtime.
 func _lab_apply_cfg_to_runtime() -> void:
 	if lab_carousel.is_empty():
 		return
@@ -3360,6 +3660,7 @@ func _lab_apply_cfg_to_runtime() -> void:
 	_lab_update_status()
 
 
+## Snaps admitted agents onto carousel slot positions.
 func _lab_reseat_agents() -> void:
 	var taken := {}
 	var keep: Array = []
@@ -3376,6 +3677,7 @@ func _lab_reseat_agents() -> void:
 			a.slot = -1
 
 
+## Clears lab agents and optionally respawns from spawn.count.
 func _lab_reset_state(respawn: bool) -> void:
 	lab_agents.clear()
 	lab_sim_t = 0.0
@@ -3426,6 +3728,7 @@ func _lab_reset_state(respawn: bool) -> void:
 	_lab_update_status()
 
 
+## Clears and respawns lab_agents per spawn.count cfg.
 func _lab_respawn_all() -> void:
 	lab_agents.clear()
 	lab_selected_agent = -1
@@ -3434,12 +3737,14 @@ func _lab_respawn_all() -> void:
 	_lab_update_status()
 
 
+## Removes all synthetic lab agents without touching cfg.
 func _lab_clear_agents() -> void:
 	lab_agents.clear()
 	lab_selected_agent = -1
 	_lab_update_status()
 
 
+## Adds n wandering lab agents around the carousel ring.
 func _lab_spawn(n: int, reset_ring: bool = false) -> void:
 	var sp: Dictionary = lab_cfg.get("spawn", {})
 	var ring := float(sp.get("ring_radius", 80.0))
@@ -3466,6 +3771,7 @@ func _lab_spawn(n: int, reset_ring: bool = false) -> void:
 	_lab_update_status()
 
 
+## Computes seat ring radius from slot count and spacing.
 func _lab_seat_radius(slots_n: int, spacing: float) -> float:
 	# Distance between plazas is the primary control: radius derived so adjacent seats are `spacing` apart.
 	if slots_n <= 1:
@@ -3476,18 +3782,21 @@ func _lab_seat_radius(slots_n: int, spacing: float) -> float:
 	return spacing / denom
 
 
+## World center of the lab carousel including cfg offset.
 func _lab_ride_center() -> Vector2:
 	if lab_carousel.is_empty():
 		return Vector2.ZERO
 	return Vector2(lab_carousel.pos) + Vector2(lab_carousel.get("center_offset", Vector2(12, 12)))
 
 
+## Angle in radians for carousel seat index.
 func _lab_slot_ang(slot: int) -> float:
 	var n := maxf(1.0, float(lab_carousel.get("slots", 4)))
 	var base := deg_to_rad(float(lab_carousel.get("slot_base_deg", 0.0)))
 	return float(lab_carousel.get("spin", 0.0)) + base + float(slot) * TAU / n
 
 
+## World position for a carousel seat index.
 func _lab_slot_pos(slot: int) -> Vector2:
 	var center := _lab_ride_center()
 	var ang := _lab_slot_ang(slot)
@@ -3495,6 +3804,7 @@ func _lab_slot_pos(slot: int) -> Vector2:
 	return center + Vector2(cos(ang) * r, sin(ang) * r)
 
 
+## Unit facing vector for a seat from face_mode cfg.
 func _lab_slot_dir(slot: int) -> Vector2:
 	var ang := _lab_slot_ang(slot)
 	var center := _lab_ride_center()
@@ -3516,6 +3826,7 @@ func _lab_slot_dir(slot: int) -> Vector2:
 			return d.normalized() if d.length() > 0.001 else Vector2(cos(ang + PI), sin(ang + PI))
 
 
+## Stand position agents use before boarding a slot.
 func _lab_approach_pos(slot: int) -> Vector2:
 	# Approach from outside toward the concrete seat point; entry can come from any direction.
 	var seat := _lab_slot_pos(slot)
@@ -3526,11 +3837,13 @@ func _lab_approach_pos(slot: int) -> Vector2:
 	return seat + out.normalized() * 10.0
 
 
+## Queue gate position for slot admission logic.
 func _lab_gate_pos(slot: int) -> Vector2:
 	# Kept for drawing/compat: point just outside the seat
 	return _lab_approach_pos(slot)
 
 
+## Set of occupied seat indexes optionally excluding one agent.
 func _lab_taken_slots(except_id: int = -1) -> Dictionary:
 	var taken := {}
 	for a in lab_agents:
@@ -3544,6 +3857,7 @@ func _lab_taken_slots(except_id: int = -1) -> Dictionary:
 	return taken
 
 
+## First unoccupied carousel seat index, or -1.
 func _lab_free_slot() -> int:
 	var taken := _lab_taken_slots()
 	for s in int(lab_carousel.get("slots", 4)):
@@ -3552,6 +3866,7 @@ func _lab_free_slot() -> int:
 	return -1
 
 
+## Whether sync rules allow boarding another agent now.
 func _lab_can_admit() -> bool:
 	var sync: Dictionary = lab_cfg.get("sync", {})
 	var mode := str(sync.get("mode", "continuous"))
@@ -3575,6 +3890,7 @@ func _lab_can_admit() -> bool:
 	return true
 
 
+## Records admission time and updates wave counters.
 func _lab_mark_admitted() -> void:
 	var sync: Dictionary = lab_cfg.get("sync", {})
 	var mode := str(sync.get("mode", "continuous"))
@@ -3589,6 +3905,7 @@ func _lab_mark_admitted() -> void:
 		lab_admit_t = maxf(lab_admit_t, 0.15)
 
 
+## Simulates agent movement, boarding, riding, and exit one dt.
 func _lab_step(dt: float) -> void:
 	if lab_carousel.is_empty():
 		return
@@ -3714,6 +4031,7 @@ func _lab_step(dt: float) -> void:
 	_lab_update_status()
 
 
+## Steers one lab agent toward target at speed; returns distance left.
 func _lab_move_toward(a: Dictionary, target: Vector2, speed: float, dt: float) -> float:
 	var pos: Vector2 = a.get("pos", Vector2.ZERO)
 	var d := target - pos
@@ -3727,6 +4045,7 @@ func _lab_move_toward(a: Dictionary, target: Vector2, speed: float, dt: float) -
 	return maxf(0.0, dist - speed * dt)
 
 
+## Paints lab agents and carousel into the world drawer.
 func _lab_tick_draw() -> void:
 	if main == null:
 		return
@@ -3736,7 +4055,7 @@ func _lab_tick_draw() -> void:
 	if not lab_carousel.is_empty():
 		var pos: Vector2 = lab_carousel.get("pos", Catalog.cell_world(Vector2i(8, 16)))
 		var spin: float = float(lab_carousel.get("spin", 0.0))
-		var prop_frame: int = posmod(int(spin * 4.0), main.ROUND_ANIM_N)
+		var prop_frame: int = posmod(int(spin * 4.0), StructureTextures.ROUND_ANIM_N)
 		_paint_building(draws, Catalog.BLD_ROUND, pos, 1.0, prop_frame)
 		if not draws.is_empty():
 			# keep building at a base depth so riders can sort in front/behind by seat
@@ -3787,7 +4106,7 @@ func _lab_tick_draw() -> void:
 		if st == "riding" and carousel_sy_base > -INF:
 			# Flat disk: all riders stay above the carousel.
 			sy = carousel_sy_base + 1.0 + float(slot) * 0.01
-		main._push_iso(draws, pos + off, frame, tint, lift, sc, sy)
+		main.iso_draw.push_iso(draws, pos + off, frame, tint, lift, sc, sy)
 		if st == "riding":
 			# directional ride sprites already encode orientation; avoid extra flip/rotation jitter
 			var trot := ThrongTune.frame_rot(clip, idx)
@@ -3802,16 +4121,17 @@ func _lab_tick_draw() -> void:
 				elif sdir.x > 0.01:
 					draws[draws.size() - 1]["flip"] = 1.0
 	draws.sort_custom(func(a, b): return float(a.sy) < float(b.sy))
-	main._paint_props(draws)
+	main.world_drawer.paint_props(draws)
 	_lift_nodes()
 	_drop_nodes({})
 	_lab_update_status()
 
 
+## Overlays lab slot rings, gates, and selection handles.
 func _lab_draw() -> void:
 	if main == null:
 		return
-	var poly: PackedVector2Array = main._place_cell_poly()
+	var poly: PackedVector2Array = main.placement_overlay.place_cell_poly()
 	if not poly.is_empty():
 		var grid := Color(1, 1, 1, 0.12)
 		for cell in _view_cells():
@@ -3848,6 +4168,7 @@ func _lab_draw() -> void:
 				break
 
 
+## Selects agents, starts drags, or spawns on shift-click.
 func _lab_click(shift: bool) -> void:
 	var world: Vector2 = main.cam_rig.grid_pointer_world()
 	if shift:
@@ -3888,6 +4209,7 @@ func _lab_click(shift: bool) -> void:
 		lab_selected_agent = -1
 
 
+## Ends agent or carousel drag and re-seats riders.
 func _lab_release_drag() -> void:
 	if lab_drag_carousel and not lab_carousel.is_empty():
 		var cell := _cell_of(lab_carousel.get("pos", Catalog.cell_world(Vector2i(8, 16))))
@@ -3898,6 +4220,7 @@ func _lab_release_drag() -> void:
 	lab_drag_carousel = false
 
 
+## Deletes lab_selected_agent from lab_agents.
 func _lab_remove_selected() -> void:
 	if lab_selected_agent < 0:
 		return
@@ -3910,12 +4233,14 @@ func _lab_remove_selected() -> void:
 	_lab_update_status()
 
 
+## Toggles lab_running simulation pause.
 func _lab_toggle_run() -> void:
 	lab_running = not lab_running
 	lab_cfg["paused"] = not lab_running
 	_lab_update_status()
 
 
+## Advances lab simulation by one fixed dt while paused.
 func _lab_step_once() -> void:
 	if lab_carousel.is_empty():
 		return
@@ -3926,6 +4251,7 @@ func _lab_step_once() -> void:
 	_lab_update_status()
 
 
+## Writes lab_cfg to dev/tiovivo_lab.json via TiovivoLabTune.
 func _lab_save() -> void:
 	# sync carousel cell and paused
 	if not lab_carousel.is_empty():
@@ -3941,17 +4267,20 @@ func _lab_save() -> void:
 		_lab_set_status("ERROR AL GUARDAR")
 
 
+## Reloads lab_cfg from saved JSON and refreshes UI.
 func _lab_load() -> void:
 	lab_cfg = TiovivoLabTune.load_saved()
 	_lab_reset_state(true)
 	_lab_set_status("CARGADO dev/tiovivo_lab.json")
 
 
+## Sets lab_status text and appends to lab_messages.
 func _lab_set_status(text: String) -> void:
 	if lab_status:
 		lab_status.text = text
 
 
+## Rebuilds status from admit metrics and agent counts.
 func _lab_update_status() -> void:
 	if not lab_mode:
 		return
@@ -3982,6 +4311,7 @@ func _lab_update_status() -> void:
 	_lab_set_status(msg)
 
 
+## Moves dragged agent or carousel center while mouse held.
 func _lab_drag_update() -> void:
 	if not lab_mode:
 		return

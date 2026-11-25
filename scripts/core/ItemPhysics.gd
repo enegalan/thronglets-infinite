@@ -1,30 +1,45 @@
 class_name ItemPhysics
 extends RefCounted
 
+## Downward acceleration applied to airborne items.
 const ITEM_GRAVITY := 520.0
+## Bounce coefficient when items hit solid ground.
 const ITEM_RESTITUTION := 0.38
+## Minimum downward speed required to register a bounce.
 const ITEM_MIN_BOUNCE_VZ := 32.0
+## Horizontal velocity multiplier after a ground bounce.
 const ITEM_BOUNCE_H_DAMP := 0.62
+## Exponential drag while an item is airborne.
 const ITEM_AIR_DRAG := 0.9
+## Exponential drag while an item slides on the ground.
 const ITEM_GROUND_DRAG := 5.5
+## Normal impulse factor when items hit obstacle walls.
 const ITEM_WALL_BOUNCE := 0.30
+## Collision radius for item-vs-obstacle and item-vs-item tests.
 const ITEM_RADIUS := 5.5
+## Separation bounce when two items overlap.
 const ITEM_PAIR_RESTITUTION := 0.34
+## Impulse imparted when a walking thronglet kicks a ball.
 const ITEM_THRONG_PUSH := 56.0
+## Default release height when spawning dropped haulables.
 const ITEM_DROP_HEIGHT := 26.0
+## Air altitude below which void-falling items despawn.
 const ITEM_VOID_KILL_AIR := -84.0
 
 var sim
 
 
+## Stores the simulation server used for queries and side effects.
 func _init(sim_ref) -> void:
 	sim = sim_ref
 
 
+## False for fixed props and eggs that skip the integrator.
 func has_physics(it: Dictionary) -> bool:
 	return int(it.kind) != Catalog.ITEM_EGG and not bool(it.get("fixed", false))
 
 
+## Sets initial velocities when tossing or spawning a physics item.
 func launch_item(it: Dictionary, air: float, vz: float, vx: float, vy: float) -> void:
 	if it.is_empty():
 		return
@@ -35,6 +50,7 @@ func launch_item(it: Dictionary, air: float, vz: float, vx: float, vy: float) ->
 	it.falling_void = false
 
 
+## True when a point sits inside a blocking tile, feature, or building.
 func obstacle_blocked(px: float, py: float) -> bool:
 	var cell: Vector2i = sim._cell_vec(px, py)
 	var tile: int = sim._tile_at_cell(cell)
@@ -51,6 +67,7 @@ func obstacle_blocked(px: float, py: float) -> bool:
 	return false
 
 
+## Advances physics, void falls, and ball life for one frame slice.
 func tick_items(dt: float) -> void:
 	var step_dt := minf(dt, 0.05)
 	var phys_items: Array = []
@@ -171,6 +188,7 @@ func tick_items(dt: float) -> void:
 	_resolve_thronglet_item_bumps(phys_items)
 
 
+## Pushes items out of features, buildings, and mountains.
 func _resolve_item_obstacle_collisions(phys_items: Array) -> void:
 	for it in phys_items:
 		if it.dead:
@@ -290,6 +308,7 @@ func _resolve_item_obstacle_collisions(phys_items: Array) -> void:
 							sim.sfx_queue.append("ball")
 
 
+## Separates overlapping physics items and exchanges momentum.
 func _resolve_item_collisions(phys_items: Array) -> void:
 	var n := phys_items.size()
 	var min_d := ITEM_RADIUS * 2.0
@@ -376,6 +395,7 @@ func _resolve_item_collisions(phys_items: Array) -> void:
 			b.vy = bvy
 
 
+## Lets movers kick grounded balls for fun and sound.
 func _resolve_thronglet_item_bumps(phys_items: Array) -> void:
 	for it in phys_items:
 		if it.dead or int(it.kind) != Catalog.ITEM_BALL or float(it.get("air", 0.0)) > 10.0 or float(it.get("rest", 0.0)) > 0.0:

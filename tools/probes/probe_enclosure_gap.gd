@@ -2,15 +2,22 @@ extends SceneTree
 
 ## Tree square with one gap: must exit the gap, never chord through walls / unstick-loop.
 
+## Preloaded ThrongletSimServer script used for headless simulation steps.
 const SimScript := preload("res://scripts/core/ThrongletSimServer.gd")
+
+## Fixed sim step delta used while walking throngs in path probes.
 const DT := 0.08
+
+## Throng walk speed in world units per second for path stepping.
 const SPEED := 26.0
 
 
+## Defers probe execution until the SceneTree root is ready.
 func _init() -> void:
 	call_deferred("_run")
 
 
+## Boots the sim, runs assertions, and quits with pass/fail status.
 func _run() -> void:
 	var sim = SimScript.new()
 	sim.testing = true
@@ -42,6 +49,7 @@ func _run() -> void:
 		quit(1)
 
 
+## Finds one inland grass pad outside spawn for the enclosure test.
 func _pick_pad(sim) -> Vector2i:
 	var mid: float = float(sim.island_gen.island_mid())
 	var reach: float = float(sim.island_gen.island_reach())
@@ -61,6 +69,7 @@ func _pick_pad(sim) -> Vector2i:
 	return Vector2i(-999999, -999999)
 
 
+## Clears features and buildings in a square around a test origin.
 func _clear_pad(sim, origin: Vector2i, half: int) -> void:
 	for oy in range(-half, half + 1):
 		for ox in range(-half, half + 1):
@@ -80,11 +89,13 @@ func _clear_pad(sim, origin: Vector2i, half: int) -> void:
 			sim._set_world_cell(key.x, key.y, Catalog.TILE_GRASS, true)
 
 
+## Plants a tree feature on a cell when placement rules allow.
 func _plant(sim, cell: Vector2i) -> bool:
 	var at: Vector2 = Catalog.cell_world(cell)
 	return not sim._add_feature(Catalog.FEAT_TREE, at.x, at.y, 1, 0, false).is_empty()
 
 
+## Builds a walled square with one gap and walks a throng through.
 func _case_enclosure(sim, origin: Vector2i) -> Array[String]:
 	var errors: Array[String] = []
 	_clear_pad(sim, origin, 10)

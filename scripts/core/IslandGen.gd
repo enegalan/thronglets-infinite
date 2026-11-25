@@ -3,25 +3,31 @@ extends RefCounted
 
 # Home-island shape, water, prop scatter, and mine-node seeding.
 
+## Back-reference to the colony sim that owns terrain and features.
 var sim
 
 
+## Binds this helper to the live simulation server instance.
 func _init(sim_ref) -> void:
 	sim = sim_ref
 
 
+## World-space center X/Y used as the home island anchor.
 func island_mid() -> float:
 	return 256.0
 
 
+## Base shoreline radius before land-tier expansion.
 func island_reach() -> float:
 	return 170.0 + float(sim.land_tier) * 48.0
 
 
+## Width and height of one terrain chunk in world units.
 func chunk_size_world() -> float:
 	return float(Catalog.CHUNK * Catalog.TILE)
 
 
+## True when a chunk overlaps the island footprint disk.
 func chunk_intersects_disk(cx: int, cy: int, mid: float, reach: float) -> bool:
 	var size := chunk_size_world()
 	var min_x := float(cx) * size
@@ -33,25 +39,30 @@ func chunk_intersects_disk(cx: int, cy: int, mid: float, reach: float) -> bool:
 	return sim._dist_point(mid, mid, qx, qy) <= reach
 
 
+## True when a chunk should receive home-island terrain rules.
 func is_island_chunk(cx: int, cy: int) -> bool:
 	return chunk_intersects_disk(cx, cy, island_mid(), island_reach() + 40.0)
 
 
+## True when world coordinates lie inside the egg clearing.
 func near_spawn(x: float, y: float) -> bool:
 	var mid := island_mid()
 	return sim._dist_point(mid, mid, x, y) < sim.SPAWN_CLEAR
 
 
+## Like near_spawn but in chunk-local coordinates for scatter.
 func near_island_mid(px: float, py: float) -> bool:
 	# Local-space helper for home-chunk scatter; prefer near_spawn for world checks.
 	var mid := local_mid()
 	return sim._dist_point(mid, mid, px, py) < sim.SPAWN_CLEAR
 
 
+## Center of the current chunk in local tile space.
 func local_mid() -> float:
 	return chunk_size_world() * 0.5
 
 
+## Removes props encroaching on the mandatory spawn clearing.
 func clear_spawn() -> void:
 	var doomed: Array = []
 	for feat in sim.features:
@@ -63,6 +74,7 @@ func clear_spawn() -> void:
 		sim._kill_feature(feat)
 
 
+## Raises land tier, rebuilds shape, and may trigger part-two narrative.
 func expand_super_island(announce: bool = true) -> void:
 	var first: bool = not sim.part_two
 	# Grow the main island.
@@ -74,6 +86,7 @@ func expand_super_island(announce: bool = true) -> void:
 		sim.notes.append("LA ISLA CRECE.")
 
 
+## Counts ore features already placed on a chunk.
 func count_mine_nodes(cx: int, cy: int) -> int:
 	var n := 0
 	for feat in sim.features:
@@ -86,6 +99,7 @@ func count_mine_nodes(cx: int, cy: int) -> int:
 	return n
 
 
+## Places super and standard mine nodes on a chunk if sparse.
 func seed_mine_nodes(cx: int, cy: int) -> void:
 	if bool(sim.sandbox_mode):
 		return
@@ -121,6 +135,7 @@ func seed_mine_nodes(cx: int, cy: int) -> void:
 				return
 
 
+## Validates a tile for mine placement away from cliffs and clutter.
 func mine_spot_ok(cx: int, cy: int, lx: int, ly: int, tiles, mid_min: float) -> bool:
 	for oy in range(-3, 4):
 		for ox in range(-3, 4):
@@ -147,12 +162,14 @@ func mine_spot_ok(cx: int, cy: int, lx: int, ly: int, tiles, mid_min: float) -> 
 	return true
 
 
+## Returns whether a world point lies inside the wobbled island disk.
 func disk_land(x: float, y: float, mid: float, reach: float, phase: float) -> bool:
 	var ang := atan2(y - mid, x - mid)
 	var wobble := sin(ang * 2.0 + phase) * 20.0 + sin(ang * 5.0 + phase * 1.4) * 10.0 + sin(ang * 7.0 + 0.8) * 5.0
 	return sim._dist_point(mid, mid, x, y) <= reach + wobble
 
 
+## Normalized ellipse distance used to carve bays and ponds.
 func ellipse(px: float, py: float, center: Vector2, axis: Vector2, rx: float, ry: float) -> float:
 	var rel := Vector2(px, py) - center
 	var side := Vector2(-axis.y, axis.x)
@@ -161,6 +178,7 @@ func ellipse(px: float, py: float, center: Vector2, axis: Vector2, rx: float, ry
 	return u * u + v * v
 
 
+## True for inland grass, dirt, or bloom without blocking props.
 func open_ground(cx: int, cy: int, lx: int, ly: int) -> bool:
 	if lx < 0 or ly < 0 or lx >= Catalog.CHUNK or ly >= Catalog.CHUNK:
 		return false
@@ -172,6 +190,7 @@ func open_ground(cx: int, cy: int, lx: int, ly: int) -> bool:
 	return sim._land_inland(wx, wy)
 
 
+## Carves lakes and shore water on the home chunk tile buffer.
 func paint_water(tiles: PackedByteArray, cx: int, cy: int) -> PackedByteArray:
 	var outward := Vector2(1, 0)
 	if absi(int(sim.world_seed)) % 2 == 1:
@@ -213,6 +232,7 @@ func paint_water(tiles: PackedByteArray, cx: int, cy: int) -> PackedByteArray:
 	return tiles
 
 
+## Decides whether a grass cell should become water in layout passes.
 func wet_cell(tiles: PackedByteArray, lx: int, ly: int, mid: float, origin: Vector2, bay: Vector2, away: Vector2, pond: Vector2, camp: float, bay_rx: float, bay_ry: float, pond_r: float) -> bool:
 	var idx := ly * Catalog.CHUNK + lx
 	var tile := int(tiles[idx])
@@ -231,6 +251,7 @@ func wet_cell(tiles: PackedByteArray, lx: int, ly: int, mid: float, origin: Vect
 	return sim._dist_point(pond.x, pond.y, px, py) <= pond_r
 
 
+## Samples well-separated anchor points for groves and rock clusters.
 func pick_points(cx: int, cy: int, want: int, min_mid: float, apart: float, salt: int) -> Array[Vector2]:
 	var found: Array[Vector2] = []
 	var mid := local_mid()
@@ -256,6 +277,7 @@ func pick_points(cx: int, cy: int, want: int, min_mid: float, apart: float, salt
 	return found
 
 
+## Shortest distance from a point to any anchor in a list.
 func nearest_point(px: float, py: float, points: Array[Vector2]) -> float:
 	var best := 10000.0
 	var at := Vector2(px, py)
@@ -264,11 +286,13 @@ func nearest_point(px: float, py: float, points: Array[Vector2]) -> float:
 	return best
 
 
+## Per-cell density jitter so forests clump instead of tiling evenly.
 func tree_jitter(cx: int, cy: int, lx: int, ly: int) -> float:
 	# 0.25..1.75 — same mean density, more patchy clumps and gaps.
 	return 0.25 + float(sim._rand(cx, cy, lx, ly, 19)) * 1.5
 
 
+## Stochastic tree roll from grove proximity and jitter.
 func wants_tree(cx: int, cy: int, lx: int, ly: int) -> bool:
 	var wx := float((cx * Catalog.CHUNK + lx) * Catalog.TILE + 8)
 	var wy := float((cy * Catalog.CHUNK + ly) * Catalog.TILE + 8)
@@ -287,6 +311,7 @@ func wants_tree(cx: int, cy: int, lx: int, ly: int) -> bool:
 	return float(sim._rand(cx, cy, lx, ly, 1)) < 0.02 * jitter
 
 
+## Counts live features of one kind on a chunk.
 func count_kind_on(cx: int, cy: int, kind: int) -> int:
 	var n := 0
 	for feat in sim.features:
@@ -297,6 +322,7 @@ func count_kind_on(cx: int, cy: int, kind: int) -> int:
 	return n
 
 
+## Counts ore-bearing rocks and nodes on a chunk.
 func count_ore_rocks_on(cx: int, cy: int) -> int:
 	var n := 0
 	for feat in sim.features:
@@ -310,6 +336,7 @@ func count_ore_rocks_on(cx: int, cy: int) -> int:
 	return n
 
 
+## Spiral search for an open inland cell near anchor points.
 func free_land_near(cx: int, cy: int, points: Array[Vector2], n: int) -> Vector2:
 	if points.is_empty():
 		return Vector2(-1, -1)
@@ -332,6 +359,7 @@ func free_land_near(cx: int, cy: int, points: Array[Vector2], n: int) -> Vector2
 	return Vector2(wx, wy)
 
 
+## Desired tree, stone, and ore quotas from inland area.
 func prop_targets(cx: int, cy: int) -> Dictionary:
 	# Scale baselines with how much inland pad this chunk actually has.
 	var inland := 0
@@ -345,6 +373,7 @@ func prop_targets(cx: int, cy: int) -> Dictionary:
 	return {"trees": trees_want, "stones": stones_want, "ore": ore_want}
 
 
+## Spawns missing trees and rocks until quotas are met.
 func top_up_island(cx: int, cy: int, groves: Array[Vector2], rocks: Array[Vector2]) -> void:
 	if bool(sim.sandbox_mode):
 		return
@@ -387,6 +416,7 @@ func top_up_island(cx: int, cy: int, groves: Array[Vector2], rocks: Array[Vector
 		stones += 1
 
 
+## Seeds trees and rocks only on newly revealed land cells.
 func decorate_fresh(spots: Array[Vector2]) -> void:
 	if bool(sim.sandbox_mode):
 		return
@@ -413,6 +443,7 @@ func decorate_fresh(spots: Array[Vector2]) -> void:
 			sim._scatter_one(c.x, c.y, spot.x, spot.y, lx, ly)
 
 
+## Initial prop pass when a home chunk is first populated.
 func scatter_island(cx: int, cy: int) -> void:
 	if bool(sim.sandbox_mode):
 		return
@@ -454,6 +485,7 @@ func scatter_island(cx: int, cy: int) -> void:
 	top_up_island(cx, cy, groves, rocks)
 
 
+## Rebuilds void/grass/water to match tier; returns new land cell count.
 func shape_island() -> int:
 	if sim._shaping_island:
 		return 0
@@ -578,6 +610,7 @@ func shape_island() -> int:
 	return fresh.size()
 
 
+## Marks a global cell that must stay land during shrink passes.
 func keep_cell(keep: Dictionary, x: float, y: float) -> void:
 	var gx: int = sim._cell_of(x)
 	var gy: int = sim._cell_of(y)

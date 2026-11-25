@@ -6,13 +6,16 @@ extends SceneTree
 ##   B) diggers enter/exit with ore once factory exists
 ##   C) haul to factory buffer and gem gain
 
+## Preloaded ThrongletSimServer script used for headless simulation steps.
 const SimScript := preload("res://scripts/core/ThrongletSimServer.gd")
 
 
+## Defers probe execution until the SceneTree root is ready.
 func _init() -> void:
 	call_deferred("_run")
 
 
+## Boots the sim, runs assertions, and quits with pass/fail status.
 func _run() -> void:
 	var errors: Array[String] = []
 	var sim = SimScript.new()
@@ -232,6 +235,7 @@ func _run() -> void:
 	return
 
 
+## Euclidean distance between two world points.
 func _dist(ax: float, ay: float, bx: float, by: float) -> float:
 	var dx := ax - bx
 	var dy := ay - by

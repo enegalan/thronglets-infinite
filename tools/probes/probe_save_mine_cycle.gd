@@ -2,14 +2,19 @@ extends SceneTree
 
 ## Load the player's real slot_0 save and verify mine/factory cycle on live state.
 
+## Preloaded ThrongletSimServer script used for headless simulation steps.
 const SimScript := preload("res://scripts/core/ThrongletSimServer.gd")
+
+## On-disk slot_0 save path exercised for regression probes.
 const SAVE := "/Users/egalan/Library/Application Support/Godot/app_userdata/Thronglets- Infinite/thronglets_slot_0.save"
 
 
+## Defers probe execution until the SceneTree root is ready.
 func _init() -> void:
 	call_deferred("_run")
 
 
+## Boots the sim, runs assertions, and quits with pass/fail status.
 func _run() -> void:
 	var sim = SimScript.new()
 	sim.testing = true
@@ -108,7 +113,7 @@ func _run() -> void:
 			for i in sim.slot_count:
 				if sim.state[i] != Catalog.ST_LIVING:
 					continue
-				if _dist(sim.pos_x[i], sim.pos_y[i], float(mine.x), float(mine.y)) > 180.0:
+				if _dist(sim.pos_x[i], sim.pos_y[i], float(mine.x), float(mine.y)) > Catalog.NEAR_BUILDING:
 					continue
 				sim.fed[i] = 100.0
 				sim.clean[i] = 100.0
@@ -157,6 +162,7 @@ func _run() -> void:
 	return
 
 
+## Euclidean distance between two world points.
 func _dist(ax: float, ay: float, bx: float, by: float) -> float:
 	var dx := ax - bx
 	var dy := ay - by

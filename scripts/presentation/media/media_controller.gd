@@ -1,37 +1,74 @@
 extends Node
 class_name MediaController
 
+## Main scene node receiving boot/title callbacks after video rolls.
 var host: Node2D
 
+## Logical clip name to loaded AudioStream arrays for play() lookups.
 var sfx_bank := {}
+## Reused one-shot players so overlapping SFX do not cut each other off.
 var sfx_pool: Array = []
+## Looping biome or title music bed.
 var music: AudioStreamPlayer
+## Looping ambient bed layered under music (wind, spot hum).
 var amb: AudioStreamPlayer
+## One-shot stingers and non-looping narrative audio.
 var sting: AudioStreamPlayer
+## Active biome or title key driving sync_music bed selection.
 var music_mode := ""
+## Nearest special spot amb ("mine", "market", "") under the camera.
 var spot_mode := ""
+## Countdown until the next random field bird one-shot may play.
 var bird_wait := 8.0
+## True while logo boot video blocks normal music sync.
 var logo_video_playing := false
 
+## Sequence base names already played so biome intros run once.
 var video_played := {}
+## Full-screen cutscene player on the captions canvas layer.
 var video_player: VideoStreamPlayer
+## Next video_finished should return to title flow, not boot DOS.
 var video_from_title := false
+## Next video_finished should reopen the in-game video library UI.
 var video_from_library := false
 
+## Bottom-centered subtitle text during sequence videos.
 var captions_label: Label
+## High layer hosting video plate, player, and captions above gameplay.
 var captions_layer: CanvasLayer
+## User pref: whether LineBook subtitles advance during videos.
 var captions_on := true
+## Display strings for the current video, split from LineBook rows.
 var captions_lines: Array = []
+## Playback times at which each caption line should appear.
 var captions_ends: Array = []
+## Index of the caption line currently shown, or -1 when hidden.
 var captions_index := -1
+## Linear 0–1 SFX bus level applied to the pooled players.
 var sfx_vol := 1.0
+## Linear 0–1 level for music, amb, and video audio beds.
 var music_vol := 1.0
 
+## Host callback to enter DOS boot after logo video ends.
+var on_begin_dos: Callable
+## Host callback to show the title screen after a cinematic ends.
+var on_show_title: Callable
+## Host callback to open the video library after library playback.
+var on_open_video_library: Callable
+## Host callback reporting mine/market proximity for spot ambients.
+var on_near_spot: Callable
+## Host callback returning boot phase ("logo", etc.) for video routing.
+var get_boot: Callable
+## Host callback: whether logo sequence has already started (skip re-entry).
+var get_logo_started: Callable
 
+
+## Attaches the presentation host used for post-video navigation.
 func setup(p_host: Node2D) -> void:
 	host = p_host
 
 
+## Creates music, amb, sting, and SFX pool nodes.
 func build_audio() -> void:
 	music = AudioStreamPlayer.new()
 	music.bus = "Master"
@@ -48,9 +85,10 @@ func build_audio() -> void:
 		add_child(player)
 		sfx_pool.append(player)
 	_fill_bank()
-	_apply_volumes()
+	apply_volumes()
 
 
+## Populates named SFX banks from audio files.
 func _fill_bank() -> void:
 	sfx_bank["deflesh"] = _clips(PackedStringArray(["deflesh_a.wav"]))
 	sfx_bank["crush"] = _clips(PackedStringArray(["thronglet_crush.wav"]))
@@ -167,6 +205,7 @@ func _fill_bank() -> void:
 	]))
 
 
+## Adds tool, voice, and misc clips to the bank.
 func _fill_tools_and_misc() -> void:
 	# --- Tools and constructions ---
 	sfx_bank["sfx_axe_unlock"] = _clips(PackedStringArray(["sfx_axe_unlock.wav"]))
@@ -302,6 +341,7 @@ func _fill_tools_and_misc() -> void:
 	sfx_bank["vo_thronglet_upset_12"] = _clips(PackedStringArray(["vo_thronglet_upset_12.wav"]))
 
 
+## PackedStringArray of numbered wav names in a range.
 func _seq(prefix: String, first: int, last: int) -> PackedStringArray:
 	var names := PackedStringArray()
 	for i in range(first, last + 1):
@@ -309,6 +349,7 @@ func _seq(prefix: String, first: int, last: int) -> PackedStringArray:
 	return names
 
 
+## Registers unassigned audio files by basename.
 func _fill_loose_clips() -> void:
 	var packed := {}
 	for key in sfx_bank.keys():
@@ -328,6 +369,7 @@ func _fill_loose_clips() -> void:
 		file_name = dir.get_next()
 
 
+## Video player, plate, and captions on a canvas layer.
 func build_video() -> void:
 	video_player = VideoStreamPlayer.new()
 	video_player.visible = false
@@ -351,12 +393,14 @@ func build_video() -> void:
 	layer.add_child(captions_label)
 
 
+## Loads VT323 for caption text.
 func _ui_font() -> FontFile:
 	var font := FontFile.new()
 	font.load_dynamic_font("res://resources/ui/VT323-Regular.ttf")
 	return font
 
 
+## Builds bottom-centered caption label styling.
 func _make_captions_label() -> Label:
 	var label := Label.new()
 	label.z_index = 90
@@ -378,6 +422,7 @@ func _make_captions_label() -> Label:
 	return label
 
 
+## Recreates caption label if missing.
 func _ensure_captions_label() -> void:
 	if captions_label != null and is_instance_valid(captions_label):
 		return
@@ -390,6 +435,7 @@ func _ensure_captions_label() -> void:
 	captions_layer.add_child(captions_label)
 
 
+## LineBook table id for a sequence video base name.
 func _caption_table_for(base: String) -> String:
 	if not base.begins_with("SEQ_"):
 		return ""
@@ -399,10 +445,12 @@ func _caption_table_for(base: String) -> String:
 	return "SUB_SEQ_%d" % seq_n
 
 
+## Normalizes caption line breaks for display.
 func _caption_display_text(raw: String) -> String:
 	return str(raw).strip_edges().replace("\\n", "\n")
 
 
+## Clears caption schedule and hides the label.
 func clear_captions() -> void:
 	captions_lines.clear()
 	captions_ends.clear()
@@ -412,6 +460,7 @@ func clear_captions() -> void:
 		captions_label.text = ""
 
 
+## Loads timed captions for a playing sequence.
 func _show_captions_for(base: String) -> void:
 	_ensure_captions_label()
 	clear_captions()
@@ -449,6 +498,7 @@ func _show_captions_for(base: String) -> void:
 	_apply_caption_at(0.0)
 
 
+## Shows caption line index for playback time.
 func _apply_caption_at(pos: float) -> void:
 	if captions_label == null or captions_lines.is_empty():
 		return
@@ -465,6 +515,7 @@ func _apply_caption_at(pos: float) -> void:
 	captions_label.move_to_front()
 
 
+## Updates captions while video plays.
 func tick_captions() -> void:
 	if not captions_on or captions_lines.is_empty():
 		return
@@ -473,6 +524,7 @@ func tick_captions() -> void:
 	_apply_caption_at(video_player.stream_position)
 
 
+## Starts an ogv cutscene and optional captions.
 func play_video(base: String, from_title: bool, from_library: bool = false) -> bool:
 	var path := "res://resources/video/" + base + ".ogv"
 	if not ResourceLoader.exists(path):
@@ -499,6 +551,7 @@ func play_video(base: String, from_title: bool, from_library: bool = false) -> b
 	return true
 
 
+## Restores audio and routes post-roll boot flow.
 func _on_video_finished() -> void:
 	if video_player != null:
 		video_player.visible = false
@@ -506,31 +559,44 @@ func _on_video_finished() -> void:
 		if plate != null:
 			plate.visible = false
 	clear_captions()
-	if host != null and str(host.get("boot")) == "logo" and not bool(host.get("logo_started")):
+	var boot := _host_boot()
+	var logo_started := _host_logo_started()
+	if boot == "logo" and not logo_started:
 		return
-	if host == null or str(host.get("boot")) != "logo":
+	if boot != "logo":
 		if music != null:
 			var tween: Tween = create_tween()
 			tween.tween_property(music, "volume_db", -6.0, 1.0)
 		if sting != null:
 			var tween2: Tween = create_tween()
 			tween2.tween_property(sting, "volume_db", -4.0, 1.0)
-	if host != null and str(host.get("boot")) == "logo":
+	if boot == "logo":
 		video_player.volume_db = 0.0
-		host.call("_begin_dos")
+		if on_begin_dos.is_valid():
+			on_begin_dos.call()
+		elif host != null:
+			host.boot_seq.begin_dos()
 		return
 	if video_from_library:
 		video_from_library = false
-		if host != null:
-			host.call("_show_title")
-			host.call("_open_video_library")
+		if on_show_title.is_valid():
+			on_show_title.call()
+		elif host != null:
+			host.title.show_title()
+		if on_open_video_library.is_valid():
+			on_open_video_library.call()
+		elif host != null:
+			host.video_lib.open()
 		return
 	if video_from_title:
 		video_from_title = false
-		if host != null:
-			host.call("_show_title")
+		if on_show_title.is_valid():
+			on_show_title.call()
+		elif host != null:
+			host.title.show_title()
 
 
+## Plays first-time biome narrative videos.
 func maybe_play_sequence(mode: String) -> void:
 	var clips := {
 		"mountain": "SEQ_2.1",
@@ -549,6 +615,7 @@ func maybe_play_sequence(mode: String) -> void:
 			play("finale_outro")
 
 
+## Loads an array of streams from file names.
 func _clips(names: PackedStringArray) -> Array:
 	var out: Array = []
 	for clip_name in names:
@@ -558,6 +625,7 @@ func _clips(names: PackedStringArray) -> Array:
 	return out
 
 
+## Loads wav or resource audio by file name.
 func _load_stream(clip_name: String) -> AudioStream:
 	var path := "res://resources/audio/" + clip_name
 	if ResourceLoader.exists(path):
@@ -569,6 +637,7 @@ func _load_stream(clip_name: String) -> AudioStream:
 	return null
 
 
+## Parses raw wav bytes into AudioStreamWAV.
 func _load_wav(path: String) -> AudioStream:
 	var file := FileAccess.open(path, FileAccess.READ)
 	if file == null:
@@ -601,6 +670,7 @@ func _load_wav(path: String) -> AudioStream:
 	return wav
 
 
+## Plays one random clip from a named bank.
 func play(name: String) -> void:
 	if name.begins_with("unlock_") and not has_clip(name):
 		name = "unlock"
@@ -613,6 +683,7 @@ func play(name: String) -> void:
 	player.play()
 
 
+## Ducks music, plays SFX, then runs callback.
 func play_sfx_then(name: String, callback: Callable) -> void:
 	if music != null:
 		var music_tween := create_tween()
@@ -639,6 +710,7 @@ func play_sfx_then(name: String, callback: Callable) -> void:
 	timer.start()
 
 
+## Whether a non-empty clip list exists for a name.
 func has_clip(name: String) -> bool:
 	if not sfx_bank.has(name):
 		return false
@@ -646,6 +718,7 @@ func has_clip(name: String) -> bool:
 	return not clips.is_empty()
 
 
+## Returns an idle pooled AudioStreamPlayer.
 func _free_sfx() -> AudioStreamPlayer:
 	for raw in sfx_pool:
 		var player := raw as AudioStreamPlayer
@@ -654,6 +727,7 @@ func _free_sfx() -> AudioStreamPlayer:
 	return sfx_pool[0] as AudioStreamPlayer
 
 
+## Switches music bed for title or biome mode.
 func sync_music(in_title: bool, camera_biome: String) -> void:
 	if logo_video_playing:
 		return
@@ -673,6 +747,7 @@ func sync_music(in_title: bool, camera_biome: String) -> void:
 	maybe_play_sequence(mode)
 
 
+## Starts looping music and amb for a mode.
 func _play_biome_bed(mode: String) -> void:
 	if mode == "title":
 		_loop_bed(music, "thronglets_title_theme_180bpm_24bar.ogg")
@@ -697,6 +772,7 @@ func _play_biome_bed(mode: String) -> void:
 		_loop_bed(amb, "ambBed_act1n2_softWindBirds_lp.ogg")
 
 
+## One-shot sting when entering a biome mode.
 func _play_biome_stinger(mode: String, previous: String) -> void:
 	if previous == "":
 		return
@@ -710,12 +786,15 @@ func _play_biome_stinger(mode: String, previous: String) -> void:
 		play_file(str(once[mode]), false)
 
 
+## Spot ambients for mine, market, or pollution.
 func _sync_spot_amb(in_title: bool) -> void:
 	if in_title or music_mode == "mountain" or music_mode == "glitch" or music_mode == "anomaly" or music_mode == "epilogue":
 		return
 	var spot := ""
-	if host != null and host.has_method("_near_spot"):
-		spot = str(host.call("_near_spot"))
+	if on_near_spot.is_valid():
+		spot = str(on_near_spot.call())
+	elif host != null and host.cam_rig != null:
+		spot = str(host.cam_rig.near_spot())
 	if spot == spot_mode:
 		return
 	spot_mode = spot
@@ -731,6 +810,7 @@ func _sync_spot_amb(in_title: bool) -> void:
 		_loop_bed(amb, "ambBed_act1n2_softWindBirds_lp.ogg")
 
 
+## Plays a file on the sting player.
 func play_file(file_name: String, looped: bool) -> void:
 	var loaded: AudioStream = load("res://resources/audio/" + file_name)
 	if loaded == null:
@@ -747,6 +827,7 @@ func play_file(file_name: String, looped: bool) -> void:
 	sting.play()
 
 
+## Sets looping stream on a bed player.
 func _loop_bed(player: AudioStreamPlayer, file_name: String) -> void:
 	var loaded: AudioStream = load("res://resources/audio/" + file_name)
 	if loaded == null:
@@ -761,6 +842,7 @@ func _loop_bed(player: AudioStreamPlayer, file_name: String) -> void:
 	player.play()
 
 
+## Random bird one-shots in field mode.
 func tick_birds(delta: float) -> void:
 	if music_mode != "field":
 		return
@@ -771,11 +853,8 @@ func tick_birds(delta: float) -> void:
 	play("bird")
 
 
+## Applies sfx and music linear volumes to players.
 func apply_volumes() -> void:
-	_apply_volumes()
-
-
-func _apply_volumes() -> void:
 	var sdb := linear_to_db(sfx_vol) if sfx_vol > 0.0 else -80.0
 	var mdb := linear_to_db(music_vol) if music_vol > 0.0 else -80.0
 	for raw in sfx_pool:
@@ -790,3 +869,21 @@ func _apply_volumes() -> void:
 		sting.volume_db = sdb
 	if video_player != null:
 		video_player.volume_db = mdb
+
+
+## Current boot phase string from host or callback.
+func _host_boot() -> String:
+	if get_boot.is_valid():
+		return str(get_boot.call())
+	if host != null and host.boot_seq != null:
+		return str(host.boot_seq.boot)
+	return ""
+
+
+## Whether logo boot sequence has started.
+func _host_logo_started() -> bool:
+	if get_logo_started.is_valid():
+		return bool(get_logo_started.call())
+	if host != null and host.boot_seq != null:
+		return bool(host.boot_seq.logo_started)
+	return false

@@ -1,28 +1,35 @@
 extends SceneTree
-## Headless production-path probe: ThrongletSimServer + Main._frame → clip names.
+## Headless production-path probe: ThrongletSimServer + Main.anim_frames.frame → clip names.
 ## Run: godot --headless --path . -s res://scripts/dev/probe_throng_situations.gd
 
+## Detached Main script instance for anim_frames without entering the scene tree.
 var main: Node2D
+
 var sim: Node
+## Count of failed clip-pool assertions this run.
 var fails := 0
+## Count of passed clip-pool assertions this run.
 var passes := 0
 
 
+## Defers boot so the SceneTree root is ready before probes run.
 func _init() -> void:
 	call_deferred("_boot")
 
 
+## Binds sim and Main, runs all situation suites, then quits with pass/fail code.
 func _boot() -> void:
 	sim = root.get_node("ThrongletSimServer")
 	main = Node2D.new()
 	main.set_script(load("res://scripts/presentation/Main.gd"))
-	# Do not enter the tree — avoids Main._ready world boot; _frame only needs sim + ThrongClips.
+	# Do not enter the tree — avoids Main._ready world boot; anim_frames.frame only needs sim + ThrongClips.
 	_run_all()
 	print("")
 	print("==== SUMMARY passes=%d fails=%d ====" % [passes, fails])
 	quit(1 if fails > 0 else 0)
 
 
+## Clears the world and mood flags before each isolated situation test.
 func _reset() -> void:
 	sim._reset_world()
 	sim.frozen = false
@@ -31,11 +38,13 @@ func _reset() -> void:
 	sim.mood_face = "base"
 
 
+## Resolves the body clip name for agent i at simulation time t.
 func _clip(i: int, t: float = 0.0) -> String:
-	var frame: int = int(main._frame(i, t))
+	var frame: int = int(main.anim_frames.frame(i, t))
 	return ThrongClips.clip_name_at(frame)
 
 
+## Asserts a clip name is allowed in the expected pool (plus extras).
 func _expect_pool(label: String, clip: String, pool: Array, extra_ok: Array = []) -> void:
 	var allowed := {}
 	for c in pool:
@@ -48,16 +57,19 @@ func _expect_pool(label: String, clip: String, pool: Array, extra_ok: Array = []
 		_fail("%s → got '%s' (not in expected pool)" % [label, clip])
 
 
+## Records a passing assertion and increments the pass tally.
 func _pass(msg: String) -> void:
 	passes += 1
 	print("PASS  %s" % msg)
 
 
+## Records a failing assertion and increments the fail tally.
 func _fail(msg: String) -> void:
 	fails += 1
 	print("FAIL  %s" % msg)
 
 
+## Quiet-spawns one content thronglet at needs and returns slot id.
 func _spawn(x: float, y: float, fed_v: float, fun_v: float, clean_v: float) -> int:
 	var id: int = int(sim._push_slot_quiet(x, y, fed_v, fun_v, clean_v, 0.0, 0))
 	if id < 0:
@@ -81,6 +93,7 @@ func _spawn(x: float, y: float, fed_v: float, fun_v: float, clean_v: float) -> i
 	return id
 
 
+## Histogram of clip names sampled across multiple times for one agent.
 func _sample_set(i: int, times: Array) -> Dictionary:
 	var counts := {}
 	for t in times:
@@ -89,6 +102,7 @@ func _sample_set(i: int, times: Array) -> Dictionary:
 	return counts
 
 
+## Executes numbered situation suites for idle, social, combat, and LOD clips.
 func _run_all() -> void:
 	print("==== 1 IDLE calm alone (no KickRock/Celebrate/Jump/Ghost) ====")
 	_reset()
@@ -235,8 +249,8 @@ func _run_all() -> void:
 		_pass("peer_t sing → SING_PEER: %s" % sing_c)
 	else:
 		_fail("peer_t sing → '%s'" % sing_c)
-	var flip_a: float = float(main._throng_flip(a))
-	var flip_b: float = float(main._throng_flip(b))
+	var flip_a: float = float(main.anim_frames.throng_flip(a))
+	var flip_b: float = float(main.anim_frames.throng_flip(b))
 	if flip_a != flip_b:
 		_pass("peer social faces each other (flip a=%.0f b=%.0f)" % [flip_a, flip_b])
 	else:
@@ -420,7 +434,7 @@ func _run_all() -> void:
 		sim.dir_x[a] = 0.0
 		sim.dir_y[a] = 0.0
 		sim.carry[a] = Catalog.CARRY_NONE
-		var far_clip: String = ThrongClips.clip_name_at(int(main._frame_lod(a, 0.2, true)))
+		var far_clip: String = ThrongClips.clip_name_at(int(main.anim_frames.frame_lod(a, 0.2, true)))
 		if far_clip == str(case.want):
 			_pass("%s → %s" % [case.label, far_clip])
 		else:
@@ -428,7 +442,7 @@ func _run_all() -> void:
 	sim.act[a] = 0
 	sim.carry[a] = Catalog.CARRY_ORE
 	sim.dir_x[a] = 1.0
-	var far_haul: String = ThrongClips.clip_name_at(int(main._frame_lod(a, 0.2, true)))
+	var far_haul: String = ThrongClips.clip_name_at(int(main.anim_frames.frame_lod(a, 0.2, true)))
 	if far_haul == "ThrongA_LiftPropWalk":
 		_pass("far carry → LiftPropWalk")
 	else:
@@ -436,14 +450,14 @@ func _run_all() -> void:
 	sim.carry[a] = Catalog.CARRY_NONE
 	sim.dir_x[a] = 0.0
 	sim.celebrate_t = float(sim.CELEBRATE_DUR)
-	var far_cel: String = ThrongClips.clip_name_at(int(main._frame_lod(a, 0.2, true)))
+	var far_cel: String = ThrongClips.clip_name_at(int(main.anim_frames.frame_lod(a, 0.2, true)))
 	if far_cel == "ThrongA_Celebrate_Spritesheet":
 		_pass("far celebrate → Celebrate")
 	else:
 		_fail("far celebrate → '%s'" % far_cel)
 	sim.celebrate_t = 0.0
 	sim.penned_flag[a] = 1
-	var far_pen: String = ThrongClips.clip_name_at(int(main._frame_lod(a, 0.2, true)))
+	var far_pen: String = ThrongClips.clip_name_at(int(main.anim_frames.frame_lod(a, 0.2, true)))
 	if far_pen == "ThrongA_FreakOut":
 		_pass("far penned → FreakOut")
 	else:

@@ -1,14 +1,18 @@
 extends Object
+class_name AnimTune
 
-# Live FRAME_* consts for non-thronglet anims. Main reads these via frame_offset/scale/rot.
-# res://dev/anim_tune.json is bench handoff only (do_not_runtime_load) — apply into FRAME_* here.
+## Live FRAME_* consts for non-thronglet anims. Main reads these via frame_offset/scale/rot.
+## res://dev/anim_tune.json is bench handoff only (do_not_runtime_load) — apply into FRAME_* here.
 
 const PATH := "res://dev/anim_tune.json"
 
+## Default frames-per-second overrides for world anim keys.
 const FPS := {}
+## Global draw scale defaults for world animation keys.
 const SCALE := {
 	"egg": 0.4,
 }
+## Per-frame scale overrides for world animation keys.
 const FRAME_SCALE := {
 	"hand": {
 		"0": 0.6,
@@ -25,6 +29,7 @@ const FRAME_SCALE := {
 		"2": 0.6,
 	},
 }
+## Per-frame positional nudges for world animation keys.
 const FRAME_OFF := {
 	"egg": {
 		"0": Vector2(2, 2),
@@ -34,9 +39,10 @@ const FRAME_OFF := {
 		"4": Vector2(2, 2),
 	},
 }
+## Per-frame rotation overrides for world animation keys.
 const FRAME_ROT := {}
 
-# Not in AssetFrames.SLOTS. Packed earlier into the world sheet.
+## Not in AssetFrames.SLOTS. Packed earlier into the world sheet.
 const SPECIALS := [
 	{
 		"id": "egg",
@@ -45,7 +51,16 @@ const SPECIALS := [
 		"start": 87,
 		"count": 5,
 		"fps": 4.0,
-		"where": "Main.EGG_ANIM is 87 and covers 5 frames. _egg_frame picks one of those frames from the egg state. The bench loops them at 4 fps.",
+		"where": "World-sheet frames 87-91 (egg_0..4). ThrongAnimFrames.egg_anim picks by hatch/shake; bench loops at 4 fps.",
+	},
+	{
+		"id": "apple_bite",
+		"label": "MANZANA MORDIDA",
+		"group": "OBJETOS",
+		"start": 92,
+		"count": 3,
+		"fps": 1.0,
+		"where": "World-sheet frames 92-94 after each bite. Whole apple stays prop_frame(ICON_APPLE)=24.",
 	},
 	{
 		"id": "round",
@@ -67,11 +82,11 @@ const SPECIALS := [
 	},
 ]
 
-# Optional display for AssetFrames slots. Missing slots still appear; id defaults to lower(slot).
+## Optional display for AssetFrames slots. Missing slots still appear; id defaults to lower(slot).
 const META := {
-	"FIRE": {"id": "fire", "label": "FUEGO", "group": "EFECTOS", "fps": 8.0, "where": "Main._feature_frame for FEAT_FIRE uses AssetFrames.frame(AssetFrames.FIRE, AssetFrames.FIRE_N, int(time * 8))."},
+	"FIRE": {"id": "fire", "label": "FUEGO", "group": "EFECTOS", "fps": 8.0, "where": "Main.anim_frames.feature_frame for FEAT_FIRE uses AssetFrames.frame(AssetFrames.FIRE, AssetFrames.FIRE_N, int(time * 8))."},
 	"FIRE_BLOB": {"id": "fire_blob", "label": "FUEGO BOLAS", "group": "EFECTOS", "fps": 8.0, "where": "On odd seconds, FEAT_FIRE also draws AssetFrames.frame(AssetFrames.FIRE_BLOB, AssetFrames.FIRE_BLOB_N, int(time * 8))."},
-	"FUMES": {"id": "fumes", "label": "HUMOS", "group": "EFECTOS", "fps": 8.0, "where": "Main._push_glitch_fumes uses AssetFrames.frame(AssetFrames.FUMES, AssetFrames.FUMES_N, int(time * 8))."},
+	"FUMES": {"id": "fumes", "label": "HUMOS", "group": "EFECTOS", "fps": 8.0, "where": "Main.iso_draw.push_glitch_fumes uses AssetFrames.frame(AssetFrames.FUMES, AssetFrames.FUMES_N, int(time * 8))."},
 	"CLEAN": {"id": "clean", "label": "CHISPA", "group": "EFECTOS", "fps": 10.0, "where": "ACT_WASH draws AssetFrames.frame(AssetFrames.CLEAN, AssetFrames.CLEAN_N, int(time * 10))."},
 	"SPLASH": {"id": "splash", "label": "SALPICADURA", "group": "EFECTOS", "fps": 8.0, "where": "ACT_BATH, when the thronglet is not seated and the suds frame is missing, draws AssetFrames.frame(AssetFrames.SPLASH, AssetFrames.SPLASH_N, int(time * 8))."},
 	"HAND": {"id": "hand", "label": "MANO", "group": "EFECTOS", "fps": 8.0, "where": "A held thronglet draws AssetFrames.frame(AssetFrames.HAND, AssetFrames.HAND_N, int(time * 8))."},
@@ -100,26 +115,41 @@ const META := {
 	"GRASS_PATCH": {"id": "grass_patch", "label": "HIERBA", "group": "BIOMAS"},
 }
 
+## Runtime world animation tune edits not yet saved.
 static var overrides := {}
+## Internal cache backing anim tune tune lookups.
 static var _rows := {}
+## Internal cache backing anim tune tune lookups.
 static var _order: PackedStringArray = PackedStringArray()
 
 
+## Ordered world animation keys managed by AnimTune.
 static func ids() -> PackedStringArray:
 	_ensure()
 	return _order
 
 
+## Looks up the base tune row dictionary for one anim key.
 static func entry(key: String) -> Dictionary:
 	_ensure()
 	return _rows.get(key, {})
 
 
+## World-sheet frame for SPECIALS / AssetFrames tune [param key] at local [param index].
+static func sheet_frame(key: String, index: int = 0) -> int:
+	var row := entry(key)
+	var start := int(row.get("start", 0))
+	var count := maxi(int(row.get("count", 1)), 1)
+	return start + posmod(index, count)
+
+
+## Whether an anim key is registered in the tune tables.
 static func has_clip(key: String) -> bool:
 	_ensure()
 	return _rows.has(key)
 
 
+## Internal helper for anim tune tune serialization or bench rows.
 static func _ensure() -> void:
 	if not _order.is_empty():
 		return
@@ -151,6 +181,7 @@ static func _ensure() -> void:
 		})
 
 
+## Internal helper for anim tune tune serialization or bench rows.
 static func _push(key: String, row: Dictionary) -> void:
 	if _rows.has(key):
 		return
@@ -158,10 +189,12 @@ static func _push(key: String, row: Dictionary) -> void:
 	_order.append(key)
 
 
+## Whether the dev bench allows editing FPS for this key.
 static func fps_editable(key: String) -> bool:
 	return int(entry(key).get("count", 1)) > 1
 
 
+## Merged defaults and overrides for one world anim key.
 static func get_tune(key: String) -> Dictionary:
 	var tune := {
 		"fps": default_fps(key),
@@ -177,10 +210,12 @@ static func get_tune(key: String) -> Dictionary:
 	return tune
 
 
+## Whether an anim key differs from shipped defaults.
 static func is_dirty(key: String) -> bool:
 	return overrides.has(key) and not (overrides[key] as Dictionary).is_empty()
 
 
+## Count of anim keys with unsaved overrides.
 static func change_count() -> int:
 	var n := 0
 	for key in ids():
@@ -189,18 +224,21 @@ static func change_count() -> int:
 	return n
 
 
+## Shipped default FPS for one anim key.
 static func default_fps(key: String) -> float:
 	if FPS.has(key):
 		return float(FPS[key])
 	return float(entry(key).get("fps", 8.0))
 
 
+## Shipped default draw scale for one anim key.
 static func default_scale(key: String) -> float:
 	if not SCALE.has(key):
 		return 1.0
 	return float(SCALE[key])
 
 
+## Shipped per-frame scale map for one anim key.
 static func default_frame_scale(key: String) -> Dictionary:
 	if not FRAME_SCALE.has(key):
 		return {}
@@ -208,6 +246,7 @@ static func default_frame_scale(key: String) -> Dictionary:
 	return raw.duplicate()
 
 
+## Effective per-frame scale after overrides.
 static func frame_scale(key: String, index: int) -> float:
 	var map: Dictionary = get_tune(key).get("frame_scale", {})
 	if map.has(str(index)):
@@ -215,6 +254,7 @@ static func frame_scale(key: String, index: int) -> float:
 	return default_scale(key)
 
 
+## Shipped per-frame offset map for one anim key.
 static func default_frame_off(key: String) -> Dictionary:
 	if not FRAME_OFF.has(key):
 		return {}
@@ -222,6 +262,7 @@ static func default_frame_off(key: String) -> Dictionary:
 	return raw.duplicate()
 
 
+## Effective per-frame offset after overrides.
 static func frame_offset(key: String, index: int) -> Vector2:
 	var map: Dictionary = get_tune(key).get("frame_off", {})
 	var raw = map.get(str(index), Vector2.ZERO)
@@ -230,6 +271,7 @@ static func frame_offset(key: String, index: int) -> Vector2:
 	return Vector2.ZERO
 
 
+## Shipped per-frame rotation map for one anim key.
 static func default_frame_rot(key: String) -> Dictionary:
 	if not FRAME_ROT.has(key):
 		return {}
@@ -237,15 +279,18 @@ static func default_frame_rot(key: String) -> Dictionary:
 	return raw.duplicate()
 
 
+## Effective per-frame rotation after overrides.
 static func frame_rot(key: String, index: int) -> float:
 	var map: Dictionary = get_tune(key).get("frame_rot", {})
 	return float(map.get(str(index), 0.0))
 
 
+## Sets an FPS override on a world anim key.
 static func set_fps(key: String, value: float) -> void:
 	_assign(key, "fps", snappedf(clampf(value, 0.5, 24.0), 0.01))
 
 
+## Sets per-frame scale override on a world anim key.
 static func set_frame_scale(key: String, index: int, value: float) -> void:
 	if index < 0 or index >= int(entry(key).get("count", 1)):
 		return
@@ -260,6 +305,7 @@ static func set_frame_scale(key: String, index: int, value: float) -> void:
 	_assign(key, "frame_scale", map)
 
 
+## Sets per-frame offset override on a world anim key.
 static func set_frame_offset(key: String, index: int, x: float, y: float) -> void:
 	if index < 0 or index >= int(entry(key).get("count", 1)):
 		return
@@ -274,6 +320,7 @@ static func set_frame_offset(key: String, index: int, x: float, y: float) -> voi
 	_assign(key, "frame_off", map)
 
 
+## Sets per-frame rotation override on a world anim key.
 static func set_frame_rot(key: String, index: int, value: float) -> void:
 	if index < 0 or index >= int(entry(key).get("count", 1)):
 		return
@@ -288,10 +335,12 @@ static func set_frame_rot(key: String, index: int, value: float) -> void:
 	_assign(key, "frame_rot", map)
 
 
+## Clears overrides for one anim key.
 static func reset(key: String) -> void:
 	overrides.erase(key)
 
 
+## Loads anim_tune.json overrides from user storage.
 static func load_saved() -> void:
 	overrides.clear()
 	if not FileAccess.file_exists(PATH):
@@ -323,6 +372,7 @@ static func load_saved() -> void:
 			_assign(key, str(field), value)
 
 
+## Writes current anim overrides to anim_tune.json.
 static func save_file() -> String:
 	var dir := ProjectSettings.globalize_path("res://dev")
 	DirAccess.make_dir_recursive_absolute(dir)
@@ -335,6 +385,7 @@ static func save_file() -> String:
 	return ProjectSettings.globalize_path(PATH)
 
 
+## Internal helper for anim tune tune serialization or bench rows.
 static func _assign(key: String, field: String, value) -> void:
 	if not has_clip(key):
 		return
@@ -353,6 +404,7 @@ static func _assign(key: String, field: String, value) -> void:
 	overrides[key][field] = value
 
 
+## Internal helper for anim tune tune serialization or bench rows.
 static func _base(key: String, field: String):
 	if field == "fps":
 		return default_fps(key)
@@ -365,6 +417,7 @@ static func _base(key: String, field: String):
 	return {}
 
 
+## Internal helper for anim tune tune serialization or bench rows.
 static func _same(field: String, a, b) -> bool:
 	if field == "frame_scale" or field == "frame_rot":
 		return _rot_same(a, b)
@@ -373,6 +426,7 @@ static func _same(field: String, a, b) -> bool:
 	return is_equal_approx(float(a), float(b))
 
 
+## Internal helper for anim tune tune serialization or bench rows.
 static func _rot_same(a, b) -> bool:
 	var left: Dictionary = a if typeof(a) == TYPE_DICTIONARY else {}
 	var right: Dictionary = b if typeof(b) == TYPE_DICTIONARY else {}
@@ -386,6 +440,7 @@ static func _rot_same(a, b) -> bool:
 	return true
 
 
+## Internal helper for anim tune tune serialization or bench rows.
 static func _read_value(key: String, field: String, raw):
 	if raw == null:
 		return null
@@ -402,6 +457,7 @@ static func _read_value(key: String, field: String, raw):
 	return snappedf(clampf(float(raw), 0.5, 24.0), 0.01)
 
 
+## Internal helper for anim tune tune serialization or bench rows.
 static func _off_same(a, b) -> bool:
 	var left: Dictionary = a if typeof(a) == TYPE_DICTIONARY else {}
 	var right: Dictionary = b if typeof(b) == TYPE_DICTIONARY else {}
@@ -415,6 +471,7 @@ static func _off_same(a, b) -> bool:
 	return true
 
 
+## Internal helper for anim tune tune serialization or bench rows.
 static func _read_scale(key: String, raw):
 	if typeof(raw) != TYPE_DICTIONARY:
 		return null
@@ -434,6 +491,7 @@ static func _read_scale(key: String, raw):
 	return map
 
 
+## Internal helper for anim tune tune serialization or bench rows.
 static func _read_off(key: String, raw):
 	if typeof(raw) != TYPE_DICTIONARY:
 		return null
@@ -452,6 +510,7 @@ static func _read_off(key: String, raw):
 	return map
 
 
+## Internal helper for anim tune tune serialization or bench rows.
 static func _read_rot(key: String, raw):
 	if typeof(raw) != TYPE_DICTIONARY:
 		return null
@@ -470,6 +529,7 @@ static func _read_rot(key: String, raw):
 	return map
 
 
+## Internal helper for anim tune tune serialization or bench rows.
 static func _document() -> Dictionary:
 	var changes: Array = []
 	for key in ids():
@@ -524,6 +584,7 @@ static func _document() -> Dictionary:
 	}
 
 
+## Internal helper for anim tune tune serialization or bench rows.
 static func _apply(key: String, field: String) -> String:
 	var row := entry(key)
 	var where := str(row.get("where", ""))
@@ -533,6 +594,7 @@ static func _apply(key: String, field: String) -> String:
 	return ""
 
 
+## Internal helper for anim tune tune serialization or bench rows.
 static func _scale_apply(key: String, value: Dictionary) -> String:
 	var row := entry(key)
 	var start := int(row.start)
@@ -546,6 +608,7 @@ static func _scale_apply(key: String, value: Dictionary) -> String:
 	return "Only these frames of %s. %s. %s Pass that scale only for a listed sheet frame. Every other frame stays at SCALE, or 1. In anim_tune.gd set FRAME_SCALE[\"%s\"] to the to map, or remove the key when it is empty. Do not scale the whole strip unless every index is listed. Do not load this file at runtime." % [key, listed, str(row.get("where", "")), key]
 
 
+## Internal helper for anim tune tune serialization or bench rows.
 static func _off_apply(key: String, value: Dictionary) -> String:
 	var row := entry(key)
 	var start := int(row.start)
@@ -560,6 +623,7 @@ static func _off_apply(key: String, value: Dictionary) -> String:
 	return "Only these frames of %s. %s. %s Add that [x, y] as world pixels after the anchor on that sheet frame only. +x east, +y south. Every other frame stays at (0, 0). In anim_tune.gd set FRAME_OFF[\"%s\"] to the to map, or remove the key when it is empty. Do not move the whole strip. Do not load this file at runtime." % [key, listed, str(row.get("where", "")), key]
 
 
+## Internal helper for anim tune tune serialization or bench rows.
 static func _rot_apply(key: String, value: Dictionary) -> String:
 	var row := entry(key)
 	var start := int(row.start)
@@ -573,6 +637,7 @@ static func _rot_apply(key: String, value: Dictionary) -> String:
 	return "Only these frames of %s. %s. %s Main._write_mesh reads draw rot and spins that one quad clockwise around the anchor. Set rot only for a listed sheet frame. Every other frame stays at 0. In anim_tune.gd set FRAME_ROT[\"%s\"] to the to map, or remove the key when it is empty. Do not rotate the whole strip. Do not load this file at runtime." % [key, listed, str(row.get("where", "")), key]
 
 
+## Internal helper for anim tune tune serialization or bench rows.
 static func _json_rot(value) -> Dictionary:
 	var out := {}
 	var raw: Dictionary = value if typeof(value) == TYPE_DICTIONARY else {}
@@ -583,6 +648,7 @@ static func _json_rot(value) -> Dictionary:
 	return out
 
 
+## Internal helper for anim tune tune serialization or bench rows.
 static func _json_scale(value) -> Dictionary:
 	var out := {}
 	var raw: Dictionary = value if typeof(value) == TYPE_DICTIONARY else {}
@@ -593,6 +659,7 @@ static func _json_scale(value) -> Dictionary:
 	return out
 
 
+## Internal helper for anim tune tune serialization or bench rows.
 static func _json_off(value) -> Dictionary:
 	var out := {}
 	var raw: Dictionary = value if typeof(value) == TYPE_DICTIONARY else {}
@@ -604,6 +671,7 @@ static func _json_off(value) -> Dictionary:
 	return out
 
 
+## Internal helper for anim tune tune serialization or bench rows.
 static func _json_value(field: String, value):
 	if field == "frame_off":
 		return _json_off(value)
@@ -614,6 +682,7 @@ static func _json_value(field: String, value):
 	return snappedf(float(value), 0.01)
 
 
+## Internal helper for anim tune tune serialization or bench rows.
 static func _how() -> String:
 	return " ".join(PackedStringArray([
 		"Apply each object in changes and nothing else.",

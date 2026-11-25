@@ -1,12 +1,18 @@
 extends SceneTree
 
+
+## Headless check that revealed land grows without hard island bounds.
+
+## Preloaded ThrongletSimServer script used for headless simulation steps.
 const SimScript := preload("res://scripts/core/ThrongletSimServer.gd")
 
 
+## Defers probe execution until the SceneTree root is ready.
 func _init() -> void:
 	call_deferred("_run")
 
 
+## Boots the sim, runs assertions, and quits with pass/fail status.
 func _run() -> void:
 	var sim = SimScript.new()
 	# Do not set testing before add_child — _ready() would start the smoke suite.
@@ -45,6 +51,7 @@ func _run() -> void:
 	quit(0 if ok else 1)
 
 
+## Counts land tiles in revealed chunks for infinite island asserts.
 func _count_land(sim) -> int:
 	var n := 0
 	for ck in sim.chunks.keys():

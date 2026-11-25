@@ -1,8 +1,12 @@
 extends SceneTree
 
+
+## Prints loaded flower texture paths and sizes for asset sanity checks.
+
 func _init() -> void:
 	call_deferred("_go")
 
+## Boots the scene harness, runs checks, and quits with pass/fail status.
 func _go() -> void:
 	await process_frame
 	for i in 7:

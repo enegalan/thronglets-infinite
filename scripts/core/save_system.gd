@@ -1,25 +1,32 @@
 extends RefCounted
 class_name SaveSystem
 
+## Number of rotating campaign checkpoint files on disk.
 const SLOT_COUNT := 4
+## Index of the live autosave slot that always mirrors current play.
 const LIVE_SLOT := 0
+## Persistent path for sandbox free-build sessions.
 const SANDBOX_PATH := "user://thronglets_sandbox.save"
 
 var _sim
 
 
+## Captures the simulation instance to serialize.
 func _init(sim) -> void:
 	_sim = sim
 
 
+## Resolves the user:// path for a numbered campaign slot.
 func slot_path(index: int) -> String:
 	return "user://thronglets_slot_%d.save" % index
 
 
+## Returns the fixed sandbox save file path.
 func sandbox_path() -> String:
 	return SANDBOX_PATH
 
 
+## Loads slot metadata (last played, population snapshots).
 func read_meta() -> Dictionary:
 	if not FileAccess.file_exists("user://thronglets_slots.meta"):
 		return {}
@@ -32,17 +39,20 @@ func read_meta() -> Dictionary:
 	return data
 
 
+## Persists slot metadata beside the binary saves.
 func write_meta(meta: Dictionary) -> void:
 	var file := FileAccess.open("user://thronglets_slots.meta", FileAccess.WRITE)
 	if file != null:
 		file.store_var(meta, true)
 
 
+## Index of the slot the player used most recently.
 func last_slot() -> int:
 	var meta := read_meta()
 	return int(meta.get("last", -1))
 
 
+## Deletes only the sandbox file from user data.
 func clear_sandbox_save() -> void:
 	var dir := DirAccess.open("user://")
 	var path := sandbox_path()
@@ -50,6 +60,7 @@ func clear_sandbox_save() -> void:
 		dir.remove(path.get_file())
 
 
+## Wipes all slots and resets session flags on the sim.
 func clear_saves() -> void:
 	var sim = _sim
 	var dir := DirAccess.open("user://")
@@ -63,15 +74,18 @@ func clear_saves() -> void:
 	sim.game_over = false
 
 
+## Removes campaign and sandbox saves together.
 func clear_all_progress() -> void:
 	clear_saves()
 	clear_sandbox_save()
 
 
+## True when a sandbox file exists on disk.
 func has_sandbox_save() -> bool:
 	return FileAccess.file_exists(sandbox_path())
 
 
+## Loads sandbox file, unlocks everything, and marks sandbox mode.
 func load_sandbox() -> bool:
 	var sim = _sim
 	if not has_sandbox_save():
@@ -86,6 +100,7 @@ func load_sandbox() -> bool:
 	return true
 
 
+## Writes the sim into a numbered slot and updates metadata.
 func save_slot(index: int) -> bool:
 	var sim = _sim
 	if index < 0 or index >= SLOT_COUNT:
@@ -102,6 +117,7 @@ func save_slot(index: int) -> bool:
 	return true
 
 
+## Routes saves to sandbox file or live slot depending on mode.
 func save_progress() -> bool:
 	var sim = _sim
 	# Sandbox keeps its own file so campaign slots / autosave history stay intact.
@@ -114,6 +130,7 @@ func save_progress() -> bool:
 	return save_slot(LIVE_SLOT)
 
 
+## Accumulates time and triggers rotation plus save when due.
 func tick_autosave(delta: float) -> void:
 	var sim = _sim
 	if sim.testing or sim.game_over or not sim.session_live or sim.autosave_interval <= 0.0:
@@ -129,6 +146,7 @@ func tick_autosave(delta: float) -> void:
 	save_progress()
 
 
+## Shifts slot files so older checkpoints roll forward.
 func rotate_autosave_history() -> void:
 	var sim = _sim
 	if not FileAccess.file_exists(slot_path(LIVE_SLOT)):
@@ -152,6 +170,7 @@ func rotate_autosave_history() -> void:
 	write_meta(meta)
 
 
+## Builds HUD rows for each occupied slot with stats.
 func list_checkpoints() -> Array:
 	var meta := read_meta()
 	var out: Array = []
@@ -168,10 +187,12 @@ func list_checkpoints() -> Array:
 	return out
 
 
+## True when at least one slot contains a save.
 func has_checkpoint() -> bool:
 	return list_checkpoints().size() > 0
 
 
+## Loads the newest available checkpoint slot.
 func load_checkpoint() -> bool:
 	var rows := list_checkpoints()
 	if rows.is_empty():
@@ -179,6 +200,7 @@ func load_checkpoint() -> bool:
 	return load_slot(int(rows[0].i))
 
 
+## Hydrates the sim from a specific slot index.
 func load_slot(index: int) -> bool:
 	var sim = _sim
 	if index < 0 or index >= SLOT_COUNT:
@@ -194,6 +216,7 @@ func load_slot(index: int) -> bool:
 	return true
 
 
+## Continues the last played slot if the session is not live.
 func resume_last() -> bool:
 	if _sim.session_live:
 		return true
@@ -203,6 +226,7 @@ func resume_last() -> bool:
 	return load_slot(last)
 
 
+## Serializes full colony state to the active save_path.
 func save_game() -> bool:
 	var sim = _sim
 	sim.cancel_hold()
@@ -291,6 +315,7 @@ func save_game() -> bool:
 	return true
 
 
+## Deserializes colony state from save_path into the sim.
 func load_game() -> bool:
 	var sim = _sim
 	if not FileAccess.file_exists(sim.save_path):

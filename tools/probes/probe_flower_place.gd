@@ -1,10 +1,14 @@
 extends SceneTree
 
 
+## Scene-tree probe that validates flower building placement in the live Main scene.
+
+
 func _init() -> void:
 	call_deferred("_go")
 
 
+## Boots the scene harness, runs checks, and quits with pass/fail status.
 func _go() -> void:
 	await process_frame
 	await process_frame

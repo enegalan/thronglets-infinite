@@ -1,10 +1,16 @@
 extends SceneTree
 
+
+## Headless check for indoor bark building placement and guest behavior.
+
+## Preloaded ThrongletSimServer script used for headless simulation steps.
 const SimScript := preload("res://scripts/core/ThrongletSimServer.gd")
 
+## Defers probe execution until the SceneTree root is ready.
 func _init() -> void:
 	call_deferred("_run")
 
+## Boots the sim, runs assertions, and quits with pass/fail status.
 func _run() -> void:
 	var sim = SimScript.new()
 	sim.testing = true
@@ -84,6 +90,7 @@ func _run() -> void:
 			sim._drop_guest(b, id)
 	quit(1 if failed > 0 else 0)
 
+## Places a building kind near a world point and returns the slot dict.
 func _place(sim, kind: int, around: Vector2) -> Dictionary:
 	for attempt in 64:
 		var px := around.x + float((attempt % 8) - 4) * 16.0

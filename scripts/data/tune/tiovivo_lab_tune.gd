@@ -1,13 +1,16 @@
 class_name TiovivoLabTune
 
-# Shared config for the tiovivo/carousel. Saved to res://dev/tiovivo_lab.json.
-# Used by the dev bench lab and by the game (simulation + render) so both stay faithful.
+## Shared config for the tiovivo/carousel. Saved to res://dev/tiovivo_lab.json.
+## Used by the dev bench lab and by the game (simulation + render) so both stay faithful.
 
 const PATH := "res://dev/tiovivo_lab.json"
 
+## Internal cache backing tiovivo lab tune tune lookups.
 static var _cache: Dictionary = {}
+## Internal cache backing tiovivo lab tune tune lookups.
 static var _cache_mtime: int = -1
 
+## Shipped carousel timing and spacing defaults.
 static func defaults() -> Dictionary:
 	return {
 		"carousel": {
@@ -43,11 +46,13 @@ static func defaults() -> Dictionary:
 	}
 
 
+## Clears cached lab JSON so the next read reloads from disk.
 static func invalidate() -> void:
 	_cache.clear()
 	_cache_mtime = -1
 
 
+## Merged carousel config used by the sim and presentation.
 static func carousel() -> Dictionary:
 	var cfg := load_saved()
 	var car: Dictionary = {}
@@ -76,6 +81,7 @@ static func carousel() -> Dictionary:
 	}
 
 
+## Computes rider ring radius from slot count and spacing.
 static func seat_radius(slots_n: int, spacing: float) -> float:
 	# Distance between plazas is the primary control: radius derived so adjacent seats are `spacing` apart.
 	if slots_n <= 1:
@@ -86,6 +92,7 @@ static func seat_radius(slots_n: int, spacing: float) -> float:
 	return spacing / denom
 
 
+## Internal helper for tiovivo lab tune tune serialization or bench rows.
 static func _deep_merge(base: Variant, over: Variant) -> Variant:
 	if typeof(base) != TYPE_DICTIONARY or typeof(over) != TYPE_DICTIONARY:
 		return over
@@ -98,8 +105,8 @@ static func _deep_merge(base: Variant, over: Variant) -> Variant:
 	return out
 
 
+## Loads tiovivo_lab.json and merges over defaults.
 static func load_saved() -> Dictionary:
-	var path := ProjectSettings.globalize_path(PATH)
 	if not FileAccess.file_exists(PATH):
 		_cache = defaults()
 		_cache_mtime = -1
@@ -117,6 +124,7 @@ static func load_saved() -> Dictionary:
 	return _cache
 
 
+## Writes a carousel lab config dictionary to disk.
 static func save_file(cfg: Dictionary) -> String:
 	var dir := ProjectSettings.globalize_path("res://dev")
 	DirAccess.make_dir_recursive_absolute(dir)

@@ -1,25 +1,25 @@
 extends Object
 
-# Bench defaults for thronglet clips. The game never reads this script.
-# res://dev/throng_tune.json is the handoff. Apply it in Main, then update the
-# consts below so the next bench load does not keep a stale override.
+## Bench defaults for thronglet clips. The game never reads this script.
+## res://dev/throng_tune.json is the handoff. Apply it in Main, then update the
+## consts below so the next bench load does not keep a stale override.
 
 const PATH := "res://dev/throng_tune.json"
 
-# Sampled with frame_along. They have no fps field.
+## Sampled with frame_along. They have no fps field.
 const ALONG := {
 	"ThrongA_Mitosis_Spritesheet": true,
 	"Throng_FallInBath_Spritesheet": true,
 }
 
-# frame_at(clip, int(time * fps)). Missing means 8, which is also ThrongClips.pick.
+## frame_at(clip, int(time * fps)). Missing means 8, which is also ThrongClips.pick.
 const FPS := {
 	"ThrongA_Eat": 6.0,
 	"ThrongA_Happy": 6.0,
 	"ThrongA_Sad": 6.0,
 }
 
-# Clip -> uniform sprite scale used when a frame has no entry. Missing means 1.
+## Clip -> uniform sprite scale used when a frame has no entry. Missing means 1.
 const SCALE := {
 	"ThrongA_AngryAtPlayer_Spritesheet": 0.4,
 	"ThrongA_Bones": 0.4,
@@ -31,9 +31,12 @@ const SCALE := {
 	"ThrongA_Default": 0.4,
 	"ThrongA_Default Blink": 0.4,
 	"ThrongA_Default_Ghost": 0.4,
+	"ThrongA_Deflesh": 0.4,
+	"ThrongA_DropProp": 0.4,
 	"ThrongA_EarWiggleLow": 0.4,
 	"ThrongA_EarWiggleStand": 0.4,
 	"ThrongA_Eat": 0.4,
+	"ThrongA_FreakOut": 0.4,
 	"ThrongA_Grumpy": 0.4,
 	"ThrongA_Happy": 0.4,
 	"ThrongA_Happy_Walk": 0.4,
@@ -46,13 +49,11 @@ const SCALE := {
 	"ThrongA_Jump_VariantA_Spritesheet": 0.4,
 	"ThrongA_LiftProp": 0.4,
 	"ThrongA_LiftPropWalk": 0.4,
-	"ThrongA_DropProp": 0.4,
 	"ThrongA_LooktAtPlayerHappyNod_Spritesheet": 0.4,
 	"ThrongA_MitosisCutscene_NoBlood_Spritesheet": 0.4,
 	"ThrongA_Mitosis_Spritesheet": 0.4,
 	"ThrongA_PanicRun": 0.4,
 	"ThrongA_PanicRunFire": 0.4,
-	"ThrongA_FreakOut": 0.4,
 	"ThrongA_Pickaxe_Spritesheet": 0.4,
 	"ThrongA_Possessed_AntennaSpinEar_Spritesheet": 0.4,
 	"ThrongA_Possessed_AntennaSpinTalk_Spritesheet": 0.4,
@@ -65,7 +66,6 @@ const SCALE := {
 	"ThrongA_Sad": 0.4,
 	"ThrongA_Sad_Walk": 0.4,
 	"ThrongA_Shrug": 0.4,
-	"ThrongA_Deflesh": 0.4,
 	"ThrongA_SingToThronglet_Spritesheet2": 0.4,
 	"ThrongA_SkepticalToPlayer_Spritesheet": 0.4,
 	"ThrongA_Sophisticated": 0.4,
@@ -103,6 +103,9 @@ const SCALE := {
 	"Throng_Idle_BackTurned": 0.4,
 	"Throng_Idle_EarsUp": 0.4,
 	"Throng_Idle_EyesDirection_Spritesheet": 0.4,
+	"Throng_Outline": 0.4,
+	"Throng_Prop_Blood_A": 0.4,
+	"Throng_Prop_Shadow_A": 0.4,
 	"Throng_SarcasticSquint2": 0.4,
 	"Throng_SarcasticSquint3": 0.4,
 	"Throng_SingB_Spritesheet": 0.4,
@@ -116,10 +119,11 @@ const SCALE := {
 	"Throng_Think_TwiddleThumbs_Spritesheet": 0.4,
 	"Throng_WalkBack_Anim_Spritesheet": 0.4,
 	"Throng_Walk_Anim_Spritesheet": 0.4,
-	"Throng_Walk_Homed_Spritesheet": 0.4
+	"Throng_Walk_Homed_Spritesheet": 0.4,
+	"Thronglet_Outline": 0.4
 }
 
-# Clip -> {frame index: scale}. A missing index uses SCALE, or 1.
+## Clip -> {frame index: scale}. A missing index uses SCALE, or 1.
 const FRAME_SCALE := {
 	"Throng_Outline": {
 		"0": 0.7,
@@ -200,7 +204,7 @@ const FRAME_SCALE := {
 	},
 }
 
-# Clip -> {frame index: Vector2}. Missing index means (0, 0). One frame does not move the others.
+## Clip -> {frame index: Vector2}. Missing index means (0, 0). One frame does not move the others.
 const FRAME_OFF := {
 	"ThrongA_MitosisCutscene_NoBlood_Spritesheet": {
 		"0": Vector2(21, 21),
@@ -298,9 +302,10 @@ const FRAME_OFF := {
 	},
 }
 
-# Clip -> {frame index: degrees}. Missing index means 0. One frame does not rotate the others.
+## Clip -> {frame index: degrees}. Missing index means 0. One frame does not rotate the others.
 const FRAME_ROT := {}
 
+## Clip names always included in the in-game throng tune roster.
 const GAME := [
 	"ThrongA_Default",
 	"ThrongA_Default Blink",
@@ -333,9 +338,11 @@ const GAME := [
 	"ThrongA_SingToThronglet_Spritesheet2",
 ]
 
+## Runtime throng animation tune edits not yet saved.
 static var overrides := {}
 
 
+## Clip ids flagged as gameplay animations in the bench.
 static func game_names() -> PackedStringArray:
 	var names := PackedStringArray()
 	for raw in GAME:
@@ -345,6 +352,7 @@ static func game_names() -> PackedStringArray:
 	return names
 
 
+## Clip ids available in the bench but not in GAME.
 static func rest_names() -> PackedStringArray:
 	var skip := {}
 	for raw in GAME:
@@ -359,12 +367,14 @@ static func rest_names() -> PackedStringArray:
 	return names
 
 
+## Whether FPS editing is allowed for a throng clip.
 static func fps_editable(clip: String) -> bool:
 	if ALONG.has(clip):
 		return false
 	return _count(clip) > 1
 
 
+## Merged defaults and overrides for one throng clip.
 static func get_tune(clip: String) -> Dictionary:
 	var tune := {
 		"fps": default_fps(clip),
@@ -380,10 +390,12 @@ static func get_tune(clip: String) -> Dictionary:
 	return tune
 
 
+## Whether a throng clip differs from shipped defaults.
 static func is_dirty(clip: String) -> bool:
 	return overrides.has(clip) and not (overrides[clip] as Dictionary).is_empty()
 
 
+## Count of throng clips with unsaved overrides.
 static func change_count() -> int:
 	var n := 0
 	for clip in _every():
@@ -392,21 +404,21 @@ static func change_count() -> int:
 	return n
 
 
+## Shipped default FPS for a throng clip.
 static func default_fps(clip: String) -> float:
 	if not FPS.has(clip):
 		return 8.0
 	return float(FPS[clip])
 
 
+## Shipped default draw scale for a throng clip.
 static func default_scale(clip: String) -> float:
 	if SCALE.has(clip):
 		return float(SCALE[clip])
-	# Pack-extra / new body clips must match THRONG_SPRITE_SCALE (0.4), never 1.0.
-	if clip.begins_with("Throng"):
-		return 0.4
 	return 1.0
 
 
+## Shipped per-frame scale map for a throng clip.
 static func default_frame_scale(clip: String) -> Dictionary:
 	if not FRAME_SCALE.has(clip):
 		return {}
@@ -414,6 +426,7 @@ static func default_frame_scale(clip: String) -> Dictionary:
 	return raw.duplicate()
 
 
+## Effective per-frame scale after overrides.
 static func frame_scale(clip: String, index: int) -> float:
 	var map: Dictionary = get_tune(clip).get("frame_scale", {})
 	if map.has(str(index)):
@@ -421,6 +434,7 @@ static func frame_scale(clip: String, index: int) -> float:
 	return default_scale(clip)
 
 
+## Shipped per-frame offset map for a throng clip.
 static func default_frame_off(clip: String) -> Dictionary:
 	if not FRAME_OFF.has(clip):
 		return {}
@@ -428,6 +442,7 @@ static func default_frame_off(clip: String) -> Dictionary:
 	return raw.duplicate()
 
 
+## Effective per-frame offset after overrides.
 static func frame_offset(clip: String, index: int) -> Vector2:
 	var map: Dictionary = get_tune(clip).get("frame_off", {})
 	var raw = map.get(str(index), Vector2.ZERO)
@@ -436,6 +451,7 @@ static func frame_offset(clip: String, index: int) -> Vector2:
 	return Vector2.ZERO
 
 
+## Shipped per-frame rotation map for a throng clip.
 static func default_frame_rot(clip: String) -> Dictionary:
 	if not FRAME_ROT.has(clip):
 		return {}
@@ -443,15 +459,18 @@ static func default_frame_rot(clip: String) -> Dictionary:
 	return raw.duplicate()
 
 
+## Effective per-frame rotation after overrides.
 static func frame_rot(clip: String, index: int) -> float:
 	var map: Dictionary = get_tune(clip).get("frame_rot", {})
 	return float(map.get(str(index), 0.0))
 
 
+## Sets an FPS override on a throng clip.
 static func set_fps(clip: String, value: float) -> void:
 	_assign(clip, "fps", snappedf(clampf(value, 0.5, 24.0), 0.01))
 
 
+## Sets per-frame scale override on a throng clip.
 static func set_frame_scale(clip: String, index: int, value: float) -> void:
 	if index < 0 or index >= _count(clip):
 		return
@@ -466,6 +485,7 @@ static func set_frame_scale(clip: String, index: int, value: float) -> void:
 	_assign(clip, "frame_scale", map)
 
 
+## Sets per-frame offset override on a throng clip.
 static func set_frame_offset(clip: String, index: int, x: float, y: float) -> void:
 	if index < 0 or index >= _count(clip):
 		return
@@ -480,6 +500,7 @@ static func set_frame_offset(clip: String, index: int, x: float, y: float) -> vo
 	_assign(clip, "frame_off", map)
 
 
+## Sets per-frame rotation override on a throng clip.
 static func set_frame_rot(clip: String, index: int, value: float) -> void:
 	if index < 0 or index >= _count(clip):
 		return
@@ -494,10 +515,12 @@ static func set_frame_rot(clip: String, index: int, value: float) -> void:
 	_assign(clip, "frame_rot", map)
 
 
+## Clears overrides for one throng clip.
 static func reset(clip: String) -> void:
 	overrides.erase(clip)
 
 
+## Loads throng_tune.json overrides from user storage.
 static func load_saved() -> void:
 	overrides.clear()
 	if not FileAccess.file_exists(PATH):
@@ -529,6 +552,7 @@ static func load_saved() -> void:
 			_assign(clip, str(key), value)
 
 
+## Writes current throng overrides to throng_tune.json.
 static func save_file() -> String:
 	var dir := ProjectSettings.globalize_path("res://dev")
 	DirAccess.make_dir_recursive_absolute(dir)
@@ -541,6 +565,7 @@ static func save_file() -> String:
 	return ProjectSettings.globalize_path(PATH)
 
 
+## Internal helper for throng tune tune serialization or bench rows.
 static func _every() -> PackedStringArray:
 	var names := PackedStringArray()
 	for key in ThrongClips.CLIPS.keys():
@@ -549,11 +574,13 @@ static func _every() -> PackedStringArray:
 	return names
 
 
+## Internal helper for throng tune tune serialization or bench rows.
 static func _count(clip: String) -> int:
 	var box: Vector2i = ThrongClips.CLIPS.get(clip, Vector2i(0, 1))
 	return maxi(box.y, 1)
 
 
+## Internal helper for throng tune tune serialization or bench rows.
 static func _assign(clip: String, key: String, value) -> void:
 	if not ThrongClips.has_clip(clip):
 		return
@@ -572,6 +599,7 @@ static func _assign(clip: String, key: String, value) -> void:
 	overrides[clip][key] = value
 
 
+## Internal helper for throng tune tune serialization or bench rows.
 static func _base_value(clip: String, key: String):
 	if key == "fps":
 		return default_fps(clip)
@@ -584,6 +612,7 @@ static func _base_value(clip: String, key: String):
 	return {}
 
 
+## Internal helper for throng tune tune serialization or bench rows.
 static func _same(key: String, a, b) -> bool:
 	if key == "frame_scale" or key == "frame_rot":
 		return _rot_same(a, b)
@@ -592,6 +621,7 @@ static func _same(key: String, a, b) -> bool:
 	return is_equal_approx(float(a), float(b))
 
 
+## Internal helper for throng tune tune serialization or bench rows.
 static func _read_value(clip: String, key: String, raw):
 	if raw == null:
 		return null
@@ -610,6 +640,7 @@ static func _read_value(clip: String, key: String, raw):
 	return snappedf(clampf(float(raw), 0.5, 24.0), 0.01)
 
 
+## Internal helper for throng tune tune serialization or bench rows.
 static func _document() -> Dictionary:
 	var changes: Array = []
 	for clip in _every():
@@ -660,11 +691,13 @@ static func _document() -> Dictionary:
 	}
 
 
+## Internal helper for throng tune tune serialization or bench rows.
 static func _span(clip: String) -> String:
 	var box: Vector2i = ThrongClips.CLIPS.get(clip, Vector2i(0, 1))
 	return "frames %d through %d" % [box.x, box.x + box.y - 1]
 
 
+## Internal helper for throng tune tune serialization or bench rows.
 static func _apply(clip: String, key: String) -> String:
 	var span := _span(clip)
 	if key == "fps":
@@ -672,6 +705,7 @@ static func _apply(clip: String, key: String) -> String:
 	return ""
 
 
+## Internal helper for throng tune tune serialization or bench rows.
 static func _scale_apply(clip: String, value: Dictionary) -> String:
 	var box: Vector2i = ThrongClips.CLIPS.get(clip, Vector2i(0, 1))
 	var bits := PackedStringArray()
@@ -681,9 +715,10 @@ static func _scale_apply(clip: String, value: Dictionary) -> String:
 		var index := int(raw)
 		bits.append("index %d (sheet %d) = %s" % [index, box.x + index, str(snappedf(float(value[raw]), 0.01))])
 	var listed := "no scaled frames" if bits.is_empty() else ", ".join(bits)
-	return "Only these frames of this clip, %s. %s. Pass that scale to _push_iso only when the drawn sheet frame is listed. Every other frame stays at the clip default, SCALE or 1. Do not use _pad_nudge. In throng_tune.gd set FRAME_SCALE[\"%s\"] to the to map, or remove the key when it is empty. Do not scale the whole clip unless every index is listed. Do not load this file at runtime." % [_span(clip), listed, clip]
+	return "Only these frames of this clip, %s. %s. Pass that scale to iso_draw.push_iso only when the drawn sheet frame is listed. Every other frame stays at the clip default, SCALE or 1. Do not use _pad_nudge. In throng_tune.gd set FRAME_SCALE[\"%s\"] to the to map, or remove the key when it is empty. Do not scale the whole clip unless every index is listed. Do not load this file at runtime." % [_span(clip), listed, clip]
 
 
+## Internal helper for throng tune tune serialization or bench rows.
 static func _off_apply(clip: String, value: Dictionary) -> String:
 	var box: Vector2i = ThrongClips.CLIPS.get(clip, Vector2i(0, 1))
 	var bits := PackedStringArray()
@@ -697,6 +732,7 @@ static func _off_apply(clip: String, value: Dictionary) -> String:
 	return "Only these frames of this clip, %s. %s. Add that [x, y] as world pixels after the feet on that sheet frame only. +x east, +y south. Every other frame of the clip stays at (0, 0). It is not a pad nudge. In throng_tune.gd set FRAME_OFF[\"%s\"] to the to map, or remove the key when it is empty. Do not move the whole clip. Do not load this file at runtime." % [_span(clip), listed, clip]
 
 
+## Internal helper for throng tune tune serialization or bench rows.
 static func _rot_apply(clip: String, value: Dictionary) -> String:
 	var box: Vector2i = ThrongClips.CLIPS.get(clip, Vector2i(0, 1))
 	var bits := PackedStringArray()
@@ -709,6 +745,7 @@ static func _rot_apply(clip: String, value: Dictionary) -> String:
 	return "Only these frames of this clip, %s. %s. Main._write_mesh reads draw rot and spins that one quad clockwise around the feet. Set rot only when the drawn sheet frame is listed. Every other frame of the clip stays at 0. In throng_tune.gd set FRAME_ROT[\"%s\"] to the to map, or remove the key when it is empty. Do not rotate the whole clip. Do not load this file at runtime." % [_span(clip), listed, clip]
 
 
+## Internal helper for throng tune tune serialization or bench rows.
 static func _off_same(a, b) -> bool:
 	var left: Dictionary = a if typeof(a) == TYPE_DICTIONARY else {}
 	var right: Dictionary = b if typeof(b) == TYPE_DICTIONARY else {}
@@ -722,6 +759,7 @@ static func _off_same(a, b) -> bool:
 	return true
 
 
+## Internal helper for throng tune tune serialization or bench rows.
 static func _read_scale(clip: String, raw):
 	if typeof(raw) != TYPE_DICTIONARY:
 		return null
@@ -741,6 +779,7 @@ static func _read_scale(clip: String, raw):
 	return map
 
 
+## Internal helper for throng tune tune serialization or bench rows.
 static func _read_off(clip: String, raw):
 	if typeof(raw) != TYPE_DICTIONARY:
 		return null
@@ -759,6 +798,7 @@ static func _read_off(clip: String, raw):
 	return map
 
 
+## Internal helper for throng tune tune serialization or bench rows.
 static func _rot_same(a, b) -> bool:
 	var left: Dictionary = a if typeof(a) == TYPE_DICTIONARY else {}
 	var right: Dictionary = b if typeof(b) == TYPE_DICTIONARY else {}
@@ -772,6 +812,7 @@ static func _rot_same(a, b) -> bool:
 	return true
 
 
+## Internal helper for throng tune tune serialization or bench rows.
 static func _read_rot(clip: String, raw):
 	if typeof(raw) != TYPE_DICTIONARY:
 		return null
@@ -790,28 +831,30 @@ static func _read_rot(clip: String, raw):
 	return map
 
 
+## Internal helper for throng tune tune serialization or bench rows.
 static func _fps_where(clip: String) -> String:
 	match clip:
 		"ThrongA_Eat":
-			return "Main._frame ACT_EAT calls frame_at(clip, int(time * 6.0))."
+			return "Main.anim_frames.frame ACT_EAT calls frame_at(clip, int(time * 6.0))."
 		"ThrongA_Happy":
-			return "Main._frame calls frame_at(clip, int(time * 6.0)) for an empty bath and for ACT_WASH. IDLE_CALM / SING_PEER also reach it through ThrongClips.pick, which uses 8."
+			return "Main.anim_frames.frame calls frame_at(clip, int(time * 6.0)) for an empty bath and for ACT_WASH. IDLE_CALM / SING_PEER also reach it through ThrongClips.pick, which uses 8."
 		"ThrongA_Sad":
-			return "Main._frame calls frame_at(clip, int(time * 6.0)) when fed or clean is low."
+			return "Main.anim_frames.frame calls frame_at(clip, int(time * 6.0)) when fed or clean is low."
 		"Throng_Walk_Anim_Spritesheet":
-			return "Main._frame calls frame_at(clip, int(time * 8.0 + float(i))) for forward or side movement and for play-with-ball."
+			return "Main.anim_frames.frame calls frame_at(clip, int(time * 8.0 + float(i))) for forward or side movement and for play-with-ball."
 		"Throng_WalkBack_Anim_Spritesheet":
-			return "Main._frame calls frame_at(clip, int(time * 8.0 + float(i))) when moving away, including play-with-ball."
+			return "Main.anim_frames.frame calls frame_at(clip, int(time * 8.0 + float(i))) when moving away, including play-with-ball."
 		"ThrongA_Jump_VariantA_Spritesheet":
-			return "Main._frame ACT_PLAY calls frame_at(clip, int(time * 8.0)) when there is no ball and no ride."
+			return "Main.anim_frames.frame ACT_PLAY calls frame_at(clip, int(time * 8.0)) when there is no ball and no ride."
 		"ThrongA_Roundabout_SpriteSheet":
-			return "Main._frame ACT_PLAY calls frame_at(clip, int(time * 8.0)) when the thronglet is on a ride."
+			return "Main.anim_frames.frame ACT_PLAY calls frame_at(clip, int(time * 8.0)) when the thronglet is on a ride."
 		"ThrongA_Pickaxe_Spritesheet":
-			return "Main._frame ACT_WORK calls frame_at(clip, int(time * 8.0)) while standing."
+			return "Main.anim_frames.frame ACT_WORK calls frame_at(clip, int(time * 8.0)) while standing."
 		_:
 			return "No direct frame_at rate. ThrongClips.pick plays a pooled clip at int(local * 8.0). Idle uses IDLE_CALM, singing SING_PEER near peers, frozen talk uses TALK_CONSOLE."
 
 
+## Internal helper for throng tune tune serialization or bench rows.
 static func _json_rot(value) -> Dictionary:
 	var out := {}
 	var raw: Dictionary = value if typeof(value) == TYPE_DICTIONARY else {}
@@ -822,6 +865,7 @@ static func _json_rot(value) -> Dictionary:
 	return out
 
 
+## Internal helper for throng tune tune serialization or bench rows.
 static func _json_scale(value) -> Dictionary:
 	var out := {}
 	var raw: Dictionary = value if typeof(value) == TYPE_DICTIONARY else {}
@@ -832,6 +876,7 @@ static func _json_scale(value) -> Dictionary:
 	return out
 
 
+## Internal helper for throng tune tune serialization or bench rows.
 static func _json_off(value) -> Dictionary:
 	var out := {}
 	var raw: Dictionary = value if typeof(value) == TYPE_DICTIONARY else {}
@@ -843,6 +888,7 @@ static func _json_off(value) -> Dictionary:
 	return out
 
 
+## Internal helper for throng tune tune serialization or bench rows.
 static func _json_value(key: String, value):
 	if key == "frame_off":
 		return _json_off(value)
@@ -853,6 +899,7 @@ static func _json_value(key: String, value):
 	return snappedf(float(value), 0.01)
 
 
+## Internal helper for throng tune tune serialization or bench rows.
 static func _how() -> String:
 	return " ".join(PackedStringArray([
 		"Apply each object in changes and nothing else.",

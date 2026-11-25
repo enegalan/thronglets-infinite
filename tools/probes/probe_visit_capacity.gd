@@ -3,13 +3,16 @@ extends SceneTree
 ## Prove dwell/theatre capacity_info + occupancy_text (FULL/LLENO), and factories stay empty.
 
 
+## Preloaded ThrongletSimServer script used for headless simulation steps.
 const SimScript := preload("res://scripts/core/ThrongletSimServer.gd")
 
 
+## Defers probe execution until the SceneTree root is ready.
 func _init() -> void:
 	call_deferred("_run")
 
 
+## Boots the sim, runs assertions, and quits with pass/fail status.
 func _run() -> void:
 	var sim = SimScript.new()
 	sim.testing = true
@@ -35,7 +38,7 @@ func _run() -> void:
 	for feat in sim.features:
 		if feat.dead:
 			continue
-		if _dist(float(feat.x), float(feat.y), mid.x, mid.y) < 180.0:
+		if _dist(float(feat.x), float(feat.y), mid.x, mid.y) < Catalog.NEAR_BUILDING:
 			feat.dead = true
 	var errors: Array = []
 	var home := _place(sim, Catalog.BLD_DWELL, mid)
@@ -101,6 +104,7 @@ func _run() -> void:
 	quit(0 if errors.is_empty() else 1)
 
 
+## Places a building kind near a world point and returns the slot dict.
 func _place(sim, kind: int, around: Vector2) -> Dictionary:
 	for attempt in 64:
 		var px := around.x + float((attempt % 8) - 4) * 16.0
@@ -113,5 +117,6 @@ func _place(sim, kind: int, around: Vector2) -> Dictionary:
 	return {}
 
 
+## Euclidean distance between two world points.
 func _dist(ax: float, ay: float, bx: float, by: float) -> float:
 	return Vector2(ax, ay).distance_to(Vector2(bx, by))
