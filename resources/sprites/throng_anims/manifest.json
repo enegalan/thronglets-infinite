@@ -1,0 +1,671 @@
+{
+  "clips": {
+    "ThrongA_AngryAtPlayer_Spritesheet": {
+      "cell_h": 39,
+      "cell_w": 38,
+      "file": "ThrongA_AngryAtPlayer_Spritesheet.png",
+      "frames": 3
+    },
+    "ThrongA_Bones": {
+      "cell_h": 20,
+      "cell_w": 44,
+      "file": "ThrongA_Bones.png",
+      "frames": 1
+    },
+    "ThrongA_Bored_KickRock": {
+      "cell_h": 38,
+      "cell_w": 72,
+      "file": "ThrongA_Bored_KickRock.png",
+      "frames": 14
+    },
+    "ThrongA_Celebrate_Spritesheet": {
+      "cell_h": 41,
+      "cell_w": 34,
+      "file": "ThrongA_Celebrate_Spritesheet.png",
+      "frames": 9
+    },
+    "ThrongA_Dead_001": {
+      "cell_h": 17,
+      "cell_w": 36,
+      "file": "ThrongA_Dead_001.png",
+      "frames": 1
+    },
+    "ThrongA_Dead_002": {
+      "cell_h": 17,
+      "cell_w": 36,
+      "file": "ThrongA_Dead_002.png",
+      "frames": 1
+    },
+    "ThrongA_DeepThought_Spritesheet": {
+      "cell_h": 37,
+      "cell_w": 37,
+      "file": "ThrongA_DeepThought_Spritesheet.png",
+      "frames": 3
+    },
+    "ThrongA_Default": {
+      "cell_h": 38,
+      "cell_w": 34,
+      "file": "ThrongA_Default.png",
+      "frames": 1
+    },
+    "ThrongA_Default Blink": {
+      "cell_h": 38,
+      "cell_w": 34,
+      "file": "ThrongA_Default_Blink.png",
+      "frames": 1
+    },
+    "ThrongA_Default_Ghost": {
+      "cell_h": 50,
+      "cell_w": 50,
+      "file": "ThrongA_Default_Ghost.png",
+      "frames": 1
+    },
+    "ThrongA_Deflesh": {
+      "cell_h": 55,
+      "cell_w": 56,
+      "file": "ThrongA_Deflesh.png",
+      "frames": 24
+    },
+    "ThrongA_DropProp": {
+      "cell_h": 38,
+      "cell_w": 34,
+      "file": "ThrongA_DropProp.png",
+      "frames": 4
+    },
+    "ThrongA_EarWiggleLow": {
+      "cell_h": 37,
+      "cell_w": 36,
+      "file": "ThrongA_EarWiggleLow.png",
+      "frames": 8
+    },
+    "ThrongA_EarWiggleStand": {
+      "cell_h": 37,
+      "cell_w": 40,
+      "file": "ThrongA_EarWiggleStand.png",
+      "frames": 4
+    },
+    "ThrongA_Eat": {
+      "cell_h": 38,
+      "cell_w": 34,
+      "file": "ThrongA_Eat.png",
+      "frames": 2
+    },
+    "ThrongA_FreakOut": {
+      "cell_h": 64,
+      "cell_w": 64,
+      "file": "ThrongA_FreakOut.png",
+      "frames": 12
+    },
+    "ThrongA_Grumpy": {
+      "cell_h": 36,
+      "cell_w": 34,
+      "file": "ThrongA_Grumpy.png",
+      "frames": 1
+    },
+    "ThrongA_Happy": {
+      "cell_h": 37,
+      "cell_w": 34,
+      "file": "ThrongA_Happy.png",
+      "frames": 5
+    },
+    "ThrongA_Happy_Walk": {
+      "cell_h": 34,
+      "cell_w": 32,
+      "file": "ThrongA_Happy_Walk.png",
+      "frames": 2
+    },
+    "ThrongA_ImpactfulExplanation_Spritesheet": {
+      "cell_h": 39,
+      "cell_w": 38,
+      "file": "ThrongA_ImpactfulExplanation_Spritesheet.png",
+      "frames": 3
+    },
+    "ThrongA_InAwe": {
+      "cell_h": 36,
+      "cell_w": 34,
+      "file": "ThrongA_InAwe.png",
+      "frames": 4
+    },
+    "ThrongA_Jump": {
+      "cell_h": 37,
+      "cell_w": 37,
+      "file": "ThrongA_Jump.png",
+      "frames": 1
+    },
+    "ThrongA_Jump-EarWiggle": {
+      "cell_h": 38,
+      "cell_w": 37,
+      "file": "ThrongA_Jump-EarWiggle.png",
+      "frames": 5
+    },
+    "ThrongA_JumpBlink": {
+      "cell_h": 37,
+      "cell_w": 37,
+      "file": "ThrongA_JumpBlink.png",
+      "frames": 1
+    },
+    "ThrongA_Jump_High": {
+      "cell_h": 36,
+      "cell_w": 37,
+      "file": "ThrongA_Jump_High.png",
+      "frames": 1
+    },
+    "ThrongA_Jump_VariantA_Spritesheet": {
+      "cell_h": 38,
+      "cell_w": 37,
+      "file": "ThrongA_Jump_VariantA_Spritesheet.png",
+      "frames": 10
+    },
+    "ThrongA_LiftProp": {
+      "cell_h": 38,
+      "cell_w": 34,
+      "file": "ThrongA_LiftProp.png",
+      "frames": 7
+    },
+    "ThrongA_LiftPropWalk": {
+      "cell_h": 34,
+      "cell_w": 32,
+      "file": "ThrongA_LiftPropWalk.png",
+      "frames": 2
+    },
+    "ThrongA_LooktAtPlayerHappyNod_Spritesheet": {
+      "cell_h": 37,
+      "cell_w": 37,
+      "file": "ThrongA_LooktAtPlayerHappyNod_Spritesheet.png",
+      "frames": 10
+    },
+    "ThrongA_MitosisCutscene_NoBlood_Spritesheet": {
+      "cell_h": 156,
+      "cell_w": 165,
+      "file": "ThrongA_MitosisCutscene_NoBlood_Spritesheet.png",
+      "frames": 34
+    },
+    "ThrongA_Mitosis_Spritesheet": {
+      "cell_h": 171,
+      "cell_w": 171,
+      "file": "ThrongA_Mitosis_Spritesheet.png",
+      "frames": 36
+    },
+    "ThrongA_PanicRun": {
+      "cell_h": 40,
+      "cell_w": 33,
+      "file": "ThrongA_PanicRun.png",
+      "frames": 4
+    },
+    "ThrongA_PanicRunFire": {
+      "cell_h": 40,
+      "cell_w": 41,
+      "file": "ThrongA_PanicRunFire.png",
+      "frames": 4
+    },
+    "ThrongA_Pickaxe_Spritesheet": {
+      "cell_h": 51,
+      "cell_w": 34,
+      "file": "ThrongA_Pickaxe_Spritesheet.png",
+      "frames": 9
+    },
+    "ThrongA_Possessed_AntennaSpinEar_Spritesheet": {
+      "cell_h": 40,
+      "cell_w": 34,
+      "file": "ThrongA_Possessed_AntennaSpinEar_Spritesheet.png",
+      "frames": 6
+    },
+    "ThrongA_Possessed_AntennaSpinTalk_Spritesheet": {
+      "cell_h": 40,
+      "cell_w": 34,
+      "file": "ThrongA_Possessed_AntennaSpinTalk_Spritesheet.png",
+      "frames": 6
+    },
+    "ThrongA_Possessed_AntennaSpin_Spritesheet": {
+      "cell_h": 40,
+      "cell_w": 34,
+      "file": "ThrongA_Possessed_AntennaSpin_Spritesheet.png",
+      "frames": 6
+    },
+    "ThrongA_Possessed_EarRaise_Spritesheet": {
+      "cell_h": 40,
+      "cell_w": 34,
+      "file": "ThrongA_Possessed_EarRaise_Spritesheet.png",
+      "frames": 6
+    },
+    "ThrongA_PuppyDogEyes": {
+      "cell_h": 34,
+      "cell_w": 34,
+      "file": "ThrongA_PuppyDogEyes.png",
+      "frames": 4
+    },
+    "ThrongA_ReactToKill": {
+      "cell_h": 36,
+      "cell_w": 34,
+      "file": "ThrongA_ReactToKill.png",
+      "frames": 6
+    },
+    "ThrongA_Rotund_Spritesheet": {
+      "cell_h": 39,
+      "cell_w": 37,
+      "file": "ThrongA_Rotund_Spritesheet.png",
+      "frames": 4
+    },
+    "ThrongA_Roundabout_SpriteSheet": {
+      "cell_h": 38,
+      "cell_w": 34,
+      "file": "ThrongA_Roundabout_SpriteSheet.png",
+      "frames": 8
+    },
+    "ThrongA_Sad": {
+      "cell_h": 36,
+      "cell_w": 34,
+      "file": "ThrongA_Sad.png",
+      "frames": 7
+    },
+    "ThrongA_Sad_Walk": {
+      "cell_h": 33,
+      "cell_w": 32,
+      "file": "ThrongA_Sad_Walk.png",
+      "frames": 2
+    },
+    "ThrongA_Shrug": {
+      "cell_h": 37,
+      "cell_w": 37,
+      "file": "ThrongA_Shrug.png",
+      "frames": 4
+    },
+    "ThrongA_SingToThronglet_Spritesheet2": {
+      "cell_h": 37,
+      "cell_w": 37,
+      "file": "ThrongA_SingToThronglet_Spritesheet2.png",
+      "frames": 6
+    },
+    "ThrongA_SkepticalToPlayer_Spritesheet": {
+      "cell_h": 37,
+      "cell_w": 37,
+      "file": "ThrongA_SkepticalToPlayer_Spritesheet.png",
+      "frames": 3
+    },
+    "ThrongA_Sophisticated": {
+      "cell_h": 36,
+      "cell_w": 34,
+      "file": "ThrongA_Sophisticated.png",
+      "frames": 1
+    },
+    "ThrongA_Squint": {
+      "cell_h": 37,
+      "cell_w": 37,
+      "file": "ThrongA_Squint.png",
+      "frames": 3
+    },
+    "ThrongA_Step01": {
+      "cell_h": 34,
+      "cell_w": 32,
+      "file": "ThrongA_Step01.png",
+      "frames": 1
+    },
+    "ThrongA_Step01_noface": {
+      "cell_h": 34,
+      "cell_w": 32,
+      "file": "ThrongA_Step01_noface.png",
+      "frames": 1
+    },
+    "ThrongA_Step02": {
+      "cell_h": 34,
+      "cell_w": 32,
+      "file": "ThrongA_Step02.png",
+      "frames": 1
+    },
+    "ThrongA_Step02_noface": {
+      "cell_h": 34,
+      "cell_w": 32,
+      "file": "ThrongA_Step02_noface.png",
+      "frames": 1
+    },
+    "ThrongA_Talk": {
+      "cell_h": 36,
+      "cell_w": 34,
+      "file": "ThrongA_Talk.png",
+      "frames": 6
+    },
+    "ThrongA_TalkToOtherThronglet_Spritesheet2": {
+      "cell_h": 36,
+      "cell_w": 34,
+      "file": "ThrongA_TalkToOtherThronglet_Spritesheet2.png",
+      "frames": 3
+    },
+    "ThrongA_Talk_Blink_Spritesheet": {
+      "cell_h": 36,
+      "cell_w": 34,
+      "file": "ThrongA_Talk_Blink_Spritesheet.png",
+      "frames": 8
+    },
+    "ThrongA_Talk_EarOffset_Spritesheet": {
+      "cell_h": 36,
+      "cell_w": 34,
+      "file": "ThrongA_Talk_EarOffset_Spritesheet.png",
+      "frames": 5
+    },
+    "ThrongA_Talk_EyeRoll_Spritesheet": {
+      "cell_h": 36,
+      "cell_w": 34,
+      "file": "ThrongA_Talk_EyeRoll_Spritesheet.png",
+      "frames": 7
+    },
+    "ThrongA_Talk_HandsBack_Spritesheet": {
+      "cell_h": 36,
+      "cell_w": 34,
+      "file": "ThrongA_Talk_HandsBack_Spritesheet.png",
+      "frames": 6
+    },
+    "ThrongA_Talk_Low_Spritesheet": {
+      "cell_h": 36,
+      "cell_w": 34,
+      "file": "ThrongA_Talk_Low_Spritesheet.png",
+      "frames": 6
+    },
+    "ThrongA_Talk_OffCenter": {
+      "cell_h": 36,
+      "cell_w": 34,
+      "file": "ThrongA_Talk_OffCenter.png",
+      "frames": 6
+    },
+    "ThrongA_Talk_ScratchArm_Spritesheet": {
+      "cell_h": 36,
+      "cell_w": 34,
+      "file": "ThrongA_Talk_ScratchArm_Spritesheet.png",
+      "frames": 9
+    },
+    "ThrongA_Talk_Tall_Spritesheet": {
+      "cell_h": 40,
+      "cell_w": 34,
+      "file": "ThrongA_Talk_Tall_Spritesheet.png",
+      "frames": 6
+    },
+    "ThrongB_SingToThronglet_Spritesheet2": {
+      "cell_h": 45,
+      "cell_w": 43,
+      "file": "ThrongB_SingToThronglet_Spritesheet2.png",
+      "frames": 8
+    },
+    "ThrongB_TalkToOtherThronglet_Spritesheet2": {
+      "cell_h": 36,
+      "cell_w": 34,
+      "file": "ThrongB_TalkToOtherThronglet_Spritesheet2.png",
+      "frames": 3
+    },
+    "ThrongC_SingToThronglet_Spritesheet2": {
+      "cell_h": 37,
+      "cell_w": 35,
+      "file": "ThrongC_SingToThronglet_Spritesheet2.png",
+      "frames": 8
+    },
+    "ThrongC_TalkToOtherThronglet_Spritesheet2": {
+      "cell_h": 36,
+      "cell_w": 34,
+      "file": "ThrongC_TalkToOtherThronglet_Spritesheet2.png",
+      "frames": 3
+    },
+    "ThrongD_SingToThronglet_Spritesheet2": {
+      "cell_h": 37,
+      "cell_w": 37,
+      "file": "ThrongD_SingToThronglet_Spritesheet2.png",
+      "frames": 9
+    },
+    "ThrongD_TalkToOtherThronglet_Spritesheet2": {
+      "cell_h": 36,
+      "cell_w": 34,
+      "file": "ThrongD_TalkToOtherThronglet_Spritesheet2.png",
+      "frames": 3
+    },
+    "ThrongE_SingToThronglet_Spriesheet2": {
+      "cell_h": 37,
+      "cell_w": 34,
+      "file": "ThrongE_SingToThronglet_Spriesheet2.png",
+      "frames": 8
+    },
+    "ThrongE_TalkToOtherThronglet_Spritesheet": {
+      "cell_h": 36,
+      "cell_w": 34,
+      "file": "ThrongE_TalkToOtherThronglet_Spritesheet.png",
+      "frames": 3
+    },
+    "ThrongE_TalkToOtherThronglet_Spritesheet2": {
+      "cell_h": 36,
+      "cell_w": 34,
+      "file": "ThrongE_TalkToOtherThronglet_Spritesheet2.png",
+      "frames": 3
+    },
+    "Throng_Anim_Flying_Spritesheet": {
+      "cell_h": 39,
+      "cell_w": 40,
+      "file": "Throng_Anim_Flying_Spritesheet.png",
+      "frames": 9
+    },
+    "Throng_Egg_A": {
+      "cell_h": 48,
+      "cell_w": 34,
+      "file": "Throng_Egg_A.png",
+      "frames": 1
+    },
+    "Throng_Egg_A_Glow": {
+      "cell_h": 51,
+      "cell_w": 38,
+      "file": "Throng_Egg_A_Glow.png",
+      "frames": 1
+    },
+    "Throng_Egg_A_WiggleLeft": {
+      "cell_h": 48,
+      "cell_w": 35,
+      "file": "Throng_Egg_A_WiggleLeft.png",
+      "frames": 1
+    },
+    "Throng_Egg_A_WiggleRight": {
+      "cell_h": 48,
+      "cell_w": 35,
+      "file": "Throng_Egg_A_WiggleRight.png",
+      "frames": 1
+    },
+    "Throng_Egg_B": {
+      "cell_h": 48,
+      "cell_w": 34,
+      "file": "Throng_Egg_B.png",
+      "frames": 1
+    },
+    "Throng_Egg_B_Glow": {
+      "cell_h": 51,
+      "cell_w": 38,
+      "file": "Throng_Egg_B_Glow.png",
+      "frames": 1
+    },
+    "Throng_Egg_B_WiggleLeft": {
+      "cell_h": 48,
+      "cell_w": 35,
+      "file": "Throng_Egg_B_WiggleLeft.png",
+      "frames": 1
+    },
+    "Throng_Egg_B_WiggleRight": {
+      "cell_h": 48,
+      "cell_w": 35,
+      "file": "Throng_Egg_B_WiggleRight.png",
+      "frames": 1
+    },
+    "Throng_Egg_C": {
+      "cell_h": 46,
+      "cell_w": 37,
+      "file": "Throng_Egg_C.png",
+      "frames": 1
+    },
+    "Throng_Egg_C_Empty": {
+      "cell_h": 30,
+      "cell_w": 37,
+      "file": "Throng_Egg_C_Empty.png",
+      "frames": 1
+    },
+    "Throng_Egg_Sparkle_SpriteSheet2": {
+      "cell_h": 72,
+      "cell_w": 70,
+      "file": "Throng_Egg_Sparkle_SpriteSheet2.png",
+      "frames": 5
+    },
+    "Throng_FallInBath_Spritesheet": {
+      "cell_h": 44,
+      "cell_w": 40,
+      "file": "Throng_FallInBath_Spritesheet.png",
+      "frames": 8
+    },
+    "Throng_Grumpy3": {
+      "cell_h": 37,
+      "cell_w": 37,
+      "file": "Throng_Grumpy3.png",
+      "frames": 2
+    },
+    "Throng_Grumpy_Sheet": {
+      "cell_h": 37,
+      "cell_w": 37,
+      "file": "Throng_Grumpy_Sheet.png",
+      "frames": 3
+    },
+    "Throng_Idle_AntennaSpin_EyesClosed_Spritesheet": {
+      "cell_h": 36,
+      "cell_w": 34,
+      "file": "Throng_Idle_AntennaSpin_EyesClosed_Spritesheet.png",
+      "frames": 4
+    },
+    "Throng_Idle_AntennaSpin_Spritesheet": {
+      "cell_h": 36,
+      "cell_w": 34,
+      "file": "Throng_Idle_AntennaSpin_Spritesheet.png",
+      "frames": 4
+    },
+    "Throng_Idle_BackTurned": {
+      "cell_h": 35,
+      "cell_w": 31,
+      "file": "Throng_Idle_BackTurned.png",
+      "frames": 1
+    },
+    "Throng_Idle_EarsUp": {
+      "cell_h": 36,
+      "cell_w": 34,
+      "file": "Throng_Idle_EarsUp.png",
+      "frames": 1
+    },
+    "Throng_Idle_EyesDirection_Spritesheet": {
+      "cell_h": 36,
+      "cell_w": 34,
+      "file": "Throng_Idle_EyesDirection_Spritesheet.png",
+      "frames": 8
+    },
+    "Throng_Outline": {
+      "cell_h": 50,
+      "cell_w": 50,
+      "file": "Throng_Outline.png",
+      "frames": 1
+    },
+    "Throng_Prop_Blood_A": {
+      "cell_h": 18,
+      "cell_w": 70,
+      "file": "Throng_Prop_Blood_A.png",
+      "frames": 1
+    },
+    "Throng_Prop_Shadow_A": {
+      "cell_h": 7,
+      "cell_w": 28,
+      "file": "Throng_Prop_Shadow_A.png",
+      "frames": 1
+    },
+    "Throng_Prop_Shadow_A 1": {
+      "cell_h": 9,
+      "cell_w": 30,
+      "file": "Throng_Prop_Shadow_A_1.png",
+      "frames": 1
+    },
+    "Throng_SarcasticSquint2": {
+      "cell_h": 37,
+      "cell_w": 37,
+      "file": "Throng_SarcasticSquint2.png",
+      "frames": 3
+    },
+    "Throng_SarcasticSquint3": {
+      "cell_h": 37,
+      "cell_w": 37,
+      "file": "Throng_SarcasticSquint3.png",
+      "frames": 2
+    },
+    "Throng_SingB_Spritesheet": {
+      "cell_h": 46,
+      "cell_w": 39,
+      "file": "Throng_SingB_Spritesheet.png",
+      "frames": 8
+    },
+    "Throng_SingC_Spritesheet": {
+      "cell_h": 35,
+      "cell_w": 35,
+      "file": "Throng_SingC_Spritesheet.png",
+      "frames": 9
+    },
+    "Throng_SingD_Spritesheet": {
+      "cell_h": 35,
+      "cell_w": 33,
+      "file": "Throng_SingD_Spritesheet.png",
+      "frames": 9
+    },
+    "Throng_SingE_Spritesheet": {
+      "cell_h": 35,
+      "cell_w": 33,
+      "file": "Throng_SingE_Spritesheet.png",
+      "frames": 8
+    },
+    "Throng_Sing_Spritesheet": {
+      "cell_h": 38,
+      "cell_w": 34,
+      "file": "Throng_Sing_Spritesheet.png",
+      "frames": 6
+    },
+    "Throng_Sophisticated2": {
+      "cell_h": 37,
+      "cell_w": 37,
+      "file": "Throng_Sophisticated2.png",
+      "frames": 3
+    },
+    "Throng_Sophisticated3": {
+      "cell_h": 37,
+      "cell_w": 37,
+      "file": "Throng_Sophisticated3.png",
+      "frames": 2
+    },
+    "Throng_Think_Spritesheet": {
+      "cell_h": 35,
+      "cell_w": 34,
+      "file": "Throng_Think_Spritesheet.png",
+      "frames": 5
+    },
+    "Throng_Think_TwiddleThumbs_Spritesheet": {
+      "cell_h": 36,
+      "cell_w": 34,
+      "file": "Throng_Think_TwiddleThumbs_Spritesheet.png",
+      "frames": 7
+    },
+    "Throng_WalkBack_Anim_Spritesheet": {
+      "cell_h": 36,
+      "cell_w": 33,
+      "file": "Throng_WalkBack_Anim_Spritesheet.png",
+      "frames": 5
+    },
+    "Throng_Walk_Anim_Spritesheet": {
+      "cell_h": 39,
+      "cell_w": 36,
+      "file": "Throng_Walk_Anim_Spritesheet.png",
+      "frames": 5
+    },
+    "Throng_Walk_Homed_Spritesheet": {
+      "cell_h": 39,
+      "cell_w": 36,
+      "file": "Throng_Walk_Homed_Spritesheet.png",
+      "frames": 5
+    },
+    "Thronglet_Outline": {
+      "cell_h": 50,
+      "cell_w": 50,
+      "file": "Thronglet_Outline.png",
+      "frames": 1
+    }
+  },
+  "strip_dir": "res://resources/sprites/throng_anims/"
+}

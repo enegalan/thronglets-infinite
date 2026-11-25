@@ -660,6 +660,12 @@ func _paint_inst(draws: Array, row: Dictionary, origin: Vector2, alpha: float, u
 	if str(row.get("group", "")) == "building" and _want_active_sprite(kind):
 		_paint_active_building(draws, kind, origin, alpha, uid, used, tune)
 		return
+	if str(row.get("group", "")) == "building" and (kind == Catalog.BLD_ROUND or kind == Catalog.BLD_FLOWER):
+		_paint_structure_anim(draws, kind, origin, alpha, _frame_of(row), tune, uid, used)
+		return
+	if str(row.get("group", "")) == "building" and main._idle_structure_texture(kind) != null:
+		_paint_idle_structure(draws, kind, origin, alpha, tune, uid, used)
+		return
 	var frame := _frame_of(row)
 	var at: Vector2 = _anchor(row, origin, tune, frame)
 	main._push_iso(draws, at, frame, Color(1, 1, 1, alpha), 0.0, float(tune.scale))
@@ -695,7 +701,9 @@ func _frame_of(row: Dictionary) -> int:
 			return main.EGG_ANIM + posmod(int(time * 4.0), 5)
 		return main._prop_frame(Catalog.icon_for_item(kind))
 	if kind == Catalog.BLD_ROUND:
-		return main.ROUND_ANIM + posmod(int(time * 8.0), 8)
+		return posmod(int(time * 8.0), main.ROUND_ANIM_N)
+	if kind == Catalog.BLD_FLOWER:
+		return posmod(int(time * 6.0), main.FLOWER_ANIM_N)
 	return main._prop_frame(int(row.icon))
 
 
@@ -760,7 +768,7 @@ func _paint_active_building(
 	node.scale = Vector2(sprite_scale, sprite_scale)
 	node.rotation_degrees = float(tune.rot)
 	node.modulate = Color(1, 1, 1, alpha)
-	node.position = screen_p + Vector2(0, -main.WORLD_CELL * 0.5 * sprite_scale)
+	node.position = screen_p + main._structure_sprite_lift(tex, sprite_scale)
 	node.visible = true
 	used[uid] = true
 
@@ -1098,7 +1106,7 @@ func _section(text: String) -> void:
 func _add_palette(row: Dictionary) -> void:
 	var button := Button.new()
 	if str(row.group) == "feature" and int(row.kind) == Catalog.FEAT_ANOMALY:
-		button.icon = _frame_tex(AssetFrames.ANOMALY)
+		button.icon = main._cell_tex(AssetFrames.ANOMALY)
 	else:
 		button.icon = main._atlas_icon(int(row.icon))
 	button.tooltip_text = str(row.label)
@@ -1998,9 +2006,9 @@ func _paint_effect_partner(draws: Array, origin: Vector2, alpha: float) -> float
 		var before := draws.size()
 		var prop_frame := -1
 		if kind == Catalog.BLD_ROUND:
-			prop_frame = main.ROUND_ANIM + posmod(int(effect_t * 8.0), 8)
+			prop_frame = posmod(int(effect_t * 8.0), main.ROUND_ANIM_N)
 		elif kind == Catalog.BLD_FLOWER:
-			prop_frame = main.FLOWER_ANIM + posmod(int(effect_t * 6.0), main.FLOWER_ANIM_N)
+			prop_frame = posmod(int(effect_t * 6.0), main.FLOWER_ANIM_N)
 		_paint_building(draws, kind, partner_at, alpha, prop_frame)
 		if draws.size() > before:
 			return float(draws[draws.size() - 1].get("sy", 0.0)) + 1.0
@@ -2035,10 +2043,7 @@ func _paint_effect_throng(draws: Array, origin: Vector2, alpha: float) -> void:
 	var frame := ThrongClips.frame_at(clip, index)
 	var off: Vector2 = ThrongTune.frame_offset(clip, index)
 	var pos := origin + off
-	var lift := float(tune.get("lift", 0.0))
-	var bob := float(tune.get("bob", 0.0))
-	if bob > 0.0:
-		lift += absf(sin(effect_t * bob)) * maxf(lift, 1.5)
+	var lift: float = main._effect_look_lift(tune, effect_t)
 	if effect_id == "act:bath":
 		pos = origin + Catalog.TUB_SEAT_OFF + off
 		lift = _bath_lift(index)
@@ -2052,64 +2057,16 @@ func _paint_effect_throng(draws: Array, origin: Vector2, alpha: float) -> void:
 	_paint_effect_fx(draws, pos, sort_y + 1.0, tune)
 
 
-func _effect_fx_frame(fx: String, time: float) -> int:
-	match fx:
-		"spark":
-			return main._prop_frame(Catalog.ICON_FX_SPARK)
-		"suds":
-			return AssetFrames.frame(AssetFrames.BUBBLE, AssetFrames.BUBBLE_N, int(time * 8.0))
-		"splash":
-			return AssetFrames.frame(AssetFrames.SPLASH, AssetFrames.SPLASH_N, int(time * 8.0))
-		"aura":
-			return AssetFrames.frame(AssetFrames.AURA, AssetFrames.AURA_N, 0)
-		"fire":
-			return AssetFrames.frame(AssetFrames.FIRE, AssetFrames.FIRE_N, int(time * 8.0))
-		"clean":
-			return AssetFrames.frame(AssetFrames.CLEAN, AssetFrames.CLEAN_N, int(time * 10.0))
-		_:
-			return -1
-
-
 func _paint_effect_fx(draws: Array, pos: Vector2, sort_y: float, tune: Dictionary) -> void:
-	var fx := str(tune.get("fx", "none"))
-	if fx == "none" or fx == "":
-		return
-	var fx_scale := float(tune.get("scale", 1.0))
-	var fx_off := Vector2(float(tune.get("fx_x", 0.0)), float(tune.get("fx_y", 0.0)))
-	var time := effect_t
-	var orbit := float(tune.get("orbit", 0.0))
-	if fx == "suds":
-		var bubble := AssetFrames.frame(AssetFrames.BUBBLE, AssetFrames.BUBBLE_N, int(time * 10.0))
-		if bubble >= 0:
-			main._push_iso(draws, pos + fx_off, bubble, Color(1, 1, 1, 0.85), 8.0, fx_scale, sort_y)
-		else:
-			main._paint_suds(draws, pos + fx_off + Vector2(0, -6), sort_y + 0.4, time, fx_scale)
-		return
-	var frame := _effect_fx_frame(fx, time)
-	if frame < 0:
-		return
-	if orbit > 0.5:
-		for i in 3:
-			var ang := time * 4.0 + float(i) * TAU / 3.0
-			var wob := Vector2(cos(ang) * orbit, sin(ang) * orbit * 0.55 - 8.0)
-			main._push_iso(draws, pos + fx_off + wob, frame, Color(1, 1, 1, 0.95), 10.0 + float(i), fx_scale, sort_y + 0.4 + float(i) * 0.1)
-		return
-	if fx == "fire":
-		main._push_iso(draws, pos + fx_off + Vector2(10, -4), frame, Color(1, 1, 1, 1.0), 6.0, 1.0, sort_y + 0.4)
-		var blob := AssetFrames.frame(AssetFrames.FIRE_BLOB, AssetFrames.FIRE_BLOB_N, int(time * 8.0))
-		if blob >= 0:
-			main._push_iso(draws, pos + fx_off + Vector2(sin(time * 5.0) * 10.0, -12.0), blob, Color(1, 1, 1, 0.95), 10.0, 1.0, sort_y + 0.5)
-		return
-	if fx == "splash":
-		main._push_iso(draws, pos + fx_off + Vector2(0, 2), frame, Color(1, 1, 1, 0.95), 4.0, 1.0, sort_y + 0.4)
-		main._paint_suds(draws, pos + fx_off + Vector2(0, -2), sort_y + 0.5, time, fx_scale)
-		return
-	if fx == "clean":
-		main._push_iso(draws, pos + fx_off, frame, Color(1, 1, 1, 0.95), 10.0, fx_scale, sort_y + 0.4)
-		return
-	var bob := float(tune.get("bob", 0.0))
-	var hop := Vector2(0, -10.0 - absf(sin(time * maxf(bob, 4.0))) * 4.0)
-	main._push_iso(draws, pos + fx_off + hop, frame, Color(1, 1, 1, 0.95), 10.0, fx_scale, sort_y + 0.4)
+	match effect_id:
+		"act:sponge":
+			main._paint_sponge_suds(draws, pos, sort_y, effect_t, tune)
+		"act:wash_sparkle", "act:bath_exit":
+			main._paint_clean_sparkle(draws, pos, sort_y + 0.4, tune, 1.0, -1.0, effect_t)
+		"act:mop":
+			main._paint_clean_sparkle(draws, pos, sort_y + 0.4, EffectTune.get_tune("act:wash_sparkle"), 1.0, -1.0, effect_t)
+		_:
+			pass
 
 
 func _build_effect_gauge() -> void:
@@ -2536,7 +2493,7 @@ func _paint_tuned(draws: Array, origin: Vector2, alpha: float) -> void:
 		var before := draws.size()
 		var prop_frame := -1
 		if kind == Catalog.BLD_ROUND:
-			prop_frame = main.ROUND_ANIM + posmod(_shown_index(), 8)
+			prop_frame = posmod(_shown_index(), main.ROUND_ANIM_N)
 		_paint_building(draws, kind, origin, alpha, prop_frame)
 		if draws.size() > before:
 			sort_y = float(draws[draws.size() - 1].get("sy", 0.0)) + 1.0
@@ -2555,10 +2512,18 @@ func _paint_anim(draws: Array, origin: Vector2, alpha: float) -> void:
 	var key := _anim_key(clip_name)
 	var index := _shown_index()
 	var off: Vector2 = AnimTune.frame_offset(key, index)
-	var frame := _box().x + index
 	var scale := AnimTune.frame_scale(key, index)
-	if key == "round":
-		scale = Catalog.building_sprite_scale(Catalog.BLD_ROUND) * scale
+	if key == "round" or key == "flower":
+		var kind := Catalog.BLD_ROUND if key == "round" else Catalog.BLD_FLOWER
+		if key == "round":
+			scale = Catalog.building_sprite_scale(Catalog.BLD_ROUND) * scale
+		else:
+			scale = Catalog.building_sprite_scale(Catalog.BLD_FLOWER) * scale
+		_paint_building(draws, kind, origin + off, alpha, index)
+		if not draws.is_empty():
+			draws[draws.size() - 1]["rot"] = AnimTune.frame_rot(key, index)
+		return
+	var frame := _box().x + index
 	main._push_iso(draws, origin + off, frame, Color(1, 1, 1, alpha), 0.0, scale)
 	draws[draws.size() - 1]["rot"] = AnimTune.frame_rot(key, index)
 	if mirror:
@@ -2587,6 +2552,12 @@ func _paint_building(draws: Array, kind: int, origin: Vector2, alpha: float, fra
 	if _want_active_sprite(kind):
 		_paint_active_building(draws, kind, origin, alpha, EFFECT_ACTIVE_UID, _node_used, tune)
 		return
+	if kind == Catalog.BLD_ROUND or kind == Catalog.BLD_FLOWER:
+		_paint_structure_anim(draws, kind, origin, alpha, frame_override, tune, EFFECT_ACTIVE_UID, _node_used)
+		return
+	if main._idle_structure_texture(kind) != null:
+		_paint_idle_structure(draws, kind, origin, alpha, tune, EFFECT_ACTIVE_UID, _node_used)
+		return
 	var frame := frame_override
 	if frame < 0:
 		frame = _frame_of(row)
@@ -2598,6 +2569,112 @@ func _paint_building(draws: Array, kind: int, origin: Vector2, alpha: float, fra
 	var last: Dictionary = draws[draws.size() - 1]
 	last["sy"] = float(last.get("sy", last.p.y)) + float(tune.z)
 	last["rot"] = float(tune.rot)
+
+
+func _paint_idle_structure(
+	draws: Array,
+	kind: int,
+	origin: Vector2,
+	alpha: float,
+	tune: Dictionary,
+	uid: int,
+	used: Dictionary
+) -> void:
+	var tex: Texture2D = main._idle_structure_texture(kind)
+	if tex == null:
+		return
+	var frame: int = main._prop_frame(Catalog.icon_for_building(kind))
+	var size: Vector2i = tune.get("footprint", Vector2i(1, 1))
+	var sprite_scale := float(tune.scale)
+	var extra: Vector2 = tune.offset if tune.has("offset") else Vector2.ZERO
+	var at: Vector2 = origin + Catalog.footprint_center(size) + main._pad_nudge(frame, sprite_scale, size) + extra
+	var tint := Color(1, 1, 1, alpha)
+	if kind == Catalog.BLD_TUB:
+		tint = Color(0.85, 0.95, 1.0, alpha)
+	var screen_p: Vector2 = main.cam_rig.to_iso(at)
+	var node: Sprite2D = _take_structure_sprite(uid, tex)
+	node.scale = Vector2(sprite_scale, sprite_scale)
+	node.rotation_degrees = float(tune.rot)
+	node.modulate = tint
+	node.position = screen_p + main._structure_sprite_lift(tex, sprite_scale)
+	node.visible = true
+	used[uid] = true
+	draws.append({
+		"p": screen_p,
+		"sy": screen_p.y + float(tune.z),
+		"icon": frame,
+		"tint": tint,
+		"scale": sprite_scale,
+		"meta_only": true,
+	})
+
+
+func _paint_structure_anim(
+	draws: Array,
+	kind: int,
+	origin: Vector2,
+	alpha: float,
+	anim_idx: int,
+	tune: Dictionary,
+	uid: int,
+	used: Dictionary
+) -> void:
+	var idx := anim_idx
+	if idx < 0:
+		idx = _frame_of(PropTune.entry("building:%d" % kind))
+	var tex: Texture2D = main._structure_anim_texture(kind, idx)
+	if tex == null:
+		tex = main._idle_structure_texture(kind)
+	if tex == null:
+		return
+	var frame: int = main._prop_frame(Catalog.icon_for_building(kind))
+	var size: Vector2i = tune.get("footprint", Vector2i(1, 1))
+	var sprite_scale := float(tune.scale)
+	if kind == Catalog.BLD_ROUND:
+		sprite_scale *= AnimTune.frame_scale("round", idx)
+	var extra: Vector2 = tune.offset if tune.has("offset") else Vector2.ZERO
+	var at: Vector2 = origin + Catalog.footprint_center(size) + main._pad_nudge(frame, sprite_scale, size) + extra
+	if kind == Catalog.BLD_ROUND:
+		at += AnimTune.frame_offset("round", idx)
+	elif kind == Catalog.BLD_FLOWER:
+		at += AnimTune.frame_offset("flower", idx)
+	var screen_p: Vector2 = main.cam_rig.to_iso(at)
+	var node: Sprite2D = _take_structure_sprite(uid, tex)
+	node.scale = Vector2(sprite_scale, sprite_scale)
+	node.rotation_degrees = float(tune.rot)
+	if kind == Catalog.BLD_ROUND:
+		node.rotation_degrees += AnimTune.frame_rot("round", idx)
+	node.modulate = Color(1, 1, 1, alpha)
+	node.position = screen_p + main._structure_sprite_lift(tex, sprite_scale)
+	node.visible = true
+	used[uid] = true
+	# Sort bookkeeping only — Sprite2D already draws the frame. Painting this row
+	# would also blit the atlas default under the anim (flower/round double sprite).
+	draws.append({
+		"p": screen_p,
+		"sy": screen_p.y + float(tune.z),
+		"icon": frame,
+		"tint": Color(1, 1, 1, alpha),
+		"scale": sprite_scale,
+		"meta_only": true,
+	})
+
+
+func _take_structure_sprite(uid: int, tex: Texture2D) -> Sprite2D:
+	if nodes.has(uid) and is_instance_valid(nodes[uid]) and nodes[uid] is Sprite2D:
+		var kept: Sprite2D = nodes[uid]
+		kept.texture = tex
+		return kept
+	if nodes.has(uid) and is_instance_valid(nodes[uid]):
+		nodes[uid].queue_free()
+		nodes.erase(uid)
+	var node := Sprite2D.new()
+	node.centered = true
+	node.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	node.texture = tex
+	main.world_layer.add_child(node)
+	nodes[uid] = node
+	return node
 
 
 func _stroke_partner(poly: PackedVector2Array) -> void:
@@ -2703,7 +2780,7 @@ func _build_strip() -> void:
 	selected_frames = keep
 	for i in box.y:
 		var button := Button.new()
-		button.icon = _frame_tex(box.x + i)
+		button.icon = main._cell_tex(box.x + i)
 		button.custom_minimum_size = Vector2(28, 28)
 		button.expand_icon = true
 		button.focus_mode = Control.FOCUS_NONE
@@ -2764,20 +2841,6 @@ func _range_frames(i: int) -> void:
 	frame_i = target
 	_sync_play_button()
 	_sync_playhead()
-
-
-func _frame_tex(frame: int) -> AtlasTexture:
-	var tex: Texture2D = main.world.texture
-	var atlas := AtlasTexture.new()
-	atlas.atlas = tex
-	var cols := ThrongClips.SHEET_COLS
-	var rows := ThrongClips.SHEET_ROWS
-	var cw := float(tex.get_width()) / float(cols)
-	var ch := float(tex.get_height()) / float(rows)
-	var col := frame % cols
-	var row := frame / cols
-	atlas.region = Rect2(float(col) * cw, float(row) * ch, cw, ch)
-	return atlas
 
 
 func _fill_clip() -> void:
@@ -3673,7 +3736,7 @@ func _lab_tick_draw() -> void:
 	if not lab_carousel.is_empty():
 		var pos: Vector2 = lab_carousel.get("pos", Catalog.cell_world(Vector2i(8, 16)))
 		var spin: float = float(lab_carousel.get("spin", 0.0))
-		var prop_frame: int = int(main.ROUND_ANIM) + posmod(int(spin * 4.0), 8)
+		var prop_frame: int = posmod(int(spin * 4.0), main.ROUND_ANIM_N)
 		_paint_building(draws, Catalog.BLD_ROUND, pos, 1.0, prop_frame)
 		if not draws.is_empty():
 			# keep building at a base depth so riders can sort in front/behind by seat
@@ -3721,9 +3784,9 @@ func _lab_tick_draw() -> void:
 		if int(a.get("id", -1)) == lab_selected_agent:
 			tint = Color(1.0, 1.0, 0.55, 1.0)
 		var sy := float(main.cam_rig.to_iso(pos).y) + 8.0
-		if st == "riding":
-			# depth-sort riders around the carousel: front seats draw over, back seats under
-			sy = float(main.cam_rig.to_iso(pos).y) + 10.0
+		if st == "riding" and carousel_sy_base > -INF:
+			# Flat disk: all riders stay above the carousel.
+			sy = carousel_sy_base + 1.0 + float(slot) * 0.01
 		main._push_iso(draws, pos + off, frame, tint, lift, sc, sy)
 		if st == "riding":
 			# directional ride sprites already encode orientation; avoid extra flip/rotation jitter

@@ -2,10 +2,21 @@ class_name ThrongClips
 extends Object
 
 const SHEET_COLS := 16
-const SHEET_ROWS := 47
+const SHEET_ROWS := 51
 const BASE := 144
 
 const CLIPS := {
+	"ThrongA_PanicRun": Vector2i(654, 4),
+	"ThrongA_PanicRunFire": Vector2i(658, 4),
+	"ThrongA_FreakOut": Vector2i(662, 12),
+	"ThrongA_LiftProp": Vector2i(674, 7),
+	"ThrongA_LiftPropWalk": Vector2i(681, 2),
+	"ThrongA_DropProp": Vector2i(683, 4),
+	"ThrongA_Happy_Walk": Vector2i(687, 2),
+	"ThrongA_Sad_Walk": Vector2i(689, 2),
+	"ThrongA_PuppyDogEyes": Vector2i(691, 4),
+	"ThrongA_InAwe": Vector2i(695, 4),
+	"ThrongA_Deflesh": Vector2i(699, 24),
 	"ThrongA_AngryAtPlayer_Spritesheet": Vector2i(144, 3),
 	"ThrongA_Bones": Vector2i(147, 1),
 	"ThrongA_Bored_KickRock": Vector2i(148, 14),
@@ -108,10 +119,67 @@ const CLIPS := {
 	"Throng_Outline": Vector2i(653, 1),
 }
 
-const TALK := [
-		"ThrongA_Possessed_AntennaSpinTalk_Spritesheet",
-		"ThrongA_Talk",
+## Situation pools. Prefer these over ad-hoc Main literals.
+const IDLE_CALM := [
+		"ThrongA_Default",
+		"ThrongA_Default Blink",
+		"ThrongA_Happy",
+		"ThrongA_EarWiggleLow",
+		"Throng_Idle_AntennaSpin_Spritesheet",
+		"Throng_Idle_EyesDirection_Spritesheet",
+		"Throng_Idle_EarsUp",
+		"Throng_Idle_BackTurned",
+		"Throng_Think_Spritesheet",
+]
+
+const IDLE_SLEEP := [
+		"Throng_Idle_AntennaSpin_EyesClosed_Spritesheet",
+]
+
+const MOOD_BORED := [
+		"ThrongA_Bored_KickRock",
+		"Throng_Grumpy_Sheet",
+		"Throng_Grumpy3",
+		"ThrongA_Grumpy",
+		"ThrongA_PuppyDogEyes",
+]
+
+const MOOD_SAD := [
+		"ThrongA_Sad",
+]
+
+# Thought-bubble bark: random Sing B–E while the bocadillo is up (not peer duet).
+const BARK_SING := [
+		"Throng_SingB_Spritesheet",
+		"Throng_SingC_Spritesheet",
+		"Throng_SingD_Spritesheet",
+		"Throng_SingE_Spritesheet",
+]
+
+const SING_PEER := [
+		"Throng_Sing_Spritesheet",
+		"Throng_SingB_Spritesheet",
+		"Throng_SingC_Spritesheet",
+		"Throng_SingD_Spritesheet",
+		"Throng_SingE_Spritesheet",
+		"ThrongA_SingToThronglet_Spritesheet2",
+		"ThrongB_SingToThronglet_Spritesheet2",
+		"ThrongC_SingToThronglet_Spritesheet2",
+		"ThrongD_SingToThronglet_Spritesheet2",
+		"ThrongE_SingToThronglet_Spriesheet2",
+]
+
+const TALK_PEER := [
 		"ThrongA_TalkToOtherThronglet_Spritesheet2",
+		"ThrongB_TalkToOtherThronglet_Spritesheet2",
+		"ThrongC_TalkToOtherThronglet_Spritesheet2",
+		"ThrongD_TalkToOtherThronglet_Spritesheet2",
+		"ThrongE_TalkToOtherThronglet_Spritesheet",
+		"ThrongE_TalkToOtherThronglet_Spritesheet2",
+]
+
+const TALK_CONSOLE := [
+		"ThrongA_Talk",
 		"ThrongA_Talk_Blink_Spritesheet",
 		"ThrongA_Talk_EarOffset_Spritesheet",
 		"ThrongA_Talk_EyeRoll_Spritesheet",
@@ -120,92 +188,50 @@ const TALK := [
 		"ThrongA_Talk_OffCenter",
 		"ThrongA_Talk_ScratchArm_Spritesheet",
 		"ThrongA_Talk_Tall_Spritesheet",
-		"ThrongB_TalkToOtherThronglet_Spritesheet2",
-		"ThrongC_TalkToOtherThronglet_Spritesheet2",
-		"ThrongD_TalkToOtherThronglet_Spritesheet2",
-		"ThrongE_TalkToOtherThronglet_Spritesheet",
-		"ThrongE_TalkToOtherThronglet_Spritesheet2"
 ]
 
-const IDLE := [
-		"ThrongA_AngryAtPlayer_Spritesheet",
-		"ThrongA_Bored_KickRock",
-		"ThrongA_Celebrate_Spritesheet",
-		"ThrongA_DeepThought_Spritesheet",
-		"ThrongA_Default",
-		"ThrongA_Default Blink",
-		"ThrongA_EarWiggleLow",
-		"ThrongA_EarWiggleStand",
-		"ThrongA_Grumpy",
-		"ThrongA_Happy",
-		"ThrongA_ImpactfulExplanation_Spritesheet",
-		"ThrongA_Jump",
-		"ThrongA_Jump-EarWiggle",
-		"ThrongA_JumpBlink",
-		"ThrongA_Jump_High",
+const TALK_REACT := [
 		"ThrongA_LooktAtPlayerHappyNod_Spritesheet",
-		"ThrongA_MitosisCutscene_NoBlood_Spritesheet",
-		"ThrongA_Possessed_AntennaSpinEar_Spritesheet",
-		"ThrongA_Possessed_AntennaSpin_Spritesheet",
-		"ThrongA_Possessed_EarRaise_Spritesheet",
-		"ThrongA_ReactToKill",
-		"ThrongA_Rotund_Spritesheet",
-		"ThrongA_Shrug",
-		"ThrongA_SingToThronglet_Spritesheet2",
 		"ThrongA_SkepticalToPlayer_Spritesheet",
-		"ThrongA_Sophisticated",
-		"ThrongA_Squint",
-		"ThrongA_Step01",
-		"ThrongA_Step01_noface",
-		"ThrongA_Step02",
-		"ThrongA_Step02_noface",
-		"ThrongB_SingToThronglet_Spritesheet2",
-		"ThrongC_SingToThronglet_Spritesheet2",
-		"ThrongD_SingToThronglet_Spritesheet2",
-		"ThrongE_SingToThronglet_Spriesheet2",
-		"Throng_Anim_Flying_Spritesheet",
-		"Throng_Egg_A",
-		"Throng_Egg_A_Glow",
-		"Throng_Egg_A_WiggleLeft",
-		"Throng_Egg_A_WiggleRight",
-		"Throng_Egg_B",
-		"Throng_Egg_B_Glow",
-		"Throng_Egg_B_WiggleLeft",
-		"Throng_Egg_B_WiggleRight",
-		"Throng_Egg_C",
-		"Throng_Egg_C_Empty",
-		"Throng_Egg_Sparkle_SpriteSheet2",
-		"Throng_Grumpy3",
-		"Throng_Grumpy_Sheet",
-		"Throng_Idle_AntennaSpin_EyesClosed_Spritesheet",
-		"Throng_Idle_AntennaSpin_Spritesheet",
-		"Throng_Idle_BackTurned",
-		"Throng_Idle_EarsUp",
-		"Throng_Idle_EyesDirection_Spritesheet",
-		"Throng_Prop_Blood_A",
-		"Throng_Prop_Shadow_A",
-		"Throng_Prop_Shadow_A 1",
-		"Throng_SarcasticSquint2",
-		"Throng_SarcasticSquint3",
-		"Throng_SingB_Spritesheet",
-		"Throng_SingC_Spritesheet",
-		"Throng_SingD_Spritesheet",
-		"Throng_SingE_Spritesheet",
-		"Throng_Sing_Spritesheet",
-		"Throng_Sophisticated2",
-		"Throng_Sophisticated3",
-		"Throng_Think_Spritesheet",
-		"Throng_Think_TwiddleThumbs_Spritesheet",
-		"Throng_Walk_Homed_Spritesheet",
-		"ThrongA_Default_Ghost"
+		"ThrongA_AngryAtPlayer_Spritesheet",
+		"ThrongA_DeepThought_Spritesheet",
+		"ThrongA_ImpactfulExplanation_Spritesheet",
+		"ThrongA_Shrug",
+		"ThrongA_InAwe",
 ]
+
+const POSSESSED := [
+		"ThrongA_Possessed_AntennaSpin_Spritesheet",
+		"ThrongA_Possessed_AntennaSpinTalk_Spritesheet",
+		"ThrongA_Possessed_AntennaSpinEar_Spritesheet",
+		"ThrongA_Possessed_EarRaise_Spritesheet",
+]
+
+const CELEBRATE := [
+		"ThrongA_Celebrate_Spritesheet",
+]
+
+const PANIC := [
+		"ThrongA_FreakOut",
+		"ThrongA_PanicRunFire",
+		"ThrongA_ReactToKill",
+]
+
+const STRIP_DIR := "res://resources/sprites/throng_anims/"
+const STRIP_MANIFEST := STRIP_DIR + "manifest.json"
 
 static var _frame_clip: PackedStringArray = PackedStringArray()
 static var _frame_index: PackedInt32Array = PackedInt32Array()
 static var _frame_map_ready := false
+static var _strip_tex: Dictionary = {}
+static var _strip_meta: Dictionary = {}
 
 static func has_clip(clip: String) -> bool:
 	return CLIPS.has(clip)
+
+static func frame_count(clip: String) -> int:
+	var box: Vector2i = CLIPS.get(clip, Vector2i(20, 1))
+	return maxi(box.y, 1)
 
 static func frame_at(clip: String, tick: int) -> int:
 	var box: Vector2i = CLIPS.get(clip, Vector2i(20, 1))
@@ -225,6 +251,66 @@ static func pick(pool: Array, index: int, time: float, hold: float) -> int:
 	var name := str(pool[posmod(which, pool.size())])
 	var local := time - float(int(time / hold)) * hold
 	return frame_at(name, int(local * 8.0))
+
+static func strip_file(clip: String) -> String:
+	return str(clip).replace(" ", "_").replace("/", "_") + ".png"
+
+static func strip_path(clip: String) -> String:
+	return STRIP_DIR + strip_file(clip)
+
+static func _ensure_strip_meta() -> void:
+	if not _strip_meta.is_empty():
+		return
+	if not FileAccess.file_exists(STRIP_MANIFEST):
+		return
+	var raw := FileAccess.get_file_as_string(STRIP_MANIFEST)
+	var parsed: Variant = JSON.parse_string(raw)
+	if typeof(parsed) != TYPE_DICTIONARY:
+		return
+	var clips: Variant = parsed.get("clips", {})
+	if typeof(clips) != TYPE_DICTIONARY:
+		return
+	_strip_meta = clips
+
+static func strip_tex(clip: String) -> Texture2D:
+	if _strip_tex.has(clip):
+		return _strip_tex[clip]
+	var path := strip_path(clip)
+	var tex: Texture2D = null
+	if ResourceLoader.exists(path):
+		tex = load(path) as Texture2D
+	if tex == null:
+		var abs_path := ProjectSettings.globalize_path(path)
+		if FileAccess.file_exists(path) or FileAccess.file_exists(abs_path):
+			var img := Image.load_from_file(abs_path)
+			if img != null and not img.is_empty():
+				tex = ImageTexture.create_from_image(img)
+	_strip_tex[clip] = tex
+	return tex
+
+static func strip_frame(clip: String, tick: int) -> AtlasTexture:
+	var sheet := strip_tex(clip)
+	if sheet == null:
+		return null
+	_ensure_strip_meta()
+	var meta: Variant = _strip_meta.get(clip, {})
+	var count := frame_count(clip)
+	var cell_w := 0
+	var cell_h := 0
+	if typeof(meta) == TYPE_DICTIONARY:
+		count = maxi(int(meta.get("frames", count)), 1)
+		cell_w = int(meta.get("cell_w", 0))
+		cell_h = int(meta.get("cell_h", 0))
+	if cell_w <= 0:
+		cell_w = maxi(sheet.get_width() / count, 1)
+	if cell_h <= 0:
+		cell_h = sheet.get_height()
+	var idx := posmod(tick, count)
+	var atlas := AtlasTexture.new()
+	atlas.atlas = sheet
+	atlas.region = Rect2(idx * cell_w, 0, cell_w, cell_h)
+	atlas.filter_clip = true
+	return atlas
 
 static func _ensure_frame_map() -> void:
 	if _frame_map_ready:

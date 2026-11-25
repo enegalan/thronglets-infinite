@@ -1,7 +1,7 @@
 class_name EffectTune
 
 # Dev bench overrides for thronglet need rates and presentation.
-# The game never reads this. res://dev/effect_tune.json is the handoff.
+# res://dev/effect_tune.json is the handoff dump — commit by updating LOOK/DEFAULTS here.
 
 const PATH := "res://dev/effect_tune.json"
 const LOOK_KEYS := ["clip", "fx", "lift", "bob", "orbit", "scale", "fx_x", "fx_y"]
@@ -26,32 +26,33 @@ const DEFAULTS := {
 	"act:play": {"fun": 6.0},
 	"act:ball": {"fun": 8.0},
 	"act:round": {"fun": 2.5},
-	"act:sponge": {"radius": 30.0, "stroke_min": 2.0, "stroke_cap": 22.0, "gain": 2.0},
+	"act:sponge": {"radius": 30.0, "stroke_min": 0.35, "stroke_cap": 6.0, "gain": 1.25},
 	"act:mop": {"radius": 48.0, "clean": 100.0},
 }
 
-# Presentation defaults used by the bench preview. apply_in points at Main._frame.
+# Presentation — Main reads via _effect_look_clip / _effect_look_lift / painters.
 const LOOK := {
-	"goo": {"clip": "ThrongA_Sad", "fx": "none", "lift": 0.0, "bob": 0.0, "orbit": 6.0},
+	"goo": {"clip": "ThrongA_Sad", "fx": "none", "lift": 0.0, "bob": 0.0, "orbit": 0.0},
 	"need": {"clip": "ThrongA_Default", "fx": "none", "lift": 0.0, "bob": 0.0, "orbit": 0.0},
-	"visit:dwell": {"clip": "ThrongA_Default", "fx": "spark", "lift": 0.0, "bob": 0.0, "orbit": 8.0},
-	"visit:fancy": {"clip": "ThrongA_Default", "fx": "spark", "lift": 0.0, "bob": 0.0, "orbit": 8.0},
-	"visit:theatre": {"clip": "ThrongA_Jump_VariantA_Spritesheet", "fx": "spark", "lift": 0.0, "bob": 2.0, "orbit": 8.0},
-	"aura:flower": {"clip": "ThrongA_Jump_VariantA_Spritesheet", "fx": "none", "lift": 0.0, "bob": 2.0, "orbit": 14.0},
-	"aura:statue": {"clip": "ThrongA_Jump_VariantA_Spritesheet", "fx": "none", "lift": 0.0, "bob": 2.0, "orbit": 14.0},
-	"aura:wood": {"clip": "ThrongA_Jump_VariantA_Spritesheet", "fx": "none", "lift": 0.0, "bob": 2.0, "orbit": 14.0},
-	"feat:totem": {"clip": "ThrongA_Jump_VariantA_Spritesheet", "fx": "none", "lift": 0.0, "bob": 2.0, "orbit": 12.0},
-	"feat:curer": {"clip": "ThrongA_Happy", "fx": "suds", "lift": 0.0, "bob": 0.0, "orbit": 0.0},
-	"feat:fire": {"clip": "ThrongA_Sad", "fx": "none", "lift": 0.0, "bob": 0.0, "orbit": 10.0},
-	"aura:ball": {"clip": "ThrongA_Jump_VariantA_Spritesheet", "fx": "none", "lift": 0.0, "bob": 2.0, "orbit": 14.0},
-	"act:eat": {"clip": "ThrongA_Eat", "fx": "none", "lift": 0.0, "bob": 5.0, "orbit": 0.0},
-	"act:bath": {"clip": "Throng_FallInBath_Spritesheet", "fx": "splash", "lift": 0.0, "bob": 0.0, "orbit": 0.0},
-	"act:bath_exit": {"clip": "ThrongA_Happy", "fx": "clean", "lift": 0.0, "bob": 0.0, "orbit": 0.0, "scale": 0.3, "fx_x": 3.0, "fx_y": 3.0},
-	"act:play": {"clip": "ThrongA_Jump_VariantA_Spritesheet", "fx": "none", "lift": 0.0, "bob": 3.0, "orbit": 10.0},
-	"act:ball": {"clip": "ThrongA_Jump_VariantA_Spritesheet", "fx": "none", "lift": 0.0, "bob": 0.0, "orbit": 14.0},
-	"act:round": {"clip": "ThrongA_Roundabout_SpriteSheet", "fx": "none", "lift": 1.5, "bob": 10.0, "orbit": 0.0},
-	"act:sponge": {"clip": "ThrongA_Happy", "fx": "suds", "lift": 0.0, "bob": 0.0, "orbit": 0.0, "scale": 0.4, "fx_x": 7.0, "fx_y": 7.0},
-	"act:mop": {"clip": "ThrongA_Happy", "fx": "suds", "lift": 0.0, "bob": 0.0, "orbit": 0.0, "scale": 1.0, "fx_x": 0.0, "fx_y": 0.0},
+	"visit:dwell": {"clip": "ThrongA_Default", "fx": "none", "lift": 0.0, "bob": 0.0, "orbit": 0.0},
+	"visit:fancy": {"clip": "ThrongA_Default", "fx": "none", "lift": 0.0, "bob": 0.0, "orbit": 0.0},
+	"visit:theatre": {"clip": "ThrongA_Jump_VariantA_Spritesheet", "fx": "none", "lift": 0.0, "bob": 0.0, "orbit": 0.0},
+	"aura:flower": {"clip": "ThrongA_Jump_VariantA_Spritesheet", "fx": "none", "lift": 0.0, "bob": 0.0, "orbit": 0.0},
+	"aura:statue": {"clip": "ThrongA_Jump_VariantA_Spritesheet", "fx": "none", "lift": 0.0, "bob": 0.0, "orbit": 0.0},
+	"aura:wood": {"clip": "ThrongA_Jump_VariantA_Spritesheet", "fx": "none", "lift": 0.0, "bob": 0.0, "orbit": 0.0},
+	"feat:totem": {"clip": "ThrongA_Jump_VariantA_Spritesheet", "fx": "none", "lift": 0.0, "bob": 0.0, "orbit": 0.0},
+	"feat:curer": {"clip": "ThrongA_Happy", "fx": "none", "lift": 0.0, "bob": 0.0, "orbit": 0.0},
+	"feat:fire": {"clip": "ThrongA_Sad", "fx": "none", "lift": 0.0, "bob": 0.0, "orbit": 0.0},
+	"aura:ball": {"clip": "ThrongA_Jump_VariantA_Spritesheet", "fx": "none", "lift": 0.0, "bob": 0.0, "orbit": 0.0},
+	"act:eat": {"clip": "ThrongA_Eat", "fx": "none", "lift": 1.0, "bob": 10.0, "orbit": 0.0},
+	"act:bath": {"clip": "Throng_FallInBath_Spritesheet", "fx": "none", "lift": 0.0, "bob": 0.0, "orbit": 0.0},
+	"act:bath_exit": {"clip": "ThrongA_Happy", "fx": "clean", "lift": 10.0, "bob": 0.0, "orbit": 0.0, "scale": 0.28, "fx_x": 9.0, "fx_y": 9.0},
+	"act:wash_sparkle": {"clip": "ThrongA_Happy", "fx": "clean", "lift": 10.0, "bob": 0.0, "orbit": 0.0, "scale": 0.28, "fx_x": 9.0, "fx_y": 9.0},
+	"act:play": {"clip": "ThrongA_Jump_VariantA_Spritesheet", "fx": "none", "lift": 0.0, "bob": 0.0, "orbit": 0.0},
+	"act:ball": {"clip": "ThrongA_Happy", "fx": "none", "lift": 0.0, "bob": 0.0, "orbit": 0.0},
+	"act:round": {"clip": "ThrongA_Roundabout_SpriteSheet", "fx": "none", "lift": 2.0, "bob": 0.0, "orbit": 0.0},
+	"act:sponge": {"clip": "ThrongA_Happy", "fx": "suds", "lift": 0.0, "bob": 0.0, "orbit": 0.0, "scale": 0.45, "fx_x": 7.0, "fx_y": 7.0},
+	"act:mop": {"clip": "ThrongA_Happy", "fx": "clean", "lift": 0.0, "bob": 0.0, "orbit": 0.0},
 }
 
 static var _rows: Array = []
@@ -248,6 +249,7 @@ static func _build() -> void:
 	_push("ACTION", "act:eat", "COMER", ["bite", "fed"])
 	_push("ACTION", "act:bath", "BANERA", ["clean", "done", "min_stay", "enter"])
 	_push("ACTION", "act:bath_exit", "SALIDA BANERA", [])
+	_push("ACTION", "act:wash_sparkle", "CHISPA LAVADO", [])
 	_push("ACTION", "act:play", "JUGAR", ["fun"])
 	_push("ACTION", "act:ball", "PATADA BALON", ["fun"])
 	_push("ACTION", "act:round", "TIOVIVO", ["fun"])
@@ -389,11 +391,29 @@ static func _document() -> Dictionary:
 
 static func _apply_in(id: String, key: String) -> String:
 	if key == "clip":
-		return "Main._frame for the ACT_* / behavior that drives %s. Change the ThrongClips.frame_at clip name there." % id
-	if key == "fx":
-		return "Preview VFX only unless noted. Map spark/suds/splash/fire to the AssetFrames draws used near %s in Main._sync_actors." % id
-	if key == "lift" or key == "bob" or key == "orbit" or key == "scale" or key == "fx_x" or key == "fx_y":
-		return "Bench preview motion for %s. lift/bob affect thronglet hop; orbit is VFX ring radius; scale is VFX scale; fx_x/fx_y offset the VFX. Optional live apply in Main._sync_actors motion near this action." % id
+		return "Main._effect_look_clip / Main._frame for %s." % id
+	if key == "fx" or key == "scale" or key == "fx_x" or key == "fx_y":
+		match id:
+			"act:sponge":
+				return "Main._paint_sponge_suds while scrubbing."
+			"act:wash_sparkle", "act:bath_exit":
+				return "Main._paint_clean_sparkle on finish pops."
+			"act:mop":
+				return "Main._paint_clean_sparkle via act:wash_sparkle tune."
+			_:
+				return "No live VFX painter for %s — keep fx=none." % id
+	if key == "lift" or key == "bob":
+		match id:
+			"act:sponge":
+				return "Main._paint_sponge_suds body lift (lift) and Main._effect_look_lift while ACT_WASH."
+			"act:wash_sparkle", "act:bath_exit":
+				return "Main._paint_clean_sparkle screen lift (lift). bob unused."
+			"act:eat", "act:play", "act:ball", "act:round":
+				return "Main._effect_look_lift for %s." % id
+			_:
+				return "Main._effect_look_lift when this effect's throng is drawn."
+	if key == "orbit":
+		return "Unused (no live orbit VFX). Keep 0."
 	match id:
 		"goo":
 			match key:
@@ -481,13 +501,11 @@ static func _apply_in(id: String, key: String) -> String:
 static func _how() -> String:
 	return " ".join(PackedStringArray([
 		"Apply each object in changes and nothing else.",
-		"Do not load this file at runtime. Edit ThrongletSimServer.gd, catalog.gd, or Main._frame so the live values match to, then update DEFAULTS/LOOK in effect_tune.gd.",
+		"Update DEFAULTS/LOOK in effect_tune.gd so committed defaults match to.",
 		"from is the bench default at save time. to is the absolute value the bench showed.",
 		"Follow apply_in on each field.",
 		"Skip fields that are not listed.",
-		"clip is the thronglet spritesheet name. Fine frame edits stay in throng_tune / ANIM.",
-		"fx is the preview VFX id. Map it to AssetFrames draws when applying live.",
-		"lift/bob/orbit are preview motion knobs.",
+		"LOOK clip/lift/bob/fx/scale/fx_x/fx_y are live through Main._effect_look_* and painters.",
 		"Visit fed/clean/fun and aura fun/fed/clean are points per second unless apply_in says otherwise.",
 		"Do not change costs, unlocks, dialogue ops, or unlisted rates.",
 	]))

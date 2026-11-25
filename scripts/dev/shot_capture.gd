@@ -20,7 +20,7 @@ var fx_i := 0
 var round_ids: Array = []
 var round_mark := -1
 var round_hold := 0
-var board: SubViewport
+var board: Node
 var video_saved := false
 var title_saved := false
 var apple_phase := 0
@@ -28,6 +28,10 @@ var apple_a := -1
 var apple_b := -1
 var apple_id := -1
 var apple_wait := 0
+var bld_goo_i := 0
+var bld_goo_phase := 0
+var bld_goo_mop_id := -1
+var blood_phase := 0
 
 
 func setup(p_main: Node2D) -> void:
@@ -36,6 +40,24 @@ func setup(p_main: Node2D) -> void:
 
 
 func tick_shot() -> void:
+	if sim.shot_anims:
+		_tick_shot_anims()
+		return
+	if sim.shot_dirt:
+		_tick_shot_dirt()
+		return
+	if sim.shot_ball:
+		_tick_shot_ball()
+		return
+	if sim.shot_wash:
+		_tick_shot_wash()
+		return
+	if sim.shot_bld_goo:
+		_tick_shot_bld_goo()
+		return
+	if sim.shot_blood:
+		_tick_shot_blood()
+		return
 	if sim.shot_fx:
 		_tick_shot_fx()
 		return
@@ -508,7 +530,7 @@ func _tick_shot_round() -> void:
 	var deg := int(round(float(marks[round_mark]) * 360.0))
 	print("SHOT ROUND spin=%d deg sep=%.2f gap=%.1f a=(%.1f,%.1f) b=(%.1f,%.1f) frame=%d" % [
 		deg, sep, gap, sim.pos_x[a], sim.pos_y[a], sim.pos_x[b_id], sim.pos_y[b_id],
-		132 + posmod(int(floor(target / (TAU / 8.0))), 8)
+		posmod(int(floor(target / (TAU / float(main.ROUND_ANIM_N)))), main.ROUND_ANIM_N)
 	])
 	if absf(sep - PI) > 0.12:
 		print("SHOT ROUND FAIL unsynced sep=%.2f at %d" % [sep, deg])
@@ -756,6 +778,686 @@ func save_shot(source: Viewport, path: String) -> bool:
 	return err == OK
 
 
+func _tick_shot_anims() -> void:
+	if board == null:
+		if main.ui != null:
+			main.ui.visible = false
+		build_anim_review_shot()
+		frames = 0
+		return
+	frames += 1
+	if frames < 10:
+		return
+	if not save_shot(board, "res://shots/anim_review.png"):
+		main.get_tree().quit(1)
+		return
+	# Also dump each situation as its own strip sheet for closer inspection.
+	if not _save_anim_strip_shots():
+		main.get_tree().quit(1)
+		return
+	done = true
+	print("SHOT ANIMS DONE")
+	main.get_tree().quit(0)
+
+
+func _bld_goo_hide_ui() -> void:
+	if main.ui != null:
+		main.ui.visible = false
+	main.kit_open = false
+	if main.has_method("_set_kit_shown"):
+		main._set_kit_shown(false)
+	elif "kit_panel" in main and main.kit_panel != null:
+		main.kit_panel.visible = false
+	if "task_panel" in main and main.task_panel != null:
+		main.task_panel.visible = false
+	if "console" in main and main.console != null:
+		main.console.visible = false
+	main.crt_on = false
+	if main.has_method("_apply_crt"):
+		main._apply_crt()
+
+
+func _bld_goo_frame_camera() -> void:
+	var view := main.get_viewport_rect().size
+	var reach: float = float(sim.shot_span)
+	var half_w := reach * sqrt(2.0)
+	var half_h := reach * 0.70710678
+	var zoom := minf(view.x / (half_w * 2.0 + 64.0), view.y / (half_h * 2.0 + 96.0))
+	main.cam_rig.set_zoom(clampf(zoom, 1.2, 3.5))
+	main.camera.position = main.cam_rig.to_iso(sim.shot_focus)
+
+
+func _bld_goo_assert_overlays(row: Dictionary, name: String) -> bool:
+	var idle: Dictionary = row.idle
+	var active: Dictionary = row.active
+	var goo: Dictionary = row.goo
+	if idle.is_empty() or active.is_empty() or goo.is_empty():
+		print("SHOT BLD GOO FAIL %s missing building" % name)
+		return false
+	if sim.building_is_polluted(idle):
+		print("SHOT BLD GOO FAIL %s idle polluted" % name)
+		return false
+	if sim.building_is_polluted(active):
+		print("SHOT BLD GOO FAIL %s active polluted" % name)
+		return false
+	if not sim.building_is_polluted(goo):
+		print("SHOT BLD GOO FAIL %s goo not polluted" % name)
+		return false
+	var kind := int(idle.kind)
+	if main._active_structure_texture(kind) == null:
+		print("SHOT BLD GOO FAIL %s missing active tex" % name)
+		return false
+	if main._goo_structure_texture(kind) == null:
+		print("SHOT BLD GOO FAIL %s missing goo tex" % name)
+		return false
+	var show_on := false
+	if kind == Catalog.BLD_DWELL or kind == Catalog.BLD_FANCY or kind == Catalog.BLD_THEATRE:
+		show_on = int(sim._live_guests(active)) > 0
+	else:
+		show_on = bool(active.get("active", false))
+	if not show_on:
+		print("SHOT BLD GOO FAIL %s active not lit" % name)
+		return false
+	var idle_id := int(idle.id)
+	var active_id := int(active.id)
+	var goo_id := int(goo.id)
+	var idle_node: Sprite2D = main._building_active_sprites.get(idle_id)
+	var active_node: Sprite2D = main._building_active_sprites.get(active_id)
+	var goo_node: Sprite2D = main._building_active_sprites.get(goo_id)
+	if idle_node == null or not idle_node.visible:
+		print("SHOT BLD GOO FAIL %s idle sprite missing" % name)
+		return false
+	if active_node == null or not active_node.visible:
+		print("SHOT BLD GOO FAIL %s active sprite missing" % name)
+		return false
+	if goo_node == null or not goo_node.visible:
+		print("SHOT BLD GOO FAIL %s goo sprite missing" % name)
+		return false
+	if idle_node.texture != main._idle_structure_texture(kind):
+		print("SHOT BLD GOO FAIL %s idle tex mismatch" % name)
+		return false
+	if active_node.texture != main._active_structure_texture(kind):
+		print("SHOT BLD GOO FAIL %s active tex mismatch" % name)
+		return false
+	if goo_node.texture != main._goo_structure_texture(kind):
+		print("SHOT BLD GOO FAIL %s goo tex mismatch" % name)
+		return false
+	var scale_tol := 0.001
+	var want_scale := Catalog.building_sprite_scale(kind)
+	for pair in [[idle_node, "idle"], [active_node, "active"], [goo_node, "goo"]]:
+		var node: Sprite2D = pair[0]
+		if absf(node.scale.x - want_scale) > scale_tol:
+			print("SHOT BLD GOO FAIL %s %s scale=%.3f" % [name, str(pair[1]), node.scale.x])
+			return false
+	print("SHOT BLD GOO OK %s idle/active/goo sprites+scale" % name)
+	return true
+
+
+func _tick_shot_bld_goo() -> void:
+	# Per kind: idle | active | goo row shot, then mop before/after + logic sweep.
+	_bld_goo_hide_ui()
+	var kinds: Array = sim._shot_bld_goo_kinds()
+	if bld_goo_phase == 0:
+		if bld_goo_i >= kinds.size():
+			bld_goo_phase = 1
+			frames = 0
+			# Prep mop scene on dwell.
+			var dwell_kind := Catalog.BLD_DWELL
+			sim._clear_shot_props()
+			var at: Vector2 = sim._shot_force_pad(dwell_kind, 256.0, 256.0)
+			var b: Dictionary = sim._add_building(dwell_kind, at.x, at.y)
+			if b.is_empty():
+				print("SHOT BLD GOO FAIL mop place dwell")
+				main.get_tree().quit(1)
+				return
+			sim._shot_paint_building_goo(b)
+			bld_goo_mop_id = int(b.id)
+			sim.shot_focus = Vector2(float(b.x), float(b.y))
+			sim.shot_span = 90.0
+			sim.view_rect = Rect2(sim.shot_focus.x - sim.shot_span, sim.shot_focus.y - sim.shot_span, sim.shot_span * 2.0, sim.shot_span * 2.0)
+			sim.smoke_hold = true
+			sim._rebuild_hash()
+			print("SHOT BLD GOO MOP PREP id=%s polluted=%s" % [bld_goo_mop_id, sim.building_is_polluted(b)])
+			return
+		var spec: Dictionary = kinds[bld_goo_i]
+		if frames == 0:
+			var row: Dictionary = sim._shot_place_bld_row(int(spec.kind))
+			if row.has("error"):
+				print("SHOT BLD GOO FAIL %s" % str(row.error))
+				main.get_tree().quit(1)
+				return
+			main.set_meta("shot_bld_row", row)
+		_bld_goo_frame_camera()
+		frames += 1
+		if frames < 10:
+			return
+		RenderingServer.force_draw()
+		var row_now: Dictionary = main.get_meta("shot_bld_row", {})
+		if not _bld_goo_assert_overlays(row_now, str(spec.name)):
+			main.get_tree().quit(1)
+			return
+		var path := "res://shots/bld_%s_idle_active_goo.png" % str(spec.name)
+		if not save_shot(main.get_viewport(), path):
+			main.get_tree().quit(1)
+			return
+		bld_goo_i += 1
+		frames = 0
+		return
+
+	if bld_goo_phase == 1:
+		_bld_goo_frame_camera()
+		frames += 1
+		if frames < 8:
+			return
+		var b: Dictionary = sim.building_by_id.get(bld_goo_mop_id, {})
+		if b.is_empty() or not sim.building_is_polluted(b):
+			print("SHOT BLD GOO FAIL mop before not polluted")
+			main.get_tree().quit(1)
+			return
+		RenderingServer.force_draw()
+		if not save_shot(main.get_viewport(), "res://shots/bld_mop_before.png"):
+			main.get_tree().quit(1)
+			return
+		sim._shot_mop_building(b)
+		sim._tick_buildings(0.016)
+		if sim.building_is_polluted(b):
+			print("SHOT BLD GOO FAIL mop left dwell polluted")
+			main.get_tree().quit(1)
+			return
+		bld_goo_phase = 2
+		frames = 0
+		print("SHOT BLD GOO MOP dwell cleaned")
+		return
+
+	if bld_goo_phase == 2:
+		_bld_goo_frame_camera()
+		frames += 1
+		if frames < 8:
+			return
+		RenderingServer.force_draw()
+		if not save_shot(main.get_viewport(), "res://shots/bld_mop_after.png"):
+			main.get_tree().quit(1)
+			return
+		# Logic sweep: every goo-capable kind pollutes then cleans under mop.
+		for spec in kinds:
+			var kind := int(spec.kind)
+			sim._clear_shot_props()
+			var at: Vector2 = sim._shot_force_pad(kind, 256.0, 256.0)
+			var b2: Dictionary = sim._add_building(kind, at.x, at.y)
+			if b2.is_empty():
+				print("SHOT BLD GOO FAIL mop-loop place %s" % str(spec.name))
+				main.get_tree().quit(1)
+				return
+			sim._shot_paint_building_goo(b2)
+			if not sim.building_is_polluted(b2):
+				print("SHOT BLD GOO FAIL mop-loop %s not polluted" % str(spec.name))
+				main.get_tree().quit(1)
+				return
+			sim._shot_mop_building(b2)
+			sim._tick_buildings(0.016)
+			if sim.building_is_polluted(b2):
+				print("SHOT BLD GOO FAIL mop-loop %s still polluted" % str(spec.name))
+				main.get_tree().quit(1)
+				return
+			print("SHOT BLD GOO MOP OK %s" % str(spec.name))
+		done = true
+		print("SHOT BLD GOO DONE")
+		main.get_tree().quit(0)
+		return
+
+
+func _tick_shot_blood() -> void:
+	# Left: neglect corpse (no blood). Mid: living. Right: splash-kill + blood pool.
+	if blood_phase == 0 and frames == 0:
+		if main.ui != null:
+			main.ui.visible = false
+		main.kit_open = false
+		if main.has_method("_set_kit_shown"):
+			main._set_kit_shown(false)
+		if main.task_panel != null:
+			main.task_panel.visible = false
+		main.crt_on = false
+		if main.has_method("_apply_crt"):
+			main._apply_crt()
+		main.cam_rig.set_zoom(3.0)
+		main.camera.position = main.cam_rig.to_iso(sim.shot_focus)
+	frames += 1
+	if blood_phase == 0:
+		if frames < 8:
+			return
+		var blood_n := 0
+		var dead_n := 0
+		for i in sim.slot_count:
+			if sim.state[i] == Catalog.ST_DEAD:
+				dead_n += 1
+				if i < sim.bloody.size() and int(sim.bloody[i]) != 0:
+					blood_n += 1
+		if dead_n < 2 or blood_n != 1:
+			print("SHOT BLOOD FAIL dead=%d bloody=%d expected dead>=2 bloody=1" % [dead_n, blood_n])
+			main.get_tree().quit(1)
+			return
+		RenderingServer.force_draw()
+		if not save_shot(main.get_viewport(), "res://shots/corpse_blood.png"):
+			main.get_tree().quit(1)
+			return
+		main.cam_rig.set_zoom(5.0)
+		main.camera.position = main.cam_rig.to_iso(sim.shot_focus + Vector2(48.0, 0.0))
+		blood_phase = 1
+		frames = 0
+		return
+	if frames < 4:
+		return
+	RenderingServer.force_draw()
+	if not save_shot(main.get_viewport(), "res://shots/corpse_blood_close.png"):
+		main.get_tree().quit(1)
+		return
+	done = true
+	print("SHOT BLOOD DONE")
+	main.get_tree().quit(0)
+
+
+func _tick_shot_wash() -> void:
+	# Left: bubbles from live scrub path (small strokes). Right: CLEAN + Happy.
+	if frames == 0:
+		if main.ui != null:
+			main.ui.visible = false
+		main.kit_open = false
+		if main.has_method("_set_kit_shown"):
+			main._set_kit_shown(false)
+		if main.task_panel != null:
+			main.task_panel.visible = false
+		main.crt_on = false
+		if main.has_method("_apply_crt"):
+			main._apply_crt()
+		main.tool = Catalog.TOOL_SPONGE
+		main.cam_rig.set_zoom(3.0)
+		main.camera.position = main.cam_rig.to_iso(sim.shot_focus)
+		print("SHOT WASH SCALE sponge_suds=%.2f sparkle=%.2f stroke_min=%.2f" % [
+			float(EffectTune.get_tune("act:sponge").get("scale", 0.0)),
+			float(EffectTune.get_tune("act:wash_sparkle").get("scale", 0.0)),
+			ThrongletSimServer.SCRUB_STROKE_MIN,
+		])
+	frames += 1
+	main.sponge_tracking = true
+	# Simulate gentle rub (was failing when stroke_min was 2.0).
+	var scrub_at := Vector2(sim.shot_focus.x - 36.0 + sin(float(frames) * 0.9) * 3.0, sim.shot_focus.y)
+	var stroke := 0.0 if frames <= 1 else scrub_at.distance_to(main.sponge_last)
+	main.sponge_last = scrub_at
+	sim.scrub(scrub_at.x, scrub_at.y, stroke, stroke >= ThrongletSimServer.SCRUB_STROKE_MIN)
+	for i in sim.slot_count:
+		if sim.state[i] != Catalog.ST_LIVING:
+			continue
+		if float(sim.cheer_t[i]) > 0.0:
+			sim.cheer_t[i] = maxf(float(sim.cheer_t[i]), 0.55)
+			sim.dir_x[i] = 0.0
+			sim.dir_y[i] = 0.0
+	for pop in sim.pops:
+		if str(pop.get("kind", "")) == "wash":
+			pop.t = maxf(float(pop.t), 0.55)
+			pop.life = ThrongletSimServer.WASH_FX_LIFE
+			pop.lift = 6.0
+	var wash_act := 0
+	for i in sim.slot_count:
+		if int(sim.act[i]) == ThrongletSimServer.ACT_WASH:
+			wash_act += 1
+	# Prove suds persist across many scrub frames (was 1-frame flicker).
+	if frames == 8:
+		print("SHOT WASH MID act_wash=%d sponge_hold=%.2f" % [wash_act, sim.sponge_hold])
+	if frames < 28:
+		return
+	RenderingServer.force_draw()
+	if not save_shot(main.get_viewport(), "res://shots/wash_scrub_vs_sparkle.png"):
+		main.get_tree().quit(1)
+		return
+	done = true
+	print("SHOT WASH DONE act_wash=%d sponge_id=%d hold=%.2f suds_scale=%.2f" % [
+		wash_act,
+		sim.sponge_id,
+		sim.sponge_hold,
+		float(EffectTune.get_tune("act:sponge").get("scale", 0.0)),
+	])
+	main.get_tree().quit(0)
+
+
+func _tick_shot_ball() -> void:
+	# Live world: Default | Happy_Walk+ball | kick Happy+ball pop — scales must match.
+	if frames == 0:
+		if main.ui != null:
+			main.ui.visible = false
+		main.kit_open = false
+		if main.has_method("_set_kit_shown"):
+			main._set_kit_shown(false)
+		if main.task_panel != null:
+			main.task_panel.visible = false
+		main.crt_on = false
+		if main.has_method("_apply_crt"):
+			main._apply_crt()
+		main.cam_rig.set_zoom(3.0)
+		main.camera.position = main.cam_rig.to_iso(sim.shot_focus)
+		var hw := ThrongClips.frame_at("ThrongA_Happy_Walk", 0)
+		var df := ThrongClips.frame_at("ThrongA_Default", 0)
+		print("SHOT BALL SCALE Default=%.2f Happy_Walk=%.2f pop_ball=%.2f" % [
+			main._throng_sprite_scale(df),
+			main._throng_sprite_scale(hw),
+			Catalog.BALL_SPRITE_SCALE,
+		])
+	frames += 1
+	# Keep pop alive across the capture window.
+	for pop in sim.pops:
+		pop.t = 0.55
+		pop.lift = 8.0
+	if frames < 10:
+		return
+	# Freeze walkers mid-step so Happy_Walk stays selected.
+	for i in sim.slot_count:
+		if sim.state[i] != Catalog.ST_LIVING:
+			continue
+		if absf(sim.dir_x[i]) + absf(sim.dir_y[i]) >= 0.01:
+			sim.dir_x[i] = 1.0
+			sim.dir_y[i] = 0.0
+			sim.act[i] = ThrongletSimServer.ACT_PLAY
+			sim.act_t[i] = 0.55
+	RenderingServer.force_draw()
+	if not save_shot(main.get_viewport(), "res://shots/ball_kick_scale.png"):
+		main.get_tree().quit(1)
+		return
+	var hw2: int = ThrongClips.frame_at("ThrongA_Happy_Walk", 0)
+	var sc: float = float(main._throng_sprite_scale(hw2))
+	if absf(sc - 0.4) > 0.01:
+		print("SHOT BALL FAIL Happy_Walk scale=%.3f expected 0.4" % sc)
+		main.get_tree().quit(1)
+		return
+	done = true
+	print("SHOT BALL DONE Happy_Walk_scale=%.2f" % sc)
+	main.get_tree().quit(0)
+
+
+func _tick_shot_dirt() -> void:
+	# Screen-space board through the real thronglet shader (no headless SubViewport).
+	if frames == 0:
+		if main.ui != null:
+			main.ui.visible = false
+		main.kit_open = false
+		if main.has_method("_set_kit_shown"):
+			main._set_kit_shown(false)
+		if main.task_panel != null:
+			main.task_panel.visible = false
+		main.crt_on = false
+		if main.has_method("_apply_crt"):
+			main._apply_crt()
+		# Hide island thronglets — board owns the proof sprites.
+		sim.held_kind = ""
+		sim.held_ref = -1
+		for i in sim.slot_count:
+			if sim.state[i] == Catalog.ST_LIVING:
+				sim.state[i] = Catalog.ST_VACANT
+		main.cam_rig.set_zoom(2.0)
+		main.camera.position = main.cam_rig.to_iso(sim.shot_focus)
+		_build_dirt_screen_board()
+	frames += 1
+	if frames < 8:
+		return
+	var far: bool = main.cam_rig.zoom_level < 2.5
+	print("SHOT DIRT PROBE zoom=%.2f far=%s board=%s" % [
+		main.cam_rig.zoom_level, str(far), str(board != null),
+	])
+	RenderingServer.force_draw()
+	if not save_shot(main.get_viewport(), "res://shots/dirt_walk_vs_held.png"):
+		main.get_tree().quit(1)
+		return
+	done = true
+	print("SHOT DIRT DONE zoom=%.2f far=%s" % [main.cam_rig.zoom_level, str(far)])
+	main.get_tree().quit(0)
+
+
+func _build_dirt_screen_board() -> void:
+	var samples: Array = [
+		["clean Default", "ThrongA_Default", 0, 0.0],
+		["dirty Default", "ThrongA_Default", 0, 1.0],
+		["dirty Walk0", "Throng_Walk_Anim_Spritesheet", 0, 1.0],
+		["dirty Walk2", "Throng_Walk_Anim_Spritesheet", 2, 1.0],
+		["dirty Homed", "Throng_Walk_Homed_Spritesheet", 2, 1.0],
+		["held=Default", "ThrongA_Default", 0, 1.0],
+	]
+	var layer := CanvasLayer.new()
+	layer.layer = 80
+	main.add_child(layer)
+	var root := Control.new()
+	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(root)
+	var bg := ColorRect.new()
+	bg.color = Color(0.14, 0.36, 0.18)
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.add_child(bg)
+	var title := Label.new()
+	title.text = "Dirt @ zoom 2.0 far_view — Walk/Homed must match held Default"
+	title.position = Vector2(16, 10)
+	title.size = Vector2(900, 24)
+	root.add_child(title)
+	var sheet := MultiMeshInstance2D.new()
+	sheet.texture = main._cell_tex(ThrongClips.frame_at("ThrongA_Default", 0))
+	sheet.material = main.world.material
+	sheet.multimesh = main._mesh(true, Vector2(main.WORLD_CELL, main.WORLD_CELL))
+	sheet.z_index = 1
+	root.add_child(sheet)
+	board = sheet
+	var scale := 1.15
+	var draws: Array = []
+	var cols := 3
+	for i in samples.size():
+		var sample: Array = samples[i]
+		var clip := str(sample[1])
+		if not ThrongClips.has_clip(clip):
+			print("SHOT DIRT SKIP missing %s" % clip)
+			continue
+		var col := i % cols
+		var row := int(i / cols)
+		var center := Vector2(140.0 + float(col) * 200.0, 120.0 + float(row) * 160.0)
+		var frame := ThrongClips.frame_at(clip, int(sample[2]))
+		draws.append({
+			"p": center + Vector2(0.0, main.WORLD_CELL * 0.5 * scale),
+			"icon": frame,
+			"tint": Color.WHITE,
+			"scale": scale,
+			"dirty": float(sample[3]),
+		})
+		var tag := Label.new()
+		tag.text = "%s  f=%d d=%.0f" % [str(sample[0]), frame, float(sample[3])]
+		tag.position = center + Vector2(-70, 58)
+		tag.size = Vector2(160, 18)
+		tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		root.add_child(tag)
+	main._write_mesh(sheet.multimesh, draws)
+	print("SHOT DIRT BOARD n=%d zoom=%.2f" % [draws.size(), main.cam_rig.zoom_level])
+
+
+func build_dirt_review_shot() -> void:
+	# Atlas board kept for offline debug; live --shot-dirt uses _tick_shot_dirt.
+	main.cam_rig.set_zoom(2.0)
+	var samples: Array = [
+		["clean Default", "ThrongA_Default", 0, 0.0],
+		["dirty Default", "ThrongA_Default", 0, 1.0],
+		["dirty Walk0", "Throng_Walk_Anim_Spritesheet", 0, 1.0],
+		["dirty Walk2", "Throng_Walk_Anim_Spritesheet", 2, 1.0],
+		["dirty Homed", "Throng_Walk_Homed_Spritesheet", 2, 1.0],
+		["held=Default", "ThrongA_Default", 0, 1.0],
+	]
+	var cols := 3
+	var rows := int((samples.size() + cols - 1) / cols)
+	var board_vp := SubViewport.new()
+	board_vp.size = Vector2i(cols * 150 + 40, rows * 150 + 70)
+	board_vp.disable_3d = true
+	board_vp.transparent_bg = false
+	board_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	main.add_child(board_vp)
+	board = board_vp
+	var bg := ColorRect.new()
+	bg.color = Color(0.18, 0.42, 0.22)
+	bg.size = Vector2(board_vp.size)
+	board_vp.add_child(bg)
+	var sheet := MultiMeshInstance2D.new()
+	sheet.texture = main._cell_tex(ThrongClips.frame_at("ThrongA_Default", 0))
+	sheet.material = main.world.material
+	sheet.multimesh = main._mesh(true, Vector2(main.WORLD_CELL, main.WORLD_CELL))
+	board_vp.add_child(sheet)
+	var scale := 0.9
+	var draws: Array = []
+	for i in samples.size():
+		var sample: Array = samples[i]
+		var clip := str(sample[1])
+		if not ThrongClips.has_clip(clip):
+			continue
+		var col := i % cols
+		var row := int(i / cols)
+		var center := Vector2(75 + col * 150, 75 + row * 150)
+		draws.append({
+			"p": center + Vector2(0, main.WORLD_CELL * 0.5 * scale),
+			"icon": ThrongClips.frame_at(clip, int(sample[2])),
+			"tint": Color.WHITE,
+			"scale": scale,
+			"dirty": float(sample[3]),
+		})
+	main._write_mesh(sheet.multimesh, draws)
+
+
+func _anim_review_samples() -> Array:
+	return [
+		["1 idle", "ThrongA_Default", 0, 0.0],
+		["1 happy", "ThrongA_Happy", 2, 0.0],
+		["1 blink", "ThrongA_Default Blink", 0, 0.0],
+		["1 antenna", "Throng_Idle_AntennaSpin_Spritesheet", 2, 0.0],
+		["2 bored", "ThrongA_Bored_KickRock", 6, 0.0],
+		["2 puppy", "ThrongA_PuppyDogEyes", 2, 0.0],
+		["2 grumpy", "Throng_Grumpy_Sheet", 1, 0.0],
+		["2 sad", "ThrongA_Sad", 3, 0.0],
+		["3 freak", "ThrongA_FreakOut", 4, 0.0],
+		["3 panic", "ThrongA_PanicRun", 1, 0.0],
+		["3 fire", "ThrongA_PanicRunFire", 1, 0.0],
+		["4 talk", "ThrongA_Talk", 2, 0.0],
+		["4 blink", "ThrongA_Talk_Blink_Spritesheet", 2, 0.0],
+		["4 react", "ThrongA_LooktAtPlayerHappyNod_Spritesheet", 4, 0.0],
+		["4 awe", "ThrongA_InAwe", 2, 0.0],
+		["4b poss", "ThrongA_Possessed_AntennaSpin_Spritesheet", 2, 0.0],
+		["5 sing", "Throng_Sing_Spritesheet", 2, 0.0],
+		["5 peer", "ThrongA_TalkToOtherThronglet_Spritesheet2", 1, 0.0],
+		["6 celeb0", "ThrongA_Celebrate_Spritesheet", 0, 0.0],
+		["6 celeb5", "ThrongA_Celebrate_Spritesheet", 5, 0.0],
+		["7 reactK", "ThrongA_ReactToKill", 2, 0.0],
+		["8 homed", "Throng_Walk_Homed_Spritesheet", 2, 0.0],
+		["8 happyW", "ThrongA_Happy_Walk", 0, 0.0],
+		["8 sadW", "ThrongA_Sad_Walk", 0, 0.0],
+		["8 haul", "ThrongA_LiftPropWalk", 0, 0.0],
+		["8 lift", "ThrongA_LiftProp", 3, 0.0],
+		["9 sleep", "Throng_Idle_AntennaSpin_EyesClosed_Spritesheet", 1, 0.0],
+		["dirty", "ThrongA_Default", 0, 1.0],
+	]
+
+
+func build_anim_review_shot() -> void:
+	var samples: Array = _anim_review_samples()
+	var cols := 7
+	var rows := int((samples.size() + cols - 1) / cols)
+	var board_vp := SubViewport.new()
+	board_vp.size = Vector2i(cols * 140 + 40, rows * 130 + 60)
+	board_vp.disable_3d = true
+	board_vp.transparent_bg = false
+	board_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	main.add_child(board_vp)
+	board = board_vp
+	var bg := ColorRect.new()
+	bg.color = Color(0.12, 0.14, 0.16)
+	bg.size = Vector2(board_vp.size)
+	board_vp.add_child(bg)
+	var sheet := MultiMeshInstance2D.new()
+	sheet.texture = main._cell_tex(ThrongClips.frame_at("ThrongA_Default", 0))
+	sheet.material = main.world.material
+	sheet.multimesh = main._mesh(true, Vector2(main.WORLD_CELL, main.WORLD_CELL))
+	board_vp.add_child(sheet)
+	var labels := CanvasLayer.new()
+	board_vp.add_child(labels)
+	var root := Control.new()
+	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	labels.add_child(root)
+	var theme := Theme.new()
+	var font: Font = main.ui_assets.ui_font() as Font
+	if font != null:
+		theme.default_font = font
+		theme.default_font_size = 14
+	root.theme = theme
+	var title := Label.new()
+	title.text = "Thronglet anim review (#37) — check atlas cells"
+	title.position = Vector2(16, 8)
+	title.size = Vector2(board_vp.size.x - 32, 24)
+	root.add_child(title)
+	var scale := 0.85
+	var draws: Array = []
+	for i in samples.size():
+		var sample: Array = samples[i]
+		var clip := str(sample[1])
+		if not ThrongClips.has_clip(clip):
+			print("SHOT ANIMS SKIP missing %s" % clip)
+			continue
+		var col := i % cols
+		var row := int(i / cols)
+		var center := Vector2(70 + col * 140, 70 + row * 130)
+		var frame := ThrongClips.frame_at(clip, int(sample[2]))
+		draws.append({
+			"p": center + Vector2(0, main.WORLD_CELL * 0.5 * scale),
+			"icon": frame,
+			"tint": Color.WHITE,
+			"scale": scale,
+			"dirty": float(sample[3]),
+		})
+		var tag := Label.new()
+		tag.text = str(sample[0])
+		tag.position = center + Vector2(-56, 40)
+		tag.size = Vector2(112, 16)
+		tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		root.add_child(tag)
+	main._write_mesh(sheet.multimesh, draws)
+
+
+func _save_anim_strip_shots() -> bool:
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://shots"))
+	var wanted := [
+		["anim_idle.png", "ThrongA_Default"],
+		["anim_bored.png", "ThrongA_Bored_KickRock"],
+		["anim_puppy.png", "ThrongA_PuppyDogEyes"],
+		["anim_freak.png", "ThrongA_FreakOut"],
+		["anim_panic.png", "ThrongA_PanicRun"],
+		["anim_panic_fire.png", "ThrongA_PanicRunFire"],
+		["anim_talk.png", "ThrongA_Talk"],
+		["anim_possessed.png", "ThrongA_Possessed_AntennaSpin_Spritesheet"],
+		["anim_sing.png", "Throng_Sing_Spritesheet"],
+		["anim_peer_talk.png", "ThrongA_TalkToOtherThronglet_Spritesheet2"],
+		["anim_celebrate.png", "ThrongA_Celebrate_Spritesheet"],
+		["anim_react_kill.png", "ThrongA_ReactToKill"],
+		["anim_walk_homed.png", "Throng_Walk_Homed_Spritesheet"],
+		["anim_happy_walk.png", "ThrongA_Happy_Walk"],
+		["anim_sad_walk.png", "ThrongA_Sad_Walk"],
+		["anim_haul.png", "ThrongA_LiftPropWalk"],
+		["anim_lift.png", "ThrongA_LiftProp"],
+		["anim_sleep.png", "Throng_Idle_AntennaSpin_EyesClosed_Spritesheet"],
+		["anim_inawe.png", "ThrongA_InAwe"],
+	]
+	for row in wanted:
+		var path := "res://shots/%s" % str(row[0])
+		var clip := str(row[1])
+		var strip_path := ThrongClips.strip_path(clip)
+		var abs_src := ProjectSettings.globalize_path(strip_path)
+		if not FileAccess.file_exists(strip_path) and not FileAccess.file_exists(abs_src):
+			print("SHOT FAIL missing strip %s" % strip_path)
+			return false
+		var abs_dst := ProjectSettings.globalize_path(path)
+		var err := DirAccess.copy_absolute(abs_src, abs_dst)
+		print("SHOT %s path=%s" % ["OK" if err == OK else "FAIL", path])
+		if err != OK:
+			return false
+	return true
+
+
 func build_asset_shot() -> void:
 	var board_vp := SubViewport.new()
 	board_vp.size = Vector2i(960, 980)
@@ -765,7 +1467,7 @@ func build_asset_shot() -> void:
 	main.add_child(board_vp)
 	board = board_vp
 	var sheet := MultiMeshInstance2D.new()
-	sheet.texture = main.world.texture
+	sheet.texture = main._cell_tex(ThrongClips.frame_at("ThrongA_Default", 0))
 	sheet.material = main.world.material
 	sheet.multimesh = main._mesh(true, Vector2(main.WORLD_CELL, main.WORLD_CELL))
 	board_vp.add_child(sheet)
@@ -776,7 +1478,17 @@ func build_asset_shot() -> void:
 		["bones", ThrongClips.frame_at("ThrongA_Bones", 0), 0.0],
 		["sing", ThrongClips.frame_at("Throng_Sing_Spritesheet", 2), 0.0],
 		["kick", ThrongClips.frame_at("ThrongA_Bored_KickRock", 6), 0.0],
-		["ghost", ThrongClips.frame_at("ThrongA_Default_Ghost", 0), 0.0],
+		["freak", ThrongClips.frame_at("ThrongA_FreakOut", 4), 0.0],
+		["panic", ThrongClips.frame_at("ThrongA_PanicRun", 1), 0.0],
+		["react", ThrongClips.frame_at("ThrongA_ReactToKill", 2), 0.0],
+		["possessed", ThrongClips.frame_at("ThrongA_Possessed_AntennaSpin_Spritesheet", 2), 0.0],
+		["sleep", ThrongClips.frame_at("Throng_Idle_AntennaSpin_EyesClosed_Spritesheet", 1), 0.0],
+		["homed", ThrongClips.frame_at("Throng_Walk_Homed_Spritesheet", 2), 0.0],
+		["haul", ThrongClips.frame_at("ThrongA_LiftPropWalk", 0), 0.0],
+		["happyW", ThrongClips.frame_at("ThrongA_Happy_Walk", 0), 0.0],
+		["sadW", ThrongClips.frame_at("ThrongA_Sad_Walk", 0), 0.0],
+		["puppy", ThrongClips.frame_at("ThrongA_PuppyDogEyes", 2), 0.0],
+		["inawe", ThrongClips.frame_at("ThrongA_InAwe", 2), 0.0],
 		["outline", ThrongClips.frame_at("Thronglet_Outline", 0), 0.0],
 		["celebrate", ThrongClips.frame_at("ThrongA_Celebrate_Spritesheet", 4), 0.0],
 		["shrug", ThrongClips.frame_at("ThrongA_Shrug", 1), 0.0],
@@ -876,14 +1588,3 @@ func build_asset_shot() -> void:
 		face.position = Vector2(660 + (i % 3) * 96, 820 + int(i / 3) * 70)
 		face.size = Vector2(88, 64)
 		root.add_child(face)
-	var plates: PackedStringArray = main._biome_plate_paths("epilogue")
-	plates.append_array(main._biome_plate_paths("anomaly"))
-	for i in plates.size():
-		var plate := TextureRect.new()
-		plate.texture = main.ui_assets.tex(plates[i])
-		plate.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		plate.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		plate.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		plate.position = Vector2(16 + i * 100, 760)
-		plate.size = Vector2(92, 28)
-		root.add_child(plate)

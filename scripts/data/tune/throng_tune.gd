@@ -36,25 +36,36 @@ const SCALE := {
 	"ThrongA_Eat": 0.4,
 	"ThrongA_Grumpy": 0.4,
 	"ThrongA_Happy": 0.4,
+	"ThrongA_Happy_Walk": 0.4,
 	"ThrongA_ImpactfulExplanation_Spritesheet": 0.4,
+	"ThrongA_InAwe": 0.4,
 	"ThrongA_Jump": 0.4,
 	"ThrongA_Jump-EarWiggle": 0.4,
 	"ThrongA_JumpBlink": 0.4,
 	"ThrongA_Jump_High": 0.4,
 	"ThrongA_Jump_VariantA_Spritesheet": 0.4,
+	"ThrongA_LiftProp": 0.4,
+	"ThrongA_LiftPropWalk": 0.4,
+	"ThrongA_DropProp": 0.4,
 	"ThrongA_LooktAtPlayerHappyNod_Spritesheet": 0.4,
 	"ThrongA_MitosisCutscene_NoBlood_Spritesheet": 0.4,
 	"ThrongA_Mitosis_Spritesheet": 0.4,
+	"ThrongA_PanicRun": 0.4,
+	"ThrongA_PanicRunFire": 0.4,
+	"ThrongA_FreakOut": 0.4,
 	"ThrongA_Pickaxe_Spritesheet": 0.4,
 	"ThrongA_Possessed_AntennaSpinEar_Spritesheet": 0.4,
 	"ThrongA_Possessed_AntennaSpinTalk_Spritesheet": 0.4,
 	"ThrongA_Possessed_AntennaSpin_Spritesheet": 0.4,
 	"ThrongA_Possessed_EarRaise_Spritesheet": 0.4,
+	"ThrongA_PuppyDogEyes": 0.4,
 	"ThrongA_ReactToKill": 0.4,
 	"ThrongA_Rotund_Spritesheet": 0.4,
 	"ThrongA_Roundabout_SpriteSheet": 0.4,
 	"ThrongA_Sad": 0.4,
+	"ThrongA_Sad_Walk": 0.4,
 	"ThrongA_Shrug": 0.4,
+	"ThrongA_Deflesh": 0.4,
 	"ThrongA_SingToThronglet_Spritesheet2": 0.4,
 	"ThrongA_SkepticalToPlayer_Spritesheet": 0.4,
 	"ThrongA_Sophisticated": 0.4,
@@ -388,9 +399,12 @@ static func default_fps(clip: String) -> float:
 
 
 static func default_scale(clip: String) -> float:
-	if not SCALE.has(clip):
-		return 1.0
-	return float(SCALE[clip])
+	if SCALE.has(clip):
+		return float(SCALE[clip])
+	# Pack-extra / new body clips must match THRONG_SPRITE_SCALE (0.4), never 1.0.
+	if clip.begins_with("Throng"):
+		return 0.4
+	return 1.0
 
 
 static func default_frame_scale(clip: String) -> Dictionary:
@@ -781,7 +795,7 @@ static func _fps_where(clip: String) -> String:
 		"ThrongA_Eat":
 			return "Main._frame ACT_EAT calls frame_at(clip, int(time * 6.0))."
 		"ThrongA_Happy":
-			return "Main._frame calls frame_at(clip, int(time * 6.0)) for an empty bath and for ACT_WASH. CALM and SING also reach it through ThrongClips.pick, which uses 8."
+			return "Main._frame calls frame_at(clip, int(time * 6.0)) for an empty bath and for ACT_WASH. IDLE_CALM / SING_PEER also reach it through ThrongClips.pick, which uses 8."
 		"ThrongA_Sad":
 			return "Main._frame calls frame_at(clip, int(time * 6.0)) when fed or clean is low."
 		"Throng_Walk_Anim_Spritesheet":
@@ -795,7 +809,7 @@ static func _fps_where(clip: String) -> String:
 		"ThrongA_Pickaxe_Spritesheet":
 			return "Main._frame ACT_WORK calls frame_at(clip, int(time * 8.0)) while standing."
 		_:
-			return "No direct frame_at rate. ThrongClips.pick plays a pooled clip at int(local * 8.0). Idle chatter uses Main.CALM, singing uses Main.SING, frozen talk uses ThrongClips.TALK."
+			return "No direct frame_at rate. ThrongClips.pick plays a pooled clip at int(local * 8.0). Idle uses IDLE_CALM, singing SING_PEER near peers, frozen talk uses TALK_CONSOLE."
 
 
 static func _json_rot(value) -> Dictionary:

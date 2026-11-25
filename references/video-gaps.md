@@ -347,6 +347,8 @@ Things that were invisible at the whole-minute marks, or that the first pass rea
 
 ## Thronglet animations & sprites catalog (`references/` mapping)
 
+**R&D map for issue #37:** situation → clips, playback order, priority tiers, video evidence, and current `Main._frame` mismatches live in [`thronglet-animations.md`](thronglet-animations.md). Per-animation strips live in `resources/sprites/throng_anims/` (`ThrongClips.frame_at` / `strip_frame`); `make_art` packs those strips into `world_iso.png` for MultiMesh.
+
 All character sprites are packed inside `references/Assets/Texture2D/sactx-0-2048x2048-Uncompressed-Sprites-Thronglets-fc0e3430.png` (dirt overlay in `..._DirtTex.png`) and indexed by `references/Assets/SpriteAtlas/Sprites-Thronglets.json`. Frame rects (`m_Rect` / `m_RD.textureRect`) and foot anchors (`m_Pivot`) live in `references/Assets/Sprite/*.json` (note: Unity's `y=0` is bottom-left, so convert to Canvas/WebGL top-left via `2048 - textureRect.y - textureRect.height`). Cutscene timelines are stored in `references/Assets/ScriptableObjectGroup/` (`ThrongletTalkTimeline.json`, `ThrongletEmergeTimeline.json`, `SEQ_1.json`–`SEQ_8.json`).
 
 | Category | State / Clip | `references/Assets/Sprite/` JSON prefix | Frames | Priority |
@@ -356,7 +358,7 @@ All character sprites are packed inside `references/Assets/Texture2D/sactx-0-204
 | **Autonomous** | `sleep` | `Throng_Idle_AntennaSpin_EyesClosed_Spritesheet_*` | 4 | 1 (Base) |
 | **Autonomous** | `walk` / `walk_back` | `Throng_Walk_Anim_Spritesheet_*` (`_Alpha_*`), `Throng_WalkBack_Anim_Spritesheet_*` | 5 | 1 (Base) |
 | **Autonomous** | `walk_homed` | `Throng_Walk_Homed_Spritesheet_*` (walk cycle when assigned to a Dwelling) | 5 | 1 (Base) |
-| **Autonomous** | `walk_variants` | `Char_ThrongA_Happy_Walk_Spritesheet_*`, `Char_ThrongA_Sad_Walk_Spritesheet_*`, `Char_ThrongA_Rotund_Spritesheet_*` | 2–4 | 1 (Base) |
+| **Autonomous** | `walk_variants` | `Char_ThrongA_Happy_Walk_Spritesheet_*`, `Char_ThrongA_Sad_Walk_Spritesheet_*` (`Rotund` sheet packed, **not wired** — no video) | 2–4 | 1 (Base) |
 | **Interaction** | `eat` | `ThrongA_Eat_001..002` + `Prop_Apple_Bite_1..3` | 2 | 2 (Action) |
 | **Interaction** | `bathe` | `Throng_FallInBath_Spritesheet_*` (`_Alpha_*`) + `FX_CleanSparkles_Spritesheet.png` / `FX_SoapBubbles_Spritesheet.png` / `FX_WaterSplash_Spritesheet.png` | 8 | 2 (Action) |
 | **Interaction** | `play` / `roundabout` | `ThrongA_Roundabout_SpriteSheet_*` (`_Alpha_Updated_*`) + `Prop_Roundabout_SpriteSheet_*` | 8 | 2 (Action) |
@@ -387,25 +389,27 @@ The share button, the Netflix account, the recorder's label, this playthrough's 
 
 ### Thronglet animations & cutscene system
 
-- [ ] **Atlas extraction & coordinate normalization**: parse `references/Assets/Sprite/Throng*.json` and `Char_Throng*.json` against `sactx-0-2048x2048-Uncompressed-Sprites-Thronglets-fc0e3430.png`, flipping Unity's bottom-left Y axis (`2048 - textureRect.y - textureRect.height`) and preserving `m_Pivot` for isometric Y-sorting.
-- [ ] **Priority-based Animation FSM (`ThrongletAnimator`)**: separate entity logic state from sprite frame playback with a 4-tier interrupt hierarchy (`1: Base/Needs` -> `2: Direct Interaction` -> `3: Critical/One-shot` -> `4: Cutscene Override`), supporting both looping (`idle`, `walk`, `walk_homed`, `sing`) and one-shot (`eat`, `mitosis`, `egg_hatch`, `deflesh`) cycles with `onComplete` callbacks.
-- [ ] **Cutscene Director (`CutsceneDirector`)**: global controller referencing `references/Assets/ScriptableObjectGroup/` timelines (`ThrongletTalkTimeline.json`, `ThrongletEmergeTimeline.json`, `SEQ_1.json`–`SEQ_8.json`) that pauses autonomous AI (`aiPaused = true`) for scripted events:
-  - [ ] `triggerDialogueStare()`: freezes all living thronglets and switches them to `ThrongA_Talk_*` / `ThrongA_LooktAtPlayerHappyNod_*` / `ThrongA_DeepThought_*` (with a 0–300 ms stagger) whenever a console dialogue/choice opens.
-  - [ ] `triggerCelebration()`: triggers `ThrongA_Celebrate_Spritesheet_*` jumps across the swarm on milestone/unlock cards.
-- [ ] **Spatial & local event reactions**:
-  - [ ] Proximity `Char_ThrongA_PanicRun_*` / `Char_ThrongA_FreakOut_*` / `ThrongA_ReactToKill_*` burst when a thronglet dies nearby or destructive tools (`HAMMER`, `AXE`, `CHAINSAW`) strike within range.
-  - [ ] Exact frame-synced `ThrongA_Mitosis_Spritesheet_*` split (spawning the new thronglet/egg on the final frame of the 36-frame division animation).
-- [ ] **Dirt & cosmetic overlays**: apply `..._DirtTex.png` mask (from `Shader_VeniceSprites.json`) when cleanliness drops, and layer `THEATRE` masks over base animations once unlocked ([73:30](video-frames/t073-30.jpg)).
+Situation → animation for issue #37 is **shipped** in [`thronglet-animations.md`](thronglet-animations.md) (pools, tiered `Main._frame`, strips, mismatch N/As). Full SEQ timeline player remains out of scope.
+
+- [x] **Atlas extraction & coordinate normalization**: Unity sheets → strip PNGs + `world_iso` pack (incl. panic, freak, carry, happy/sad walk, puppy, in-awe, deflesh sheet). Deflesh kill path N/A (Dead sheets).
+- [x] **Priority-based animation selection**: 4-tier interrupt in `Main._frame` with situation pools (`IDLE_CALM`, `MOOD_*`, `SING_PEER`, `TALK_*`, `POSSESSED`, `CELEBRATE`, `PANIC`). No separate `ThrongletAnimator` node; MultiMesh + `ThrongClips.frame_at`.
+- [x] **Cutscene overrides** (sim flags, not a full SEQ `CutsceneDirector`):
+  - [x] Dialogue stare: `frozen` → `TALK_CONSOLE` (+ mood accents); `_begin_gaze` does not force `glitch_t` ([111:30](video-frames/t111-30.jpg) Default). `POSSESSED` only when `glitch_t` is set (monolith).
+  - [x] Celebration: unlock/`celebrate_t` → `Celebrate` ([0:30](video-frames/t000-30.jpg)). Eat bite → idle/`Happy` ([68:03](video-frames/t068-03.jpg)); `Rotund` not wired.
+  - [x] **Spatial & local event reactions**:
+  - [x] Panic/FreakOut/ReactToKill via penned, near fire, neighbor death (`react_t`).
+  - [x] Mitosis frames along charge/split (`frame_along`).
+  - [x] **Dirt**: DirtTex shader when clean drops. Theatre body masks **N/A** (no cosmetics layer yet; [73:30](video-frames/t073-30.jpg) remains open for overlays elsewhere).
 
 ### World and tools
 
 - [x] Fix Energy frame, it is positioned right behind the tasks frame, in a buggy way.
 - [ ] Pointing hand of the tutorial: a big white hand (`UI_Tutorial_HandPointA.json`, `UI_Tutorial_HandPointB.json`, `UI_Tutorial_HandTouch.json`, `UI_Tutorial_TouchRings_1..2.json` in `sactx-0-128x128-ASTC 4x4-Sprites-UITutorial-d57718eb.png`) that points at the thronglet and asks for the first click. (capturas: [3:30](video-frames/t003-30.jpg))
-  - [ ] Adding to this, I would make changes related to what is given to the user initially. Right now we are giving him apple, sponge and ball. We should give first an apple (triggers `ThrongA_Eat_001..002` + `Prop_Apple_Bite_1..3` -> `ThrongA_Celebrate_Spritesheet_*`), then the ball (triggers `ThrongA_Jump_VariantA_*` -> `celebrate`), then sponge (triggers `FX_CleanSparkles_Spritesheet` / `FX_SoapBubbles_Spritesheet` -> `ThrongA_Mitosis_*` / sign progression). Confirm exact sequence against `SEQ_1.json`–`SEQ_8.json`.
+  - [ ] Adding to this, I would make changes related to what is given to the user initially. Right now we are giving him apple, sponge and ball. We should give first an apple (`ThrongA_Eat` → idle/`Happy`; [4:30](video-frames/t004-30.jpg), [68:03](video-frames/t068-03.jpg)), then the ball (`Jump_VariantA` / play), then sponge (clean FX → mitosis / sign). Confirm exact sequence against `SEQ_1.json`–`SEQ_8.json`. (partial: all three unlocked at start; no sequential give)
 - [x] White arc while dragging the hammer, and a green box on the rock or the trunk. (capturas: [11:00](video-frames/t011-00.jpg), [17:00](video-frames/t017-00.jpg), [37:00](video-frames/t037-00.jpg))
-  - [ ] Revise this for all tools and all sprites that applies.
+  - [ ] Revise this for all tools and all sprites that applies. (partial: charge arc + place cells exist; sponge hover not wired like mop)
 - [x] Green reach circle, with an outline on each target inside it. (capturas: [64:00](video-frames/t064-00.jpg), [64:30](video-frames/t064-30.jpg), [70:30](video-frames/t070-30.jpg))
-  - [ ] Revise this for all tools and all sprites that applies.
+  - [ ] Revise this for all tools and all sprites that applies. (partial: pick/saw/mop/grab/swarm + hammer ore; sponge skips circle; apple/ball are drops)
 - [ ] Small window titled `Learned discovery` and then a line of code over a group (`>> data == ♥ makes ♥`). (capturas: [17:00](video-frames/t017-00.jpg), [93:30](video-frames/t093-30.jpg))
   - [ ] When moral chooses are done by the user in dialog windows a dark window will appear with that kind of texts representing new knowledge based on chooses.
 - [ ] Red mailbox on the grass with an `i` blue button that opens a window with some mechanics' info. (capturas: [35:00](video-frames/t035-00.jpg), [37:00](video-frames/t037-00.jpg))
@@ -417,11 +421,14 @@ The share button, the Netflix account, the recorder's label, this playthrough's 
 - [ ] Yellow level box at the left of the screen, with a number. (capturas: [64:30](video-frames/t064-30.jpg), [78:30](video-frames/t078-30.jpg), [79:30](video-frames/t079-30.jpg))
   - [ ] When a factory produces goo should appear this frame.
 - [x] Speech bubble over a thronglet with an icon of what it wants (bee, coal, gem). (capturas: [65:30](video-frames/t065-30.jpg), [72:30](video-frames/t072-30.jpg), [81:30](video-frames/t081-30.jpg))
-- [ ] `FULL` bar over the factory/house/theater buildings. (capturas: [58:30](video-frames/t058-30.jpg))
+- [x] `FULL` bar over house/theater buildings (+ mine stock). Factories stay on `factory_frame` slices only. (capturas: [58:30](video-frames/t058-30.jpg))
+  - [x] Mine stock bar (`capacity_info` mine + `_sync_capacity_marks`).
+  - [x] House / theatre / fancy occupancy (`visit` guests → bar + `LLENO`/`n/cap`, anchored on building sprite).
+  - [x] Factories excluded from capacity marks (wedges only).
 
 ### Cards (To Be Defined better)
 
-- [ ] Unlock card: picture, text, and `Continue`/`&&continue`. (capturas: [8:24](video-frames/t008-24.jpg), [9:30](video-frames/t009-30.jpg), [10:26](video-frames/t010-26.jpg), [14:34](video-frames/t014-34.jpg), [20:00](video-frames/t020-00.jpg), [59:00](video-frames/t059-00.jpg), [59:46](video-frames/t059-46.jpg), [60:21](video-frames/t060-21.jpg), [89:15](video-frames/t089-15.jpg))
+- [ ] Unlock card: picture, text, and `Continue`/`&&continue`. (partial: `_grant` celebrate + toast/`UNLOCK_TALK`; missing parchment `New Item!` layout). (capturas: [8:24](video-frames/t008-24.jpg), [9:30](video-frames/t009-30.jpg), [10:26](video-frames/t010-26.jpg), [14:34](video-frames/t014-34.jpg), [20:00](video-frames/t020-00.jpg), [59:00](video-frames/t059-00.jpg), [59:46](video-frames/t059-46.jpg), [60:21](video-frames/t060-21.jpg), [89:15](video-frames/t089-15.jpg))
   - [ ] When unlocking new items a new window will appear with the sprite picture, item/build text and `Continue`/`&&continue`(when buggy group item/building is unlocked) button
 
   #### Order of the unlock cards
@@ -443,7 +450,8 @@ The share button, the Netflix account, the recorder's label, this playthrough's 
     - [ ] Before the first card the tutorial gives the tray: `BALL`, `APPLE` and `SPONGE` (the card at the end of the run names them: `THE BEGINNING / BALL, APPLE, SPONGE / CHOOSE`). The tray already shows a hammer at 3:30, but the hammer has its own card at 10:26. (capturas: [3:30](video-frames/t003-30.jpg), [10:26](video-frames/t010-26.jpg))
     - [ ] `BUG` is the buggy one: its card is still scrolling when it is caught, and its button reads `&&continue` instead of `Continue`. (capturas: [20:00](video-frames/t020-00.jpg))
     - [ ] `ORBITAL CANNON` is the one with a different layout: no red title, and the card sits to the left of the screen. (capturas: [89:15](video-frames/t089-15.jpg))
-- [ ] Market card: icon, name, description, and a price that if user has not enough energy will be with red background. (capturas: [46:00](video-frames/t046-00.jpg))
+- [ ] Market card: icon, name, description, and a price that if user has not enough energy will be with red background. (partial: market list + cart sign + costs; missing picture card, orange select border, blue/red afford badge). (capturas: [46:00](video-frames/t046-00.jpg))
+  - [ ] Revise market listing, so it has sense with how the game evolves.
   - [x] The building is with a cart icon above it. (capturas: [43:30](video-frames/t043-30.jpg))
   - [ ] The building sprite is orange bordered when it is selected. (capturas: [43:30](video-frames/t043-30.jpg))
   - [ ] The price badge is blue when it can be paid and red when it cannot. (capturas: [37:33](video-frames/t037-33.jpg), [43:31](video-frames/t043-31.jpg))
@@ -474,11 +482,12 @@ The share button, the Netflix account, the recorder's label, this playthrough's 
 ### Factory and failure
 
 - [x] Column of round yellow and black pieces, with a numbered plate, that leaves the screen (minute 81). (capturas: [81:00](video-frames/t081-00.jpg), [91:00](video-frames/t091-00.jpg))
-  - [ ] This is the pile of materials that are introduced in the factories (ores, skeletons...), we need to verify this works or not.
+  - [x] Factory ore pile works (`_factory_pile` / `_push_factory_pile`). Skeletons-as-feedstock not verified against the video column.
 - [ ] Large gem prize per cycle. The pile capture reads `+5000`.
   - The half-minute marks show `+10` on the early crystal pile and `+1500` on the late factories, so the prize is not a fixed `+5000`. (capturas: [56:30](video-frames/t056-30.jpg), [81:30](video-frames/t081-30.jpg), [82:30](video-frames/t082-30.jpg))
-  - [ ] We have to define the way a factory increases its production.
-- [ ] When the factory is working should change sprite (to represent that is ON) and its factory slice will increase by time (8s for a full cycle, 8s to wait to the factory to produce energy), and the mine with its blue progress bar when there is space and red when its full (same progress bar for house/theather buildings). (capturas: [40:30](video-frames/t040-30.jpg), [50:30](video-frames/t050-30.jpg))
+  - [ ] We have to define the way a factory increases its production. (partial: mk1→mk2 pay/`FACTORY_GEM_PAY`; no floating `+N` prize text, no continuous per-cycle scaling)
+- [x] Factory/mine progress UI: process wedges (`factory_process_progress` / `_sync_factory_mark`) and blue/red capacity bars (`_sync_capacity_marks`). (capturas: [40:30](video-frames/t040-30.jpg), [50:30](video-frames/t050-30.jpg))
+  - [x] Factory/mine ON sprite swaps (`*_active.png`) + goo/polluted swaps (`*_goo.png`) for dwell/fancy/theatre/mine/factory; polluted footprint disables the building until mopped.
 - [x] **CANCELLED** ~~`Game Over` from `OverflowException` that leaves the population at 1 and lets play continue. (capturas: [92:00](video-frames/t092-00.jpg))~~
   - [x] We do not want to include this feature that would occur only with anomalies that would trigger the game over, we do not want to finish the game while there are living thronglets.
   - [x] The half-minute mark at 92:30 shows the same state (population 1, banner `WIPE THE SLATE CLEAN`) and the game keeps going. (capturas: [92:30](video-frames/t092-30.jpg))
@@ -500,8 +509,8 @@ The share button, the Netflix account, the recorder's label, this playthrough's 
   - [x] This is for the endgame, we are not implementing endgame animations.
 - [x] **CANCELLED** ~~Result card: radar, traits, and type. Without the share button. (capturas: [127:00](video-frames/t127-00.jpg))~~
   - [x] This is for the endgame, we are not implementing endgame further interactions.
-- [ ] Credits in green on black. (capturas: [128:00](video-frames/t128-00.jpg), [127:30](video-frames/t127-30.jpg), [128:30](video-frames/t128-30.jpg), [129:30](video-frames/t129-30.jpg))
-  - [ ] We should implement an option in main menu to see credits.
+- [ ] Credits in green on black. (partial: settings entry `_settings_credits` exists; missing green-on-black roll). (capturas: [128:00](video-frames/t128-00.jpg), [127:30](video-frames/t127-30.jpg), [128:30](video-frames/t128-30.jpg), [129:30](video-frames/t129-30.jpg))
+  - [x] Settings option to open credits (`_settings_credits`).
   - [ ] The roll has the team (`Sam Warner`, `Meredith Wilson`, `Krysztof Piotrowski`, `Lisa Hicks`, ...), the localization list (German, Italian, Spanish, Spanish Latin American, Brazilian Portuguese) and the third-party assets (`PrimeTween`, `Unity Debug Sheet`, `Flexible Grid Layout`) with the `Calistoga` copyright.
 
 ### The void and the uplink

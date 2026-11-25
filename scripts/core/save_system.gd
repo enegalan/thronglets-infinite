@@ -81,6 +81,7 @@ func load_sandbox() -> bool:
 		return false
 	sim.current_slot = -1
 	sim.sandbox_mode = true
+	sim._unlock_all()
 	sim.unlock_serial += 1
 	return true
 
@@ -251,6 +252,14 @@ func save_game() -> bool:
 		"mito_charge": sim.mito_charge,
 		"shake_t": sim.shake_t,
 		"buff_t": sim.buff_t,
+		"react_t": sim.react_t,
+		"cheer_t": sim.cheer_t,
+		"sleep_t": sim.sleep_t,
+		"peer_t": sim.peer_t,
+		"peer_of": sim.peer_of,
+		"peer_sing": sim.peer_sing,
+		"drop_t": sim.drop_t,
+		"bloody": sim.bloody,
 		"state": sim.state,
 		"carry": sim.carry,
 		"carry_value": sim.carry_value,
@@ -340,6 +349,18 @@ func load_game() -> bool:
 	sim.mito_charge = sim._as_f32(data.get("mito_charge", []))
 	sim.shake_t = sim._as_f32(data.shake_t)
 	sim.buff_t = sim._as_f32(data.buff_t)
+	sim.react_t = sim._as_f32(data.get("react_t", []))
+	sim.cheer_t = sim._as_f32(data.get("cheer_t", []))
+	sim.sleep_t = sim._as_f32(data.get("sleep_t", []))
+	sim.peer_t = sim._as_f32(data.get("peer_t", []))
+	sim.peer_of = sim._as_i32(data.get("peer_of", []))
+	sim.peer_sing = PackedByteArray()
+	for raw_sing in data.get("peer_sing", []):
+		sim.peer_sing.append(int(raw_sing))
+	sim.drop_t = sim._as_f32(data.get("drop_t", []))
+	sim.bloody = PackedByteArray()
+	for raw_blood in data.get("bloody", []):
+		sim.bloody.append(int(raw_blood))
 	sim.state = sim._as_i32(data.state)
 	sim.carry = sim._as_i32(data.carry)
 	sim.carry_value = sim._as_i32(data.carry_value)
@@ -361,6 +382,35 @@ func load_game() -> bool:
 		sim.mito_charge.append(0.0)
 	while sim.hungry_t.size() < sim.slot_count:
 		sim.hungry_t.append(0.0)
+	while sim.react_t.size() < sim.slot_count:
+		sim.react_t.append(0.0)
+	while sim.cheer_t.size() < sim.slot_count:
+		sim.cheer_t.append(0.0)
+	while sim.sleep_t.size() < sim.slot_count:
+		sim.sleep_t.append(0.0)
+	while sim.peer_t.size() < sim.slot_count:
+		sim.peer_t.append(0.0)
+	while sim.peer_of.size() < sim.slot_count:
+		sim.peer_of.append(-1)
+	if sim.peer_sing.size() != sim.slot_count:
+		var old_sing: PackedByteArray = sim.peer_sing
+		sim.peer_sing = PackedByteArray()
+		sim.peer_sing.resize(sim.slot_count)
+		sim.peer_sing.fill(0)
+		for s in mini(old_sing.size(), sim.slot_count):
+			sim.peer_sing[s] = int(old_sing[s])
+	while sim.drop_t.size() < sim.slot_count:
+		sim.drop_t.append(0.0)
+	if sim.bloody.size() != sim.slot_count:
+		var old_blood: PackedByteArray = sim.bloody
+		sim.bloody = PackedByteArray()
+		sim.bloody.resize(sim.slot_count)
+		sim.bloody.fill(0)
+		for b in mini(old_blood.size(), sim.slot_count):
+			sim.bloody[b] = int(old_blood[b])
+	sim.penned_flag = PackedByteArray()
+	sim.penned_flag.resize(sim.slot_count)
+	sim.penned_flag.fill(0)
 	sim.items = data.get("items", [])
 	sim.buildings = data.get("buildings", [])
 	sim.features = data.get("features", [])

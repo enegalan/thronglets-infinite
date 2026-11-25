@@ -30,6 +30,8 @@ const FACTORY_PROCESS_TIME2 := 4.0
 # Per ore unit spent. Early original cycles paid ~+10; Mk II pays more.
 const FACTORY_GEM_PAY := 10
 const FACTORY_GEM_PAY2 := 25
+# Chance that a finished factory cycle spills goo (was always on; too aggressive).
+const FACTORY_GOO_CHANCE := 0.25
 # Mine ore stock (blue bar). Fills on a timer; diggers enter and leave with a load.
 const MINE_STOCK_CAP := 5
 const MINE_STOCK_CAP2 := 8
@@ -118,6 +120,12 @@ var shot_carry := false
 var shot_round := false
 var shot_apple := false
 var shot_needs := false
+var shot_anims := false
+var shot_dirt := false
+var shot_ball := false
+var shot_wash := false
+var shot_bld_goo := false
+var shot_blood := false
 var shot_focus := Vector2(256, 256)
 var shot_span := 210.0
 var shot_throng := -1
@@ -162,6 +170,8 @@ var _name_chars := ""
 var _name_bans: PackedStringArray = PackedStringArray()
 var sponge_id := -1
 var sponge_hold := 0.0
+## Thronglets cleaned while scrubbing; sparkle+Happy fire on mouse/kit release.
+var wash_fx_pending: Array = []
 
 var buildings: Array = []
 var building_by_id := {}
@@ -196,6 +206,17 @@ var mito_t := PackedFloat32Array()
 var mito_charge := PackedFloat32Array()
 var shake_t := PackedFloat32Array()
 var buff_t := PackedFloat32Array()
+var react_t := PackedFloat32Array()
+var cheer_t := PackedFloat32Array()
+var sleep_t := PackedFloat32Array()
+## Peer social beat: stand, face partner, talk or sing body clips.
+var peer_t := PackedFloat32Array()
+var peer_of := PackedInt32Array()
+var peer_sing := PackedByteArray()
+## One-shot DropProp after putting down a haul.
+var drop_t := PackedFloat32Array()
+## 1 = violent corpse (saw / tnt / nuke); draw Throng_Prop_Blood_A under it.
+var bloody := PackedByteArray()
 var state := PackedInt32Array()
 var carry := PackedInt32Array()
 var carry_value := PackedInt32Array()
@@ -209,6 +230,24 @@ var pops: Array = []
 var current_slot := -1
 var paused := false
 var game_over := false
+## Swarm celebration window after unlock / milestone (seconds).
+var celebrate_t := 0.0
+const PEER_R := 40.0
+const REACT_KILL_R := 72.0
+const REACT_DUR := 0.85
+const CHEER_DUR := 0.9
+const CELEBRATE_DUR := 1.4
+## One ThrongA_Happy loop @ 6fps (5 frames) — matches CLEAN sparkle life.
+const WASH_FX_LIFE := 5.0 / 6.0
+## World units of sponge motion per frame to count as scrub (clean gain + start wash).
+## Kept low: at zoom 2 a gentle rub is often < 1.0 world/frame; 2.0 never lit suds in play.
+const SCRUB_STROKE_MIN := 0.35
+const SLEEP_DUR := 3.2
+const PEER_DUR := 2.4
+const DROP_DUR := 0.5
+## Mine dig body: pickaxe swing then Twiddle wait (seconds each).
+const MINE_SWING_T := 0.7
+const MINE_WAIT_T := 0.55
 # Seconds between autosaves. A later settings screen can change this. Zero turns it off.
 var autosave_interval := 60.0
 var autosave_t := 0.0
@@ -225,6 +264,8 @@ var link_ball := PackedInt32Array()
 var living_ids := PackedInt32Array()
 var living_at := PackedInt32Array()
 var bark_cool := PackedFloat32Array()
+## Cached penned flag (expensive probe); refreshed on the same cadence as rock bark.
+var penned_flag := PackedByteArray()
 var fires: Array = []
 # Features keyed by chunk ("cx,cy") so draw/sync only walks visible chunks.
 var features_by_chunk := {}
@@ -288,7 +329,7 @@ func _ready() -> void:
 	var args := OS.get_cmdline_user_args()
 	perf_mode = args.has("--perf")
 	save_perf_mode = args.has("--save-perf")
-	shot_mode = args.has("--shot") or args.has("--shot-fx") or args.has("--shot-carry") or args.has("--shot-round") or args.has("--shot-apple") or args.has("--shot-needs")
+	shot_mode = args.has("--shot") or args.has("--shot-fx") or args.has("--shot-carry") or args.has("--shot-round") or args.has("--shot-apple") or args.has("--shot-needs") or args.has("--shot-anims") or args.has("--shot-dirt") or args.has("--shot-ball") or args.has("--shot-wash") or args.has("--shot-bld-goo") or args.has("--shot-blood")
 	var pick_zoom_repro := args.has("--pick-zoom-repro")
 	testing = args.has("--smoke") or shot_mode or perf_mode or pick_zoom_repro or save_perf_mode
 	if args.has("--shot-fx"):
@@ -301,6 +342,18 @@ func _ready() -> void:
 		shot_apple = true
 	if args.has("--shot-needs"):
 		shot_needs = true
+	if args.has("--shot-anims"):
+		shot_anims = true
+	if args.has("--shot-dirt"):
+		shot_dirt = true
+	if args.has("--shot-ball"):
+		shot_ball = true
+	if args.has("--shot-wash"):
+		shot_wash = true
+	if args.has("--shot-bld-goo"):
+		shot_bld_goo = true
+	if args.has("--shot-blood"):
+		shot_blood = true
 	if testing and not save_perf_mode:
 		# Keep smoke/shot/perf saves inside the project so headless CI sandboxes can write.
 		save_path = ProjectSettings.globalize_path("res://shots/thronglets_smoke.save")
@@ -354,6 +407,16 @@ func _begin_smoke() -> void:
 			_prep_shot_apple()
 		elif shot_needs:
 			_prep_shot_needs()
+		elif shot_dirt:
+			_prep_shot_dirt()
+		elif shot_ball:
+			_prep_shot_ball()
+		elif shot_wash:
+			_prep_shot_wash()
+		elif shot_bld_goo:
+			_prep_shot_bld_goo()
+		elif shot_blood:
+			_prep_shot_blood()
 		else:
 			_prep_shot_world()
 		return
@@ -364,6 +427,8 @@ func _step(delta: float) -> void:
 	frame_i += 1
 	if frame_i > 1000000:
 		frame_i = 1
+	if celebrate_t > 0.0:
+		celebrate_t = maxf(0.0, celebrate_t - delta)
 	if sponge_hold > 0.0:
 		sponge_hold = maxf(0.0, sponge_hold - delta)
 		if sponge_hold <= 0.0:
@@ -748,23 +813,107 @@ func _tick_life(i: int, dt: float, decay: float) -> bool:
 		bark_cool[i] = maxf(0.0, bark_cool[i] - dt)
 	elif ((frame_i + i) & 15) == 0:
 		_maybe_bark(i)
+	_ensure_agent_timers(i)
+	if react_t[i] > 0.0:
+		react_t[i] = maxf(0.0, react_t[i] - dt)
+	if cheer_t[i] > 0.0:
+		cheer_t[i] = maxf(0.0, cheer_t[i] - dt)
+		dir_x[i] = 0.0
+		dir_y[i] = 0.0
+	# Sing bark: stay put until the bocadillo (and its one-shot clip) ends.
+	if bark_sing_of(i) != "":
+		dir_x[i] = 0.0
+		dir_y[i] = 0.0
+		if i < seek_t.size():
+			seek_t[i] = 0.0
+	if drop_t[i] > 0.0:
+		drop_t[i] = maxf(0.0, drop_t[i] - dt)
+		dir_x[i] = 0.0
+		dir_y[i] = 0.0
+	if peer_t[i] > 0.0:
+		peer_t[i] = maxf(0.0, peer_t[i] - dt)
+		if peer_t[i] <= 0.0:
+			_clear_peer_social(i)
+		else:
+			dir_x[i] = 0.0
+			dir_y[i] = 0.0
+	if sleep_t[i] > 0.0:
+		sleep_t[i] = maxf(0.0, sleep_t[i] - dt)
+	elif act[i] == 0 and peer_t[i] <= 0.0 and drop_t[i] <= 0.0 and fed[i] >= Catalog.NEED_OK and amused[i] >= Catalog.NEED_OK and clean[i] >= Catalog.NEED_OK:
+		if ((frame_i + i) % 180) == 0 and randf() < 0.08:
+			sleep_t[i] = SLEEP_DUR
 	if act_t[i] > 0.0:
 		act_t[i] = maxf(0.0, act_t[i] - dt)
-		if act_t[i] <= 0.0:
-			act[i] = 0
+	# Sticky acts are held by claim/seat/job — cheap/far ticks must not wipe the body clip.
+	# Clear when timer is already 0 and sticky no longer applies (e.g. orphan ACT_EAT).
+	if act_t[i] <= 0.0 and int(act[i]) != 0 and not _act_is_sticky(i):
+		act[i] = 0
 	if shake_t[i] > 0.0:
 		shake_t[i] = maxf(0.0, shake_t[i] - dt)
 		act[i] = ACT_WASH
 		act_t[i] = 0.2
-	if act[i] == ACT_WASH:
-		return false
+	# Re-assert wash for the whole sponge hold (even if act_t just hit 0 above).
 	if i == sponge_id and sponge_hold > 0.0:
+		act[i] = ACT_WASH
+		act_t[i] = maxf(act_t[i], 0.35)
+		dir_x[i] = 0.0
+		dir_y[i] = 0.0
+		return false
+	if act[i] == ACT_WASH:
+		dir_x[i] = 0.0
+		dir_y[i] = 0.0
+		return false
+	if cheer_t[i] > 0.0:
+		return false
+	if bark_sing_of(i) != "":
 		return false
 	cool[i] = maxf(0.0, cool[i] - dt)
 	return true
 
 
+func _act_is_sticky(i: int) -> bool:
+	match int(act[i]):
+		ACT_EAT:
+			# Only while a claimed apple is still in bite range — avoids orphan Eat clips
+			# on the full AI path (n <= AGENT_FULL_CAP never runs _continue_eat alone).
+			var apple := _claimed_apple(i)
+			return not apple.is_empty() and _dist_i(i, float(apple.x), float(apple.y)) < 12.0
+		# WASH is refreshed by scrub/shake act_t — never sticky or it loops forever.
+		ACT_BATH:
+			return (i < link_tub.size() and link_tub[i] >= 0) \
+				or (i < link_guest.size() and link_guest[i] >= 0)
+		ACT_PLAY:
+			if i < link_ball.size() and int(link_ball[i]) >= 0:
+				return true
+			return (i < link_ride.size() and link_ride[i] >= 0) \
+				or (i < link_guest.size() and link_guest[i] >= 0)
+		ACT_WORK:
+			return (i < link_guest.size() and link_guest[i] >= 0) \
+				or (i < mine_job.size() and int(mine_job[i]) >= 0)
+		_:
+			return false
+
+
 func _tick_busy_or_coast(i: int, dt: float) -> void:
+	# Cheap ticks still advance sticky interactions so body clips do not flicker to idle/walk.
+	if i < drop_t.size() and drop_t[i] > 0.0:
+		dir_x[i] = 0.0
+		dir_y[i] = 0.0
+		return
+	if bark_sing_of(i) != "":
+		dir_x[i] = 0.0
+		dir_y[i] = 0.0
+		if i < seek_t.size():
+			seek_t[i] = 0.0
+		return
+	if i < peer_t.size() and peer_t[i] > 0.0:
+		dir_x[i] = 0.0
+		dir_y[i] = 0.0
+		return
+	if act[i] == ACT_EAT and _continue_eat(i, dt):
+		return
+	if _continue_sticky_play_or_work(i, dt):
+		return
 	# Most agents are free walkers: skip tub/ride/guest scans via O(1) link checks.
 	var linked := (i < link_tub.size() and link_tub[i] >= 0) \
 		or (i < link_ride.size() and link_ride[i] >= 0) \
@@ -895,6 +1044,18 @@ func _snap_dir_cardinal(i: int) -> void:
 
 
 func _tick_decide(i: int, dt: float) -> void:
+	if i < drop_t.size() and drop_t[i] > 0.0:
+		dir_x[i] = 0.0
+		dir_y[i] = 0.0
+		return
+	if i < peer_t.size() and peer_t[i] > 0.0:
+		dir_x[i] = 0.0
+		dir_y[i] = 0.0
+		return
+	# Full AI path never hits _tick_busy_or_coast — keep chewing / clear orphan ACT_EAT here.
+	if act[i] == ACT_EAT and _continue_eat(i, dt):
+		_release_mine_job(i)
+		return
 	var speed := MOVE_SPEED
 	if buff_t[i] > 0.0:
 		speed = 36.0
@@ -965,6 +1126,12 @@ func _tick_decide(i: int, dt: float) -> void:
 		_release_claim(i)
 	_release_mine_job(i)
 	_release_item_claims(i)
+	if i < peer_t.size() and peer_t[i] > 0.0:
+		dir_x[i] = 0.0
+		dir_y[i] = 0.0
+		return
+	if _try_peer_social(i):
+		return
 	_wander(i, speed, dt)
 
 
@@ -1064,26 +1231,109 @@ func _seek_food(i: int, speed: float, dt: float) -> bool:
 	var tx := float(apple.x)
 	var ty := float(apple.y)
 	if apple_d < 12.0:
-		act[i] = ACT_EAT
-		act_t[i] = 0.25
-		var progress := float(apple.get("bite", 0.0)) + dt
-		apple.bite = progress
-		if progress >= 0.45:
-			apple.bite = 0.0
-			var left := int(apple.get("bites_left", 1)) - 1
-			apple.bites_left = left
-			fed[i] = 100.0
-			sfx_queue.append("apple")
-			hungry_t[i] = 0.0
-			_release_apple_claim(i)
-			if left <= 0:
-				apple.dead = true
-				apple.claimer = -1
-			else:
-				apple.claimer = -1
+		_chew_apple(i, apple, dt)
 		return true
 	_walk(i, tx, ty, speed, dt)
 	return true
+
+
+func _claimed_apple(i: int) -> Dictionary:
+	if i < 0 or i >= link_claim.size():
+		return {}
+	var iid := int(link_claim[i])
+	if iid < 0:
+		return {}
+	var it: Dictionary = item_by_id.get(iid, {})
+	if it.is_empty() or it.dead or int(it.kind) != Catalog.ITEM_APPLE:
+		return {}
+	if int(it.get("claimer", -1)) != i:
+		return {}
+	return it
+
+
+func _chew_apple(i: int, apple: Dictionary, dt: float) -> void:
+	# Eat while biting; on bite land return to idle (video: Happy stand, not Celebrate/Rotund).
+	act[i] = ACT_EAT
+	act_t[i] = 0.55
+	dir_x[i] = 0.0
+	dir_y[i] = 0.0
+	var progress := float(apple.get("bite", 0.0)) + dt
+	apple.bite = progress
+	if progress < 0.45:
+		return
+	apple.bite = 0.0
+	var left := int(apple.get("bites_left", 1)) - 1
+	apple.bites_left = left
+	fed[i] = 100.0
+	act[i] = 0
+	act_t[i] = 0.0
+	sfx_queue.append("apple")
+	hungry_t[i] = 0.0
+	_release_apple_claim(i)
+	if left <= 0:
+		apple.dead = true
+		apple.claimer = -1
+	else:
+		apple.claimer = -1
+
+
+func _continue_eat(i: int, dt: float) -> bool:
+	var apple := _claimed_apple(i)
+	if apple.is_empty():
+		act[i] = 0
+		act_t[i] = 0.0
+		return false
+	if _dist_i(i, float(apple.x), float(apple.y)) >= 12.0:
+		return false
+	_chew_apple(i, apple, dt)
+	return true
+
+
+func _continue_sticky_play_or_work(i: int, dt: float) -> bool:
+	# Keep ACT_PLAY / ACT_WORK body clips alive when seek budget skips full AI.
+	var ball := _linked_ball(i)
+	if not ball.is_empty():
+		act[i] = ACT_PLAY
+		act_t[i] = maxf(act_t[i], 0.35)
+		var bd := _dist_i(i, float(ball.x), float(ball.y))
+		if bd >= 16.0:
+			_walk(i, float(ball.x), float(ball.y), MOVE_SPEED, dt)
+		else:
+			dir_x[i] = 0.0
+			dir_y[i] = 0.0
+			amused[i] = minf(100.0, amused[i] + PLAY_AURA_FUN * dt)
+		return true
+	if i < mine_job.size() and int(mine_job[i]) >= 0 and carry[i] == Catalog.CARRY_NONE:
+		var mine: Dictionary = building_by_id.get(int(mine_job[i]), {})
+		if mine.is_empty() or mine.dead:
+			_release_mine_job(i)
+			return false
+		act[i] = ACT_WORK
+		act_t[i] = maxf(act_t[i], 0.35)
+		if _inside_building_reach(pos_x[i], pos_y[i], mine) or _is_guest(mine, i):
+			dir_x[i] = 0.0
+			dir_y[i] = 0.0
+			return true
+		var spot := _approach_building(mine, i)
+		_walk(i, float(spot.x), float(spot.y), MOVE_SPEED, dt)
+		return true
+	return false
+
+
+func _linked_ball(i: int) -> Dictionary:
+	if i < 0 or i >= link_ball.size():
+		return {}
+	var iid := int(link_ball[i])
+	if iid < 0:
+		return {}
+	var it: Dictionary = item_by_id.get(iid, {})
+	if it.is_empty() or it.dead or int(it.kind) != Catalog.ITEM_BALL:
+		link_ball[i] = -1
+		return {}
+	if int(it.get("claimer", -1)) != i:
+		link_ball[i] = -1
+		return {}
+	return it
 
 
 func _approach_home_visit(i: int, home: Dictionary, speed: float, dt: float) -> bool:
@@ -1333,7 +1583,7 @@ func _finish_bath(i: int, b: Dictionary) -> void:
 	_set_agent_pos(i, float(rim.x), float(rim.y))
 	act[i] = ACT_BATH
 	act_t[i] = 0.35
-	_pop(pos_x[i], pos_y[i], AssetFrames.CLEAN, 1.0, i)
+	_pop(pos_x[i], pos_y[i], AssetFrames.CLEAN, 1.0, i, 0.9, "bath")
 
 
 func _nearest_roundabout(i: int, max_dist: float) -> Dictionary:
@@ -2583,7 +2833,10 @@ func _thought_icon(i: int) -> int:
 			if _dist_i(i, float(feat.x), float(feat.y)) < 48.0:
 				return Catalog.ICON_FIRE
 	# Penned check is expensive (8 blocked probes); sample infrequently.
-	if posmod(frame_i + i, 45) == 0 and _is_penned(i):
+	_ensure_agent_timers(i)
+	if posmod(frame_i + i, 45) == 0:
+		penned_flag[i] = 1 if _is_penned(i) else 0
+	if penned_flag[i] != 0:
 		return Catalog.ICON_ROCK
 	var tile := _tile_at(pos_x[i], pos_y[i])
 	if tile == Catalog.TILE_GOO:
@@ -2591,6 +2844,9 @@ func _thought_icon(i: int) -> int:
 			return Catalog.ICON_MOP
 		if _thought_known("sponge"):
 			return Catalog.ICON_SPONGE
+	# Hidden indoors: no thought bubble while a guest of a visit building.
+	if indoors(i):
+		return -1
 	if fed[i] < Catalog.NEED_HUNGRY and _thought_known("apple"):
 		return Catalog.ICON_APPLE
 	var in_tub := link_tub[i] >= 0
@@ -2640,6 +2896,9 @@ func _maybe_bark(i: int) -> void:
 	if barks.size() >= 2:
 		bark_cool[i] = Catalog.BARK_COOL
 		return
+	if indoors(i):
+		bark_cool[i] = Catalog.BARK_COOL
+		return
 	if view_rect.size != Vector2.ZERO and not view_rect.has_point(Vector2(pos_x[i], pos_y[i])):
 		bark_cool[i] = Catalog.BARK_COOL * 0.5
 		return
@@ -2661,19 +2920,75 @@ func _maybe_bark(i: int) -> void:
 		or icon == Catalog.ICON_SPONGE
 		or icon == Catalog.ICON_BALL
 		or icon == Catalog.ICON_ROUND
+		or icon == Catalog.ICON_ORE
+		or icon == Catalog.ICON_DWELL
+		or icon == Catalog.ICON_FANCY
+		or icon == Catalog.ICON_THEATRE
 	)
 	if urgent:
 		if randf() > 0.0015:
 			return
 	elif randf() > 0.0003:
 		return
+	var sing := ""
+	var life := 1.2 if urgent else 1.4
+	if bark_can_sing(i) and not ThrongClips.BARK_SING.is_empty():
+		sing = str(ThrongClips.BARK_SING[randi() % ThrongClips.BARK_SING.size()])
+		# Hold still for exactly one playthrough of the picked Sing clip @ 8fps.
+		var frames_n := maxi(ThrongClips.frame_count(sing), 1)
+		life = float(frames_n) / 8.0
+		dir_x[i] = 0.0
+		dir_y[i] = 0.0
+		if i < seek_t.size():
+			seek_t[i] = 0.0
 	barks.append({
 		"id": i,
 		"icon": icon,
-		"t": 1.2 if urgent else 1.4,
+		"t": life,
+		"life": life,
 		"x": pos_x[i],
 		"y": pos_y[i],
+		"sing": sing,
 	})
+
+
+func bark_of(i: int) -> Dictionary:
+	for bark in barks:
+		if int(bark.get("id", -1)) == i:
+			return bark
+	return {}
+
+
+func bark_sing_of(i: int) -> String:
+	return str(bark_of(i).get("sing", ""))
+
+
+func bark_can_sing(i: int) -> bool:
+	# Sing B–E only when free enough for a thought bubble (not bath/theatre/carry/…).
+	if i < 0 or i >= slot_count or state[i] != Catalog.ST_LIVING:
+		return false
+	if held_kind == "thronglet" and held_ref == i:
+		return false
+	if mito_t[i] > 0.0 or mito_charge[i] > 0.0:
+		return false
+	if carry[i] != Catalog.CARRY_NONE:
+		return false
+	if indoors(i):
+		return false
+	if near_fire(i):
+		return false
+	if i < penned_flag.size() and penned_flag[i] != 0:
+		return false
+	if i < cheer_t.size() and cheer_t[i] > 0.0:
+		return false
+	if i < peer_t.size() and peer_t[i] > 0.0:
+		return false
+	if i < drop_t.size() and drop_t[i] > 0.0:
+		return false
+	match int(act[i]):
+		ACT_EAT, ACT_BATH, ACT_WASH, ACT_PLAY, ACT_WORK:
+			return false
+	return true
 
 
 func _tick_voice(delta: float) -> void:
@@ -2718,6 +3033,8 @@ func _tick_barks(delta: float, age: bool = true) -> void:
 			bark.t = float(bark.t) - delta
 		var i := int(bark.id)
 		if float(bark.t) <= 0.0 or i < 0 or i >= slot_count or state[i] != Catalog.ST_LIVING:
+			continue
+		if indoors(i):
 			continue
 		bark.x = pos_x[i]
 		bark.y = pos_y[i]
@@ -2879,6 +3196,8 @@ func _banned(b: Dictionary, i: int) -> bool:
 
 
 func _can_enter(b: Dictionary, i: int) -> bool:
+	if building_is_polluted(b):
+		return false
 	var rule := _visit_rule(int(b.kind))
 	if rule.is_empty():
 		return true
@@ -3239,6 +3558,46 @@ func _loot_spot(b: Dictionary) -> Vector2:
 	return _approach_spot(float(b.x), float(b.y), south + 8.0)
 
 
+func building_is_polluted(b: Dictionary) -> bool:
+	if b.is_empty() or bool(b.get("dead", false)):
+		return false
+	if not Catalog.building_has_goo(int(b.kind)):
+		return false
+	if b.has("polluted"):
+		return bool(b.polluted)
+	return _refresh_building_pollution(b)
+
+
+func _refresh_building_pollution(b: Dictionary) -> bool:
+	var polluted := false
+	if not b.is_empty() and not bool(b.get("dead", false)) and Catalog.building_has_goo(int(b.kind)):
+		for cell in _footprint_cells(float(b.x), float(b.y), Catalog.footprint_for_building(int(b.kind))):
+			if _tile_at_cell(cell) == Catalog.TILE_GOO:
+				polluted = true
+				break
+	b.polluted = polluted
+	return polluted
+
+
+func _invalidate_building_pollution() -> void:
+	for b in buildings:
+		b.erase("polluted")
+
+
+func _shut_polluted_building(b: Dictionary) -> void:
+	for guest in b.get("guests", []):
+		var gid := int(guest.get("id", -1))
+		if gid >= 0 and gid < link_guest.size() and link_guest[gid] == int(b.id):
+			link_guest[gid] = -1
+	b.guests = []
+	b.away = []
+	b.active = false
+	b.polluted = true
+	if bool(b.get("incinerate", false)):
+		b.incinerate = false
+		b.burn = 0.0
+
+
 func _tick_buildings(dt: float) -> void:
 	for b in buildings:
 		if b.dead:
@@ -3247,6 +3606,9 @@ func _tick_buildings(dt: float) -> void:
 			b.active = false
 			continue
 		var kind := int(b.kind)
+		if _refresh_building_pollution(b):
+			_shut_polluted_building(b)
+			continue
 		b.active = false
 		if kind == Catalog.BLD_APPLE:
 			_tick_apple_tree(b, dt)
@@ -3276,7 +3638,8 @@ func _tick_buildings(dt: float) -> void:
 					total_gems_earned += _g
 					b.active = true
 					_pop(float(b.x), float(b.y) - 6.0, Catalog.ICON_GEM)
-					_spill_goo(float(b.x), float(b.y), 2 if kind == Catalog.BLD_FACTORY2 else 1)
+					if randf() < FACTORY_GOO_CHANCE:
+						_spill_goo(float(b.x), float(b.y), 2 if kind == Catalog.BLD_FACTORY2 else 1)
 					buffered = int(b.get("buffer", 0))
 					b.timer = cycle if buffered > 0 else 0.25
 				else:
@@ -3327,19 +3690,23 @@ func _tick_buildings(dt: float) -> void:
 
 
 func capacity_info(b: Dictionary) -> Dictionary:
-	if b.is_empty() or bool(b.get("dead", true)):
+	if b.is_empty() or bool(b.get("dead", false)):
 		return {}
 	var kind := int(b.kind)
+	if kind == Catalog.BLD_FACTORY or kind == Catalog.BLD_FACTORY2:
+		return {}
 	if _is_mine_kind(kind):
 		var cap := _mine_stock_cap(b)
 		var n := clampi(int(b.get("buffer", 0)), 0, cap)
-		return {"n": n, "cap": cap, "full": n >= cap, "mine": true}
+		return {"n": n, "cap": cap, "full": n >= cap, "mine": true, "visit": false}
+	if kind != Catalog.BLD_DWELL and kind != Catalog.BLD_FANCY and kind != Catalog.BLD_THEATRE:
+		return {}
 	var rule := _visit_rule(kind)
 	if rule.is_empty():
 		return {}
 	var cap2 := int(rule.cap)
 	var n2 := clampi(_live_guests(b), 0, cap2)
-	return {"n": n2, "cap": cap2, "full": n2 >= cap2, "mine": false}
+	return {"n": n2, "cap": cap2, "full": n2 >= cap2, "mine": false, "visit": true}
 
 
 func _tick_auras(dt: float) -> void:
@@ -3443,7 +3810,10 @@ func _drop_loose(kind: int, x: float, y: float, value: int) -> void:
 func _tool_axe(x: float, y: float) -> void:
 	var feat := _axe_feature_at(x, y)
 	if not feat.is_empty() and int(feat.kind) == Catalog.FEAT_TREE:
+		var tx := float(feat.x)
+		var ty := float(feat.y)
 		_chop(feat)
+		_splash_kill(tx, ty, 20.0)
 		sfx_queue.append("chop")
 		return
 	if not feat.is_empty() and (int(feat.kind) == Catalog.FEAT_COSMETIC or int(feat.kind) == Catalog.FEAT_COSMETIC_BAD):
@@ -4018,52 +4388,135 @@ func _mop(x: float, y: float) -> void:
 	for id in ids:
 		var tid := int(id)
 		if state[tid] == Catalog.ST_LIVING and mito_t[tid] <= 0.0:
+			var was_dirty := clean[tid] < 100.0
 			clean[tid] = 100.0
+			if was_dirty:
+				_finish_wash(tid)  # mop has no hold — sparkle immediately
 	sfx_queue.append("mop")
 
 
 func scrub(x: float, y: float, stroke: float, rubbing: bool = false) -> void:
 	if frozen:
 		return
-	var ids := query_radius(x, y, Catalog.SPONGE_RADIUS)
+	var sponge_tune: Dictionary = EffectTune.get_tune("act:sponge")
+	var stroke_min := float(sponge_tune.get("stroke_min", SCRUB_STROKE_MIN))
+	var stroke_cap := float(sponge_tune.get("stroke_cap", 6.0))
+	var gain_mul := float(sponge_tune.get("gain", 1.25))
+	var radius := float(sponge_tune.get("radius", Catalog.SPONGE_RADIUS))
+	var ids := query_radius(x, y, radius)
 	if ids.is_empty():
+		# Left every thronglet — drop wash pose; pending sparkles wait for release.
+		if sponge_id >= 0:
+			_clear_wash_pose(sponge_id)
+			sponge_id = -1
+		sponge_hold = 0.0
 		return
-	sponge_hold = 0.45
-	sponge_id = -1
-	# stroke = path since last sample while rubbing, or an instant stroke (e.g. drop).
-	if stroke < 0.5 and not rubbing:
+	sponge_hold = 0.55
+	var scrubbing := rubbing or stroke >= stroke_min
+	var target := _scrub_pick_target(ids)
+	if target < 0:
+		if sponge_id >= 0:
+			_clear_wash_pose(sponge_id)
+			sponge_id = -1
+		return
+	# Only the thronglet under the sponge shows suds; leave prior targets.
+	if sponge_id >= 0 and sponge_id != target:
+		_clear_wash_pose(sponge_id)
+	sponge_id = target
+	act[target] = ACT_WASH
+	dir_x[target] = 0.0
+	dir_y[target] = 0.0
+	if not scrubbing:
+		act_t[target] = maxf(act_t[target], 0.35)
 		return
 	_know_count()
-	var gain := minf(stroke, 22.0) * 2.0 if stroke >= 0.5 else 0.0
+	var gain := minf(stroke, stroke_cap) * gain_mul
+	if clean[target] < 100.0:
+		clean[target] = minf(100.0, clean[target] + gain)
+		if clean[target] >= 100.0:
+			_queue_wash_fx(target)
+	act_t[target] = 0.85
+	if int(frame_i) % 3 == 0:
+		sfx_queue.append("scrub")
+
+
+func _scrub_pick_target(ids: Array) -> int:
+	# Prefer current sponge_id if still in range; else nearest living thronglet.
 	for raw in ids:
 		var id := int(raw)
-		if state[id] != Catalog.ST_LIVING:
+		if id == sponge_id and state[id] == Catalog.ST_LIVING and mito_t[id] <= 0.0:
+			return id
+	for raw2 in ids:
+		var id2 := int(raw2)
+		if state[id2] != Catalog.ST_LIVING or mito_t[id2] > 0.0:
 			continue
-		if mito_t[id] > 0.0:
-			continue
-		if clean[id] >= 100.0:
-			_stop_wash(id)
-			continue
-		if gain > 0.0:
-			clean[id] = minf(100.0, clean[id] + gain)
-		sponge_id = id
-		act[id] = ACT_WASH
-		act_t[id] = 0.7 if gain > 0.0 else 0.35
-		if clean[id] >= 100.0:
-			act_t[id] = 0.35
-		if gain > 0.0 and int(frame_i) % 3 == 0:
-			sfx_queue.append("scrub")
+		return id2
+	return -1
 
 
-func _stop_wash(id: int) -> void:
+func _wash_fx_queued(id: int) -> bool:
+	for pending in wash_fx_pending:
+		if int(pending) == id:
+			return true
+	return false
+
+
+func _queue_wash_fx(id: int) -> void:
+	_ensure_agent_timers(id)
+	dir_x[id] = 0.0
+	dir_y[id] = 0.0
+	if _wash_fx_queued(id):
+		return
+	wash_fx_pending.append(id)
+
+
+func sponge_release() -> void:
+	# End scrub pose; sparkles for every thronglet cleaned during this hold.
+	var pending: Array = wash_fx_pending.duplicate()
+	wash_fx_pending.clear()
+	if sponge_id >= 0:
+		_clear_wash_pose(sponge_id)
+		sponge_id = -1
+	sponge_hold = 0.0
+	for raw in pending:
+		_finish_wash(int(raw))
+
+
+func _finish_wash(id: int) -> void:
+	_clear_wash_pose(id)
+	if sponge_id == id:
+		sponge_id = -1
+		sponge_hold = 0.0
+	_ensure_agent_timers(id)
+	_pop_wash_sparkle(id)
+	cheer_t[id] = WASH_FX_LIFE
+	dir_x[id] = 0.0
+	dir_y[id] = 0.0
+
+
+func _pop_wash_sparkle(id: int) -> void:
+	if id < 0 or id >= slot_count:
+		return
+	for pop in pops:
+		if str(pop.get("kind", "")) == "wash" and int(pop.get("throng_id", -1)) == id:
+			return
+	_pop(pos_x[id], pos_y[id], AssetFrames.CLEAN, 1.0, id, WASH_FX_LIFE, "wash")
+
+
+func _clear_wash_pose(id: int) -> void:
 	if id < 0 or id >= slot_count:
 		return
 	shake_t[id] = 0.0
 	if act[id] == ACT_WASH:
 		act[id] = 0
 		act_t[id] = 0.0
+
+
+func _stop_wash(id: int) -> void:
+	_clear_wash_pose(id)
 	if sponge_id == id:
 		sponge_id = -1
+		sponge_hold = 0.0
 
 
 func eye_use(x: float, y: float) -> Dictionary:
@@ -4172,6 +4625,29 @@ func is_holding() -> bool:
 	return held_kind != "" or hand_id != -1 or has_scoop()
 
 
+func _ensure_agent_timers(i: int) -> void:
+	# TODO: May be removed
+	# Old saves lack react/cheer/sleep/peer/drop/penned arrays; grow on demand.
+	while react_t.size() <= i:
+		react_t.append(0.0)
+	while cheer_t.size() <= i:
+		cheer_t.append(0.0)
+	while sleep_t.size() <= i:
+		sleep_t.append(0.0)
+	while peer_t.size() <= i:
+		peer_t.append(0.0)
+	while peer_of.size() <= i:
+		peer_of.append(-1)
+	while peer_sing.size() <= i:
+		peer_sing.append(0)
+	while drop_t.size() <= i:
+		drop_t.append(0.0)
+	while penned_flag.size() <= i:
+		penned_flag.append(0)
+	while bloody.size() <= i:
+		bloody.append(0)
+
+
 func grab_thronglet(id: int) -> bool:
 	if frozen or is_holding():
 		return false
@@ -4183,6 +4659,15 @@ func grab_thronglet(id: int) -> bool:
 	held_ref = id
 	held_x = pos_x[id]
 	held_y = pos_y[id]
+	dir_x[id] = 0.0
+	dir_y[id] = 0.0
+	act[id] = 0
+	act_t[id] = 0.0
+	_ensure_agent_timers(id)
+	cheer_t[id] = 0.0
+	react_t[id] = 0.0
+	drop_t[id] = 0.0
+	_clear_peer_social(id)
 	clear_bark(id)
 	return true
 
@@ -5035,10 +5520,17 @@ func _set_carry(i: int, kind: int, value: int = 0) -> void:
 		return
 	if int(carry[i]) == kind and (kind == Catalog.CARRY_NONE or int(carry_value[i]) == value):
 		return
+	var was_carrying := int(carry[i]) != Catalog.CARRY_NONE
 	_carry_dec(i)
 	carry[i] = kind
 	carry_value[i] = value if kind != Catalog.CARRY_NONE else 0
 	_carry_inc(i)
+	# DropProp one-shot when a haul leaves the hands.
+	if was_carrying and kind == Catalog.CARRY_NONE:
+		_ensure_agent_timers(i)
+		drop_t[i] = DROP_DUR
+		dir_x[i] = 0.0
+		dir_y[i] = 0.0
 
 
 func _rebuild_carry_counts() -> void:
@@ -5519,25 +6011,28 @@ const ACT_BATH := 4
 const ACT_WORK := 5
 
 
-func _pop(x: float, y: float, icon: int, sprite_scale: float = 1.0, throng_id: int = -1) -> void:
+func _pop(x: float, y: float, icon: int, sprite_scale: float = 1.0, throng_id: int = -1, life: float = 0.55, kind: String = "") -> void:
 	pops.append({
 		"x": x,
 		"y": y,
-		"t": 0.55,
+		"t": life,
+		"life": life,
 		"icon": icon,
 		"lift": 0.0,
 		"scale": sprite_scale,
 		"throng_id": throng_id,
+		"kind": kind,
 	})
 
 
 func _tick_pops(dt: float, age: bool = true) -> void:
 	var kept: Array = []
 	for pop in pops:
+		var throng_id := int(pop.get("throng_id", -1))
 		if age:
 			pop.t = float(pop.t) - dt
-			pop.lift = float(pop.lift) + 22.0 * dt
-		var throng_id := int(pop.get("throng_id", -1))
+			if throng_id < 0:
+				pop.lift = float(pop.lift) + 22.0 * dt
 		if float(pop.t) <= 0.0 or (throng_id >= 0 and (throng_id >= slot_count or state[throng_id] != Catalog.ST_LIVING)):
 			continue
 		if throng_id >= 0:
@@ -5676,11 +6171,15 @@ func _deflesh(id: int, count_use: bool) -> void:
 	elif was_dead:
 		dead_n = maxi(0, dead_n - 1)
 		_dead_remove(id)
+	if id < bloody.size():
+		bloody[id] = 0
 	state[id] = Catalog.ST_VACANT
 	_hash_unlink(id)
 	var bone_it := _add_item(Catalog.ITEM_BONE, x, y, 1)
 	item_physics.launch_item(bone_it, 6.0, randf_range(80.0, 110.0), randf_range(-30.0, 30.0), randf_range(-30.0, 30.0))
 	_pop(x, y, ThrongClips.frame_at("ThrongA_Bones", 0))
+	if was_living:
+		_pulse_react_near(x, y, id)
 	if count_use and part_two:
 		bug_uses += 1
 		if bug_uses >= 3:
@@ -5746,7 +6245,7 @@ func _splash_kill(x: float, y: float, radius: float) -> void:
 	var any := false
 	for id in ids:
 		if state[int(id)] == Catalog.ST_LIVING:
-			_become_corpse(int(id))
+			_become_corpse(int(id), true)
 			any = true
 	if any:
 		sfx_queue.append("bones")
@@ -5754,19 +6253,23 @@ func _splash_kill(x: float, y: float, radius: float) -> void:
 
 
 func _die_neglect(i: int) -> void:
-	_become_corpse(i)
+	_become_corpse(i, false)
 	sfx_queue.append("bones")
 	_reflect("neglect")
 
 
-func _become_corpse(i: int) -> void:
+func _become_corpse(i: int, with_blood: bool = false) -> void:
 	if state[i] != Catalog.ST_LIVING:
 		return
+	var x := pos_x[i]
+	var y := pos_y[i]
 	state[i] = Catalog.ST_DEAD
 	living -= 1
 	dead_n += 1
 	deaths_total += 1
 	starve[i] = CORPSE_LIFE
+	_ensure_agent_timers(i)
+	bloody[i] = 1 if with_blood else 0
 	_living_remove(i)
 	_dead_add(i)
 	_set_carry(i, Catalog.CARRY_NONE)
@@ -5779,8 +6282,156 @@ func _become_corpse(i: int) -> void:
 	_release_claim(i)
 	_release_item_claims(i)
 	_clear_ride(i)
+	_pulse_react_near(x, y, i)
 	if living <= 0:
 		_enter_game_over()
+
+
+func _pulse_react_near(x: float, y: float, skip: int = -1) -> void:
+	for id in query_radius(x, y, REACT_KILL_R):
+		var j := int(id)
+		if j == skip or j < 0 or j >= slot_count:
+			continue
+		if state[j] != Catalog.ST_LIVING:
+			continue
+		_ensure_agent_timers(j)
+		react_t[j] = REACT_DUR
+
+
+func has_living_peer(i: int, radius: float = PEER_R) -> bool:
+	if i < 0 or i >= slot_count or state[i] != Catalog.ST_LIVING:
+		return false
+	for id in query_radius(pos_x[i], pos_y[i], radius):
+		var j := int(id)
+		if j != i and j >= 0 and j < slot_count and state[j] == Catalog.ST_LIVING:
+			return true
+	return false
+
+
+func is_mining(i: int) -> bool:
+	# Guest of a mine / mine2 — dig stay uses Pickaxe ↔ Twiddle.
+	if i < 0 or i >= link_guest.size():
+		return false
+	var bid := int(link_guest[i])
+	if bid < 0:
+		return false
+	var b: Dictionary = building_by_id.get(bid, {})
+	if b.is_empty() or b.dead:
+		return false
+	return _is_mine_kind(int(b.kind))
+
+
+func _peer_content(i: int) -> bool:
+	return fed[i] >= Catalog.NEED_OK and amused[i] >= Catalog.NEED_OK and clean[i] >= Catalog.NEED_OK
+
+
+func _peer_free(i: int) -> bool:
+	if i < 0 or i >= slot_count or state[i] != Catalog.ST_LIVING:
+		return false
+	if act[i] != 0 or carry[i] != Catalog.CARRY_NONE:
+		return false
+	if mito_t[i] > 0.0 or mito_charge[i] > 0.0:
+		return false
+	if i < peer_t.size() and peer_t[i] > 0.0:
+		return false
+	if i < sleep_t.size() and sleep_t[i] > 0.0:
+		return false
+	if i < cheer_t.size() and cheer_t[i] > 0.0:
+		return false
+	if i < react_t.size() and react_t[i] > 0.0:
+		return false
+	if i < link_guest.size() and link_guest[i] >= 0:
+		return false
+	if i < link_tub.size() and link_tub[i] >= 0:
+		return false
+	if i < link_ride.size() and link_ride[i] >= 0:
+		return false
+	return true
+
+
+func _nearest_peer_partner(i: int) -> int:
+	var best := -1
+	var best_d := PEER_R
+	for id in query_radius(pos_x[i], pos_y[i], PEER_R):
+		var j := int(id)
+		if j == i or j < 0 or j >= slot_count:
+			continue
+		if not _peer_free(j) or not _peer_content(j):
+			continue
+		var d := _dist_i(i, pos_x[j], pos_y[j])
+		if d < best_d:
+			best_d = d
+			best = j
+	return best
+
+
+func _try_peer_social(i: int) -> bool:
+	# Content thronglets stop, face a free peer, and hold a talk/sing beat.
+	_ensure_agent_timers(i)
+	if not _peer_free(i) or not _peer_content(i):
+		return false
+	# Sparse attempts so the colony does not freeze in chat clusters.
+	if ((frame_i + i) % 75) != 0 or randf() > 0.35:
+		return false
+	var j := _nearest_peer_partner(i)
+	if j < 0:
+		return false
+	_ensure_agent_timers(j)
+	var sing := 1 if randf() < 0.55 else 0
+	peer_t[i] = PEER_DUR
+	peer_t[j] = PEER_DUR
+	peer_of[i] = j
+	peer_of[j] = i
+	peer_sing[i] = sing
+	peer_sing[j] = sing
+	dir_x[i] = 0.0
+	dir_y[i] = 0.0
+	dir_x[j] = 0.0
+	dir_y[j] = 0.0
+	if i < seek_t.size():
+		seek_t[i] = 0.0
+	if j < seek_t.size():
+		seek_t[j] = 0.0
+	return true
+
+
+func _clear_peer_social(i: int) -> void:
+	if i < 0 or i >= peer_t.size():
+		return
+	var j := int(peer_of[i]) if i < peer_of.size() else -1
+	peer_t[i] = 0.0
+	peer_of[i] = -1
+	if i < peer_sing.size():
+		peer_sing[i] = 0
+	if j >= 0 and j < peer_of.size() and int(peer_of[j]) == i:
+		peer_t[j] = 0.0
+		peer_of[j] = -1
+		if j < peer_sing.size():
+			peer_sing[j] = 0
+
+
+func near_fire(i: int, radius: float = 48.0) -> bool:
+	if i < 0 or i >= slot_count:
+		return false
+	for feat in fires:
+		if feat.dead or int(feat.kind) != Catalog.FEAT_FIRE:
+			continue
+		if _dist_i(i, float(feat.x), float(feat.y)) < radius:
+			return true
+	return false
+
+
+func approaching_home(i: int) -> bool:
+	if i < 0 or i >= slot_count or state[i] != Catalog.ST_LIVING:
+		return false
+	if link_guest[i] >= 0:
+		return false
+	for b in blds_home:
+		if b.dead:
+			continue
+		if _dist_i(i, float(b.x), float(b.y)) < 88.0:
+			return true
+	return false
 
 
 func _tick_corpses(dt: float) -> void:
@@ -5830,6 +6481,8 @@ func _vacate(i: int) -> void:
 		dead_n = maxi(0, dead_n - 1)
 		_dead_remove(i)
 	_set_carry(i, Catalog.CARRY_NONE)
+	if i < bloody.size():
+		bloody[i] = 0
 	state[i] = Catalog.ST_VACANT
 	_release_mine_job(i)
 	_release_claim(i)
@@ -6017,8 +6670,9 @@ func _schedule_talk_tree(event: String, action: Dictionary, tree_id: String) -> 
 
 
 func _begin_gaze() -> void:
+	# Dialogue freeze only — do not force glitch_t (that drove POSSESSED on every talk).
+	# Screen/body glitch stays for monolith / late package paths that set glitch_t themselves.
 	frozen = true
-	glitch_t = 1.4
 	_clear_action_motion()
 	_line_up_gaze()
 	sfx_queue.append("talk")
@@ -6287,6 +6941,7 @@ func _grant(key: String, message: String = "", talk: bool = true) -> bool:
 		return false
 	unlocks[key] = true
 	unlock_serial += 1
+	celebrate_t = CELEBRATE_DUR
 	sfx_queue.append("unlock_" + key)
 	if talk and Catalog.UNLOCK_TALK.has(key):
 		_queue_talk(str(Catalog.UNLOCK_TALK[key]), {})
@@ -6663,6 +7318,8 @@ func sandbox_place_prop(prop: String, x: float, y: float) -> bool:
 			if Catalog.tile_blocks(_tile_at(at.x, at.y)):
 				return false
 			return not _add_feature(Catalog.FEAT_ROCK, at.x, at.y, 2, 1, true).is_empty()
+		"flower":
+			return place_building(Catalog.BLD_FLOWER, at.x, at.y)
 		"water":
 			var cell := _cell_vec(at.x, at.y)
 			var tile := _tile_at_cell(cell)
@@ -6810,6 +7467,7 @@ func _reset_world() -> void:
 	glitch_t = 0.0
 	gaze_home.clear()
 	barks.clear()
+	wash_fx_pending.clear()
 	wear.clear()
 	wear_from.clear()
 	trees_chopped = 0
@@ -6851,6 +7509,14 @@ func _reset_world() -> void:
 	mito_charge = PackedFloat32Array()
 	shake_t = PackedFloat32Array()
 	buff_t = PackedFloat32Array()
+	react_t = PackedFloat32Array()
+	cheer_t = PackedFloat32Array()
+	sleep_t = PackedFloat32Array()
+	peer_t = PackedFloat32Array()
+	peer_of = PackedInt32Array()
+	peer_sing = PackedByteArray()
+	drop_t = PackedFloat32Array()
+	bloody = PackedByteArray()
 	state = PackedInt32Array()
 	carry = PackedInt32Array()
 	carry_value = PackedInt32Array()
@@ -6861,6 +7527,8 @@ func _reset_world() -> void:
 	act_t = PackedFloat32Array()
 	tick_stamp = PackedInt32Array()
 	pops.clear()
+	wash_fx_pending.clear()
+	celebrate_t = 0.0
 	hash_next = PackedInt32Array()
 	hash_cell = PackedInt32Array()
 	link_tub = PackedInt32Array()
@@ -6871,6 +7539,7 @@ func _reset_world() -> void:
 	living_ids = PackedInt32Array()
 	living_at = PackedInt32Array()
 	bark_cool = PackedFloat32Array()
+	penned_flag = PackedByteArray()
 	fires.clear()
 	items_apple.clear()
 	items_ball.clear()
@@ -6920,6 +7589,14 @@ func _push_slot_quiet(x: float, y: float, fed_v: float, fun_v: float, clean_v: f
 	mito_charge.append(0.0)
 	shake_t.append(0.0)
 	buff_t.append(0.0)
+	react_t.append(0.0)
+	cheer_t.append(0.0)
+	sleep_t.append(0.0)
+	peer_t.append(0.0)
+	peer_of.append(-1)
+	peer_sing.append(0)
+	drop_t.append(0.0)
+	bloody.append(0)
 	state.append(Catalog.ST_LIVING)
 	carry.append(Catalog.CARRY_NONE)
 	carry_value.append(0)
@@ -6938,6 +7615,7 @@ func _push_slot_quiet(x: float, y: float, fed_v: float, fun_v: float, clean_v: f
 	link_ball.append(-1)
 	living_at.append(-1)
 	bark_cool.append(0.0)
+	penned_flag.append(0)
 	seek_x.append(0.0)
 	seek_y.append(0.0)
 	seek_t.append(0.0)
@@ -7079,9 +7757,7 @@ func occupancy_text(b: Dictionary) -> String:
 		return ""
 	if bool(info.full):
 		return "LLENO"
-	if bool(info.get("mine", false)):
-		return ""
-	return "%d/%d" % [int(info.n), int(info.cap)]
+	return ""
 
 
 func _tick_props(dt: float) -> void:
@@ -7525,6 +8201,8 @@ func _nearest_building_kinds(x: float, y: float, kinds: Array, max_dist: float, 
 	for b in _buildings_for_kinds(kinds):
 		if b.dead or not kinds.has(int(b.kind)):
 			continue
+		if building_is_polluted(b):
+			continue
 		if who >= 0 and not _can_enter(b, who):
 			continue
 		var d := _dist_point(x, y, float(b.x), float(b.y))
@@ -7915,6 +8593,8 @@ func _set_local_tile(ck: String, lx: int, ly: int, tile: int, also_base: bool) -
 		var c := _parse_ck(ck)
 		_invalidate_inland_around(Vector2i(c.x * Catalog.CHUNK + lx, c.y * Catalog.CHUNK + ly))
 		_invalidate_walk_cells()
+		if prev == Catalog.TILE_GOO or tile == Catalog.TILE_GOO:
+			_invalidate_building_pollution()
 	_mark_dirty(ck)
 
 
@@ -8427,6 +9107,266 @@ func _as_i32(value) -> PackedInt32Array:
 
 
 
+func _shot_bld_goo_kinds() -> Array:
+	return [
+		{"kind": Catalog.BLD_DWELL, "name": "dwell"},
+		{"kind": Catalog.BLD_FANCY, "name": "fancy"},
+		{"kind": Catalog.BLD_THEATRE, "name": "theatre"},
+		{"kind": Catalog.BLD_MINE, "name": "mine"},
+		{"kind": Catalog.BLD_MINE2, "name": "mine2"},
+		{"kind": Catalog.BLD_FACTORY, "name": "factory"},
+		{"kind": Catalog.BLD_FACTORY2, "name": "factory2"},
+	]
+
+
+func _shot_force_pad(kind: int, x: float, y: float) -> Vector2:
+	var at := Catalog.snap_world(x, y)
+	for cell in _footprint_cells(at.x, at.y, Catalog.footprint_for_building(kind)):
+		_set_world_cell(cell.x, cell.y, Catalog.TILE_GRASS, true)
+	return at
+
+
+func _shot_paint_building_goo(b: Dictionary) -> void:
+	for cell in _footprint_cells(float(b.x), float(b.y), Catalog.footprint_for_building(int(b.kind))):
+		_set_world_cell(cell.x, cell.y, Catalog.TILE_GOO, false)
+	goo_count = _count_goo()
+
+
+func _shot_mop_building(b: Dictionary) -> void:
+	# Sweep the mop over every footprint cell (mines exceed one MOP_RADIUS).
+	for cell in _footprint_cells(float(b.x), float(b.y), Catalog.footprint_for_building(int(b.kind))):
+		var at := _cell_world(cell)
+		_mop(at.x, at.y)
+
+
+func _shot_activate_building(b: Dictionary) -> void:
+	var kind := int(b.kind)
+	if kind == Catalog.BLD_DWELL or kind == Catalog.BLD_FANCY or kind == Catalog.BLD_THEATRE:
+		var tid := _push_slot_quiet(float(b.x) + 400.0, float(b.y) + 400.0, 90.0, 90.0, 90.0, 90.0, 0)
+		if tid < 0:
+			b.active = true
+			return
+		b.guests = [{"id": tid, "left": 99.0}]
+		if tid < link_guest.size():
+			link_guest[tid] = int(b.id)
+		b.active = true
+		return
+	b.active = true
+	if kind == Catalog.BLD_FACTORY or kind == Catalog.BLD_FACTORY2:
+		_shot_fill_factory(b)
+		b.timer = _factory_cycle_time(kind) * 0.4
+	elif _is_mine_kind(kind):
+		b.buffer = maxi(1, int(b.get("buffer", 0)))
+
+
+func _shot_place_bld_row(kind: int) -> Dictionary:
+	# Left idle | mid active | right goo. Same kind for overlay alignment checks.
+	_clear_shot_props()
+	var size := Catalog.footprint_for_building(kind)
+	var gap := float(size.x + 2) * float(Catalog.TILE)
+	var cy := 256.0
+	var spots := [
+		Catalog.snap_world(256.0 - gap, cy),
+		Catalog.snap_world(256.0, cy),
+		Catalog.snap_world(256.0 + gap, cy),
+	]
+	var out := {"idle": {}, "active": {}, "goo": {}, "focus": Vector2(256.0, cy)}
+	var keys := ["idle", "active", "goo"]
+	for i in keys.size():
+		var at: Vector2 = spots[i]
+		at = _shot_force_pad(kind, at.x, at.y)
+		var b: Dictionary = _add_building(kind, at.x, at.y)
+		if b.is_empty():
+			# Nudge a little if bind failed on the first try.
+			for n in 8:
+				var nx := at.x + float((n % 4) - 1) * float(Catalog.TILE)
+				var ny := at.y + float(int(n / 4) - 1) * float(Catalog.TILE)
+				_shot_force_pad(kind, nx, ny)
+				b = _add_building(kind, nx, ny)
+				if not b.is_empty():
+					break
+		if b.is_empty():
+			out["error"] = "place %s col=%s" % [kind, keys[i]]
+			return out
+		out[keys[i]] = b
+	_shot_activate_building(out.active)
+	_shot_paint_building_goo(out.goo)
+	var span := gap + float(size.x) * float(Catalog.TILE) * 0.75
+	shot_focus = out.focus
+	shot_span = maxf(120.0, span)
+	view_rect = Rect2(shot_focus.x - shot_span, shot_focus.y - shot_span, shot_span * 2.0, shot_span * 2.0)
+	_rebuild_hash()
+	smoke_hold = true
+	return out
+
+
+func _prep_shot_bld_goo() -> void:
+	# Capture harness places each idle|active|goo row and the mop pair.
+	unlocks.dwelling = true
+	unlocks.fancy = true
+	unlocks.theatre = true
+	unlocks.mine = true
+	unlocks.mine2 = true
+	unlocks.factory = true
+	unlocks.factory2 = true
+	unlocks.mop = true
+	_clear_shot_props()
+	shot_focus = Vector2(256.0, 256.0)
+	shot_span = 140.0
+	view_rect = Rect2(shot_focus.x - shot_span, shot_focus.y - shot_span, shot_span * 2.0, shot_span * 2.0)
+	smoke_hold = true
+	print("SHOT BLD GOO READY")
+
+
+func _prep_shot_blood() -> void:
+	_clear_shot_props()
+	# Left: neglect corpse (no blood). Mid: living. Right: splash-kill corpse + Throng_Prop_Blood_A.
+	var ax := 256.0
+	var ay := 256.0
+	var neglect_id := _push_slot(ax - 48.0, ay, 90.0, 90.0, 90.0, 90.0, 0)
+	var living_id := _push_slot(ax, ay, 90.0, 90.0, 90.0, 90.0, 1)
+	var splash_id := _push_slot(ax + 48.0, ay, 90.0, 90.0, 90.0, 90.0, 2)
+	if neglect_id >= 0:
+		dir_x[neglect_id] = 1.0
+		dir_y[neglect_id] = 0.0
+		_become_corpse(neglect_id, false)
+	if living_id >= 0:
+		dir_x[living_id] = 0.0
+		dir_y[living_id] = 0.0
+		act[living_id] = 0
+	if splash_id >= 0:
+		dir_x[splash_id] = -1.0
+		dir_y[splash_id] = 0.0
+		_splash_kill(pos_x[splash_id], pos_y[splash_id], 8.0)
+	peak = maxi(peak, 3)
+	shot_focus = Vector2(ax, ay)
+	shot_span = 80.0
+	view_rect = Rect2(shot_focus.x - shot_span, shot_focus.y - shot_span, shot_span * 2.0, shot_span * 2.0)
+	smoke_hold = true
+	_rebuild_hash()
+	print("SHOT BLOOD READY neglect=%s living=%s splash=%s bloody=%s/%s/%s" % [
+		neglect_id,
+		living_id,
+		splash_id,
+		int(bloody[neglect_id]) if neglect_id >= 0 else -1,
+		int(bloody[living_id]) if living_id >= 0 else -1,
+		int(bloody[splash_id]) if splash_id >= 0 else -1,
+	])
+
+
+func _prep_shot_wash() -> void:
+	_clear_shot_props()
+	# Left: ACT_WASH + bubbles on body. Right: post-wash Happy stand + one CLEAN burst.
+	var ax := 256.0
+	var ay := 256.0
+	var scrub_id := _push_slot(ax - 36.0, ay, 90.0, 90.0, 20.0, 90.0, 0)
+	var done_id := _push_slot(ax + 36.0, ay, 90.0, 90.0, 100.0, 90.0, 1)
+	if scrub_id >= 0:
+		dir_x[scrub_id] = 0.0
+		dir_y[scrub_id] = 0.0
+		act[scrub_id] = ACT_WASH
+		act_t[scrub_id] = 0.85
+		clean[scrub_id] = 40.0
+		sponge_id = scrub_id
+		sponge_hold = 1.0
+	if done_id >= 0:
+		dir_x[done_id] = 0.0
+		dir_y[done_id] = 0.0
+		act[done_id] = 0
+		clean[done_id] = 100.0
+		_ensure_agent_timers(done_id)
+		cheer_t[done_id] = WASH_FX_LIFE
+		_pop_wash_sparkle(done_id)
+	peak = maxi(peak, 2)
+	shot_focus = Vector2(ax, ay)
+	shot_span = 72.0
+	view_rect = Rect2(shot_focus.x - shot_span, shot_focus.y - shot_span, shot_span * 2.0, shot_span * 2.0)
+	unlocks.sponge = true
+	smoke_hold = true
+	_rebuild_hash()
+	print("SHOT WASH READY scrub=%s done=%s" % [scrub_id, done_id])
+
+
+func _prep_shot_ball() -> void:
+	_clear_shot_props()
+	# Left: Default stand. Mid: content Happy_Walk + ball claim (bug was 1.0 scale).
+	# Right: kick pop of ICON_BALL beside still Happy.
+	var ax := 256.0
+	var ay := 256.0
+	var stand_id := _push_slot(ax - 48.0, ay, 95.0, 95.0, 95.0, 95.0, 0)
+	var walk_id := _push_slot(ax, ay, 95.0, 95.0, 95.0, 95.0, 1)
+	var kick_id := _push_slot(ax + 48.0, ay, 95.0, 95.0, 95.0, 95.0, 2)
+	var ball := _add_item(Catalog.ITEM_BALL, ax + 10.0, ay - 8.0, 1)
+	if stand_id >= 0:
+		dir_x[stand_id] = 0.0
+		dir_y[stand_id] = 0.0
+		act[stand_id] = 0
+	if walk_id >= 0:
+		dir_x[walk_id] = 1.0
+		dir_y[walk_id] = 0.0
+		act[walk_id] = ACT_PLAY
+		act_t[walk_id] = 0.55
+		if not ball.is_empty():
+			_claim_ball(walk_id, ball)
+	if kick_id >= 0:
+		dir_x[kick_id] = 0.0
+		dir_y[kick_id] = 0.0
+		act[kick_id] = ACT_PLAY
+		act_t[kick_id] = 0.55
+		if not ball.is_empty():
+			link_ball[kick_id] = int(ball.id)
+		_pop(pos_x[kick_id], pos_y[kick_id] - 6.0, Catalog.ICON_BALL, Catalog.BALL_SPRITE_SCALE)
+	peak = maxi(peak, 3)
+	shot_focus = Vector2(ax, ay)
+	shot_span = 80.0
+	view_rect = Rect2(shot_focus.x - shot_span, shot_focus.y - shot_span, shot_span * 2.0, shot_span * 2.0)
+	unlocks.ball = true
+	smoke_hold = true
+	_rebuild_hash()
+	print("SHOT BALL READY stand=%s walk=%s kick=%s ball=%s" % [
+		stand_id, walk_id, kick_id, int(ball.get("id", -1)) if not ball.is_empty() else -1,
+	])
+
+
+func _prep_shot_dirt() -> void:
+	_clear_shot_props()
+	# Two filthy thronglets at default zoom: left walks, right is held (Default body).
+	var ax := 256.0
+	var ay := 256.0
+	var walk_id := _push_slot(ax - 28.0, ay, 90.0, 90.0, 0.0, 0.0, 0)
+	var held_id := _push_slot(ax + 28.0, ay, 90.0, 90.0, 0.0, 0.0, 1)
+	if walk_id >= 0:
+		fed[walk_id] = 90.0
+		amused[walk_id] = 90.0
+		clean[walk_id] = 0.0
+		dir_x[walk_id] = 1.0
+		dir_y[walk_id] = 0.0
+		act[walk_id] = 0
+		act_t[walk_id] = 0.0
+	if held_id >= 0:
+		fed[held_id] = 90.0
+		amused[held_id] = 90.0
+		clean[held_id] = 0.0
+		dir_x[held_id] = 0.0
+		dir_y[held_id] = 0.0
+		act[held_id] = 0
+		act_t[held_id] = 0.0
+		held_kind = "thronglet"
+		held_ref = held_id
+		shot_throng = held_id
+	peak = maxi(peak, 2)
+	shot_focus = Vector2(ax, ay)
+	shot_span = 64.0
+	view_rect = Rect2(shot_focus.x - shot_span, shot_focus.y - shot_span, shot_span * 2.0, shot_span * 2.0)
+	smoke_hold = true
+	_rebuild_hash()
+	print("SHOT DIRT READY walk=%s held=%s clean_w=%.0f clean_h=%.0f" % [
+		walk_id, held_id,
+		clean[walk_id] if walk_id >= 0 else -1.0,
+		clean[held_id] if held_id >= 0 else -1.0,
+	])
+
+
 func _prep_shot_needs() -> void:
 	_clear_shot_props()
 	# One thronglet with mixed needs so the HUD card matches the video card.
@@ -8717,6 +9657,9 @@ func _clear_shot_props() -> void:
 	living = 0
 	hand_id = -1
 	_clear_held()
+	_rebuild_kind_indexes()
+	_invalidate_factory_cache()
+	_invalidate_walk_cells()
 
 
 func _shot_spot(taken: Dictionary, size: Vector2i, halo: int = 1, margin: float = 40.0, skirt: int = 0) -> Vector2:

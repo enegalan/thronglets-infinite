@@ -51,172 +51,12 @@ def outline_cell(img, ox, oy, size=16):
                 px(img, ox + nx, oy + ny, dark)
 
 
-BODY = (228, 181, 66, 255)
-
-
-def _ref_crop():
-    src = Image.open(os.path.join(SRC_SPRITE, "ThrongA_Default_001.png")).convert("RGBA")
-    return src.crop(src.getbbox())
-
-
-def _is_face_pixel(color):
-    r, g, b, a = color
-    if a < 200:
-        return False
-    if r > 240 and g > 240 and b > 240:
-        return True
-    if r < 20 and g < 20 and b < 20:
-        return True
-    return (r, g, b) == (115, 80, 26)
-
-
-def _body_near(src, x, y, w, h):
-    for dy, dx in ((-1, 0), (-2, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (-1, 1)):
-        nx, ny = x + dx, y + dy
-        if 0 <= nx < w and 0 <= ny < h:
-            color = src[nx, ny]
-            if color[3] > 200 and not _is_face_pixel(color):
-                return color
-    return BODY
-
-
-def _cover_face(img, redraw):
-    out = img.copy()
-    src = img.load()
-    dst = out.load()
-    w, h = img.size
-    found = []
-    for y in range(h):
-        for x in range(w):
-            if _is_face_pixel(src[x, y]):
-                found.append((x, y, src[x, y]))
-                dst[x, y] = _body_near(src, x, y, w, h)
-    if redraw is None:
-        return out
-    for x, y, color in found:
-        nx, ny = redraw(x, y)
-        if 0 <= nx < w and 0 <= ny < h:
-            dst[nx, ny] = color
-    return out
-
-
-def _paint_eat(img):
-    out = _cover_face(img, lambda x, y: (x, y))
-    dst = out.load()
-    for y in range(20, 24):
-        for x in range(15, 21):
-            dst[x, y] = (150, 48, 28, 255)
-    for y in range(21, 23):
-        for x in range(16, 20):
-            dst[x, y] = (70, 24, 18, 255)
-    return out
-
-
-def _paint_sick(img):
-    out = img.copy()
-    dst = out.load()
-    w, h = out.size
-    for y in range(h):
-        for x in range(w):
-            r, g, b, a = dst[x, y]
-            if a < 16 or _is_face_pixel((r, g, b, a)):
-                continue
-            if b > r and b > 100:
-                continue
-            if g < 110:
-                continue
-            dst[x, y] = (int(r * 0.62), min(255, int(g * 0.9) + 28), int(b * 0.55), a)
-    return out
-
-
-def _paint_corpse(img):
-    out = img.copy()
-    dst = out.load()
-    w, h = out.size
-    for y in range(h):
-        for x in range(w):
-            r, g, b, a = dst[x, y]
-            if a < 16:
-                continue
-            lum = int(r * 0.3 + g * 0.5 + b * 0.2)
-            if b > r and b > 100:
-                dst[x, y] = (int(lum * 0.7), int(lum * 0.78), int(lum * 0.95), a)
-            else:
-                dst[x, y] = (lum, int(lum * 0.97), int(lum * 0.9), a)
-    ink = (24, 20, 18, 255)
-    for d in range(6):
-        dst[12 + d, 14 + d] = ink
-        dst[17 - d, 14 + d] = ink
-        dst[19 + d, 14 + d] = ink
-        dst[24 - d, 14 + d] = ink
-    return out
-
-
 # World sheet cell. Main.gd WORLD_CELL must match. Sprites are bottom-centered in the cell.
 CELL_W, CELL_H = 128, 128
 # Small HUD/fallback glyphs in the low icon band. Big props keep Unity pixels.
 PROP_SCALE = 2
 # Reference only. Props pack at native size; throng draw scale carries world size.
 PX_PER_UNIT = 52.0
-
-
-def _place(img, bob=0):
-    cell = new(CELL_W, CELL_H)
-    x = (CELL_W - img.size[0]) // 2
-    y = CELL_H - img.size[1] - bob
-    cell.alpha_composite(img, (x, y))
-    return cell
-
-
-def _mitosis_cell(base, frame):
-    cell = new(CELL_W, CELL_H)
-    y = CELL_H - base.size[1]
-    if frame < 2:
-        cell.alpha_composite(base, ((CELL_W - base.size[0]) // 2, y))
-        return cell
-    left = (CELL_W - base.size[0] * 2) // 2
-    cell.alpha_composite(base, (left, y))
-    cell.alpha_composite(base, (left + base.size[0], y))
-    return cell
-
-
-def _pose(kind):
-    base = _ref_crop()
-    if kind == "north":
-        return _cover_face(base, None)
-    if kind == "east":
-        return _cover_face(base, lambda x, y: (x + 3, y))
-    if kind == "west":
-        return _cover_face(base, lambda x, y: (x - 3, y))
-    if kind == "eat":
-        return _paint_eat(base)
-    if kind == "sick":
-        return _paint_sick(base)
-    if kind == "corpse":
-        return _paint_corpse(base)
-    return base
-
-
-def _frame_cell(kind, frame):
-    if kind == "mitosis":
-        return _mitosis_cell(_ref_crop(), frame)
-    bob = (0, 1, 0, 1)[frame % 4] if kind in ("south", "north", "east", "west") else 0
-    return _place(_pose(kind), bob)
-
-
-def make_thronglets():
-    order = []
-    for facing in ("south", "north", "east", "west"):
-        for frame in range(4):
-            order.append((facing, frame))
-    for frame in range(4):
-        order.append(("mitosis", frame))
-    order.extend((("stare", 0), ("corpse", 0), ("sick", 0), ("eat", 0)))
-    sheet = new(4 * CELL_W, 6 * CELL_H)
-    for index, (kind, frame) in enumerate(order):
-        cell = _frame_cell(kind, frame)
-        sheet.alpha_composite(cell, ((index % 4) * CELL_W, (index // 4) * CELL_H))
-    sheet.save(OUT("resources", "sprites", "thronglet_32.png"))
 
 
 def icon(index):
@@ -1099,17 +939,7 @@ def _cell_sprite(img):
 def make_world():
     cols, rows = 16, 9
     sheet = new(cols * CELL_W, rows * CELL_H)
-    blobs = Image.open(OUT("resources", "sprites", "thronglet_32.png"))
-    for index in range(24):
-        tile = blobs.crop((
-            (index % 4) * CELL_W,
-            (index // 4) * CELL_H,
-            (index % 4) * CELL_W + CELL_W,
-            (index // 4) * CELL_H + CELL_H,
-        ))
-        # ThrongA is 0.34x0.38 world. 52px on the tree is 1.0, so the body is 18x20.
-        tile = _shrink_body(tile, 18, 20)
-        sheet.alpha_composite(tile, ((index % cols) * CELL_W, (index // cols) * CELL_H))
+    # Frames 0-23 stay empty; throng bodies start at THRONG_BASE via Unity strips.
     for icon in range(63):
         index = 24 + icon
         if icon in WORLD_EXTRAS:
@@ -1129,11 +959,10 @@ def make_world():
     for big, img in enumerate(WORLD_SPRITES):
         index = 96 + big
         sheet.alpha_composite(_cell_sprite(img), ((index % cols) * CELL_W, (index // cols) * CELL_H))
-    # Egg wiggle/crack/hatch and the roundabout spin. Frames 87-91 and 132-139 are free.
+    # Egg wiggle/crack/hatch. Frames 87-91 are free.
     for i in range(5):
         _stamp_frame(sheet, cols, 87 + i, _px(_ref("egg_%d.png" % i)))
-    for i in range(8):
-        _stamp_frame(sheet, cols, 132 + i, _px(_ref("round_%d.png" % i)))
+    _export_structure_anims()
     # Animated ground fire. fire.png stays the bubble glyph, not this.
     flame = Image.open(os.path.join(SRC_TEX, "T_FireSprites_Color_16x1.png")).convert("RGBA")
     for i in range(4):
@@ -1143,55 +972,37 @@ def make_world():
     # Apple eat stages (whole = icon 0 / frame 24). Bites 1-3 after each eat.
     for i, name in enumerate(("apple_bite_1.png", "apple_bite_2.png", "apple_bite_3.png")):
         _stamp_frame(sheet, cols, 92 + i, _px(_ref(name)))
-    sheet = _stamp_throng_anims(sheet, cols)
-    # Flower build/idle loop. Main.FLOWER_ANIM is 742 (7 frames).
-    flower_anim = os.path.join(SRC_TEX, "TEMP_flowerAnim.png")
-    if not os.path.isfile(flower_anim):
-        flower_anim = OUT("references", "Assets", "Texture2D", "TEMP_flowerAnim.png")
-    if os.path.isfile(flower_anim):
-        fim = Image.open(flower_anim).convert("RGBA")
-        flower_rects = (
-            (0, 148.07613, 66, 69.84776),
-            (66, 148.07613, 66, 68.84776),
-            (132, 148.07613, 66, 70.84776),
-            (0, 75.07612, 66, 70.92388),
-            (66, 75.07612, 66, 70.84776),
-            (132, 75.07612, 66, 70.92388),
-            (0, 2.0761204, 66, 70.92388),
-        )
-        fh = fim.size[1]
-        need_rows = (742 + 7 + cols - 1) // cols
-        sheet = _grow_sheet(sheet, cols, need_rows)
-        for i, (x, y, w, hh) in enumerate(flower_rects):
-            top = fh - (y + hh)
-            box = (
-                int(round(x)),
-                int(round(top)),
-                int(round(x + w)),
-                int(round(top + hh)),
-            )
-            frame = fim.crop(box)
-            _stamp_frame(sheet, cols, 742 + i, _px(_fit(frame, 56, 72)))
-    sheet.save(OUT("resources", "sprites", "world_iso.png"))
-    # Drop Godot's cached .ctex so the next run picks up the new sheet.
-    imported = OUT(".godot", "imported")
-    if os.path.isdir(imported):
-        for name in os.listdir(imported):
-            if name.startswith("world_iso.png-") or name.startswith("world_iso_dirt.png-"):
-                try:
-                    os.remove(os.path.join(imported, name))
-                except OSError:
-                    pass
+    sheet, dirt_sheet = _stamp_throng_anims(sheet, cols)
+    # Runtime uses world/world_cells + world/world_cells_dirt — never ship world_iso sheets.
+    _extract_world_cells(sheet, dirt_sheet)
 
 
-def _shrink_body(tile, max_w, max_h):
-    box = tile.getbbox()
-    if not box:
-        return tile
-    body = _fit(tile.crop(box), max_w, max_h)
-    out = new(CELL_W, CELL_H)
-    out.alpha_composite(body, ((CELL_W - body.size[0]) // 2, CELL_H - body.size[1]))
-    return out
+def _extract_world_cells(sheet, dirt=None):
+    import json
+    cols = 16
+    rows = sheet.size[1] // CELL_H
+    root = OUT("resources", "sprites", "world")
+    out = os.path.join(root, "world_cells")
+    out_d = os.path.join(root, "world_cells_dirt")
+    os.makedirs(out, exist_ok=True)
+    os.makedirs(out_d, exist_ok=True)
+    manifest = {"cell": CELL_W, "cols": cols, "frames": {}}
+    for i in range(cols * rows):
+        x = (i % cols) * CELL_W
+        y = (i // cols) * CELL_H
+        tile = sheet.crop((x, y, x + CELL_W, y + CELL_H))
+        if not tile.getbbox():
+            continue
+        name = "%04d.png" % i
+        tile.save(os.path.join(out, name))
+        if dirt is not None:
+            dirt.crop((x, y, x + CELL_W, y + CELL_H)).save(os.path.join(out_d, name))
+        manifest["frames"][str(i)] = {
+            "path": "res://resources/sprites/world/world_cells/%s" % name,
+            "dirt": "res://resources/sprites/world/world_cells_dirt/%s" % name,
+        }
+    with open(os.path.join(root, "manifest.json"), "w") as f:
+        json.dump(manifest, f, indent=1, sort_keys=True)
 
 
 def _stamp_frame(sheet, cols, index, img):
@@ -1199,6 +1010,36 @@ def _stamp_frame(sheet, cols, index, img):
     cell = new(CELL_W, CELL_H)
     _blit(cell, img, (CELL_W - img.size[0]) // 2, CELL_H - img.size[1])
     sheet.paste(cell, ((index % cols) * CELL_W, (index // cols) * CELL_H))
+
+
+def _export_structure_anims():
+    # Loose PNGs under structures/buildings — same draw path as idle/active/goo.
+    out = OUT("resources", "structures", "buildings")
+    os.makedirs(out, exist_ok=True)
+    for i in range(8):
+        _ref("round_%d.png" % i).save(os.path.join(out, "round_%d.png" % i))
+    flower_anim = os.path.join(SRC_TEX, "TEMP_flowerAnim.png")
+    if not os.path.isfile(flower_anim):
+        flower_anim = OUT("references", "Assets", "Texture2D", "TEMP_flowerAnim.png")
+    if not os.path.isfile(flower_anim):
+        return
+    fim = Image.open(flower_anim).convert("RGBA")
+    sprite_dir = SRC_SPRITE
+    meta0 = os.path.join(sprite_dir, "TEMP_flowerAnim_0.json")
+    if not os.path.isfile(meta0):
+        sprite_dir = OUT("references", "Assets", "Sprite")
+        meta0 = os.path.join(sprite_dir, "TEMP_flowerAnim_0.json")
+    if not os.path.isfile(meta0):
+        return
+    for i in range(7):
+        meta_path = os.path.join(sprite_dir, "TEMP_flowerAnim_%d.json" % i)
+        if not os.path.isfile(meta_path):
+            continue
+        meta = json.load(open(meta_path))
+        settings = int((meta.get("m_RD") or {}).get("m_SettingsRaw") or 0)
+        frame = _crop_unity(fim, meta["m_Rect"], settings)
+        body = frame.crop(frame.getbbox()) if frame.getbbox() else frame
+        body.save(os.path.join(out, "flower_%d.png" % i))
 
 
 def make_hud():
@@ -1456,7 +1297,38 @@ def _unity_unpack(img, settings_raw):
     return img
 
 
-def _crop_unity(atlas, rect, settings_raw=0):
+def _mask_unity_physics(img, rect, meta):
+    # Tight-packed atlas cells share an AABB with neighbors. Keep only the
+    # sprite mesh outline Unity stored as m_PhysicsShape.
+    shapes = meta.get("m_PhysicsShape") or []
+    if not shapes:
+        return img
+    pivot = meta.get("m_Pivot") or {}
+    ppu = float(meta.get("m_PixelsToUnits") or 100)
+    rw = float(rect.get("m_Width") or img.size[0])
+    rh = float(rect.get("m_Height") or img.size[1])
+    if rw <= 0 or rh <= 0:
+        return img
+    sx = float(img.size[0]) / rw
+    sy = float(img.size[1]) / rh
+    px = float(pivot.get("m_X", 0.5)) * rw
+    py = float(pivot.get("m_Y", 0.5)) * rh
+    mask = Image.new("L", img.size, 0)
+    draw = ImageDraw.Draw(mask)
+    for poly in shapes:
+        pts = []
+        for point in poly:
+            lx = float(point.get("m_X", 0.0)) * ppu
+            ly = float(point.get("m_Y", 0.0)) * ppu
+            pts.append(((px + lx) * sx, (rh - (py + ly)) * sy))
+        if len(pts) >= 3:
+            draw.polygon(pts, fill=255)
+    out = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    out.paste(img, (0, 0), mask)
+    return out
+
+
+def _crop_unity(atlas, rect, settings_raw=0, meta=None):
     x = int(round(rect["m_X"]))
     y = int(round(rect["m_Y"]))
     w = max(1, int(round(rect["m_Width"])))
@@ -1468,7 +1340,10 @@ def _crop_unity(atlas, rect, settings_raw=0):
     lower = min(atlas.size[1], top + h)
     if right <= left or lower <= upper:
         return new(1, 1)
-    return _unity_unpack(atlas.crop((left, upper, right, lower)), settings_raw)
+    img = _unity_unpack(atlas.crop((left, upper, right, lower)), settings_raw)
+    if meta:
+        img = _mask_unity_physics(img, rect, meta)
+    return img
 
 
 def _kickrock_strip(dirt_atlas):
@@ -1531,12 +1406,14 @@ def _load_throng_clips():
             continue
         pivot = data.get("m_Pivot") or {}
         settings_raw = int((data.get("m_RD") or {}).get("m_SettingsRaw") or 0)
+        # NoBlood peak frames share a tight AABB with neighbor atlas sprites.
+        mask_meta = data if clip == "ThrongA_MitosisCutscene_NoBlood_Spritesheet" else None
         groups.setdefault(clip, [])
         groups[clip].append((
             order,
             name,
-            _crop_unity(atlas, rect, settings_raw),
-            _crop_unity(dirt_atlas, rect, settings_raw),
+            _crop_unity(atlas, rect, settings_raw, mask_meta),
+            _crop_unity(dirt_atlas, rect, settings_raw, mask_meta),
             (float(pivot.get("m_X", 0.5)), float(pivot.get("m_Y", 0.5))),
         ))
     kick = _kickrock_strip(dirt_atlas)
@@ -1557,60 +1434,43 @@ def _grow_sheet(sheet, cols, rows):
     return bigger
 
 
-def _write_throng_clips(entries, rows, talk, idle):
-    def strings(names):
-        return ",\n".join('\t\t"%s"' % name.replace('"', "") for name in names)
-    body = []
-    body.append("class_name ThrongClips")
-    body.append("extends Object")
-    body.append("")
-    body.append("const SHEET_COLS := %d" % 16)
-    body.append("const SHEET_ROWS := %d" % rows)
-    body.append("const BASE := %d" % THRONG_BASE)
-    body.append("")
-    body.append("const CLIPS := {")
-    for name, start, count in entries:
-        body.append('\t"%s": Vector2i(%d, %d),' % (name.replace('"', ""), start, count))
-    body.append("}")
-    body.append("")
-    body.append("const TALK := [")
-    body.append(strings(talk))
-    body.append("]")
-    body.append("")
-    body.append("const IDLE := [")
-    body.append(strings(idle))
-    body.append("]")
-    body.append("")
-    body.append("static func has_clip(clip: String) -> bool:")
-    body.append("\treturn CLIPS.has(clip)")
-    body.append("")
-    body.append("static func frame_at(clip: String, tick: int) -> int:")
-    body.append("\tvar box: Vector2i = CLIPS.get(clip, Vector2i(20, 1))")
-    body.append("\tif box.y <= 1:")
-    body.append("\t\treturn box.x")
-    body.append("\treturn box.x + posmod(tick, box.y)")
-    body.append("")
-    body.append("static func frame_along(clip: String, along: float) -> int:")
-    body.append("\tvar box: Vector2i = CLIPS.get(clip, Vector2i(20, 1))")
-    body.append("\tvar n := maxi(box.y, 1)")
-    body.append("\treturn box.x + clampi(int(clampf(along, 0.0, 0.999) * float(n)), 0, n - 1)")
-    body.append("")
-    body.append("static func pick(pool: Array, index: int, time: float, hold: float) -> int:")
-    body.append("\tif pool.is_empty():")
-    body.append("\t\treturn 20")
-    body.append("\tvar which := int(time / hold) + index")
-    body.append("\tvar name := str(pool[posmod(which, pool.size())])")
-    body.append("\tvar local := time - float(int(time / hold)) * hold")
-    body.append("\treturn frame_at(name, int(local * 8.0))")
-    body.append("")
-    body.append("static func info_at(frame: int) -> Dictionary:")
-    body.append("\tfor clip in CLIPS.keys():")
-    body.append("\t\tvar box: Vector2i = CLIPS[clip]")
-    body.append("\t\tif frame >= box.x and frame < box.x + box.y:")
-    body.append('\t\t\treturn {"clip": str(clip), "index": frame - box.x}')
-    body.append("\treturn {}")
-    body.append("")
+def _write_throng_clips(entries, rows):
     path = OUT("scripts", "data", "throng_clips.gd")
+    existing = open(path).read() if os.path.isfile(path) else ""
+    clips_block = ["const CLIPS := {"]
+    for name, start, count in entries:
+        clips_block.append('\t"%s": Vector2i(%d, %d),' % (name.replace('"', ""), start, count))
+    clips_block.append("}")
+    if "const CLIPS := {" in existing and "static func has_clip" in existing:
+        import re as _re
+        text = existing
+        text = _re.sub(
+            r"const SHEET_ROWS := \d+",
+            "const SHEET_ROWS := %d" % rows,
+            text,
+            count=1,
+        )
+        text = _re.sub(
+            r"const CLIPS := \{.*?\n\}",
+            "\n".join(clips_block),
+            text,
+            count=1,
+            flags=_re.S,
+        )
+        with open(path, "w") as handle:
+            handle.write(text)
+        return
+    body = [
+        "class_name ThrongClips",
+        "extends Object",
+        "",
+        "const SHEET_COLS := 16",
+        "const SHEET_ROWS := %d" % rows,
+        "const BASE := %d" % THRONG_BASE,
+        "",
+        "\n".join(clips_block),
+        "",
+    ]
     with open(path, "w") as handle:
         handle.write("\n".join(body) + "\n")
 
@@ -1652,7 +1512,7 @@ def _split_strip(img, count):
     return frames
 
 
-def _stamp_loose_clips(sheet, dirt_sheet, cols, index, entries, idle):
+def _stamp_loose_clips(sheet, dirt_sheet, cols, index, entries):
     singles = (
         ("ThrongA_Default_Ghost", "Char_ThrongA_Default_Ghost.png"),
         ("Thronglet_Outline", "T_ThrongletOutline.png"),
@@ -1669,8 +1529,6 @@ def _stamp_loose_clips(sheet, dirt_sheet, cols, index, entries, idle):
         _stamp_frame(sheet, cols, index, body)
         _stamp_frame(dirt_sheet, cols, index, new(1, 1))
         entries.append((clip, index, 1))
-        if clip == "ThrongA_Default_Ghost":
-            idle.append(clip)
         index += 1
     return index
 
@@ -1696,8 +1554,9 @@ def _write_asset_frames(slots):
     lines.append("\t\treturn -1")
     lines.append("\treturn start + posmod(tick, count)")
     lines.append("")
-    with open(OUT("asset_frames.gd"), "w") as handle:
-        handle.write("\n".join(lines) + "\n")
+    for rel in ("asset_frames.gd", os.path.join("scripts", "data", "asset_frames.gd")):
+        with open(OUT(rel), "w") as handle:
+            handle.write("\n".join(lines) + "\n")
 
 
 def _trim_frame(img):
@@ -1830,9 +1689,10 @@ def _stamp_fx_and_biomes(sheet, cols, index):
             index += 1
         slots.append((name, start, len(frames)))
 
-    take("BUBBLE", "FX_SoapBubbles_Spritesheet.png", (28, 28))
-    take("BUBBLE_LIGHT", "FX_SoapBubblesLight_Spritesheet.png", (28, 28), 0)
-    take("CLEAN", "FX_CleanSparkles_Spritesheet.png", (28, 28))
+    take("BUBBLE", "FX_SoapBubbles_Spritesheet.png", (28, 28), 3)
+    take("BUBBLE_LIGHT", "FX_SoapBubblesLight_Spritesheet.png", (28, 28), 3)
+    # Two sparkle poses side-by-side in the Unity sheet (not one fitted burst).
+    take("CLEAN", "FX_CleanSparkles_Spritesheet.png", (28, 28), 2)
     take("SPLASH", "FX_WaterSplash_Spritesheet.png", (48, 36), 0)
     take("SMOKE", "T_PixelSmoke.png", (28, 28))
     take("AURA", "T_AuraSmoke.png", (36, 36))
@@ -1875,18 +1735,47 @@ def _stamp_fx_and_biomes(sheet, cols, index):
     return index
 
 
+# Opaque feet sit here across throng body clips (2px pad so the cell edge never clips).
+THRONG_FOOT_Y = CELL_H - 2
+
+
+def _throng_skip_home(name):
+    # Cinematics / props keep hand-tuned FRAME_OFF placement in throng_tune.gd.
+    if name.startswith("Throng_Egg") or "Prop_" in name or "Outline" in name:
+        return True
+    if "Mitosis" in name or "FallInBath" in name or "Roundabout" in name:
+        return True
+    return False
+
+
+def _throng_preserve_air(name):
+    # Keep relative hop/swing inside the clip; everything else locks feet per frame.
+    keys = ("Celebrate", "Jump", "Flying", "Pickaxe", "LiftProp", "DropProp")
+    return any(key in name for key in keys)
+
+
 def _throng_fit(frames):
     # Keep the Unity pixels. Scale a clip only when it does not fit in the cell.
+    # Empty frames (e.g. FreakOut 10–11) must not inflate the shared pivot anchor.
     limit = float(CELL_W - 4)
     max_w = 1
     max_h = 1
-    for img, _dirt, _pivot in frames:
+    usable = []
+    for img, dirt, pivot in frames:
+        if img is None or img.getbbox() is None:
+            continue
+        usable.append((img, dirt, pivot))
         max_w = max(max_w, img.size[0])
         max_h = max(max_h, img.size[1])
+    if not usable:
+        usable = [(img, dirt, pivot) for img, dirt, pivot in frames if img is not None]
+        for img, _dirt, _pivot in usable:
+            max_w = max(max_w, img.size[0])
+            max_h = max(max_h, img.size[1])
     scale = min(1.0, limit / float(max_w), limit / float(max_h))
     anchor = 0.0
-    for img, _dirt, pivot in frames:
-        anchor = max(anchor, pivot[1] * img.size[1] * scale)
+    for img, _dirt, pivot in usable:
+        anchor = max(anchor, float(pivot[1]) * img.size[1] * scale)
     return scale, min(anchor, float(CELL_H - 4))
 
 
@@ -1904,6 +1793,53 @@ def _unity_throng_cell(img, pivot, scale, anchor):
     pivot_y = (1.0 - pivot[1]) * height
     _blit(cell, img, CELL_W * 0.5 - pivot_x, (CELL_H - anchor) - pivot_y)
     return cell
+
+
+def _shift_cell(cell, dx, dy):
+    if dx == 0 and dy == 0:
+        return cell
+    out = new(CELL_W, CELL_H)
+    _blit(out, cell, dx, dy)
+    return out
+
+
+def _home_shift_for_cells(cells, foot_y=THRONG_FOOT_Y, preserve_air=True):
+    """Shared (dx, dy) from body cells. Dirt must reuse this so layers stay locked."""
+    mids = []
+    foots = []
+    for cell in cells:
+        box = cell.getbbox()
+        if not box:
+            foots.append(None)
+            continue
+        foots.append(box[3])
+        mids.append((box[0] + box[2]) * 0.5)
+    dx = 0
+    if mids:
+        dx = int(round(CELL_W * 0.5 - sorted(mids)[len(mids) // 2]))
+    grounded = [foot for foot in foots if foot is not None]
+    if not grounded:
+        return [(dx, 0) for _ in cells]
+    if preserve_air:
+        dy = int(foot_y) - max(grounded)
+        return [(dx, dy) for _ in cells]
+    shifts = []
+    for foot in foots:
+        if foot is None:
+            shifts.append((dx, 0))
+        else:
+            shifts.append((dx, int(foot_y) - foot))
+    return shifts
+
+
+def _home_throng_cells(cells, foot_y=THRONG_FOOT_Y, preserve_air=True, shifts=None):
+    """Put opaque feet on foot_y. preserve_air keeps hop/swing relative to the clip."""
+    if shifts is None:
+        shifts = _home_shift_for_cells(cells, foot_y, preserve_air)
+    out = []
+    for cell, (dx, dy) in zip(cells, shifts):
+        out.append(_shift_cell(cell, dx, dy) if dx or dy else cell)
+    return out
 
 
 def _blit(base, img, x, y):
@@ -1925,56 +1861,102 @@ def _stamp_cell(sheet, cols, index, cell):
     sheet.alpha_composite(cell, ((index % cols) * CELL_W, (index // cols) * CELL_H))
 
 
+def _load_throng_strip_bodies():
+    """Body frames from resources/sprites/throng_anims strips (one PNG per clip)."""
+    man_path = OUT("resources", "sprites", "throng_anims", "manifest.json")
+    folder = OUT("resources", "sprites", "throng_anims")
+    if not os.path.isfile(man_path):
+        return {}
+    manifest = json.load(open(man_path))
+    clips = {}
+    for name, meta in (manifest.get("clips") or {}).items():
+        path = os.path.join(folder, meta["file"])
+        if not os.path.isfile(path):
+            continue
+        sheet = Image.open(path).convert("RGBA")
+        count = max(1, int(meta.get("frames", 1)))
+        cell_w = max(1, int(meta.get("cell_w", sheet.size[0] // count)))
+        cell_h = max(1, int(meta.get("cell_h", sheet.size[1])))
+        frames = []
+        for i in range(count):
+            cell = sheet.crop((i * cell_w, 0, (i + 1) * cell_w, cell_h))
+            box = cell.getbbox()
+            frame = cell.crop(box) if box else cell
+            frames.append(frame)
+        clips[name] = frames
+    return clips
+
+
+def _clips_prefer_strips(unity_clips):
+    """Use strip PNGs as body source when present; keep Unity dirt + pivot."""
+    strips = _load_throng_strip_bodies()
+    if not strips:
+        return unity_clips
+    merged = {}
+    for name, frames in unity_clips.items():
+        bodies = strips.get(name)
+        if not bodies or len(bodies) != len(frames):
+            merged[name] = frames
+            continue
+        out = []
+        for i, (_body, dirt, pivot) in enumerate(frames):
+            out.append((bodies[i], dirt, pivot))
+        merged[name] = out
+    for name, bodies in strips.items():
+        if name in merged:
+            continue
+        # Strip-only clips (e.g. loose singles): no dirt mask.
+        merged[name] = [
+            (body, new(body.size[0], body.size[1]), (0.5, 0.0)) for body in bodies
+        ]
+    print("throng strips wired", len(strips), "of", len(merged), "clips")
+    return merged
+
+
 def _stamp_throng_anims(sheet, cols):
-    clips = _load_throng_clips()
+    # Strips under resources/sprites/throng_anims are the per-animation source sheets.
+    # Export first if missing so packing and runtime SpriteFrames stay aligned.
+    man_path = OUT("resources", "sprites", "throng_anims", "manifest.json")
+    if not os.path.isfile(man_path):
+        try:
+            from export_throng_anims import export as _export_strips
+            _export_strips()
+        except Exception as err:
+            print("throng strip export skipped:", err)
+    clips = _clips_prefer_strips(_load_throng_clips())
     total = sum(len(frames) for frames in clips.values())
     rows = (THRONG_BASE + total + 160 + cols - 1) // cols
     sheet = _grow_sheet(sheet, cols, rows)
     dirt_sheet = new(sheet.size[0], sheet.size[1])
-    reserved = {
-        "Throng_Walk_Anim_Spritesheet",
-        "Throng_WalkBack_Anim_Spritesheet",
-        "ThrongA_Eat",
-        "ThrongA_Pickaxe_Spritesheet",
-        "Throng_FallInBath_Spritesheet",
-        "ThrongA_Roundabout_SpriteSheet",
-        "ThrongA_Jump_VariantA_Spritesheet",
-        "ThrongA_Mitosis_Spritesheet",
-        "ThrongA_Dead_001",
-        "ThrongA_Dead_002",
-        "ThrongA_Bones",
-        "ThrongA_Sad",
-    }
     entries = []
-    talk = []
-    idle = []
     index = THRONG_BASE
     for name in sorted(clips):
         frames = clips[name]
         start = index
         scale, anchor = _throng_fit(frames)
-        for frame, dirt, pivot in frames:
-            _stamp_cell(sheet, cols, index, _unity_throng_cell(frame, pivot, scale, anchor))
-            _stamp_cell(dirt_sheet, cols, index, _unity_throng_cell(dirt, pivot, scale, anchor))
+        bodies = [_unity_throng_cell(frame, pivot, scale, anchor) for frame, _dirt, pivot in frames]
+        dirts = [_unity_throng_cell(dirt, pivot, scale, anchor) for _frame, dirt, pivot in frames]
+        if not _throng_skip_home(name):
+            keep_air = _throng_preserve_air(name)
+            shifts = _home_shift_for_cells(bodies, preserve_air=keep_air)
+            bodies = _home_throng_cells(bodies, preserve_air=keep_air, shifts=shifts)
+            dirts = _home_throng_cells(dirts, preserve_air=keep_air, shifts=shifts)
+        for body, dirt in zip(bodies, dirts):
+            _stamp_cell(sheet, cols, index, body)
+            _stamp_cell(dirt_sheet, cols, index, dirt)
             index += 1
         entries.append((name, start, len(frames)))
-        if "Talk" in name:
-            talk.append(name)
-        elif name not in reserved:
-            idle.append(name)
-    index = _stamp_loose_clips(sheet, dirt_sheet, cols, index, entries, idle)
+    index = _stamp_loose_clips(sheet, dirt_sheet, cols, index, entries)
     index = _stamp_fx_and_biomes(sheet, cols, index)
     rows = (index + cols - 1) // cols
     sheet = sheet.crop((0, 0, cols * CELL_W, rows * CELL_H))
     dirt_sheet = dirt_sheet.crop((0, 0, cols * CELL_W, rows * CELL_H))
-    _write_throng_clips(entries, rows, talk, idle)
-    dirt_sheet.save(OUT("resources", "sprites", "world_iso_dirt.png"))
+    _write_throng_clips(entries, rows)
     print("throng clips", len(entries), "frames", total, "rows", rows)
-    return sheet
+    return sheet, dirt_sheet
 
 
 def main():
-    make_thronglets()
     make_atlas()
     make_terrain()
     make_frame()

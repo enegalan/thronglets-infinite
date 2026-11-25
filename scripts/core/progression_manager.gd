@@ -225,6 +225,7 @@ static func apply_progression_hooks(sim, announce: bool = true) -> void:
 
 static func _on_granted(sim, id: String) -> void:
 	sim.sfx_queue.append("unlock_" + id)
+	sim.celebrate_t = sim.CELEBRATE_DUR
 	if Catalog.UNLOCK_TALK.has(id):
 		sim._queue_talk(str(Catalog.UNLOCK_TALK[id]), {})
 	elif ProgressionCatalog.by_id(id).has("name"):

@@ -36,10 +36,13 @@ var world_mesh: MultiMesh
 var world_layer: Node2D
 var throng_crowd: MultiMeshInstance2D
 var throng_crowd_mesh: MultiMesh
-var feat_static: MultiMeshInstance2D
+var feat_static: Node2D
 var feat_static_mesh: MultiMesh
-var void_back: MultiMeshInstance2D
+var void_back: Node2D
 var void_back_mesh: MultiMesh
+var focus_root: Node2D
+var _focus_bands: Array = []
+var _focus_band_cursor := 0
 var _crowd_default_frame := -1
 var _crowd_walk_frame := -1
 var _crowd_sad_frame := -1
@@ -51,14 +54,20 @@ var hand_vel_init := false
 var _prop_bands: Array = []
 var _monoliths := {}
 var _building_active_sprites := {}
+var _place_ghost_sprite: Sprite2D = null
+var _idle_structure_tex := {}
 var _active_structure_tex := {}
+var _goo_structure_tex := {}
+var _structure_anim_tex := {}
+var _cell_tex_cache := {}
+var _cell_dirt_cache := {}
+var _band_cursor := 0
+var _void_bands: Array = []
+var _void_band_cursor := 0
+var _feat_bands: Array = []
 var _bark_tex_cache := {}
 var _bark_atlas_img: Image
 var _atlas_tex_cache := {}
-var _calm_pool: Array[String] = []
-var _sing_pool: Array[String] = []
-var _talk_pool: Array[String] = []
-var _clip_pools_ready := false
 var _water_frame := -1
 var place_marks: Node2D
 var place_fills: Array[Polygon2D] = []
@@ -88,10 +97,9 @@ var tool_charge := 0.0
 var tool_charge_key := ""
 var tool_charge_n := 0
 const EGG_ANIM := 87
-const ROUND_ANIM := 132
 const THRONG_SPRITE_SCALE := 0.4
 const FIRE_ANIM := 140
-const FLOWER_ANIM := 742
+const ROUND_ANIM_N := 8
 const FLOWER_ANIM_N := 7
 const RIVER_ATLAS := 12
 const WASTE_ATLAS := 48
@@ -105,15 +113,6 @@ const WATER_ANIM_SPEED := 6.0
 const PATH_PIECE := [
 	"0h", "6rv", "6h", "5h", "6r", "4rv", "5hv", "2rrr",
 	"6", "5", "4", "2", "5r", "2rv", "2rrh", "1",
-]
-const CALM: Array[String] = [
-	"ThrongA_Default", "ThrongA_Default Blink", "ThrongA_Happy", "ThrongA_EarWiggleLow",
-	"ThrongA_Celebrate_Spritesheet", "ThrongA_Shrug", "Throng_Think_Spritesheet",
-	"ThrongA_Jump", "ThrongA_Bored_KickRock", "ThrongA_Default_Ghost",
-]
-const SING: Array[String] = [
-	"Throng_Sing_Spritesheet", "Throng_SingB_Spritesheet", "Throng_SingC_Spritesheet",
-	"ThrongA_SingToThronglet_Spritesheet2",
 ]
 # Matches tools/make_art.py CELL. The quad is the whole cell; sprites sit on its bottom edge.
 const WORLD_CELL := 128.0
@@ -289,11 +288,9 @@ var build_buttons := {}
 var boot := ""
 var logo_started := false
 var logo_wait := 0.0
-var biome_plates: Array[Sprite2D] = []
 
 
 func _ready() -> void:
-	AnimTune.load_saved()
 	EffectTune.load_saved()
 	ui_assets = UIAssets.new()
 	_build_sky()
@@ -505,7 +502,10 @@ func _process(delta: float) -> void:
 	var view := cam_rig.world_view()
 	sim.view_rect = view
 	sim.explore_rect(view.grow(8.0))
-	if tool == Catalog.TOOL_SPONGE and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and not sim.frozen and get_viewport().gui_get_hovered_control() == null:
+	# Kit-drag sponge still scrubs over the world even if a Control was under the press.
+	var sponge_held := tool == Catalog.TOOL_SPONGE and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and not sim.frozen
+	var sponge_over_ui := get_viewport().gui_get_hovered_control() != null and kit_drag.is_empty()
+	if sponge_held and not sponge_over_ui:
 		var at := cam_rig.pointer_world()
 		var stroke := 0.0
 		if sponge_tracking:
@@ -513,9 +513,14 @@ func _process(delta: float) -> void:
 		else:
 			sponge_tracking = true
 		sponge_last = at
-		sim.scrub(at.x, at.y, stroke, stroke >= 0.5)
+		# Bubbles + clean gain when agitating; hold still keeps Happy + suds if already washing.
+		var stroke_min := float(EffectTune.get_tune("act:sponge").get("stroke_min", ThrongletSimServer.SCRUB_STROKE_MIN))
+		sim.scrub(at.x, at.y, stroke, stroke >= stroke_min)
 	else:
-		sponge_tracking = false
+		if sponge_tracking and not sim.shot_mode:
+			sim.sponge_release()
+		if not sim.shot_mode:
+			sponge_tracking = false
 	if sim.hand_id != -1:
 		var cur_w := cam_rig.pointer_world()
 		if hand_vel_init:
@@ -530,10 +535,12 @@ func _process(delta: float) -> void:
 		hand_vel_init = false
 	_tick_tool_charge(delta)
 	_tick_hand_hold(delta)
+	# Shot harness mutates pose/FX before the draw sync.
+	if sim.shot_mode and not shot_capture.done:
+		shot_capture.tick_shot()
 	_sync_world()
 	_sync_charge_mark(delta)
 	_sync_actors()
-	_sync_biome_plates()
 	_sync_place_mark()
 	_sync_hitboxes()
 	_sync_agent_debug()
@@ -547,8 +554,6 @@ func _process(delta: float) -> void:
 	_sync_focus(delta)
 	for name in sim.take_sfx():
 		media.play(str(name))
-	if sim.shot_mode and not shot_capture.done:
-		shot_capture.tick_shot()
 
 
 func _process_perf(delta: float) -> void:
@@ -563,7 +568,6 @@ func _process_perf(delta: float) -> void:
 	var t0 := Time.get_ticks_usec()
 	_sync_actors()
 	set_meta("perf_sync_ms", float(Time.get_ticks_usec() - t0) * 0.001)
-	_sync_biome_plates()
 	_sync_place_mark()
 	_sync_hud(delta)
 	_sync_need_bars()
@@ -587,7 +591,6 @@ func _process_save_perf(delta: float) -> void:
 	var ts := Time.get_ticks_usec()
 	_sync_actors()
 	set_meta("save_perf_sync_ms", float(Time.get_ticks_usec() - ts) * 0.001)
-	_sync_biome_plates()
 	_sync_place_mark()
 	_sync_hud(delta)
 	_sync_need_bars()
@@ -1130,59 +1133,6 @@ func _clear_world_sprite_registry() -> void:
 	_building_active_sprites.clear()
 
 
-func _biome_plate_paths(biome: String) -> PackedStringArray:
-	if biome == "epilogue":
-		return PackedStringArray([
-			"res://resources/sprites/plates/T_Epilogue_Tree1.png",
-			"res://resources/sprites/plates/T_Epilogue_Tree2.png",
-			"res://resources/sprites/plates/T_Epilogue_Tree3_Neurons.png",
-		])
-	if biome == "anomaly":
-		return PackedStringArray([
-			"res://resources/sprites/plates/Anomaly_Base_Shape.png",
-			"res://resources/sprites/plates/Anomaly_Blue_Outline.png",
-			"res://resources/sprites/plates/Anomaly_Pink_Outline.png",
-		])
-	return PackedStringArray()
-
-
-func _sync_biome_plates() -> void:
-	if biome_plates.is_empty():
-		for biome in ["epilogue", "anomaly"]:
-			var paths := _biome_plate_paths(biome)
-			for i in paths.size():
-				var sprite := Sprite2D.new()
-				sprite.texture = ui_assets.tex(paths[i])
-				sprite.centered = true
-				sprite.z_index = 1
-				sprite.visible = false
-				sprite.set_meta("biome", biome)
-				sprite.set_meta("plate", i)
-				add_child(sprite)
-				biome_plates.append(sprite)
-	var shown := {}
-	for key in ThrongletSimServer.special_biomes:
-		var biome := str(ThrongletSimServer.special_biomes[key])
-		if _biome_plate_paths(biome).is_empty() or shown.has(biome):
-			continue
-		shown[biome] = str(key)
-	var pick := int(anim_time * 1000.0 / 1400.0)
-	for sprite in biome_plates:
-		var biome := str(sprite.get_meta("biome"))
-		var paths := _biome_plate_paths(biome)
-		var on := shown.has(biome) and sprite.texture != null and int(sprite.get_meta("plate")) == posmod(pick, paths.size())
-		sprite.visible = on
-		if not on:
-			continue
-		var parts := str(shown[biome]).split(",")
-		var cx := int(parts[0])
-		var cy := int(parts[1])
-		var center := Vector2(float(cx * Catalog.CHUNK + Catalog.CHUNK / 2) * Catalog.TILE, float(cy * Catalog.CHUNK + Catalog.CHUNK / 2) * Catalog.TILE)
-		sprite.position = cam_rig.to_iso(center)
-		sprite.scale = Vector2.ONE * (280.0 / maxf(float(sprite.texture.get_width()), 1.0))
-		sprite.modulate = Color(1, 1, 1, 0.72 if biome == "anomaly" else 0.42)
-
-
 func _sync_actors() -> void:
 	var sim: ThrongletSim = ThrongletSimServer
 	var view := cam_rig.world_view().grow(64.0)
@@ -1294,43 +1244,62 @@ func _sync_actors() -> void:
 			var b_frame := _prop_frame(Catalog.icon_for_building(b_kind))
 			var b_off := Vector2.ZERO
 			var b_rot := 0.0
-			var round_idx := 0
+			var anim_idx := -1
 			if b_kind == Catalog.BLD_FLOWER:
-				b_frame = FLOWER_ANIM + int(time_pre * 6.0) % FLOWER_ANIM_N
-			if b_kind == Catalog.BLD_ROUND and bool(b.get("active", false)):
+				anim_idx = posmod(int(time_pre * 6.0), FLOWER_ANIM_N)
+				b_off = AnimTune.frame_offset("flower", anim_idx)
+			elif b_kind == Catalog.BLD_ROUND:
 				# Disk wedges follow the same spin the riders orbit on.
-				var spin := float(b.get("spin", 0.0))
-				round_idx = posmod(int(floor(spin / (TAU / 8.0))), 8)
-				b_frame = ROUND_ANIM + round_idx
-				b_off = AnimTune.frame_offset("round", round_idx)
-				b_rot = AnimTune.frame_rot("round", round_idx)
+				if bool(b.get("active", false)):
+					var spin := float(b.get("spin", 0.0))
+					anim_idx = posmod(int(floor(spin / (TAU / float(ROUND_ANIM_N)))), ROUND_ANIM_N)
+				else:
+					anim_idx = 0
+				b_off = AnimTune.frame_offset("round", anim_idx)
+				b_rot = AnimTune.frame_rot("round", anim_idx)
 			if bool(b.get("active", false)) and b_kind != Catalog.BLD_APPLE:
 				if b_kind == Catalog.BLD_TUB:
 					b_tint = Color(0.85, 0.95, 1.0)
-				elif b_kind != Catalog.BLD_ROUND:
-					var mine_kind := b_kind == Catalog.BLD_MINE or b_kind == Catalog.BLD_MINE2
-					var factory_kind := b_kind == Catalog.BLD_FACTORY or b_kind == Catalog.BLD_FACTORY2
-					# Mines/factories stay planted; bounce was a leftover "active" cue.
-					if not mine_kind and not factory_kind:
-						b_lift = absf(sin(time_pre * 8.0 + float(b.id))) * 2.2
-					if factory_kind:
-						b_tint = Color(1.0, 0.9, 0.82)
-					elif mine_kind:
-						b_tint = Color(1.0, 0.95, 0.75)
+				elif b_kind != Catalog.BLD_ROUND and not Catalog.building_has_active(b_kind):
+					b_lift = absf(sin(time_pre * 8.0 + float(b.id))) * 2.2
 			var b_scale := Catalog.building_sprite_scale(b_kind)
-			if b_kind == Catalog.BLD_ROUND and bool(b.get("active", false)):
-				b_scale *= AnimTune.frame_scale("round", round_idx)
+			if b_kind == Catalog.BLD_ROUND and anim_idx >= 0:
+				b_scale *= AnimTune.frame_scale("round", anim_idx)
 			var b_sort_y := NAN
 			if b_kind == Catalog.BLD_MINE or b_kind == Catalog.BLD_MINE2:
 				# Mines are walkable ground pads: render above ground but below entities on top.
 				b_sort_y = -1000000.0
-			var occupied_home := (
-				(b_kind == Catalog.BLD_DWELL or b_kind == Catalog.BLD_FANCY or b_kind == Catalog.BLD_THEATRE)
-				and sim.has_method("_live_guests")
-				and int(sim._live_guests(b)) > 0
-			)
-			if occupied_home and _active_structure_texture(b_kind) != null:
-				_sync_active_building_sprite(int(b.id), b_kind, p3, b_scale, b_sort_y)
+			var polluted := sim.has_method("building_is_polluted") and bool(sim.building_is_polluted(b))
+			var show_on := false
+			if not polluted and Catalog.building_has_active(b_kind):
+				if (
+					b_kind == Catalog.BLD_DWELL
+					or b_kind == Catalog.BLD_FANCY
+					or b_kind == Catalog.BLD_THEATRE
+				):
+					show_on = (
+						sim.has_method("_live_guests")
+						and int(sim._live_guests(b)) > 0
+					)
+				else:
+					show_on = bool(b.get("active", false))
+			var sprite_tex: Texture2D = null
+			if polluted:
+				sprite_tex = _goo_structure_texture(b_kind)
+			elif anim_idx >= 0:
+				sprite_tex = _structure_anim_texture(b_kind, anim_idx)
+			elif show_on:
+				sprite_tex = _active_structure_texture(b_kind)
+			if sprite_tex == null:
+				sprite_tex = _idle_structure_texture(b_kind)
+			if sprite_tex != null:
+				var bid := int(b.id)
+				var b_outline := Color.TRANSPARENT
+				if outlined_bld_ids.has(bid):
+					b_outline = Color(0.35, 1.0, 0.45, 1.0)
+				elif tool_charge > 0.02 and str(tool_charge_key).begins_with("bld:") and int(str(tool_charge_key).substr(4)) == bid:
+					b_outline = Color(0.35, 1.0, 0.45, 1.0)
+				_sync_active_building_sprite(bid, b_kind, p3, b_scale, b_sort_y, sprite_tex, b_tint, b_outline, b_off, b_rot)
 			else:
 				_hide_active_building_sprite(int(b.id))
 				var b_outline := Color.TRANSPARENT
@@ -1437,6 +1406,7 @@ func _sync_actors() -> void:
 					"scale": carried_scale,
 				})
 	var drag_front: Array = []
+	_hide_place_ghost_sprite()
 	if not kit_drag.is_empty():
 		var ghost := Color(1, 1, 1, 0.85)
 		var drag_icon := _kit_drag_icon()
@@ -1444,11 +1414,17 @@ func _sync_actors() -> void:
 		if drag_icon >= 0 or drag_tool_id == Catalog.TOOL_GRAB:
 			if _want_place_grid() and _drop_on_island():
 				var ghost_kind := placing if str(kit_drag.get("type", "")) == "build" else -1
+				if ghost_kind < 0 and str(kit_drag.get("type", "")) == "prop" and str(kit_drag.get("prop", "")) == "flower":
+					ghost_kind = Catalog.BLD_FLOWER
 				var ghost_scale := Catalog.building_sprite_scale(ghost_kind)
 				var ghost_sort_y := NAN
 				if ghost_kind == Catalog.BLD_MINE or ghost_kind == Catalog.BLD_MINE2:
 					ghost_sort_y = -1000000.0
-				_push_iso(drag_front, _building_draw_at(ghost_kind, grid_at), _prop_frame(drag_icon), ghost, 10.0, ghost_scale, ghost_sort_y)
+				# Buildings with loose PNGs preview as Sprite2D — same path as after place.
+				if ghost_kind >= 0 and _sync_place_ghost_sprite(ghost_kind, grid_at, ghost_scale, ghost):
+					pass
+				else:
+					_push_iso(drag_front, _building_draw_at(ghost_kind, grid_at), _prop_frame(drag_icon), ghost, 10.0, ghost_scale, ghost_sort_y)
 			else:
 				var drag_scale := 1.0
 				var drag_frame := _prop_frame(drag_icon) if drag_icon >= 0 else -1
@@ -1515,16 +1491,16 @@ func _sync_actors() -> void:
 				if not far_view and sim.shake_t[i] > 0.0:
 					pos += Vector2(randf_range(-1.5, 1.5), randf_range(-1.5, 1.5))
 				if doing == ThrongletSim.ACT_EAT:
-					lift = sin(time * 10.0 + float(i)) * 1.0
+					lift = _effect_look_lift(EffectTune.get_tune("act:eat"), time, float(i))
 				elif doing == ThrongletSim.ACT_PLAY and ball_play:
-					lift = 0.0
+					lift = _effect_look_lift(EffectTune.get_tune("act:ball"), time, float(i))
 				elif doing == ThrongletSim.ACT_PLAY and not ball_play:
 					var ride: Dictionary = sim.ride_of(i)
 					if ride.is_empty():
-						lift = 0.0
+						lift = _effect_look_lift(EffectTune.get_tune("act:play"), time, float(i))
 					else:
 						riding = true
-						lift = 2.0
+						lift = _effect_look_lift(EffectTune.get_tune("act:round"), time, float(i))
 						var seat := sim._ride_slot_of(ride, i)
 						if seat >= 0:
 							pos = sim._ride_slot_pos(ride, seat)
@@ -1536,8 +1512,9 @@ func _sync_actors() -> void:
 								pos = mid + ring.normalized() * rr
 							else:
 								pos = mid
-						prop_anchor = Vector2.INF
-						sort_y = cam_rig.to_iso(pos).y + 10.0
+						prop_anchor = _building_active_draw_at(
+							Catalog.BLD_ROUND, Vector2(float(ride.x), float(ride.y))
+						)
 				elif doing == ThrongletSimServer.ACT_BATH:
 					var tub: Dictionary = sim.seat_of(i)
 					if tub.is_empty():
@@ -1554,7 +1531,7 @@ func _sync_actors() -> void:
 							lift = Catalog.TUB_SOAK_LIFT
 						prop_anchor = _building_draw_at(Catalog.BLD_TUB, tub_origin)
 				elif doing == ThrongletSimServer.ACT_WASH:
-					lift = 0.0
+					lift = _effect_look_lift(EffectTune.get_tune("act:sponge"), time, float(i))
 				elif doing == ThrongletSimServer.ACT_WORK:
 					lift = 0.0
 				elif sim.act_t[i] > 0.0:
@@ -1572,24 +1549,20 @@ func _sync_actors() -> void:
 			var throng_outline := Color.TRANSPARENT
 			if outlined_throng_ids.has(i):
 				throng_outline = Color(0.35, 1.0, 0.45, 1.0)
+			if sim.state[i] == Catalog.ST_DEAD:
+				_push_corpse_blood(draws, sim, i, pos, throng_sort_y)
 			_push_iso(draws, throng_at, throng_frame, tint, lift, throng_scale, throng_sort_y, throng_outline)
 			draws[draws.size() - 1]["flip"] = _throng_flip(i)
-			draws[draws.size() - 1]["dirty"] = 0.0 if far_view else _throng_dirty(sim.clean[i])
+			# Dirt is a needs signal — keep it at every zoom (far_view only LODs the clip).
+			draws[draws.size() - 1]["dirty"] = _throng_dirty(sim.clean[i])
+			# Suds only on the thronglet currently under the sponge (not prior wash targets).
+			if not sim.frozen and sponge_tracking and i == sim.sponge_id and sim.sponge_hold > 0.0:
+				_paint_sponge_suds(draws, throng_at, throng_sort_y + 1.0, time)
 			if sim.carry[i] != Catalog.CARRY_NONE:
 				var carry_kind := int(sim.carry[i])
 				var carry_icon := _carry_icon(carry_kind)
 				var carry_scale := Catalog.item_sprite_scale(_carry_item(carry_kind))
 				_push_iso(draws, pos, _prop_frame(carry_icon), Color.WHITE, 12.0, carry_scale, sort_y)
-			if not sim.frozen and doing == ThrongletSimServer.ACT_WASH:
-				var bubble_fps := float(AnimTune.get_tune("bubble").get("fps", 8.0))
-				var bubble_idx := int(time * bubble_fps) % maxi(AssetFrames.BUBBLE_N, 1)
-				var bubble := AssetFrames.frame(AssetFrames.BUBBLE, AssetFrames.BUBBLE_N, bubble_idx)
-				if bubble < 0:
-					bubble = _prop_frame(Catalog.ICON_SPONGE)
-				var wash_tune: Dictionary = EffectTune.get_tune("act:sponge")
-				var bubble_scale := float(wash_tune.get("scale", 1.0)) * AnimTune.frame_scale("bubble", bubble_idx)
-				var bubble_off := Vector2(float(wash_tune.get("fx_x", 0.0)), float(wash_tune.get("fx_y", 0.0))) + AnimTune.frame_offset("bubble", bubble_idx)
-				_push_iso(draws, pos + bubble_off, bubble, Color(1, 1, 1, 0.85), 8.0, bubble_scale, sort_y, Color.TRANSPARENT, Vector2.ZERO, AnimTune.frame_rot("bubble", bubble_idx))
 	if sim.held_kind == "thronglet" and sim.held_ref >= 0 and sim.held_ref < sim.slot_count:
 		var hi: int = sim.held_ref
 		var htint: Color = Catalog.TINTS[int(sim.tint[hi]) % Catalog.TINTS.size()]
@@ -1619,16 +1592,18 @@ func _sync_actors() -> void:
 				"rot": AnimTune.frame_rot("hand", hand_idx_h),
 			})
 	var bath_exit_tune: Dictionary = EffectTune.get_tune("act:bath_exit")
-	var bath_exit_scale := float(bath_exit_tune.get("scale", 1.0))
-	var bath_exit_off := Vector2(float(bath_exit_tune.get("fx_x", 0.0)), float(bath_exit_tune.get("fx_y", 0.0)))
+	var wash_sparkle_tune: Dictionary = EffectTune.get_tune("act:wash_sparkle")
 	for pop in sim.pops:
-		var fade := clampf(float(pop.t) / 0.55, 0.0, 1.0)
+		var pop_life := float(pop.get("life", 0.55))
+		var fade := clampf(float(pop.t) / maxf(pop_life, 0.01), 0.0, 1.0)
 		var picon := int(pop.icon)
 		var frame := _pop_frame(picon)
 		var pop_scale := float(pop.get("scale", 1.0))
 		var pop_off := Vector2.ZERO
 		var pop_rot := 0.0
-		var pop_elapsed := 0.55 - float(pop.t)
+		var pop_lift := float(pop.lift)
+		var pop_at := Vector2(float(pop.x), float(pop.y))
+		var pop_elapsed := pop_life - float(pop.t)
 		if picon == AssetFrames.SPLASH:
 			var splash_fps := float(AnimTune.get_tune("splash").get("fps", 8.0))
 			var splash_idx := int(pop_elapsed * splash_fps) % maxi(AssetFrames.SPLASH_N, 1)
@@ -1638,23 +1613,19 @@ func _sync_actors() -> void:
 				pop_off = AnimTune.frame_offset("splash", splash_idx)
 				pop_rot = AnimTune.frame_rot("splash", splash_idx)
 		elif picon == AssetFrames.CLEAN:
-			var clean_fps := float(AnimTune.get_tune("clean").get("fps", 8.0))
-			var clean_idx := int(pop_elapsed * clean_fps) % maxi(AssetFrames.CLEAN_N, 1)
-			frame = AssetFrames.frame(AssetFrames.CLEAN, AssetFrames.CLEAN_N, clean_idx)
-			if frame >= 0:
-				pop_scale = bath_exit_scale * AnimTune.frame_scale("clean", clean_idx)
-				pop_off = bath_exit_off + AnimTune.frame_offset("clean", clean_idx)
-				pop_rot = AnimTune.frame_rot("clean", clean_idx)
-			else:
-				pop_scale = bath_exit_scale
-				pop_off = bath_exit_off
-		_push_iso(draws, Vector2(float(pop.x), float(pop.y)) + pop_off, frame, Color(1, 1, 1, fade), float(pop.lift), pop_scale, NAN, Color.TRANSPARENT, Vector2.ZERO, pop_rot)
+			# One-shot strip over pop life
+			var sparkle_tune: Dictionary = wash_sparkle_tune if str(pop.get("kind", "")) == "wash" else bath_exit_tune
+			var tid := int(pop.get("throng_id", -1))
+			if tid >= 0 and tid < sim.slot_count and int(sim.state[tid]) == Catalog.ST_LIVING:
+				pop_at = Vector2(sim.pos_x[tid], sim.pos_y[tid]) + _throng_sprite_off(_frame_lod(tid, time, far_view))
+			_paint_clean_sparkle(draws, pop_at, NAN, sparkle_tune, fade, pop_elapsed / maxf(pop_life, 0.01))
+			continue
+		_push_iso(draws, pop_at + pop_off, frame, Color(1, 1, 1, fade), pop_lift, pop_scale, NAN, Color.TRANSPARENT, Vector2.ZERO, pop_rot)
 	draws.sort_custom(func(a, b): return float(a.get("sy", a.p.y)) < float(b.get("sy", b.p.y)))
 	draws.append_array(egg_front)
 	draws.append_array(drag_front)
 	_paint_props(draws)
-	if void_back_mesh != null:
-		_write_mesh(void_back_mesh, void_back_draws)
+	_write_void_draws(void_back_draws)
 
 
 
@@ -1739,35 +1710,23 @@ func _push_far_feat_overlays(draws: Array, view: Rect2, time_pre: float) -> void
 
 func _clear_feat_static() -> void:
 	_feat_static_active = false
-	if feat_static_mesh != null:
-		feat_static_mesh.visible_instance_count = 0
+	for band in _feat_bands:
+		if band != null and is_instance_valid(band):
+			_write_mesh(band.multimesh, [])
+			band.visible = false
 	if feat_static != null:
 		feat_static.visible = false
 
 
 func _ensure_feat_static() -> void:
 	var sim: ThrongletSim = ThrongletSimServer
-	if feat_static_mesh == null:
+	if feat_static == null:
 		return
 	if _feat_static_active and _feat_static_epoch == sim.feat_mesh_epoch:
 		return
 	_feat_static_epoch = sim.feat_mesh_epoch
 	_feat_static_active = true
-	var written := 0
-	var need := 0
-	for feat in sim.features:
-		if feat.dead or bool(feat.get("lifted", false)):
-			continue
-		if not _feat_is_batchable(int(feat.kind)):
-			continue
-		if not sim.chunk_shown(sim._ck(int(feat.cx), int(feat.cy))):
-			continue
-		need += 1
-	var old_vis := feat_static_mesh.visible_instance_count
-	if feat_static_mesh.instance_count < need:
-		feat_static_mesh.instance_count = maxi(16, need)
-	var xf := Transform2D()
-	var hide_xf := Transform2D(0.0, Vector2.ZERO, 0.0, Vector2(-100000.0, -100000.0))
+	var by_frame := {}
 	for feat in sim.features:
 		if feat.dead or bool(feat.get("lifted", false)):
 			continue
@@ -1781,21 +1740,89 @@ func _ensure_feat_static() -> void:
 		var at := cam_rig.to_iso(_feature_draw_at(kind, origin, ore))
 		var sprite_scale := Catalog.feature_sprite_scale(kind, ore)
 		var frame := _prop_frame(Catalog.icon_for_feature(kind, ore))
-		var center := Vector2(0, -WORLD_CELL * 0.5 * sprite_scale)
-		xf = Transform2D(0.0, Vector2(sprite_scale, sprite_scale), 0.0, at + center)
-		feat_static_mesh.set_instance_transform_2d(written, xf)
-		feat_static_mesh.set_instance_custom_data(written, Color(float(frame), 0.0, 0.0, 0.0))
-		feat_static_mesh.set_instance_color(written, Color.WHITE)
-		written += 1
-	# Park shrunk slots off-screen — some drivers ignore visible_instance_count.
-	for leftover in range(written, maxi(written, old_vis)):
-		feat_static_mesh.set_instance_transform_2d(leftover, hide_xf)
-	feat_static_mesh.visible_instance_count = written
-	feat_static.visible = written > 0
+		if not by_frame.has(frame):
+			by_frame[frame] = []
+		by_frame[frame].append({
+			"p": at,
+			"icon": frame,
+			"tint": Color.WHITE,
+			"scale": sprite_scale,
+		})
+	var frames: Array = by_frame.keys()
+	frames.sort()
+	while _feat_bands.size() < frames.size():
+		var band := MultiMeshInstance2D.new()
+		band.multimesh = _mesh(true, Vector2(WORLD_CELL, WORLD_CELL))
+		feat_static.add_child(band)
+		_feat_bands.append(band)
+	for i in _feat_bands.size():
+		var band: MultiMeshInstance2D = _feat_bands[i]
+		if i >= frames.size():
+			_write_mesh(band.multimesh, [])
+			band.visible = false
+			continue
+		var frame := int(frames[i])
+		_bind_band_frame(band, frame)
+		_write_mesh(band.multimesh, by_frame[frame])
+		band.visible = true
+	feat_static.visible = not frames.is_empty()
+
+
+func _write_void_draws(draws: Array) -> void:
+	if void_back == null:
+		return
+	_void_band_cursor = 0
+	_append_container_frame_runs(void_back, _void_bands, "_void_band_cursor", draws)
+	for j in range(_void_band_cursor, _void_bands.size()):
+		_write_mesh(_void_bands[j].multimesh, [])
+		_void_bands[j].visible = false
+	void_back.visible = _void_band_cursor > 0
+
+
+func _write_focus_draws(draws: Array) -> void:
+	if focus_root == null:
+		return
+	_focus_band_cursor = 0
+	_append_container_frame_runs(focus_root, _focus_bands, "_focus_band_cursor", draws)
+	for j in range(_focus_band_cursor, _focus_bands.size()):
+		_write_mesh(_focus_bands[j].multimesh, [])
+		_focus_bands[j].visible = false
+
+
+func _append_container_frame_runs(root: Node2D, bands: Array, cursor_name: String, draws: Array) -> void:
+	if draws.is_empty():
+		return
+	var run: Array = []
+	var run_frame := int(draws[0].icon)
+	for d in draws:
+		var fr := int(d.icon)
+		if fr != run_frame:
+			_emit_container_run(root, bands, cursor_name, run_frame, run)
+			run = []
+			run_frame = fr
+		run.append(d)
+	_emit_container_run(root, bands, cursor_name, run_frame, run)
+
+
+func _emit_container_run(root: Node2D, bands: Array, cursor_name: String, frame: int, run: Array) -> void:
+	if run.is_empty():
+		return
+	var cursor := int(get(cursor_name))
+	while bands.size() <= cursor:
+		var band := MultiMeshInstance2D.new()
+		band.multimesh = _mesh(true, Vector2(WORLD_CELL, WORLD_CELL))
+		root.add_child(band)
+		bands.append(band)
+	var band2: MultiMeshInstance2D = bands[cursor]
+	set(cursor_name, cursor + 1)
+	_bind_band_frame(band2, frame)
+	_write_mesh(band2.multimesh, run)
+	band2.visible = true
 
 
 func _push_throng_crowd_draws(draws: Array, ids: Array, time: float, far_view: bool) -> void:
 	# Cheap thronglet LOD into the shared prop draw list (y-sorted; every id is in-view).
+	# Special bodies (act / carry / timers / panic) still go through _frame_lod.
 	_ensure_crowd_frames()
 	var sim: ThrongletSim = ThrongletSimServer
 	var tint_n := Catalog.TINTS.size()
@@ -1810,6 +1837,8 @@ func _push_throng_crowd_draws(draws: Array, ids: Array, time: float, far_view: b
 		var frame := _crowd_default_frame
 		if sim.state[i] == Catalog.ST_DEAD:
 			frame = ThrongClips.frame_at("ThrongA_Dead_001" if sim.dir_x[i] >= 0.0 else "ThrongA_Dead_002", 0)
+		elif _throng_special_body(sim, i):
+			frame = _frame_lod(i, time, far_view)
 		elif absf(sim.dir_x[i]) + absf(sim.dir_y[i]) >= 0.01:
 			frame = ThrongClips.frame_at("Throng_Walk_Anim_Spritesheet", walk_tick + i) if not far_view else _crowd_walk_frame
 		elif sim.clean[i] < 12.0 or sim.fed[i] < 25.0:
@@ -1818,8 +1847,11 @@ func _push_throng_crowd_draws(draws: Array, ids: Array, time: float, far_view: b
 		var flip := 1.0
 		if not far_view and absf(sim.dir_x[i]) > absf(sim.dir_y[i]) and sim.dir_x[i] < 0.0:
 			flip = -1.0
+		if sim.state[i] == Catalog.ST_DEAD:
+			_push_corpse_blood(draws, sim, i, pos, cam_rig.to_iso(pos).y)
 		_push_iso(draws, pos, frame, tint, 0.0, THRONG_SPRITE_SCALE)
 		draws[draws.size() - 1]["flip"] = flip
+		draws[draws.size() - 1]["dirty"] = _throng_dirty(sim.clean[i])
 		# Carry must stay readable at any zoom — haul feedback is core gameplay.
 		if sim.state[i] == Catalog.ST_LIVING and sim.carry[i] != Catalog.CARRY_NONE:
 			var carry_kind := int(sim.carry[i])
@@ -1844,18 +1876,50 @@ func _throng_hidden_indoors(sim: ThrongletSim, i: int) -> bool:
 	return not sim._visit_rule(int(visit.kind)).is_empty()
 
 
+func _throng_special_body(sim: ThrongletSim, i: int) -> bool:
+	# Situations that must not collapse to Default/Walk under far/crowd LOD.
+	if sim.frozen or sim.celebrate_t > 0.0:
+		return true
+	if i < sim.react_t.size() and sim.react_t[i] > 0.0:
+		return true
+	if i < sim.sleep_t.size() and sim.sleep_t[i] > 0.0:
+		return true
+	if i < sim.peer_t.size() and sim.peer_t[i] > 0.0:
+		return true
+	if i < sim.drop_t.size() and sim.drop_t[i] > 0.0:
+		return true
+	if sim.mito_t[i] > 0.0 or sim.mito_charge[i] > 0.0:
+		return true
+	if sim.near_fire(i):
+		return true
+	if i < sim.penned_flag.size() and sim.penned_flag[i] != 0:
+		return true
+	if int(sim.act[i]) != 0:
+		return true
+	if int(sim.carry[i]) != Catalog.CARRY_NONE:
+		return true
+	return false
+
+
+func _push_corpse_blood(draws: Array, sim: ThrongletSim, i: int, pos: Vector2, sort_y: float) -> void:
+	if i < 0 or i >= sim.bloody.size() or int(sim.bloody[i]) == 0:
+		return
+	var blood_frame := ThrongClips.frame_at("Throng_Prop_Blood_A", 0)
+	var blood_look := _throng_sprite_look(blood_frame)
+	# Slightly behind the corpse so the pool sits on the ground under it.
+	_push_iso(draws, pos, blood_frame, Color.WHITE, 0.0, float(blood_look.scale), sort_y - 0.5)
+
+
 func _frame_lod(i: int, time: float, far_view: bool) -> int:
 	if not far_view:
 		return _frame(i, time)
 	var sim: ThrongletSim = ThrongletSimServer
 	if sim.state[i] == Catalog.ST_DEAD:
 		return ThrongClips.frame_at("ThrongA_Dead_001" if sim.dir_x[i] >= 0.0 else "ThrongA_Dead_002", 0)
-	if sim.mito_t[i] > 0.0 or sim.mito_charge[i] > 0.0:
+	# Far view may simplify ambient idle/walk only — never drop act/timer/critical bodies.
+	if _throng_special_body(sim, i):
 		return _frame(i, time)
-	var doing := int(sim.act[i])
 	var moving := absf(sim.dir_x[i]) + absf(sim.dir_y[i]) >= 0.01
-	if doing == ThrongletSimServer.ACT_BATH or doing == ThrongletSimServer.ACT_PLAY:
-		return _frame(i, time)
 	if moving:
 		if absf(sim.dir_y[i]) > absf(sim.dir_x[i]) and sim.dir_y[i] < 0.0:
 			return ThrongClips.frame_at("Throng_WalkBack_Anim_Spritesheet", int(time * 8.0 + float(i)))
@@ -1870,8 +1934,33 @@ func _frame(i: int, time: float) -> int:
 	if sim.state[i] == Catalog.ST_DEAD:
 		var clip := "ThrongA_Dead_001" if sim.dir_x[i] >= 0.0 else "ThrongA_Dead_002"
 		return ThrongClips.frame_at(clip, 0)
+	# Held: one stable body at the cursor — do not keep cycling situation pools.
+	if sim.held_kind == "thronglet" and i == sim.held_ref:
+		return ThrongClips.frame_at("ThrongA_Default", 0)
 	if sim.frozen:
-		return _clip_pool(ThrongClips.TALK, i, time, 2.4, "ThrongA_Talk")
+		# 0–300 ms stagger by index (cinematic §2).
+		var stare_t := time + float(i) * 0.03
+		if sim.glitch_t > 0.45:
+			return _clip_pool(ThrongClips.POSSESSED, i, stare_t, 2.0, "ThrongA_Possessed_AntennaSpinTalk_Spritesheet")
+		# Mood accents when swarm mood is tagged; otherwise console talk loop.
+		if sim.mood_face != "base" and posmod(i + int(stare_t * 3.0), 5) == 0:
+			return _clip_pool(ThrongClips.TALK_REACT, i, stare_t, 1.2, "ThrongA_LooktAtPlayerHappyNod_Spritesheet")
+		return _clip_pool(ThrongClips.TALK_CONSOLE, i, stare_t, 2.4, "ThrongA_Talk")
+	if sim.celebrate_t > 0.0:
+		# Unlock swarm only — Jump accents are asset/shots, not live-mixed.
+		return ThrongClips.frame_at("ThrongA_Celebrate_Spritesheet", int(time * 8.0 + float(i)))
+	if i < sim.react_t.size() and sim.react_t[i] > 0.0:
+		return ThrongClips.frame_at("ThrongA_ReactToKill", int((ThrongletSimServer.REACT_DUR - sim.react_t[i]) * 8.0))
+	# Just finished a wash: stand still on Happy (not walk).
+	if i < sim.cheer_t.size() and sim.cheer_t[i] > 0.0:
+		return ThrongClips.frame_at(_effect_look_clip("act:wash_sparkle", "ThrongA_Happy"), int(time * 6.0))
+	if i < sim.peer_t.size() and sim.peer_t[i] > 0.0:
+		if i < sim.peer_sing.size() and sim.peer_sing[i] != 0:
+			return _clip_pool(ThrongClips.SING_PEER, i, time, 1.6, "Throng_Sing_Spritesheet")
+		return _clip_pool(ThrongClips.TALK_PEER, i, time, 1.8, "ThrongA_TalkToOtherThronglet_Spritesheet2")
+	if i < sim.drop_t.size() and sim.drop_t[i] > 0.0:
+		var drop_along := 1.0 - clampf(sim.drop_t[i] / ThrongletSimServer.DROP_DUR, 0.0, 1.0)
+		return ThrongClips.frame_along("ThrongA_DropProp", drop_along)
 	if sim.mito_t[i] > 0.0 or sim.mito_charge[i] > 0.0:
 		var along := 0.0
 		if sim.mito_t[i] > 0.0:
@@ -1880,35 +1969,39 @@ func _frame(i: int, time: float) -> int:
 		else:
 			along = clampf(sim.mito_charge[i] / ThrongletSimServer.MITOSIS_CHARGE, 0.0, 1.0) * ThrongletSimServer.MITOSIS_SPLIT_ALONG
 		return ThrongClips.frame_along("ThrongA_Mitosis_Spritesheet", along)
+	# Critical bodies use one clip each — never mix the whole PANIC pool live.
+	if sim.near_fire(i):
+		return ThrongClips.frame_at("ThrongA_PanicRunFire", int(time * 10.0 + float(i)))
+	if i < sim.penned_flag.size() and sim.penned_flag[i] != 0:
+		return ThrongClips.frame_at("ThrongA_FreakOut", int(time * 10.0 + float(i)))
 	var doing := int(sim.act[i])
 	var moving := absf(sim.dir_x[i]) + absf(sim.dir_y[i]) >= 0.01
+	var carrying := int(sim.carry[i]) != Catalog.CARRY_NONE
 	if doing == ThrongletSimServer.ACT_EAT:
-		return ThrongClips.frame_at("ThrongA_Eat", int(time * 6.0))
+		return ThrongClips.frame_at(_effect_look_clip("act:eat", "ThrongA_Eat"), int(time * 6.0))
 	if doing == ThrongletSimServer.ACT_BATH:
+		var bath_clip := _effect_look_clip("act:bath", "Throng_FallInBath_Spritesheet")
 		var tub: Dictionary = sim.seat_of(i)
 		if tub.is_empty():
-			return ThrongClips.frame_at("ThrongA_Happy", int(time * 6.0))
+			return ThrongClips.frame_at(_effect_look_clip("act:bath_exit", "ThrongA_Happy"), int(time * 6.0))
 		var age := float(tub.get("bath_t", 0.0))
 		var enter_t := ThrongletSimServer.BATH_ENTER_T
 		if age < 0.0:
-			return ThrongClips.frame_at("Throng_FallInBath_Spritesheet", 0)
+			return ThrongClips.frame_at(bath_clip, 0)
 		if age < enter_t:
-			# Frames 0-4: climb / fall into the water.
-			return ThrongClips.frame_along("Throng_FallInBath_Spritesheet", (age / enter_t) * (5.0 / 8.0))
-		# Frames 5-7: soak loop (head above water, eyes closed).
-		return ThrongClips.frame_at("Throng_FallInBath_Spritesheet", 5 + int((age - enter_t) * 2.5) % 3)
+			return ThrongClips.frame_along(bath_clip, (age / enter_t) * (5.0 / 8.0))
+		return ThrongClips.frame_at(bath_clip, 5 + int((age - enter_t) * 2.5) % 3)
 	if doing == ThrongletSimServer.ACT_WASH:
-		return ThrongClips.frame_at("ThrongA_Happy", int(time * 6.0))
+		# Stable Happy loop while scrubbing — do not restart from act_t pulses.
+		return ThrongClips.frame_at(_effect_look_clip("act:sponge", "ThrongA_Happy"), int(time * 6.0 + float(i) * 0.37))
 	if doing == ThrongletSimServer.ACT_PLAY:
 		if sim.has_ball(i):
 			if moving:
-				if absf(sim.dir_y[i]) > absf(sim.dir_x[i]) and sim.dir_y[i] < 0.0:
-					return ThrongClips.frame_at("Throng_WalkBack_Anim_Spritesheet", int(time * 8.0 + float(i)))
-				return ThrongClips.frame_at("Throng_Walk_Anim_Spritesheet", int(time * 8.0 + float(i)))
-			return ThrongClips.frame_at("ThrongA_Happy", int(time * 6.0))
+				return _walk_clip(i, time, sim)
+			return ThrongClips.frame_at(_effect_look_clip("act:ball", "ThrongA_Happy"), int(time * 6.0))
 		var ride: Dictionary = sim.ride_of(i)
 		if not ride.is_empty():
-			var clip := "ThrongA_Roundabout_SpriteSheet"
+			var clip := _effect_look_clip("act:round", "ThrongA_Roundabout_SpriteSheet")
 			var car := TiovivoLabTune.carousel()
 			var nframes := int(ThrongClips.CLIPS[clip].y) if ThrongClips.CLIPS.has(clip) else 8
 			var idx := 0
@@ -1925,23 +2018,58 @@ func _frame(i: int, time: float) -> int:
 			else:
 				idx = posmod(int(car.get("sprite_dir_offset", 0)), maxi(1, nframes))
 			return ThrongClips.frame_at(clip, idx)
-		var play := "ThrongA_Jump_VariantA_Spritesheet"
-		return ThrongClips.frame_at(play, int(time * 8.0))
+		return ThrongClips.frame_at(_effect_look_clip("act:play", "ThrongA_Jump_VariantA_Spritesheet"), int(time * 8.0))
 	if doing == ThrongletSimServer.ACT_WORK and not moving:
+		if sim.is_mining(i):
+			var cycle := ThrongletSimServer.MINE_SWING_T + ThrongletSimServer.MINE_WAIT_T
+			var beat := fposmod(time + float(i) * 0.37, cycle)
+			if beat >= ThrongletSimServer.MINE_SWING_T:
+				return ThrongClips.frame_at("Throng_Think_TwiddleThumbs_Spritesheet", int(time * 6.0))
 		return ThrongClips.frame_at("ThrongA_Pickaxe_Spritesheet", int(time * 8.0))
+	if carrying:
+		if moving:
+			if ThrongClips.has_clip("ThrongA_LiftPropWalk"):
+				return ThrongClips.frame_at("ThrongA_LiftPropWalk", int(time * 8.0 + float(i)))
+			return _walk_clip(i, time, sim)
+		if ThrongClips.has_clip("ThrongA_LiftProp"):
+			return ThrongClips.frame_at("ThrongA_LiftProp", int(time * 6.0))
+		return ThrongClips.frame_at("Throng_Think_Spritesheet", int(time * 6.0))
+	# Thought bubble up: one-shot Sing B–E from bark start; stand until it ends.
+	var bark: Dictionary = sim.bark_of(i)
+	var bark_sing := str(bark.get("sing", ""))
+	if bark_sing != "" and ThrongClips.has_clip(bark_sing):
+		var bark_life := maxf(float(bark.get("life", float(bark.get("t", 1.0)))), 0.01)
+		var bark_elapsed := bark_life - float(bark.get("t", 0.0))
+		var bark_n := maxi(ThrongClips.frame_count(bark_sing), 1)
+		var bark_idx := clampi(int(bark_elapsed * 8.0), 0, bark_n - 1)
+		return ThrongClips.frame_at(bark_sing, bark_idx)
 	if moving:
-		if absf(sim.dir_y[i]) > absf(sim.dir_x[i]) and sim.dir_y[i] < 0.0:
-			return ThrongClips.frame_at("Throng_WalkBack_Anim_Spritesheet", int(time * 8.0 + float(i)))
-		return ThrongClips.frame_at("Throng_Walk_Anim_Spritesheet", int(time * 8.0 + float(i)))
+		return _walk_clip(i, time, sim)
 	if sim.clean[i] < 12.0 or sim.fed[i] < 25.0:
-		return ThrongClips.frame_at("ThrongA_Sad", int(time * 6.0))
+		return _clip_pool(ThrongClips.MOOD_SAD, i, time, 2.0, "ThrongA_Sad")
 	if sim.amused[i] < 25.0:
-		return ThrongClips.frame_at("ThrongA_Grumpy", 0)
-	if sim.fed[i] >= Catalog.NEED_OK and sim.amused[i] >= Catalog.NEED_OK and sim.clean[i] >= Catalog.NEED_OK:
-		if posmod(i + int(time), 9) < 3:
-			return _clip_pool(SING, i, time, 1.6, "ThrongA_Happy")
-		return _clip_pool(CALM, i, time, 2.2, "ThrongA_Happy")
-	return _clip_pool(CALM, i, time, 2.8, "ThrongA_Default")
+		return _clip_pool(ThrongClips.MOOD_BORED, i, time, 2.2, "ThrongA_Bored_KickRock")
+	if i < sim.sleep_t.size() and sim.sleep_t[i] > 0.0:
+		return _clip_pool(ThrongClips.IDLE_SLEEP, i, time, 2.5, "Throng_Idle_AntennaSpin_EyesClosed_Spritesheet")
+	var content := sim.fed[i] >= Catalog.NEED_OK and sim.amused[i] >= Catalog.NEED_OK and sim.clean[i] >= Catalog.NEED_OK
+	if content:
+		return _clip_pool(ThrongClips.IDLE_CALM, i, time, 2.2, "ThrongA_Happy")
+	return _clip_pool(ThrongClips.IDLE_CALM, i, time, 2.8, "ThrongA_Default")
+
+
+func _walk_clip(i: int, time: float, sim: ThrongletSim) -> int:
+	var tick := int(time * 8.0 + float(i))
+	if absf(sim.dir_y[i]) > absf(sim.dir_x[i]) and sim.dir_y[i] < 0.0:
+		return ThrongClips.frame_at("Throng_WalkBack_Anim_Spritesheet", tick)
+	if sim.approaching_home(i) and ThrongClips.has_clip("Throng_Walk_Homed_Spritesheet"):
+		return ThrongClips.frame_at("Throng_Walk_Homed_Spritesheet", tick)
+	var sad_move := sim.clean[i] < 12.0 or sim.fed[i] < 25.0
+	var happy_move := sim.fed[i] >= Catalog.NEED_OK and sim.amused[i] >= Catalog.NEED_OK and sim.clean[i] >= Catalog.NEED_OK
+	if sad_move and ThrongClips.has_clip("ThrongA_Sad_Walk"):
+		return ThrongClips.frame_at("ThrongA_Sad_Walk", tick)
+	if happy_move and ThrongClips.has_clip("ThrongA_Happy_Walk"):
+		return ThrongClips.frame_at("ThrongA_Happy_Walk", tick)
+	return ThrongClips.frame_at("Throng_Walk_Anim_Spritesheet", tick)
 
 
 func _throng_flip(i: int) -> float:
@@ -1950,6 +2078,10 @@ func _throng_flip(i: int) -> float:
 		return 1.0
 	if sim.mito_t[i] > 0.0 or sim.mito_charge[i] > 0.0:
 		return 1.0
+	if i < sim.peer_t.size() and sim.peer_t[i] > 0.0 and i < sim.peer_of.size():
+		var other := int(sim.peer_of[i])
+		if other >= 0 and other < sim.slot_count and sim.state[other] == Catalog.ST_LIVING:
+			return -1.0 if sim.pos_x[other] < sim.pos_x[i] else 1.0
 	var doing := int(sim.act[i])
 	var moving := absf(sim.dir_x[i]) + absf(sim.dir_y[i]) >= 0.01
 	if doing == ThrongletSimServer.ACT_EAT or doing == ThrongletSimServer.ACT_BATH or doing == ThrongletSimServer.ACT_WASH:
@@ -1965,35 +2097,12 @@ func _throng_flip(i: int) -> float:
 	return 1.0
 
 
-func _ensure_clip_pools() -> void:
-	if _clip_pools_ready:
-		return
-	_calm_pool = _filter_clip_pool(CALM)
-	_sing_pool = _filter_clip_pool(SING)
-	_talk_pool = _filter_clip_pool(ThrongClips.TALK)
-	_clip_pools_ready = true
-
-
-func _filter_clip_pool(pool: Array) -> Array[String]:
+func _clip_pool(pool: Array, index: int, time: float, hold: float, fallback: String) -> int:
 	var usable: Array[String] = []
 	for raw in pool:
 		var clip := str(raw)
 		if ThrongClips.has_clip(clip):
 			usable.append(clip)
-	return usable
-
-
-func _clip_pool(pool: Array, index: int, time: float, hold: float, fallback: String) -> int:
-	_ensure_clip_pools()
-	var usable: Array[String]
-	if pool == CALM:
-		usable = _calm_pool
-	elif pool == SING:
-		usable = _sing_pool
-	elif pool == ThrongClips.TALK:
-		usable = _talk_pool
-	else:
-		usable = _filter_clip_pool(pool)
 	if usable.is_empty():
 		return ThrongClips.frame_at(fallback, int(time * 6.0))
 	return ThrongClips.pick(usable, index, time, hold)
@@ -2375,6 +2484,8 @@ func _sync_place_mark() -> void:
 			ok = tile != Catalog.TILE_VOID and tile != Catalog.TILE_FOG
 		elif prop == "thronglet":
 			ok = not Catalog.tile_blocks(tile) and sim._land_inland(at.x, at.y)
+		elif prop == "flower":
+			ok = sim.can_place_building(Catalog.BLD_FLOWER, at.x, at.y)
 		else:
 			ok = not Catalog.tile_blocks(tile) and sim._feature_at(at.x, at.y, 8.0).is_empty()
 	elif placing >= 0:
@@ -2597,6 +2708,57 @@ func _paint_suds(draws: Array, pos: Vector2, sort_y: float, time: float, s: floa
 		_push_iso(draws, pos + off, frame, Color(1, 1, 1, alpha), 6.0 + float(i) * 2.0, scale, sort_y, Color.TRANSPARENT, Vector2.ZERO, AnimTune.frame_rot(frame_id, frame_idx))
 
 
+func _effect_look_lift(tune: Dictionary, time: float, phase: float = 0.0) -> float:
+	var amp := float(tune.get("lift", 0.0))
+	var bob := float(tune.get("bob", 0.0))
+	if bob <= 0.0:
+		return amp
+	if amp <= 0.0:
+		return absf(sin(time * bob + phase)) * 1.5
+	return sin(time * bob + phase) * amp
+
+
+func _effect_look_clip(id: String, fallback: String) -> String:
+	var clip := str(EffectTune.get_tune(id).get("clip", ""))
+	if clip != "" and ThrongClips.has_clip(clip):
+		return clip
+	return fallback
+
+
+func _paint_sponge_suds(draws: Array, pos: Vector2, sort_y: float, time: float, tune: Dictionary = {}) -> void:
+	# One atlas cell is already a full bubble cluster — do not stack several cells.
+	# Bench and live scrub both call this so fx_x/fx_y/scale/lift stay identical.
+	var wash_tune: Dictionary = tune if not tune.is_empty() else EffectTune.get_tune("act:sponge")
+	var s := float(wash_tune.get("scale", 0.45))
+	var tip := Vector2(float(wash_tune.get("fx_x", 7.0)), float(wash_tune.get("fx_y", 7.0)))
+	var body_lift := 6.0 + float(wash_tune.get("lift", 0.0))
+	var bubble_fps := float(AnimTune.get_tune("bubble").get("fps", 8.0))
+	var idx := posmod(int(time * bubble_fps), maxi(AssetFrames.BUBBLE_N, 1))
+	var cluster := AssetFrames.frame(AssetFrames.BUBBLE, AssetFrames.BUBBLE_N, idx)
+	if cluster < 0:
+		cluster = AssetFrames.frame(AssetFrames.BUBBLE_LIGHT, AssetFrames.BUBBLE_LIGHT_N, idx)
+	if cluster < 0:
+		return
+	_push_iso(draws, pos + tip, cluster, Color(1, 1, 1, 0.92), body_lift, s, sort_y)
+
+
+func _paint_clean_sparkle(draws: Array, pos: Vector2, sort_y: float, tune: Dictionary, fade: float = 1.0, progress: float = -1.0, time: float = 0.0) -> void:
+	var clean_n := maxi(AssetFrames.CLEAN_N, 1)
+	var clean_idx := 0
+	if progress < 0.0:
+		var fps := float(AnimTune.get_tune("clean").get("fps", 10.0))
+		clean_idx = posmod(int(time * fps), clean_n)
+	else:
+		clean_idx = clampi(int(progress * float(clean_n)), 0, clean_n - 1)
+	var frame := AssetFrames.frame(AssetFrames.CLEAN, clean_n, clean_idx)
+	if frame < 0:
+		return
+	var sparkle_scale := float(tune.get("scale", 0.28)) * AnimTune.frame_scale("clean", clean_idx)
+	var sparkle_off := Vector2(float(tune.get("fx_x", 9.0)), float(tune.get("fx_y", 9.0))) + AnimTune.frame_offset("clean", clean_idx)
+	var sparkle_lift := float(tune.get("lift", 10.0))
+	_push_iso(draws, pos + sparkle_off, frame, Color(1, 1, 1, fade), sparkle_lift, sparkle_scale, sort_y, Color.TRANSPARENT, Vector2.ZERO, AnimTune.frame_rot("clean", clean_idx))
+
+
 # World offset that puts the opaque middle of a frame on the anchor.
 # Tall sprites are clamped to the pad so the base stays inside its cells.
 const _CENTER := {
@@ -2735,12 +2897,15 @@ func _building_draw_at(kind: int, origin: Vector2) -> Vector2:
 	return origin + Catalog.footprint_center(size) + _pad_nudge(frame, scale, size) + Catalog.building_draw_off(kind)
 
 
-# Active/occupied sprite: same pad anchor as idle, but its own offset (not building_draw_off).
+# Loose building PNGs (idle/active/goo): pad + active offset when set, else idle draw_off.
 func _building_active_draw_at(kind: int, origin: Vector2) -> Vector2:
 	var size := Catalog.footprint_for_building(kind)
 	var frame := _prop_frame(Catalog.icon_for_building(kind))
 	var scale := Catalog.building_sprite_scale(kind)
-	return origin + Catalog.footprint_center(size) + _pad_nudge(frame, scale, size) + Catalog.active_building_draw_off(kind)
+	var off := Catalog.active_building_draw_off(kind)
+	if off == Vector2.ZERO:
+		off = Catalog.building_draw_off(kind)
+	return origin + Catalog.footprint_center(size) + _pad_nudge(frame, scale, size) + off
 
 
 func _feature_draw_at(kind: int, origin: Vector2, ore: int = 0) -> Vector2:
@@ -2873,6 +3038,45 @@ func _sync_monolith(id: int, world_pos: Vector2, feat: Dictionary, t: float) -> 
 		node.sync_state(feat, t)
 
 
+func _structure_sprite_lift(tex: Texture2D, sprite_scale: float) -> Vector2:
+	if tex == null:
+		return Vector2.ZERO
+	return Vector2(0.0, -float(tex.get_height()) * 0.5 * sprite_scale)
+
+
+func _idle_structure_sprite_path(kind: int) -> String:
+	match kind:
+		Catalog.BLD_DWELL:
+			return "res://resources/structures/buildings/dwell.png"
+		Catalog.BLD_FANCY:
+			return "res://resources/structures/buildings/fancy.png"
+		Catalog.BLD_THEATRE:
+			return "res://resources/structures/buildings/theatre.png"
+		Catalog.BLD_MINE:
+			return "res://resources/structures/buildings/mine.png"
+		Catalog.BLD_MINE2:
+			return "res://resources/structures/buildings/mine2.png"
+		Catalog.BLD_FACTORY:
+			return "res://resources/structures/buildings/factory.png"
+		Catalog.BLD_FACTORY2:
+			return "res://resources/structures/buildings/factory2.png"
+		Catalog.BLD_APPLE:
+			return "res://resources/structures/buildings/apple.png"
+		Catalog.BLD_TUB:
+			return "res://resources/structures/buildings/tub.png"
+		Catalog.BLD_ROUND:
+			return "res://resources/structures/buildings/round.png"
+		Catalog.BLD_FLOWER:
+			return "res://resources/structures/buildings/flower.png"
+		Catalog.BLD_MARKET:
+			return "res://resources/structures/buildings/market.png"
+		Catalog.BLD_STATUE:
+			return "res://resources/structures/buildings/statue.png"
+		Catalog.BLD_WOOD:
+			return "res://resources/structures/buildings/wood.png"
+	return ""
+
+
 func _active_structure_sprite_path(kind: int) -> String:
 	match kind:
 		Catalog.BLD_DWELL:
@@ -2881,22 +3085,93 @@ func _active_structure_sprite_path(kind: int) -> String:
 			return "res://resources/structures/buildings/fancy_active.png"
 		Catalog.BLD_THEATRE:
 			return "res://resources/structures/buildings/theatre_active.png"
+		Catalog.BLD_MINE:
+			return "res://resources/structures/buildings/mine_active.png"
+		Catalog.BLD_MINE2:
+			return "res://resources/structures/buildings/mine2_active.png"
+		Catalog.BLD_FACTORY:
+			return "res://resources/structures/buildings/factory_active.png"
+		Catalog.BLD_FACTORY2:
+			return "res://resources/structures/buildings/factory2_active.png"
 	return ""
 
 
-func _active_structure_texture(kind: int) -> Texture2D:
-	if _active_structure_tex.has(kind):
-		return _active_structure_tex[kind]
-	var path := _active_structure_sprite_path(kind)
+func _goo_structure_sprite_path(kind: int) -> String:
+	match kind:
+		Catalog.BLD_DWELL:
+			return "res://resources/structures/buildings/dwell_goo.png"
+		Catalog.BLD_FANCY:
+			return "res://resources/structures/buildings/fancy_goo.png"
+		Catalog.BLD_THEATRE:
+			return "res://resources/structures/buildings/theatre_goo.png"
+		Catalog.BLD_MINE:
+			return "res://resources/structures/buildings/mine_goo.png"
+		Catalog.BLD_MINE2:
+			return "res://resources/structures/buildings/mine2_goo.png"
+		Catalog.BLD_FACTORY:
+			return "res://resources/structures/buildings/factory_goo.png"
+		Catalog.BLD_FACTORY2:
+			return "res://resources/structures/buildings/factory2_goo.png"
+	return ""
+
+
+func _load_structure_tex(cache: Dictionary, kind: int, path: String) -> Texture2D:
+	if cache.has(kind):
+		return cache[kind]
 	if path == "":
 		return null
 	var tex: Texture2D = load(path)
-	_active_structure_tex[kind] = tex
+	cache[kind] = tex
 	return tex
 
 
-func _sync_active_building_sprite(id: int, kind: int, origin: Vector2, sprite_scale: float, sort_y: float) -> void:
-	var tex := _active_structure_texture(kind)
+func _idle_structure_texture(kind: int) -> Texture2D:
+	return _load_structure_tex(_idle_structure_tex, kind, _idle_structure_sprite_path(kind))
+
+
+func _active_structure_texture(kind: int) -> Texture2D:
+	return _load_structure_tex(_active_structure_tex, kind, _active_structure_sprite_path(kind))
+
+
+func _goo_structure_texture(kind: int) -> Texture2D:
+	return _load_structure_tex(_goo_structure_tex, kind, _goo_structure_sprite_path(kind))
+
+
+func _structure_anim_path(kind: int, idx: int) -> String:
+	match kind:
+		Catalog.BLD_FLOWER:
+			return "res://resources/structures/buildings/flower_%d.png" % idx
+		Catalog.BLD_ROUND:
+			return "res://resources/structures/buildings/round_%d.png" % idx
+	return ""
+
+
+func _structure_anim_texture(kind: int, idx: int) -> Texture2D:
+	var key := "%d:%d" % [kind, idx]
+	if _structure_anim_tex.has(key):
+		return _structure_anim_tex[key]
+	var path := _structure_anim_path(kind, idx)
+	if path == "":
+		return null
+	var tex: Texture2D = load(path)
+	_structure_anim_tex[key] = tex
+	return tex
+
+
+func _sync_active_building_sprite(
+	id: int,
+	kind: int,
+	origin: Vector2,
+	sprite_scale: float,
+	sort_y: float,
+	tex: Texture2D = null,
+	tint: Color = Color.WHITE,
+	outline: Color = Color.TRANSPARENT,
+	offset: Vector2 = Vector2.ZERO,
+	rot: float = 0.0
+) -> void:
+	if tex == null:
+		tex = _idle_structure_texture(kind)
 	if tex == null:
 		_hide_active_building_sprite(id)
 		return
@@ -2909,9 +3184,12 @@ func _sync_active_building_sprite(id: int, kind: int, origin: Vector2, sprite_sc
 		_building_active_sprites[id] = node
 	node.texture = tex
 	node.scale = Vector2(sprite_scale, sprite_scale)
-	var screen_p := cam_rig.to_iso(_building_active_draw_at(kind, origin))
-	node.position = screen_p + Vector2(0, -WORLD_CELL * 0.5 * sprite_scale)
-	var sy := sort_y if not is_nan(sort_y) else screen_p.y
+	node.rotation_degrees = rot
+	node.modulate = tint if outline.a <= 0.0 else outline
+	var anchor := _building_active_draw_at(kind, origin)
+	var screen_p := cam_rig.to_iso(anchor + offset)
+	node.position = screen_p + _structure_sprite_lift(tex, sprite_scale)
+	var sy := sort_y if not is_nan(sort_y) else cam_rig.to_iso(anchor).y
 	node.set_meta("sy", sy)
 	node.visible = true
 	node.set_meta("seen", true)
@@ -2926,6 +3204,39 @@ func _hide_active_building_sprite(id: int) -> void:
 		node.set_meta("seen", false)
 
 
+func _sync_place_ghost_sprite(kind: int, origin: Vector2, sprite_scale: float, tint: Color) -> bool:
+	var tex: Texture2D = null
+	if kind == Catalog.BLD_FLOWER or kind == Catalog.BLD_ROUND:
+		tex = _structure_anim_texture(kind, 0)
+	if tex == null:
+		tex = _idle_structure_texture(kind)
+	if tex == null:
+		_hide_place_ghost_sprite()
+		return false
+	if _place_ghost_sprite == null or not is_instance_valid(_place_ghost_sprite):
+		_place_ghost_sprite = Sprite2D.new()
+		_place_ghost_sprite.centered = true
+		_place_ghost_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		world_layer.add_child(_place_ghost_sprite)
+	_place_ghost_sprite.texture = tex
+	_place_ghost_sprite.scale = Vector2(sprite_scale, sprite_scale)
+	_place_ghost_sprite.modulate = tint
+	var screen_p := cam_rig.to_iso(_building_active_draw_at(kind, origin))
+	_place_ghost_sprite.position = screen_p + _structure_sprite_lift(tex, sprite_scale)
+	_place_ghost_sprite.set_meta("sy", screen_p.y)
+	_place_ghost_sprite.visible = true
+	_place_ghost_sprite.set_meta("seen", true)
+	return true
+
+
+func _hide_place_ghost_sprite() -> void:
+	if _place_ghost_sprite == null or not is_instance_valid(_place_ghost_sprite):
+		_place_ghost_sprite = null
+		return
+	_place_ghost_sprite.visible = false
+	_place_ghost_sprite.set_meta("seen", false)
+
+
 func _void_behind_cliff(world_pos: Vector2) -> bool:
 	var sim: ThrongletSim = ThrongletSimServer
 	var cell := sim._cell_vec(world_pos.x, world_pos.y)
@@ -2937,8 +3248,58 @@ func _void_behind_cliff(world_pos: Vector2) -> bool:
 	return false
 
 
+func _cell_tex(frame: int) -> Texture2D:
+	if _cell_tex_cache.has(frame):
+		return _cell_tex_cache[frame]
+	var path := "res://resources/sprites/world/world_cells/%04d.png" % frame
+	var abs_path := ProjectSettings.globalize_path(path)
+	var tex: Texture2D = null
+	if FileAccess.file_exists(path) or FileAccess.file_exists(abs_path):
+		var img := Image.load_from_file(abs_path)
+		if img != null and not img.is_empty():
+			tex = ImageTexture.create_from_image(img)
+	_cell_tex_cache[frame] = tex
+	return tex
+
+
+func _cell_dirt(frame: int) -> Texture2D:
+	if _cell_dirt_cache.has(frame):
+		return _cell_dirt_cache[frame]
+	var path := "res://resources/sprites/world/world_cells_dirt/%04d.png" % frame
+	var abs_path := ProjectSettings.globalize_path(path)
+	var tex: Texture2D = null
+	if FileAccess.file_exists(path) or FileAccess.file_exists(abs_path):
+		var img := Image.load_from_file(abs_path)
+		if img != null and not img.is_empty():
+			tex = ImageTexture.create_from_image(img)
+	_cell_dirt_cache[frame] = tex
+	return tex
+
+
+func _bind_band_frame(band: MultiMeshInstance2D, frame: int) -> void:
+	band.texture = _cell_tex(frame)
+	var mat: ShaderMaterial = band.get_meta("own_mat") if band.has_meta("own_mat") else null
+	if mat == null:
+		mat = _material(1, 1)
+		band.material = mat
+		band.set_meta("own_mat", mat)
+	mat.set_shader_parameter("h_frames", 1)
+	mat.set_shader_parameter("v_frames", 1)
+	var dirt := _cell_dirt(frame)
+	if dirt != null:
+		mat.set_shader_parameter("dirt_tex", dirt)
+
+
 func _paint_props(draws: Array) -> void:
 	var sim: ThrongletSim = ThrongletSimServer
+	# meta_only rows carry sort_y for Sprite2D props; never emit them as Multimesh icons.
+	if not draws.is_empty():
+		var paint: Array = []
+		for d in draws:
+			if bool(d.get("meta_only", false)):
+				continue
+			paint.append(d)
+		draws = paint
 	var live: Array = []
 	for id in _monoliths.keys():
 		var node: Node2D = _monoliths[id]
@@ -2963,40 +3324,37 @@ func _paint_props(draws: Array) -> void:
 		bnode.set_meta("seen", false)
 		var bsy := float(bnode.get_meta("sy", bnode.position.y))
 		live.append({"sy": bsy, "node": bnode})
-	if live.is_empty():
-		var sole := _prop_band(0)
-		_write_mesh(sole.multimesh, draws)
-		sole.visible = true
-		for j in range(1, _prop_bands.size()):
-			if _prop_bands[j].visible or _prop_bands[j].multimesh.visible_instance_count != 0:
-				_write_mesh(_prop_bands[j].multimesh, [])
-				_prop_bands[j].visible = false
-		if world_layer.get_child_count() > 0 and world_layer.get_child(0) != sole:
-			world_layer.move_child(sole, 0)
-		return
-	live.sort_custom(func(a, b): return float(a.sy) < float(b.sy))
-	var cursor := 0
+	if (
+		_place_ghost_sprite != null
+		and is_instance_valid(_place_ghost_sprite)
+		and bool(_place_ghost_sprite.get_meta("seen", false))
+	):
+		_place_ghost_sprite.set_meta("seen", false)
+		live.append({
+			"sy": float(_place_ghost_sprite.get_meta("sy", _place_ghost_sprite.position.y)),
+			"node": _place_ghost_sprite,
+		})
+	_band_cursor = 0
 	var order: Array = []
-	for i in live.size():
-		var chunk: Array = []
-		var sy := float(live[i].sy)
-		while cursor < draws.size() and float(draws[cursor].get("sy", draws[cursor].p.y)) <= sy:
-			chunk.append(draws[cursor])
+	if live.is_empty():
+		_append_frame_runs(order, draws)
+	else:
+		live.sort_custom(func(a, b): return float(a.sy) < float(b.sy))
+		var cursor := 0
+		for i in live.size():
+			var chunk: Array = []
+			var sy := float(live[i].sy)
+			while cursor < draws.size() and float(draws[cursor].get("sy", draws[cursor].p.y)) <= sy:
+				chunk.append(draws[cursor])
+				cursor += 1
+			_append_frame_runs(order, chunk)
+			order.append(live[i].node)
+		var rest: Array = []
+		while cursor < draws.size():
+			rest.append(draws[cursor])
 			cursor += 1
-		var band := _prop_band(i)
-		_write_mesh(band.multimesh, chunk)
-		band.visible = true
-		order.append(band)
-		order.append(live[i].node)
-	var rest: Array = []
-	while cursor < draws.size():
-		rest.append(draws[cursor])
-		cursor += 1
-	var tail := _prop_band(live.size())
-	_write_mesh(tail.multimesh, rest)
-	tail.visible = true
-	order.append(tail)
-	for j in range(live.size() + 1, _prop_bands.size()):
+		_append_frame_runs(order, rest)
+	for j in range(_band_cursor, _prop_bands.size()):
 		_write_mesh(_prop_bands[j].multimesh, [])
 		_prop_bands[j].visible = false
 	for i in order.size():
@@ -3004,11 +3362,35 @@ func _paint_props(draws: Array) -> void:
 			world_layer.move_child(order[i], i)
 
 
+func _append_frame_runs(order: Array, draws: Array) -> void:
+	if draws.is_empty():
+		return
+	var run: Array = []
+	var run_frame := int(draws[0].icon)
+	for d in draws:
+		var fr := int(d.icon)
+		if fr != run_frame:
+			_emit_prop_run(order, run_frame, run)
+			run = []
+			run_frame = fr
+		run.append(d)
+	_emit_prop_run(order, run_frame, run)
+
+
+func _emit_prop_run(order: Array, frame: int, run: Array) -> void:
+	if run.is_empty():
+		return
+	var band := _prop_band(_band_cursor)
+	_band_cursor += 1
+	_bind_band_frame(band, frame)
+	_write_mesh(band.multimesh, run)
+	band.visible = true
+	order.append(band)
+
+
 func _prop_band(index: int) -> MultiMeshInstance2D:
 	while _prop_bands.size() <= index:
 		var band := MultiMeshInstance2D.new()
-		band.material = world.material
-		band.texture = world.texture
 		band.multimesh = _mesh(true, Vector2(WORLD_CELL, WORLD_CELL))
 		world_layer.add_child(band)
 		_prop_bands.append(band)
@@ -3033,17 +3415,20 @@ func _write_mesh(mesh: MultiMesh, draws: Array) -> void:
 		var flip := float(d.get("flip", 1.0))
 		var rot := deg_to_rad(float(d.get("rot", 0.0)))
 		var center := Vector2(0, -WORLD_CELL * 0.5 * sprite_scale).rotated(rot)
+		var icon := int(d.icon)
+		# Loose cell textures always sample frame 0; w=1 applies prop tint.
+		var apply_tint := 0.0 if (icon < 24 or icon >= 144) else 1.0
 		if d.has("outline"):
 			var oc: Color = d["outline"]
 			for o in OUTLINE_OFFS:
 				xf = Transform2D(rot, Vector2(sprite_scale * flip, sprite_scale), 0.0, d.p + o + center)
 				mesh.set_instance_transform_2d(i, xf)
-				mesh.set_instance_custom_data(i, Color(float(d.icon), 0.0, 1.0, 0))
+				mesh.set_instance_custom_data(i, Color(0.0, 0.0, 1.0, 0.0))
 				mesh.set_instance_color(i, oc)
 				i += 1
 		xf = Transform2D(rot, Vector2(sprite_scale * flip, sprite_scale), 0.0, d.p + center)
 		mesh.set_instance_transform_2d(i, xf)
-		mesh.set_instance_custom_data(i, Color(float(d.icon), float(d.get("dirty", 0.0)), 0.0, 0))
+		mesh.set_instance_custom_data(i, Color(0.0, float(d.get("dirty", 0.0)), 0.0, apply_tint))
 		mesh.set_instance_color(i, d.tint)
 		i += 1
 
@@ -3706,7 +4091,7 @@ func _sync_focus(delta: float) -> void:
 	focus_cam_node.position = subject.snapped(Vector2(1.0 / zoom, 1.0 / zoom))
 	var anchor := _talk_world() if talk else Vector2(float(egg.x), float(egg.y))
 	_paint_focus(anchor)
-	_write_mesh(focus_mesh, _focus_draws())
+	_write_focus_draws(_focus_draws())
 
 
 func _focus_frame_rect(talk: bool) -> Rect2:
@@ -3851,14 +4236,14 @@ func _focus_draws() -> Array:
 		var draw_at := _building_draw_at(b_kind, p3)
 		if _focus_sees(p3, 0.0) or _focus_sees(draw_at, 0.0):
 			var focus_frame := _prop_frame(Catalog.icon_for_building(b_kind))
-			if b_kind == Catalog.BLD_FLOWER:
-				focus_frame = FLOWER_ANIM + int(time * 6.0) % FLOWER_ANIM_N
 			var focus_sort_y := NAN
 			if b_kind == Catalog.BLD_MINE or b_kind == Catalog.BLD_MINE2:
 				focus_sort_y = -1000000.0
 			_push_iso(draws, draw_at, focus_frame, Color.WHITE, 0.0, Catalog.building_sprite_scale(b_kind), focus_sort_y)
 	for i in sim.slot_count:
 		if sim.state[i] == Catalog.ST_VACANT:
+			continue
+		if sim.held_kind == "thronglet" and i == sim.held_ref:
 			continue
 		if talk and not sim.gaze_home.has(i):
 			continue
@@ -3870,7 +4255,10 @@ func _focus_draws() -> Array:
 			tint = Color.WHITE
 		var throng_frame := _frame(i, time)
 		var throng_look := _throng_sprite_look(throng_frame)
-		_push_iso(draws, pos + throng_look.off, throng_frame, tint, 0.0, float(throng_look.scale))
+		var throng_sort_y := cam_rig.to_iso(pos).y
+		if sim.state[i] == Catalog.ST_DEAD:
+			_push_corpse_blood(draws, sim, i, pos, throng_sort_y)
+		_push_iso(draws, pos + throng_look.off, throng_frame, tint, 0.0, float(throng_look.scale), throng_sort_y)
 		draws[draws.size() - 1]["flip"] = _throng_flip(i)
 		draws[draws.size() - 1]["dirty"] = _throng_dirty(sim.clean[i])
 	draws.sort_custom(func(a, b): return float(a.get("sy", a.p.y)) < float(b.get("sy", b.p.y)))
@@ -3905,7 +4293,7 @@ func _kit_tabs() -> Array:
 			"title": "TERRENO",
 			"tools": [],
 			"builds": [],
-			"props": ["tree", "rock", "ore", "water", "grass", "thronglet"],
+			"props": ["tree", "rock", "ore", "flower", "water", "grass", "thronglet"],
 		})
 	return tabs
 
@@ -3918,10 +4306,12 @@ func _sandbox_prop_info(prop: String) -> Dictionary:
 			return {"label": "ROCA", "icon": Catalog.ICON_ROCK}
 		"ore":
 			return {"label": "MINERAL", "icon": Catalog.ICON_ORE_ROCK}
+		"flower":
+			return {"label": "FLOR", "icon": Catalog.ICON_FLOWER}
 		"water":
 			return {"label": "AGUA", "icon": Catalog.ICON_SPONGE}
 		"grass":
-			return {"label": "HIERBA", "icon": Catalog.ICON_FLOWER}
+			return {"label": "HIERBA", "icon": Catalog.ICON_APPLE_TREE}
 		"thronglet":
 			return {"label": "THRONGLET", "icon": Catalog.ICON_EGG}
 		_:
@@ -4277,7 +4667,8 @@ func _end_kit_drag() -> void:
 		ThrongletSimServer.place_building(id, at.x, at.y)
 	elif kind == "tool":
 		if id == Catalog.TOOL_SPONGE:
-			ThrongletSimServer.scrub(at.x, at.y, 18.0)
+			# Hold already scrubbed via _process; release ends suds and pops sparkles if cleaned.
+			ThrongletSimServer.sponge_release()
 		else:
 			ThrongletSimServer.use_tool(id, at.x, at.y)
 	tool = Catalog.TOOL_EYE
@@ -4513,7 +4904,14 @@ func _sync_marks() -> void:
 		var throng_id := int(bark.get("id", -1))
 		# Prefer live feet: gaze teleport moves pos_* while bark.x/y can lag while frozen.
 		var at := Vector2(float(bark.x), float(bark.y))
+		var tip_lift := 14.0
 		if throng_id >= 0 and throng_id < sim.slot_count and sim.state[throng_id] == Catalog.ST_LIVING:
+			if _throng_hidden_indoors(sim, throng_id):
+				panel.visible = false
+				tail.visible = false
+				if i < bubble_labels.size():
+					bubble_labels[i].visible = false
+				continue
 			at = Vector2(sim.pos_x[throng_id], sim.pos_y[throng_id])
 		if not view.has_point(at):
 			panel.visible = false
@@ -4551,8 +4949,7 @@ func _sync_marks() -> void:
 			panel.set_meta("bark_size", size)
 		else:
 			size = panel.get_meta("bark_size") as Vector2
-		# tip = bottom of pico (points at thronglet head).
-		var tip := cam_rig.to_iso(at) + Vector2(0, -14)
+		var tip := cam_rig.to_iso(at) + Vector2(0, -tip_lift)
 		panel.position = Vector2(tip.x - size.x * 0.5, tip.y - size.y)
 		panel.visible = true
 	_sync_capacity_marks(sim, view)
@@ -4615,18 +5012,26 @@ func _sync_capacity_marks(sim: ThrongletSim, view: Rect2) -> void:
 		var info: Dictionary = sim.capacity_info(b)
 		if info.is_empty():
 			continue
-		if not sim.chunk_shown(sim.chunk_key_at(float(b.x), float(b.y))):
+		var origin := Vector2(float(b.x), float(b.y))
+		if not sim.chunk_shown(sim.chunk_key_at(origin.x, origin.y)):
 			continue
-		var at := Vector2(float(b.x), float(b.y))
-		if not view.has_point(at):
-			continue
-		var screen := cam_rig.to_iso(at) + Vector2(0, -30)
+		var kind := int(b.kind)
+		var visit := bool(info.get("visit", false))
+		var mine := bool(info.get("mine", false))
 		var cap := maxi(1, int(info.cap))
 		var n := clampi(int(info.n), 0, cap)
 		var full := bool(info.full)
-		var mine := bool(info.get("mine", false))
-		# Mines always show the stock bar; houses/theatre show bar when occupied or full.
-		var show_bar := mine or n > 0 or full
+		# Anchor on the drawn sprite (roof/pad), not the footprint corner.
+		var mark_world := _building_draw_at(kind, origin)
+		if visit and n > 0 and Catalog.building_has_active(kind):
+			mark_world = _building_active_draw_at(kind, origin)
+		if not (view.has_point(origin) or view.has_point(mark_world)):
+			continue
+		# Houses/theatre need more lift so the bar sits over the chimney like the video.
+		var screen_lift := 56.0 if visit else 30.0
+		var screen := cam_rig.to_iso(mark_world) + Vector2(0, -screen_lift)
+		# Same gauge for mines and visit homes/theatre (fill level); LLENO only when full.
+		var show_bar := mine or visit
 		if show_bar and bar_n < cap_tracks.size():
 			var track: NinePatchRect = cap_tracks[bar_n]
 			var fill: NinePatchRect = cap_fills[bar_n]
@@ -4647,7 +5052,7 @@ func _sync_capacity_marks(sim: ThrongletSim, view: Rect2) -> void:
 			var label: Label = full_labels[full_n]
 			label.visible = true
 			label.text = cap_text
-			label.position = screen + Vector2(-12, -22.0 if show_bar else -8.0)
+			label.position = screen + Vector2(-18, -22.0 if show_bar else -8.0)
 			full_n += 1
 	for i in range(bar_n, cap_tracks.size()):
 		cap_tracks[i].visible = false
@@ -4779,7 +5184,7 @@ func _sync_building_alert(sim: ThrongletSim) -> void:
 	for b in sim.buildings:
 		if b.dead:
 			continue
-		if sim._tile_at(float(b.x), float(b.y)) != Catalog.TILE_GOO:
+		if not sim.building_is_polluted(b):
 			continue
 		pollution_bld.position = cam_rig.to_iso(Vector2(float(b.x), float(b.y))) + Vector2(0, -36)
 		pollution_bld.visible = true
@@ -5130,40 +5535,31 @@ func _build_world() -> void:
 	charge_ring.visible = false
 	add_child(charge_ring)
 	# Static quiet features sit under world_layer so far-view thronglets read on top.
-	feat_static = MultiMeshInstance2D.new()
+	feat_static = Node2D.new()
 	feat_static.z_index = 2
-	feat_static.material = _material(16, ThrongClips.SHEET_ROWS)
-	feat_static.texture = ui_assets.tex("res://resources/sprites/world_iso.png")
-	feat_static_mesh = _mesh(true, Vector2(WORLD_CELL, WORLD_CELL))
-	feat_static.multimesh = feat_static_mesh
-	feat_static_mesh.visible_instance_count = 0
 	feat_static.visible = false
 	add_child(feat_static)
+	_feat_bands = []
 	world_layer = Node2D.new()
 	world_layer.z_index = 2
 	add_child(world_layer)
 	world = MultiMeshInstance2D.new()
-	world.material = feat_static.material
-	world.texture = feat_static.texture
-	world_mesh = _mesh(true, Vector2(WORLD_CELL, WORLD_CELL))
-	world.multimesh = world_mesh
+	world.multimesh = _mesh(true, Vector2(WORLD_CELL, WORLD_CELL))
+	world_mesh = world.multimesh
 	world_layer.add_child(world)
 	_prop_bands = [world]
 	throng_crowd = MultiMeshInstance2D.new()
 	throng_crowd.z_index = 3
-	throng_crowd.material = feat_static.material
-	throng_crowd.texture = feat_static.texture
 	throng_crowd_mesh = _mesh(true, Vector2(WORLD_CELL, WORLD_CELL))
 	throng_crowd.multimesh = throng_crowd_mesh
 	throng_crowd_mesh.visible_instance_count = 0
+	throng_crowd.visible = false
 	add_child(throng_crowd)
-	void_back = MultiMeshInstance2D.new()
+	void_back = Node2D.new()
 	void_back.z_index = -1
-	void_back.material = world.material
-	void_back.texture = world.texture
-	void_back_mesh = _mesh(true, Vector2(WORLD_CELL, WORLD_CELL))
-	void_back.multimesh = void_back_mesh
 	add_child(void_back)
+	_void_bands = []
+	void_back_mesh = null
 	camera = Camera2D.new()
 	add_child(camera)
 	camera.make_current()
@@ -5217,7 +5613,6 @@ func _material(h_frames: int, v_frames: int) -> ShaderMaterial:
 	mat.shader = load("res://scripts/shaders/thronglet_shader.gdshader")
 	mat.set_shader_parameter("h_frames", h_frames)
 	mat.set_shader_parameter("v_frames", v_frames)
-	mat.set_shader_parameter("dirt_tex", ui_assets.tex("res://resources/sprites/world_iso_dirt.png"))
 	return mat
 
 
@@ -5550,13 +5945,11 @@ func _build_ui() -> void:
 	focus_path_root = Node2D.new()
 	focus_path_root.z_index = 1
 	focus_port.add_child(focus_path_root)
-	var focus_world := MultiMeshInstance2D.new()
-	focus_world.z_index = 2
-	focus_world.material = _material(16, ThrongClips.SHEET_ROWS)
-	focus_world.texture = world.texture
-	focus_mesh = _mesh(true, Vector2(WORLD_CELL, WORLD_CELL))
-	focus_world.multimesh = focus_mesh
-	focus_port.add_child(focus_world)
+	focus_root = Node2D.new()
+	focus_root.z_index = 2
+	focus_port.add_child(focus_root)
+	_focus_bands = []
+	focus_mesh = null
 	focus_cam_node = Camera2D.new()
 	focus_port.add_child(focus_cam_node)
 	root.add_child(focus_box)
@@ -7110,8 +7503,6 @@ func _enter_dev() -> void:
 		need_card.visible = false
 	_hide_agent_debug()
 	_hide_marks()
-	for plate in biome_plates:
-		plate.visible = false
 	for id in _monoliths.keys():
 		var node: Node2D = _monoliths[id]
 		node.visible = false

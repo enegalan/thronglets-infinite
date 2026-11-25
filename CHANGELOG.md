@@ -2,6 +2,38 @@
 
 ## [Unreleased](https://github.com/enegalan/thronglets-infinite/compare/v2.8.0...HEAD)
 
+### 2026-11-25
+
+- Eat body clip no longer sticks after the apple claim is lost: `ACT_EAT` is sticky only in bite range, the full AI path continues/clears chew via `_continue_eat`, and expired non-sticky acts clear even when `act_t` is already 0.
+- Sponge scrub reads `stroke_min` / `stroke_cap` / `gain` / `radius` from `EffectTune` (defaults match the live gentle scrub).
+- Building goo pollution is cached on the building and invalidated when goo tiles change, so draw/HUD no longer rescan footprints every frame.
+
+### 2026-11-24
+
+- Goo on a building footprint shuts houses, fancy houses, theatres, mines, and factories until it is mopped; those buildings also switch to active and goo sprite variants.
+- Capacity marks now show occupancy for houses, fancy houses, and theatres plus mine stock, while factories keep their progress wedges. Full visit buildings read `LLENO`.
+- World art is split into per-tile sprites and separate structure frames; the art tools and runtime drawing were updated to match, including the roundabout and flower strips. Prop draws can tint instances through the thronglet shader.
+- Bath-exit sparkles now draw at 0.28 scale with a (9, 9) offset; wash sparkles use the same offset and sponge suds draw at 0.45 scale with a (7, 7) offset.
+- Violent deaths (saw, TNT, nuke, axe splash) leave a blood pool under the corpse; neglect deaths do not. The bloody state is saved and restored.
+- Flower buildings use updated art and animation offsets, can be placed from the sandbox terrain props, and factory pollution goo now spills on 25% of completed cycles instead of every cycle.
+- Thronglets inside visit buildings do not show thought bubbles while hidden indoors.
+- Kit building placement previews use the same loose Sprite2D frames as placed buildings, so flower and roundabout ghosts match what lands on the island.
+- Factories now use a 4x4 footprint; statues and wood sculptures draw at 1.03 scale. The axe hint notes it can kill nearby multis.
+- Added bench probes and shot modes for building goo, visit capacity, flower placement, no indoor barks, and corpse blood; video-gap notes record the verified building UI.
+
+### 2026-11-23
+
+- Dirty thronglets stay dirty while walking at default zoom: far-view LOD no longer zeroes the dirt factor (held already kept it). Missing dirt masks filled via `python3 tools/fill_throng_dirt.py`; check with `--shot-dirt`.
+- Grabbing a thronglet no longer draws a giant walk sprite on top: FX (hand, bubbles, fire, …) were restored after the throng extras that had overwritten those atlas cells.
+- Thronglet body clips share one foot baseline in the atlas (no more floating FreakOut / clipped walks); hop clips keep their air. Re-home with `python3 tools/home_throng_atlas.py`.
+- Thronglet animations follow situation pools (idle / mood / peer talk-sing / console stare / possessed / celebrate / panic) with a tiered `_frame` selector; Unity panic, carry, mood-walk, puppy, and awe sheets are packed into the atlas and wired.
+- Post-feed `Rotund` and eat→`Celebrate` cheer removed: playthrough frames show Happy stand after a bite ([68:03](references/video-frames/t068-03.jpg)), not a fat walk or cheer hop. `Celebrate` stays on unlock (`celebrate_t`). Dense eat/wash frames added under `references/video-frames/`.
+- `ACT_WASH` is no longer sticky after scrub ends (was looping `Happy` forever).
+- Full situation wiring audit vs playthrough: `_begin_gaze` no longer forces `glitch_t` (POSSESSED was firing on every talk; inject frames stay Default). Dead `cheer_t` body path removed; Celebrate/Panic pools trimmed to live clips.
+- Ball play no longer pops a giant thronglet: pack-extra clips (`Happy_Walk`, `FreakOut`, carry, …) were missing from `ThrongTune.SCALE` and drew at 1.0 instead of 0.4. Check with `--shot-ball` → `shots/ball_kick_scale.png`.
+- Sponge wash: one bubble atlas cell (no stacked sheets); suds only on the thronglet under the sponge; prior targets clear when the sponge moves on; sparkles on release. Shot: `wash_scrub_vs_sparkle.png`.
+- Thought-bubble barks pick a random `SingB`/`SingC`/`SingD`/`SingE` while free; the thronglet stands still for one full clip (bark life = frames/8fps).
+
 ### 2026-11-22
 
 - Zooming out keeps performance steadier: distant thronglets and static props use lighter rendering paths, simulation ticks batch living agents and throttle compaction, and idle ground items skip unnecessary physics checks.

@@ -435,7 +435,7 @@ static func _apply_in(row: Dictionary, key: String) -> String:
 	if key == "reach":
 		return only + " Change that match arm in Catalog.building_reach. If it falls through to the footprint+pad formula, give it its own arm with Vector2(rx, ry) in world pixels. ThrongletSimServer._approach_building and enter checks already call Catalog.building_reach."
 	if key == "active_offset":
-		return only + " Change that match arm in Catalog.active_building_draw_off. Main._building_active_draw_at uses this instead of building_draw_off. Idle/default offset is untouched. Only occupied dwell/fancy/theatre sprites use it."
+		return only + " Change that match arm in Catalog.active_building_draw_off. Main._building_active_draw_at uses this instead of building_draw_off. Idle/default offset is untouched. Active and goo overlays for dwell/fancy/theatre/mine/factory use it."
 	if bool(row.node):
 		return only + " Set z_index on the monolith Node2D in Main._sync_monolith. 0 means leave it unset."
 	return only + " Add this number to that prop's draw sy after _push_iso. Higher draws in front. Multimesh props have no z_index. Do not set one."
