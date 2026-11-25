@@ -50,15 +50,14 @@ const APPLE_LAND_MIN := 10.0
 const APPLE_LAND_MAX := 24.0
 ## Seat in the tub, world offset from the snap cell.
 const TUB_SEAT_OFF := Vector2(8.0, 12.0)
-## Ride seat from the snap cell. Mid sits on the painted hub (tune: 14,14).
 ## Radius keeps feet on the wedges; larger values spill onto the grass.
-const ROUND_RIDE_OFF := Vector2(12.0, 12.0)
+const ROUND_RIDE_OFF := Vector2(18.0, 18.0)
 ## Seat ring radius keeping carousel feet on the painted wedges.
-const ROUND_RIDE_RADIUS := 4.0
+const ROUND_RIDE_RADIUS := 0.0
 ## Number of simultaneous riders the roundabout building supports.
 const ROUND_RIDE_SLOTS := 4
 ## Carousel angular speed scaling how fast the ride sprite spins.
-const ROUND_SPIN_RATE := 2.8
+const ROUND_SPIN_RATE := -2.8
 ## Draw scale for the bathtub building prop in world presentation.
 const TUB_SPRITE_SCALE := 0.35
 ## Draw scale for the tiovivo carousel prop.

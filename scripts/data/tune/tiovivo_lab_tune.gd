@@ -15,13 +15,13 @@ static func defaults() -> Dictionary:
 	return {
 		"carousel": {
 			"cell": [8, 16],
-			"center_offset": [12.0, 12.0],
-			"seat_spacing": 12.0,
+			"center_offset": [18.0, 18.0],
+			"seat_spacing": 0.0,
 			"slots": 4,
-			"spin_speed": 2.8,
+			"spin_speed": -2.8,
 			"slot_base_deg": 0.0,
 			"face_mode": "inward", # inward, outward, tangent, spin
-			"sprite_dir_offset": 0,
+			"sprite_dir_offset": 4,
 			"sprite_dir_follow": true,
 			"min_stay": 8.0,
 			"ride_fun_rate": 2.5,
@@ -58,22 +58,22 @@ static func carousel() -> Dictionary:
 	var car: Dictionary = {}
 	if cfg.has("carousel") and typeof(cfg.carousel) == TYPE_DICTIONARY:
 		car = cfg.carousel
-	var off = car.get("center_offset", [12.0, 12.0])
-	var offx := float(off[0]) if typeof(off) == TYPE_ARRAY and off.size() > 0 else 12.0
-	var offy := float(off[1]) if typeof(off) == TYPE_ARRAY and off.size() > 1 else 12.0
+	var off = car.get("center_offset", [18.0, 18.0])
+	var offx := float(off[0]) if typeof(off) == TYPE_ARRAY and off.size() > 0 else 18.0
+	var offy := float(off[1]) if typeof(off) == TYPE_ARRAY and off.size() > 1 else 18.0
 	var slots_n := maxi(1, int(car.get("slots", 4)))
-	var spacing := float(car.get("seat_spacing", 12.0))
+	var spacing := float(car.get("seat_spacing", 0.0))
 	if car.has("radius"):
 		# compat: old configs used orbit radius; convert to distance between plazas
-		spacing = 2.0 * float(car.get("radius", 4.0)) * sin(PI / maxf(1.0, float(slots_n)))
+		spacing = 2.0 * float(car.get("radius", 0.0)) * sin(PI / maxf(1.0, float(slots_n)))
 	return {
 		"center_offset": Vector2(offx, offy),
 		"seat_spacing": spacing,
 		"slots": slots_n,
-		"spin_speed": float(car.get("spin_speed", 2.8)),
+		"spin_speed": float(car.get("spin_speed", -2.8)),
 		"slot_base_deg": float(car.get("slot_base_deg", 0.0)),
 		"face_mode": str(car.get("face_mode", "inward")),
-		"sprite_dir_offset": int(car.get("sprite_dir_offset", 0)),
+		"sprite_dir_offset": int(car.get("sprite_dir_offset", 4)),
 		"sprite_dir_follow": bool(car.get("sprite_dir_follow", true)),
 		"min_stay": float(car.get("min_stay", 8.0)),
 		"ride_fun_rate": float(car.get("ride_fun_rate", 2.5)),

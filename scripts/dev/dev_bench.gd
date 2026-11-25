@@ -3527,15 +3527,15 @@ func _lab_on_spin(group: String, key: String, v: float, whole: bool) -> void:
 		return
 	# special mapping for vector-like offsets stored as arrays
 	if group == "carousel" and key == "center_offset_x":
-		var arr = lab_cfg.get("carousel", {}).get("center_offset", [12.0, 12.0])
+		var arr = lab_cfg.get("carousel", {}).get("center_offset", [18.0, 18.0])
 		if typeof(arr) != TYPE_ARRAY or arr.size() < 2:
-			arr = [12.0, 12.0]
+			arr = [18.0, 18.0]
 		arr[0] = v
 		_lab_cfg_set("carousel", "center_offset", arr)
 	elif group == "carousel" and key == "center_offset_y":
-		var arr = lab_cfg.get("carousel", {}).get("center_offset", [12.0, 12.0])
+		var arr = lab_cfg.get("carousel", {}).get("center_offset", [18.0, 18.0])
 		if typeof(arr) != TYPE_ARRAY or arr.size() < 2:
-			arr = [12.0, 12.0]
+			arr = [18.0, 18.0]
 		arr[1] = v
 		_lab_cfg_set("carousel", "center_offset", arr)
 	else:
@@ -3563,17 +3563,17 @@ func _lab_on_toggle(group: String, key: String, v: bool) -> void:
 func _lab_sync_ui_from_cfg() -> void:
 	_fill = true
 	var car: Dictionary = lab_cfg.get("carousel", {})
-	var off = car.get("center_offset", [12.0, 12.0])
+	var off = car.get("center_offset", [18.0, 18.0])
 	var offx := float(off[0]) if typeof(off) == TYPE_ARRAY and off.size() > 0 else 12.0
 	var offy := float(off[1]) if typeof(off) == TYPE_ARRAY and off.size() > 1 else 12.0
 	_lab_set_spin("carousel:center_offset_x", offx)
 	_lab_set_spin("carousel:center_offset_y", offy)
-	_lab_set_spin("carousel:seat_spacing", float(car.get("seat_spacing", 12.0)))
+	_lab_set_spin("carousel:seat_spacing", float(car.get("seat_spacing", 0.0)))
 	_lab_set_spin("carousel:slots", int(car.get("slots", 4)))
-	_lab_set_spin("carousel:spin_speed", float(car.get("spin_speed", 2.8)))
+	_lab_set_spin("carousel:spin_speed", float(car.get("spin_speed", -2.8)))
 	_lab_set_spin("carousel:slot_base_deg", float(car.get("slot_base_deg", 0.0)))
 	_lab_set_option("carousel:face_mode", str(car.get("face_mode", "inward")))
-	_lab_set_spin("carousel:sprite_dir_offset", int(car.get("sprite_dir_offset", 0)))
+	_lab_set_spin("carousel:sprite_dir_offset", int(car.get("sprite_dir_offset", 4)))
 	_lab_set_check("carousel:sprite_dir_follow", bool(car.get("sprite_dir_follow", true)))
 	_lab_set_spin("carousel:min_stay", float(car.get("min_stay", 8.0)))
 	_lab_set_spin("carousel:ride_fun_rate", float(car.get("ride_fun_rate", 2.5)))
@@ -3630,12 +3630,12 @@ func _lab_apply_cfg_to_runtime() -> void:
 	if lab_carousel.is_empty():
 		return
 	var car: Dictionary = lab_cfg.get("carousel", {})
-	var off = car.get("center_offset", [12.0, 12.0])
+	var off = car.get("center_offset", [18.0, 18.0])
 	var offx := float(off[0]) if typeof(off) == TYPE_ARRAY and off.size() > 0 else 12.0
 	var offy := float(off[1]) if typeof(off) == TYPE_ARRAY and off.size() > 1 else 12.0
 	lab_carousel.center_offset = Vector2(offx, offy)
 	var slots_n := maxi(1, int(car.get("slots", 4)))
-	var spacing := float(car.get("seat_spacing", float(lab_carousel.get("seat_spacing", 12.0))))
+	var spacing := float(car.get("seat_spacing", float(lab_carousel.get("seat_spacing", 0.0))))
 	if car.has("radius"):
 		spacing = 2.0 * float(car.get("radius", 4.0)) * sin(PI / maxf(1.0, float(slots_n)))
 		car.erase("radius")
@@ -3645,7 +3645,7 @@ func _lab_apply_cfg_to_runtime() -> void:
 	car["seat_spacing"] = spacing
 	lab_carousel.slot_base_deg = float(car.get("slot_base_deg", 0.0))
 	lab_carousel.face_mode = str(car.get("face_mode", "inward"))
-	lab_carousel.sprite_dir_offset = int(car.get("sprite_dir_offset", 0))
+	lab_carousel.sprite_dir_offset = int(car.get("sprite_dir_offset", 4))
 	lab_carousel.sprite_dir_follow = bool(car.get("sprite_dir_follow", true))
 	if slots_n != int(lab_carousel.get("slots", 4)):
 		lab_carousel.slots = slots_n
@@ -3653,7 +3653,7 @@ func _lab_apply_cfg_to_runtime() -> void:
 	else:
 		lab_carousel.slots = slots_n
 	lab_carousel.radius = _lab_seat_radius(slots_n, spacing)
-	lab_carousel.spin_speed = float(car.get("spin_speed", 2.8))
+	lab_carousel.spin_speed = float(car.get("spin_speed", -2.8))
 	lab_carousel.min_stay = float(car.get("min_stay", 8.0))
 	lab_carousel.ride_fun_rate = float(car.get("ride_fun_rate", 2.5))
 	lab_carousel.ride_done = float(car.get("ride_done", 95.0))
@@ -3694,11 +3694,11 @@ func _lab_reset_state(respawn: bool) -> void:
 	var cell_arr = car.get("cell", [8, 16])
 	var cx := int(cell_arr[0]) if typeof(cell_arr) == TYPE_ARRAY and cell_arr.size() > 0 else 8
 	var cy := int(cell_arr[1]) if typeof(cell_arr) == TYPE_ARRAY and cell_arr.size() > 1 else 16
-	var off = car.get("center_offset", [12.0, 12.0])
+	var off = car.get("center_offset", [18.0, 18.0])
 	var offx := float(off[0]) if typeof(off) == TYPE_ARRAY and off.size() > 0 else 12.0
 	var offy := float(off[1]) if typeof(off) == TYPE_ARRAY and off.size() > 1 else 12.0
 	var slots_n := maxi(1, int(car.get("slots", 4)))
-	var spacing := float(car.get("seat_spacing", 12.0))
+	var spacing := float(car.get("seat_spacing", 0.0))
 	if car.has("radius"):
 		# compat: old configs used orbit radius; convert to distance between plazas
 		spacing = 2.0 * float(car.get("radius", 4.0)) * sin(PI / maxf(1.0, float(slots_n)))
@@ -3713,10 +3713,10 @@ func _lab_reset_state(respawn: bool) -> void:
 		"seat_spacing": spacing,
 		"radius": _lab_seat_radius(slots_n, spacing),
 		"slots": slots_n,
-		"spin_speed": float(car.get("spin_speed", 2.8)),
+		"spin_speed": float(car.get("spin_speed", -2.8)),
 		"slot_base_deg": float(car.get("slot_base_deg", 0.0)),
 		"face_mode": str(car.get("face_mode", "inward")),
-		"sprite_dir_offset": int(car.get("sprite_dir_offset", 0)),
+		"sprite_dir_offset": int(car.get("sprite_dir_offset", 4)),
 		"sprite_dir_follow": bool(car.get("sprite_dir_follow", true)),
 		"min_stay": float(car.get("min_stay", 8.0)),
 		"ride_fun_rate": float(car.get("ride_fun_rate", 2.5)),
@@ -3786,7 +3786,7 @@ func _lab_seat_radius(slots_n: int, spacing: float) -> float:
 func _lab_ride_center() -> Vector2:
 	if lab_carousel.is_empty():
 		return Vector2.ZERO
-	return Vector2(lab_carousel.pos) + Vector2(lab_carousel.get("center_offset", Vector2(12, 12)))
+	return Vector2(lab_carousel.pos) + Vector2(lab_carousel.get("center_offset", Vector2(18, 18)))
 
 
 ## Angle in radians for carousel seat index.
@@ -3920,7 +3920,7 @@ func _lab_step(dt: float) -> void:
 			spinning = true
 			break
 	if spinning:
-		lab_carousel.spin = float(lab_carousel.get("spin", 0.0)) + float(lab_carousel.get("spin_speed", 2.8)) * dt
+		lab_carousel.spin = float(lab_carousel.get("spin", 0.0)) + float(lab_carousel.get("spin_speed", -2.8)) * dt
 
 	var sync: Dictionary = lab_cfg.get("sync", {})
 	var reenter := bool(sync.get("reenter", true))
@@ -4050,16 +4050,20 @@ func _lab_tick_draw() -> void:
 	if main == null:
 		return
 	var draws: Array = []
+	_node_used = {}
 	# carousel building
 	var carousel_sy_base := -INF
 	if not lab_carousel.is_empty():
 		var pos: Vector2 = lab_carousel.get("pos", Catalog.cell_world(Vector2i(8, 16)))
 		var spin: float = float(lab_carousel.get("spin", 0.0))
-		var prop_frame: int = posmod(int(spin * 4.0), StructureTextures.ROUND_ANIM_N)
+		var prop_frame: int = posmod(
+			int(floor(spin / (TAU / float(StructureTextures.ROUND_ANIM_N)))),
+			StructureTextures.ROUND_ANIM_N
+		)
 		_paint_building(draws, Catalog.BLD_ROUND, pos, 1.0, prop_frame)
 		if not draws.is_empty():
 			# keep building at a base depth so riders can sort in front/behind by seat
-			carousel_sy_base = float(main.cam_rig.to_iso(pos).y) + 6.0
+			carousel_sy_base = float(draws[draws.size() - 1].get("sy", main.cam_rig.to_iso(pos).y))
 			draws[draws.size() - 1]["sy"] = carousel_sy_base
 	# thronglets
 	for a in lab_agents:
@@ -4081,7 +4085,7 @@ func _lab_tick_draw() -> void:
 			if bool(lab_carousel.get("sprite_dir_follow", true)):
 				var ang := _lab_slot_ang(int(a.get("slot", 0)))
 				var dir_off := int(lab_carousel.get("sprite_dir_offset", 0))
-				idx = posmod(int(round(ang / TAU * float(box.y))) + dir_off, maxi(1, box.y))
+				idx = posmod(-int(round(ang / TAU * float(box.y))) + dir_off, maxi(1, box.y))
 			else:
 				idx = posmod(int(lab_carousel.get("sprite_dir_offset", 0)), maxi(1, box.y))
 		elif box.y > 1:
@@ -4122,8 +4126,12 @@ func _lab_tick_draw() -> void:
 					draws[draws.size() - 1]["flip"] = 1.0
 	draws.sort_custom(func(a, b): return float(a.sy) < float(b.sy))
 	main.world_drawer.paint_props(draws)
-	_lift_nodes()
-	_drop_nodes({})
+	var car_node = nodes.get(EFFECT_ACTIVE_UID)
+	if car_node != null and is_instance_valid(car_node) and car_node.visible:
+		if carousel_sy_base > -INF:
+			car_node.set_meta("sy", carousel_sy_base)
+		main.world_layer.move_child(car_node, 0)
+	_drop_nodes(_node_used)
 	_lab_update_status()
 
 
@@ -4301,9 +4309,9 @@ func _lab_update_status() -> void:
 	var msg := "%s | N=%d mont=%d suben=%d cola=%d modo=%s t=%.1fs" % [run, lab_agents.size(), riding, boarding, queue_n, mode, lab_sim_t]
 	if lab_name:
 		lab_name.text = "LABORATORIO TIOVIVO  -  centro(%.1f,%.1f) dist=%.1f slots=%d  ang0=%.0f miran=%s" % [
-			float(lab_carousel.get("center_offset", Vector2(12,12)).x),
-			float(lab_carousel.get("center_offset", Vector2(12,12)).y),
-			float(lab_carousel.get("seat_spacing", 12.0)),
+			float(lab_carousel.get("center_offset", Vector2(18, 18)).x),
+			float(lab_carousel.get("center_offset", Vector2(18, 18)).y),
+			float(lab_carousel.get("seat_spacing", 0.0)),
 			int(lab_carousel.get("slots", 4)),
 			float(lab_carousel.get("slot_base_deg", 0.0)),
 			str(lab_carousel.get("face_mode", "inward"))

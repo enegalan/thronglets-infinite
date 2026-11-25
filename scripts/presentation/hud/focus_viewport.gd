@@ -255,7 +255,7 @@ func focus_draws() -> Array:
 		var item_off = Vector2.ZERO
 		var item_rot = 0.0
 		if int(it.kind) == Catalog.ITEM_EGG:
-			var egg = on_egg_anim.call(it)
+			var egg = on_egg_anim.call(it, time)
 			var egg_idx = int(egg.get("idx", 0))
 			item_frame = int(egg.get("frame", AnimTune.sheet_frame("egg")))
 			item_scale = AnimTune.frame_scale("egg", egg_idx)

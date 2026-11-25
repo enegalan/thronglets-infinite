@@ -112,7 +112,7 @@ func sync() -> void:
 			var item_off = Vector2.ZERO
 			var item_rot = 0.0
 			if int(it.kind) == Catalog.ITEM_EGG:
-				var egg = host.anim_frames.egg_anim(it)
+				var egg = host.anim_frames.egg_anim(it, time_pre)
 				var egg_idx = int(egg.get("idx", 0))
 				item_frame = int(egg.get("frame", AnimTune.sheet_frame("egg")))
 				item_scale = AnimTune.frame_scale("egg", egg_idx)
@@ -249,7 +249,7 @@ func sync() -> void:
 		if int(hand.kind) == Catalog.ITEM_APPLE:
 			hand_frame = host.anim_frames.apple_frame(hand)
 		elif int(hand.kind) == Catalog.ITEM_EGG:
-			var egg = host.anim_frames.egg_anim(hand)
+			var egg = host.anim_frames.egg_anim(hand, time_pre)
 			var egg_idx = int(egg.get("idx", 0))
 			hand_frame = int(egg.get("frame", AnimTune.sheet_frame("egg")))
 			hand_scale = AnimTune.frame_scale("egg", egg_idx)
@@ -280,7 +280,7 @@ func sync() -> void:
 			if int(scooped.kind) == Catalog.ITEM_APPLE:
 				scooped_frame = host.anim_frames.apple_frame(scooped)
 			elif int(scooped.kind) == Catalog.ITEM_EGG:
-				var egg = host.anim_frames.egg_anim(scooped)
+				var egg = host.anim_frames.egg_anim(scooped, time_pre)
 				var egg_idx = int(egg.get("idx", 0))
 				scooped_frame = int(egg.get("frame", AnimTune.sheet_frame("egg")))
 				scooped_scale = AnimTune.frame_scale("egg", egg_idx)

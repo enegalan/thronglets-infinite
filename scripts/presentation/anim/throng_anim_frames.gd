@@ -157,7 +157,7 @@ func frame(i: int, time: float) -> int:
 		if tub.is_empty():
 			return ThrongClips.frame_at(effect_look_clip("act:bath_exit", "ThrongA_Happy"), int(time * 6.0))
 		var age := float(tub.get("bath_t", 0.0))
-		var enter_t := ThrongletSimServer.BATH_ENTER_T
+		var enter_t: float = ThrongletSimServer.BATH_ENTER_T
 		if age < 0.0:
 			return ThrongClips.frame_at(bath_clip, 0)
 		if age < enter_t:
@@ -186,14 +186,14 @@ func frame(i: int, time: float) -> int:
 					var mid := sim._ride_center_of(ride)
 					ang = atan2(sim.pos_y[i] - mid.y, sim.pos_x[i] - mid.x)
 				var dir_off := int(car.get("sprite_dir_offset", 0))
-				idx = posmod(int(round(ang / TAU * float(maxi(1, nframes)))) + dir_off, maxi(1, nframes))
+				idx = posmod(-int(round(ang / TAU * float(maxi(1, nframes)))) + dir_off, maxi(1, nframes))
 			else:
 				idx = posmod(int(car.get("sprite_dir_offset", 0)), maxi(1, nframes))
 			return ThrongClips.frame_at(clip, idx)
 		return ThrongClips.frame_at(effect_look_clip("act:play", "ThrongA_Jump_VariantA_Spritesheet"), int(time * 8.0))
 	if doing == ThrongletSimServer.ACT_WORK and not moving:
 		if sim.is_mining(i):
-			var cycle := ThrongletSimServer.MINE_SWING_T + ThrongletSimServer.MINE_WAIT_T
+			var cycle: float = ThrongletSimServer.MINE_SWING_T + ThrongletSimServer.MINE_WAIT_T
 			var beat := fposmod(time + float(i) * 0.37, cycle)
 			if beat >= ThrongletSimServer.MINE_SWING_T:
 				return ThrongClips.frame_at("Throng_Think_TwiddleThumbs_Spritesheet", int(time * 6.0))

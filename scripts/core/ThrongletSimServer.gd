@@ -1986,7 +1986,7 @@ func _ride_center_of(b: Dictionary) -> Vector2:
 ## Seat ring radius from carousel slot count and spacing in TiovivoLabTune.
 func _ride_radius(_b: Dictionary) -> float:
 	var car := _ride_cfg()
-	return TiovivoLabTune.seat_radius(int(car.get("slots", Catalog.ROUND_RIDE_SLOTS)), float(car.get("seat_spacing", 12.0)))
+	return TiovivoLabTune.seat_radius(int(car.get("slots", Catalog.ROUND_RIDE_SLOTS)), float(car.get("seat_spacing", 0.0)))
 
 
 ## Number of simultaneous seats on the roundabout from tuned or default slot count.
