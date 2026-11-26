@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased](https://github.com/enegalan/thronglets-infinite/compare/v2.8.5...HEAD)
+## [Unreleased](https://github.com/enegalan/thronglets-infinite/compare/v2.9.0...HEAD)
 
 ### 2026-11-26
 
@@ -185,6 +185,16 @@
 - Eating has its own little animation.
 - Land outside the home island stays hidden until the world opens.
 - First playable version: care for the thronglets, use tools and buildings, and grow the island.
+
+## [v2.9.0](https://github.com/enegalan/thronglets-infinite/compare/v2.8.5...v2.9.0) - 2026-11-26
+
+### What's Changed
+
+* Update CHANGELOG for v2.8.5 by [@github-actions](https://github.com/github-actions)[bot] in https://github.com/enegalan/thronglets-infinite/pull/46
+* core: avoid monolithic files by [@enegalan](https://github.com/enegalan) in https://github.com/enegalan/thronglets-infinite/pull/48
+* chore: set application version to 2.9.0 by [@github-actions](https://github.com/github-actions)[bot] in https://github.com/enegalan/thronglets-infinite/pull/49
+
+**Full Changelog**: https://github.com/enegalan/thronglets-infinite/compare/v2.8.5...v2.9.0
 
 ## [v2.8.5](https://github.com/enegalan/thronglets-infinite/compare/v2.8.0...v2.8.5) - 2026-11-25
 
