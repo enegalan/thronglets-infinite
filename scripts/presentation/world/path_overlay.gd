@@ -3,21 +3,13 @@ class_name PathOverlay
 
 const UIAssets := preload("res://scripts/presentation/ui/ui_assets.gd")
 const CameraRig := preload("res://scripts/presentation/camera/camera_rig.gd")
-
-# Neighbor mask: N=1, E=2, S=4, W=8. Each piece is a TEMP_Path index plus
-# flips: h, v, and r (90 degrees counter-clockwise). The draw maps sprite east
-# onto the east neighbor, so the bar sits inside the grass diamond.
-## Atlas piece index plus h/v/r ops for each 4-neighbor grass-path mask (0–15).
-const PATH_PIECE := [
-	"0h", "6rv", "6h", "5h", "6r", "4rv", "5hv", "2rrr",
-	"6", "5", "4", "2", "5r", "2rv", "2rrh", "1",
-]
+const PathLabTune := preload("res://scripts/data/tune/path_lab_tune.gd")
 
 ## Main-world path Sprite2D instances keyed by tile cell.
 var path_nodes := {}
 ## Focus sub-viewport path sprites keyed by tile cell.
 var focus_path_nodes := {}
-## Baked iso diamond textures cached per PATH_PIECE mask string.
+## Baked iso diamond textures cached per piece string.
 var path_iso := {}
 ## Decoded pixels from path_overlay.png for slicing raw path tiles.
 var path_sheet: Image
@@ -61,8 +53,9 @@ func paint_path_cell(paths: TileMapLayer, cell: Vector2i, tile: int) -> void:
 		drop_path_at(cell, main)
 		return
 	var sprite := path_sprite_at(cell, main)
-	var mask := path_mask(cell)
-	sprite.texture = path_iso_tex(PATH_PIECE[mask])
+	var card := path_mask(cell)
+	var diag := path_diag(cell)
+	sprite.texture = path_iso_tex(PathLabTune.piece_for(card, diag))
 	sprite.position = _cam_rig.to_iso(Catalog.cell_world(cell))
 	# Slight overlap so neighboring diamonds cover the shared corner.
 	sprite.scale = Vector2(1.12, 1.12)
@@ -72,14 +65,32 @@ func paint_path_cell(paths: TileMapLayer, cell: Vector2i, tile: int) -> void:
 func path_mask(cell: Vector2i) -> int:
 	var mask := 0
 	if ThrongletSimServer.paths.path_at(cell.x, cell.y - 1):
-		mask |= 1
+		mask |= PathLabTune.N
 	if ThrongletSimServer.paths.path_at(cell.x + 1, cell.y):
-		mask |= 2
+		mask |= PathLabTune.E
 	if ThrongletSimServer.paths.path_at(cell.x, cell.y + 1):
-		mask |= 4
+		mask |= PathLabTune.S
 	if ThrongletSimServer.paths.path_at(cell.x - 1, cell.y):
-		mask |= 8
+		mask |= PathLabTune.W
 	return mask
+
+
+## Counted diagonal bitmask (NE/SE/SW/NW) using the blob adjacency rule.
+func path_diag(cell: Vector2i) -> int:
+	var n: bool = ThrongletSimServer.paths.path_at(cell.x, cell.y - 1)
+	var e: bool = ThrongletSimServer.paths.path_at(cell.x + 1, cell.y)
+	var s: bool = ThrongletSimServer.paths.path_at(cell.x, cell.y + 1)
+	var w: bool = ThrongletSimServer.paths.path_at(cell.x - 1, cell.y)
+	var diag := 0
+	if n and e and ThrongletSimServer.paths.path_at(cell.x + 1, cell.y - 1):
+		diag |= PathLabTune.NE
+	if s and e and ThrongletSimServer.paths.path_at(cell.x + 1, cell.y + 1):
+		diag |= PathLabTune.SE
+	if s and w and ThrongletSimServer.paths.path_at(cell.x - 1, cell.y + 1):
+		diag |= PathLabTune.SW
+	if n and w and ThrongletSimServer.paths.path_at(cell.x - 1, cell.y - 1):
+		diag |= PathLabTune.NW
+	return diag
 
 
 ## True if pixel ([param px], [param py]) lies inside the iso diamond.
@@ -123,13 +134,6 @@ func path_iso_tex(piece: String) -> Texture2D:
 	var fill := path_fill_color(tile)
 	var baked := Image.create(36, 20, false, Image.FORMAT_RGBA8)
 	baked.fill(Color(0, 0, 0, 0))
-	# Solid diamond underlay, then path detail on top. Contiguous cells then
-	# join instead of leaving grass diamonds at every 4-way intersection.
-	for py in 20:
-		for px in 36:
-			if not path_in_diamond(px, py):
-				continue
-			baked.set_pixel(px, py, fill)
 	for py in 20:
 		for px in 36:
 			var dx := px - 18

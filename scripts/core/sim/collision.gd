@@ -131,16 +131,16 @@ func _invalidate_inland_around(cell: Vector2i) -> void:
 
 
 
-## World point sits on inland ground, not a void cliff edge.
+## World point sits on inland ground for buildings/rooted props (not agent walk).
 func _land_inland(px: float, py: float) -> bool:
 	return _land_inland_cell(sim.spatial._cell_vec(px, py))
 
 
 
-## Cached Moore-neighbor test so iso sprites avoid hanging over void.
+## Cached Moore-neighbor pad so buildings/props avoid hanging over void/water.
 func _land_inland_cell(cell: Vector2i) -> bool:
 	# Center must hold, and no Moore neighbor may be void/water/fog.
-	# Diagonal cliffs still read as "in the void" under iso sprites.
+	# Agents may still walk the shore/map-edge lip; this pad is placement-only.
 	if sim.inland_cache.has(cell):
 		return bool(sim.inland_cache[cell])
 	var ok = true
@@ -262,7 +262,7 @@ func _on_mine_pad_cell(cell: Vector2i) -> bool:
 
 
 
-## Agent path blocking: pads, cliffs, inland rules, and save perf counters.
+## Agent path blocking: pads, terrain/feature blocks, and save perf counters.
 func _move_blocked(px: float, py: float) -> bool:
 	if sim.save_perf_mode:
 		sim.set_meta("_ap_move_n", int(sim.get_meta("_ap_move_n", 0)) + 1)
@@ -272,10 +272,9 @@ func _move_blocked(px: float, py: float) -> bool:
 	# the ore/node feature remains and blocks in _blocked as usual.
 	if _on_mine_pad_cell(cell):
 		return Catalog.tile_blocks(_tile_at_cell(cell))
-	# 6px probes stay inside a 16px cell; cliff walk needs a full neighbor-tile pad.
-	if _blocked_cell(cell):
-		return true
-	return not _land_inland_cell(cell)
+	# Shore / map-edge lip is walkable so agents can
+	# reach items that land there. Inland pad stays for buildings/rooted props.
+	return _blocked_cell(cell)
 
 
 

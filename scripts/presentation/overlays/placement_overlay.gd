@@ -324,7 +324,7 @@ func sync_place_mark() -> void:
 		if prop == "water" or prop == "grass":
 			ok = tile != Catalog.TILE_VOID and tile != Catalog.TILE_FOG
 		elif prop == "thronglet":
-			ok = not Catalog.tile_blocks(tile) and sim.collision._land_inland(at.x, at.y)
+			ok = not Catalog.tile_blocks(tile)
 		elif prop == "flower":
 			ok = sim.player_tools.can_place_building(Catalog.BLD_FLOWER, at.x, at.y)
 		else:

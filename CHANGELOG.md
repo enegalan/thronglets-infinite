@@ -2,6 +2,10 @@
 
 ## [Unreleased](https://github.com/enegalan/thronglets-infinite/compare/v2.9.0...HEAD)
 
+### 2026-11-27
+
+- Worn paths use blob-aware tiles: thin trails stay on the 4-neighbor set, while solid patches (2x2, 2xN, 4x4, stepped stubs) pick fill corners, edges, T junctions, and interiors from the unused atlas tiles (including tile 9 / 14).
+
 ### 2026-11-26
 
 - The colony simulation code is organized into clearer pieces so the game is easier to maintain and keep stable.

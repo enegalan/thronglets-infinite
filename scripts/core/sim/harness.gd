@@ -1491,10 +1491,10 @@ func _run_checks() -> void:
 					if not feat.is_empty():
 						feat.dead = true
 					sim.feature_cell.erase(key)
-				# Grass core west/north; water east/south. Lip stays unwalkable under inland pad.
+				# Grass core west/north; water east/south. Lip grass stays walkable.
 				var water = ox >= 1 or oy >= 1
 				sim.collision._set_world_cell(cx, cy, Catalog.TILE_WATER if water else Catalog.TILE_GRASS, true)
-		# Start on an inland cell, not the water lip.
+		# Start on grass next to the water corner.
 		sim.pos_x[0] = float(cove.x - 1) * Catalog.TILE + Catalog.TILE * 0.5
 		sim.pos_y[0] = float(cove.y - 1) * Catalog.TILE + Catalog.TILE * 0.5
 		sim.dir_x[0] = 1.0
@@ -1504,7 +1504,7 @@ func _run_checks() -> void:
 			sim.agent_move._walk(0, start.x + 96.0, start.y + 96.0, sim.MOVE_SPEED, 0.08)
 		if sim.spatial._dist_point(sim.pos_x[0], sim.pos_y[0], start.x, start.y) < 28.0:
 			errors.append("stuck in water corner")
-		if sim.collision._tile_at(sim.pos_x[0], sim.pos_y[0]) == Catalog.TILE_WATER or not sim.collision._land_inland(sim.pos_x[0], sim.pos_y[0]):
+		if sim.collision._tile_at(sim.pos_x[0], sim.pos_y[0]) == Catalog.TILE_WATER:
 			errors.append("walked into water")
 	while not sim.modal.is_empty():
 		sim.dialogue.choose(0)

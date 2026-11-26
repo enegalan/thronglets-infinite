@@ -1158,10 +1158,8 @@ func goal_line() -> String:
 	if kind == "pop":
 		return "EXPANDE  %d/%d MULTIS" % [mini(sim.peak, n), n]
 	if kind == "gem":
-		if bool(sim.unlocks.get("mine", false)) and sim.world_entities.count_item(Catalog.ITEM_ORE) > 0:
+		if sim.world_entities.count_item(Catalog.ITEM_ORE) > 0:
 			return "JUNTA ENERGIA  %d/%d  (MARTILLO EN EL MINERAL)" % [mini(sim.gems_peak, n), n]
-		if n >= 100 and bool(sim.unlocks.get("mine", false)):
-			return "JUNTA ENERGIA  %d/%d  (MINA EN NODO → MARTILLO EN MINERAL)" % [mini(sim.gems_peak, n), n]
 		return "JUNTA ENERGIA  %d/%d  (MARTILLO: ROCA → MINERAL)" % [mini(sim.gems_peak, n), n]
 	if kind == "expand":
 		return "HAZ CRECER LA COLONIA PARA EXPANDIR LA ISLA"
@@ -1175,9 +1173,6 @@ func _sandbox_goal() -> String:
 	if not sim.building_sim._has_building(Catalog.BLD_MARKET):
 		return _goal_build("COLOCA EL MERCADO", int(Catalog.BUILD_INFO[Catalog.BLD_MARKET].wood))
 	if not sim.building_sim._has_factory():
-		if not bool(sim.unlocks.get("factory", false)):
-			var need = int(Catalog.MARKET.factory.cost)
-			return "COMPRA LA FABRICA  %d/%d ENERGIA" % [mini(sim.gems, need), need]
 		return _goal_place("CONSTRUYE UNA FABRICA", "factory")
 	if not bool(sim.unlocks.get("theatre", false)):
 		var need_t = int(Catalog.MARKET.theatre.cost)
@@ -1258,7 +1253,7 @@ func _enter_part_two(reason: String, talk_market: bool = true) -> void:
 	_grant("sculpture", "", false)
 	if first:
 		sim.world_entities._seed_early_ore(6)
-		sim.notes.append("EL MERCADO ESTA LISTO. COMPRA EL PICO Y LO DEMAS ALLI.")
+		sim.notes.append("EL MERCADO ESTA LISTO. COMPRA EL PICO ALLI.")
 		if reason != "":
 			sim.notes.append(reason)
 	_check_milestones()
