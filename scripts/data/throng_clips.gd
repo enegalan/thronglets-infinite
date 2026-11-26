@@ -1,10 +1,14 @@
 class_name ThrongClips
 extends Object
 
+## Column count of the legacy packed throng sprite sheet.
 const SHEET_COLS := 16
+## Row count of the legacy packed throng sprite sheet.
 const SHEET_ROWS := 51
+## First frame index where packed-sheet throng animations begin.
 const BASE := 144
 
+## Packed-sheet frame ranges keyed by Unity animation clip name.
 const CLIPS := {
 	"ThrongA_PanicRun": Vector2i(654, 4),
 	"ThrongA_PanicRunFire": Vector2i(658, 4),
@@ -99,7 +103,6 @@ const CLIPS := {
 	"Throng_Idle_EyesDirection_Spritesheet": Vector2i(563, 8),
 	"Throng_Prop_Blood_A": Vector2i(571, 1),
 	"Throng_Prop_Shadow_A": Vector2i(572, 1),
-	"Throng_Prop_Shadow_A 1": Vector2i(573, 1),
 	"Throng_SarcasticSquint2": Vector2i(574, 3),
 	"Throng_SarcasticSquint3": Vector2i(577, 2),
 	"Throng_SingB_Spritesheet": Vector2i(579, 8),
@@ -132,10 +135,12 @@ const IDLE_CALM := [
 		"Throng_Think_Spritesheet",
 ]
 
+## Clip names used while a thronglet dozes with eyes closed.
 const IDLE_SLEEP := [
 		"Throng_Idle_AntennaSpin_EyesClosed_Spritesheet",
 ]
 
+## Clip names played when amusement is low or grumpy.
 const MOOD_BORED := [
 		"ThrongA_Bored_KickRock",
 		"Throng_Grumpy_Sheet",
@@ -144,11 +149,12 @@ const MOOD_BORED := [
 		"ThrongA_PuppyDogEyes",
 ]
 
+## Clip names played for sad emotional presentation.
 const MOOD_SAD := [
 		"ThrongA_Sad",
 ]
 
-# Thought-bubble bark: random Sing B–E while the bocadillo is up (not peer duet).
+## Thought-bubble bark: random Sing B–E while the bocadillo is up (not peer duet).
 const BARK_SING := [
 		"Throng_SingB_Spritesheet",
 		"Throng_SingC_Spritesheet",
@@ -156,6 +162,7 @@ const BARK_SING := [
 		"Throng_SingE_Spritesheet",
 ]
 
+## Sing clips used when two thronglets perform a duet.
 const SING_PEER := [
 		"Throng_Sing_Spritesheet",
 		"Throng_SingB_Spritesheet",
@@ -169,6 +176,7 @@ const SING_PEER := [
 		"ThrongE_SingToThronglet_Spriesheet2",
 ]
 
+## Talk clips used for thronglet-to-thronglet conversations.
 const TALK_PEER := [
 		"ThrongA_TalkToOtherThronglet_Spritesheet2",
 		"ThrongB_TalkToOtherThronglet_Spritesheet2",
@@ -178,6 +186,7 @@ const TALK_PEER := [
 		"ThrongE_TalkToOtherThronglet_Spritesheet2",
 ]
 
+## Talk clips used when addressing the player console.
 const TALK_CONSOLE := [
 		"ThrongA_Talk",
 		"ThrongA_Talk_Blink_Spritesheet",
@@ -190,6 +199,7 @@ const TALK_CONSOLE := [
 		"ThrongA_Talk_Tall_Spritesheet",
 ]
 
+## Reactive talk clips for player prompts and explanations.
 const TALK_REACT := [
 		"ThrongA_LooktAtPlayerHappyNod_Spritesheet",
 		"ThrongA_SkepticalToPlayer_Spritesheet",
@@ -200,6 +210,7 @@ const TALK_REACT := [
 		"ThrongA_InAwe",
 ]
 
+## Possessed-state antenna spin and ear raise animations.
 const POSSESSED := [
 		"ThrongA_Possessed_AntennaSpin_Spritesheet",
 		"ThrongA_Possessed_AntennaSpinTalk_Spritesheet",
@@ -207,43 +218,57 @@ const POSSESSED := [
 		"ThrongA_Possessed_EarRaise_Spritesheet",
 ]
 
+## Celebration clips after mitosis or positive events.
 const CELEBRATE := [
 		"ThrongA_Celebrate_Spritesheet",
 ]
 
+## Panic run and freak-out clips for danger reactions.
 const PANIC := [
 		"ThrongA_FreakOut",
 		"ThrongA_PanicRunFire",
 		"ThrongA_ReactToKill",
 ]
 
+## Resource folder holding per-clip PNG animation strips.
 const STRIP_DIR := "res://resources/sprites/throng_anims/"
+## JSON manifest describing strip frame counts and cell sizes.
 const STRIP_MANIFEST := STRIP_DIR + "manifest.json"
 
+## Packed lookup from absolute frame index to clip name.
 static var _frame_clip: PackedStringArray = PackedStringArray()
+## Packed lookup from absolute frame index to local clip index.
 static var _frame_index: PackedInt32Array = PackedInt32Array()
+## True after reverse frame maps have been built.
 static var _frame_map_ready := false
+## Cache of loaded strip textures keyed by clip name.
 static var _strip_tex: Dictionary = {}
+## Parsed manifest metadata keyed by clip name.
 static var _strip_meta: Dictionary = {}
 
+## Returns whether a named animation exists in the CLIPS table.
 static func has_clip(clip: String) -> bool:
 	return CLIPS.has(clip)
 
+## Frame count for a clip from CLIPS or strip manifest metadata.
 static func frame_count(clip: String) -> int:
 	var box: Vector2i = CLIPS.get(clip, Vector2i(20, 1))
 	return maxi(box.y, 1)
 
+## Absolute sheet frame index for a clip at a simulation tick.
 static func frame_at(clip: String, tick: int) -> int:
 	var box: Vector2i = CLIPS.get(clip, Vector2i(20, 1))
 	if box.y <= 1:
 		return box.x
 	return box.x + posmod(tick, box.y)
 
+## Frame index from normalized along value for timed cutscenes.
 static func frame_along(clip: String, along: float) -> int:
 	var box: Vector2i = CLIPS.get(clip, Vector2i(20, 1))
 	var n := maxi(box.y, 1)
 	return box.x + clampi(int(clampf(along, 0.0, 0.999) * float(n)), 0, n - 1)
 
+## Chooses a pooled clip frame based on agent index and held time.
 static func pick(pool: Array, index: int, time: float, hold: float) -> int:
 	if pool.is_empty():
 		return 20
@@ -252,12 +277,15 @@ static func pick(pool: Array, index: int, time: float, hold: float) -> int:
 	var local := time - float(int(time / hold)) * hold
 	return frame_at(name, int(local * 8.0))
 
+## Filename for a clip's standalone strip PNG.
 static func strip_file(clip: String) -> String:
 	return str(clip).replace(" ", "_").replace("/", "_") + ".png"
 
+## Full res:// path to a clip's strip texture.
 static func strip_path(clip: String) -> String:
 	return STRIP_DIR + strip_file(clip)
 
+## Loads strip manifest metadata once for frame sizing.
 static func _ensure_strip_meta() -> void:
 	if not _strip_meta.is_empty():
 		return
@@ -272,6 +300,7 @@ static func _ensure_strip_meta() -> void:
 		return
 	_strip_meta = clips
 
+## Loads and caches the strip texture for a clip name.
 static func strip_tex(clip: String) -> Texture2D:
 	if _strip_tex.has(clip):
 		return _strip_tex[clip]
@@ -288,6 +317,7 @@ static func strip_tex(clip: String) -> Texture2D:
 	_strip_tex[clip] = tex
 	return tex
 
+## Builds an AtlasTexture frame from a strip clip and tick.
 static func strip_frame(clip: String, tick: int) -> AtlasTexture:
 	var sheet := strip_tex(clip)
 	if sheet == null:
@@ -312,6 +342,7 @@ static func strip_frame(clip: String, tick: int) -> AtlasTexture:
 	atlas.filter_clip = true
 	return atlas
 
+## Builds reverse maps from absolute frames to clip names.
 static func _ensure_frame_map() -> void:
 	if _frame_map_ready:
 		return
@@ -333,18 +364,21 @@ static func _ensure_frame_map() -> void:
 			_frame_index[f] = i
 	_frame_map_ready = true
 
+## Reverse lookup: animation name for an absolute frame index.
 static func clip_name_at(frame: int) -> String:
 	_ensure_frame_map()
 	if frame < 0 or frame >= _frame_clip.size():
 		return ""
 	return _frame_clip[frame]
 
+## Local frame index inside a clip for an absolute frame index.
 static func clip_index_at(frame: int) -> int:
 	_ensure_frame_map()
 	if frame < 0 or frame >= _frame_index.size():
 		return -1
 	return _frame_index[frame]
 
+## Returns clip name and local index dict for an absolute frame.
 static func info_at(frame: int) -> Dictionary:
 	var clip := clip_name_at(frame)
 	if clip.is_empty():

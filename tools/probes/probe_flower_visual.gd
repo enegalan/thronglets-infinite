@@ -1,10 +1,14 @@
 extends SceneTree
 
 
+## Sandbox scene probe that exercises flower visual states on the real Main tree.
+
+
 func _init() -> void:
 	call_deferred("_go")
 
 
+## Boots the scene harness, runs checks, and quits with pass/fail status.
 func _go() -> void:
 	await process_frame
 	var sim: Node = root.get_node("ThrongletSimServer")
@@ -24,16 +28,16 @@ func _go() -> void:
 	root.add_child(main)
 	main.set("in_title", false)
 	if main.get("title_root") != null:
-		main.title_root.visible = false
+		main.title.title_root.visible = false
 	await process_frame
 	await process_frame
 
-	var placed_at := Vector2.ZERO
-	var ok_n := 0
+	var placed_at = Vector2.ZERO
+	var ok_n = 0
 	for y in range(-12, 13):
 		for x in range(-12, 13):
-			var wx := float(x * Catalog.TILE)
-			var wy := float(y * Catalog.TILE)
+			var wx = float(x * Catalog.TILE)
+			var wy = float(y * Catalog.TILE)
 			if bool(sim.call("can_place_building", Catalog.BLD_FLOWER, wx, wy)):
 				ok_n += 1
 				if placed_at == Vector2.ZERO:
@@ -55,7 +59,7 @@ func _go() -> void:
 	print("sprites=", sprites.keys())
 	for id in sprites.keys():
 		var n: Sprite2D = sprites[id]
-		var path := "<null>"
+		var path = "<null>"
 		if n.texture != null:
 			path = str(n.texture.resource_path)
 		print(
@@ -68,6 +72,6 @@ func _go() -> void:
 		)
 
 	# Texture load check independent of viewport.
-	var tex0: Texture2D = main._structure_anim_texture(Catalog.BLD_FLOWER, 0)
+	var tex0: Texture2D = main.structure_tex.structure_anim_texture(Catalog.BLD_FLOWER, 0)
 	print("flower_0 tex=", tex0, " path=", tex0.resource_path if tex0 else "")
 	quit()

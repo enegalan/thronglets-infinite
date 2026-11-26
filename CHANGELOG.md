@@ -2,8 +2,14 @@
 
 ## [Unreleased](https://github.com/enegalan/thronglets-infinite/compare/v2.8.5...HEAD)
 
+### 2026-11-26
+
+- The colony simulation code is organized into clearer pieces so the game is easier to maintain and keep stable.
+- Fixed a crash that could happen when closing or refreshing the dialogue console.
+
 ### 2026-11-25
 
+- `Main.gd` presentation split by domain under `scripts/presentation/`; Main is the thin orchestrator.
 - Eat body clip no longer sticks after the apple claim is lost: `ACT_EAT` is sticky only in bite range, the full AI path continues/clears chew via `_continue_eat`, and expired non-sticky acts clear even when `act_t` is already 0.
 - Sponge scrub reads `stroke_min` / `stroke_cap` / `gain` / `radius` from `EffectTune` (defaults match the live gentle scrub).
 - Building goo pollution is cached on the building and invalidated when goo tiles change, so draw/HUD no longer rescan footprints every frame.

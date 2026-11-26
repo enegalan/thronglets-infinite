@@ -3,20 +3,32 @@ extends Node2D
 const MODEL := "res://resources/models/Monolith_Act1.glb"
 # Same pixels-per-unit as the other props, then fitted so the stack
 # stands a little taller than a house instead of several times one.
+## Orthographic scale tying 3D units to on-island pixel height.
 const PX_PER_UNIT := 52.0 * 0.38
+## SubViewport width for the prerendered monolith billboard.
 const VIEW_W := 96
+## SubViewport height for the prerendered monolith billboard.
 const VIEW_H := 112
+## World Y the mini-scene camera aims at (stack center).
 const LOOK_Y := 1.5
+## Ground plane Y used to align sprite feet in the viewport.
 const GROUND_Y := 0.0
 
+## 0–1 emergence from the feature sim; drives rise-in and fade on spawn.
 var spawn_progress := 1.0
+## Feature age from sim time, kept for future animation hooks.
 var age := 0.0
+## Plant X copied from the feature for stable world anchoring.
 var seed_x := 0
+## Plant Y copied from the feature for stable world anchoring.
 var seed_y := 0
+## Billboards the live SubViewport texture in the iso world layer.
 var _sprite: Sprite2D = null
+## Default pixel offset placing the sprite feet on the feature origin.
 var _base_offset := Vector2.ZERO
 
 
+## Builds SubViewport 3D render and 2D sprite for the monolith GLB.
 func _ready() -> void:
 	var built := _load_model()
 	if built == null:
@@ -67,6 +79,7 @@ func _ready() -> void:
 	_update_emergence()
 
 
+## Applies feature spawn and age from sim to the sprite.
 func sync_state(feat: Dictionary, t: float) -> void:
 	spawn_progress = clampf(float(feat.get("spawn_progress", 1.0)), 0.0, 1.0)
 	age = float(feat.get("age", t))
@@ -76,6 +89,7 @@ func sync_state(feat: Dictionary, t: float) -> void:
 	queue_redraw()
 
 
+## Adjusts sprite offset and alpha from [member spawn_progress].
 func _update_emergence() -> void:
 	if _sprite == null:
 		return
@@ -85,6 +99,7 @@ func _update_emergence() -> void:
 	_sprite.modulate = Color(1, 1, 1, clampf(0.25 + spawn_progress * 0.75, 0.25, 1.0))
 
 
+## Parses embedded GLB bytes into a 3D scene root.
 func _load_model() -> Node3D:
 	var bytes := FileAccess.get_file_as_bytes(MODEL)
 	if bytes.is_empty() or bytes.size() < 20:
@@ -131,6 +146,7 @@ func _load_model() -> Node3D:
 	return _build_node(doc.nodes, meshes, int(doc.scenes[0].nodes[0]))
 
 
+## Recursively instantiates one glTF node by [param index].
 func _build_node(nodes: Array, meshes: Array, index: int) -> Node3D:
 	var spec: Dictionary = nodes[index]
 	var name := str(spec.get("name", ""))
@@ -156,6 +172,7 @@ func _build_node(nodes: Array, meshes: Array, index: int) -> Node3D:
 	return node
 
 
+## Reads POSITION accessor floats into a PackedVector3Array.
 func _read_vec3(bin: PackedByteArray, views: Array, acc: Dictionary) -> PackedVector3Array:
 	var view: Dictionary = views[int(acc.bufferView)]
 	var stride := int(view.get("byteStride", 12))
@@ -168,6 +185,7 @@ func _read_vec3(bin: PackedByteArray, views: Array, acc: Dictionary) -> PackedVe
 	return out
 
 
+## Reads TEXCOORD_0 accessor floats into a PackedVector2Array.
 func _read_vec2(bin: PackedByteArray, views: Array, acc: Dictionary) -> PackedVector2Array:
 	var view: Dictionary = views[int(acc.bufferView)]
 	var stride := int(view.get("byteStride", 8))
@@ -180,6 +198,7 @@ func _read_vec2(bin: PackedByteArray, views: Array, acc: Dictionary) -> PackedVe
 	return out
 
 
+## Reads triangle index accessor as PackedInt32Array.
 func _read_indices(bin: PackedByteArray, views: Array, acc: Dictionary) -> PackedInt32Array:
 	var view: Dictionary = views[int(acc.bufferView)]
 	var start := int(view.get("byteOffset", 0)) + int(acc.get("byteOffset", 0))

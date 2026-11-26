@@ -1,27 +1,34 @@
 class_name PropTune
 
-# Dev bench overrides. The game never reads this.
-# res://dev/prop_tune.json is the handoff for applying the same values in code.
+## Dev bench overrides. The game never reads this.
+## res://dev/prop_tune.json is the handoff for applying the same values in code.
 
 const PATH := "res://dev/prop_tune.json"
+## Flag file path used to auto-open the prop bench on next launch.
 const BOOT := "user://dev_bench.flag"
 
+## Internal cache backing prop tune tune lookups.
 static var _rows: Array = []
+## Internal cache backing prop tune tune lookups.
 static var _index := {}
+## Runtime prop tune edits not yet saved to disk.
 static var overrides := {}
 
 
+## All prop and building tune rows for the dev bench.
 static func entries() -> Array:
 	if _rows.is_empty():
 		_build()
 	return _rows
 
 
+## Looks up one prop tune row by string id.
 static func entry(id: String) -> Dictionary:
 	entries()
 	return _index.get(id, {})
 
 
+## Merged defaults and overrides for one prop id.
 static func get_tune(id: String) -> Dictionary:
 	var tune := _defaults(entry(id))
 	if not overrides.has(id):
@@ -32,10 +39,12 @@ static func get_tune(id: String) -> Dictionary:
 	return tune
 
 
+## Whether a prop row differs from shipped defaults.
 static func is_dirty(id: String) -> bool:
 	return overrides.has(id) and not (overrides[id] as Dictionary).is_empty()
 
 
+## Count of prop rows with unsaved overrides.
 static func change_count() -> int:
 	var n := 0
 	for row in entries():
@@ -44,32 +53,39 @@ static func change_count() -> int:
 	return n
 
 
+## Overrides iso footprint width and height for a prop id.
 static func set_footprint(id: String, x: int, y: int) -> void:
 	_assign(id, "footprint", Vector2i(clampi(x, 1, 8), clampi(y, 1, 8)))
 
 
+## Overrides draw scale for a prop id.
 static func set_scale(id: String, value: float) -> void:
 	_assign(id, "scale", snappedf(clampf(value, 0.01, 3.0), 0.01))
 
 
+## Overrides world draw offset for a prop id.
 static func set_offset(id: String, x: float, y: float) -> void:
 	var at := Vector2(snappedf(clampf(x, -160.0, 160.0), 0.01), snappedf(clampf(y, -160.0, 160.0), 0.01))
 	_assign(id, "offset", at)
 
 
+## Overrides draw Z index for a prop id.
 static func set_z(id: String, value: float) -> void:
 	_assign(id, "z", snappedf(clampf(value, -40.0, 40.0), 0.01))
 
 
+## Overrides draw rotation for a prop id.
 static func set_rot(id: String, value: float) -> void:
 	_assign(id, "rot", snappedf(clampf(value, -180.0, 180.0), 0.01))
 
 
+## Overrides approach ellipse radii for a prop id.
 static func set_reach(id: String, x: float, y: float) -> void:
 	var at := Vector2(snappedf(clampf(x, 4.0, 160.0), 0.01), snappedf(clampf(y, 4.0, 160.0), 0.01))
 	_assign(id, "reach", at)
 
 
+## Overrides extra offset when a building is active.
 static func set_active_offset(id: String, x: float, y: float) -> void:
 	if not Catalog.building_has_active(int(entry(id).get("kind", -1))):
 		return
@@ -77,10 +93,12 @@ static func set_active_offset(id: String, x: float, y: float) -> void:
 	_assign(id, "active_offset", at)
 
 
+## Clears overrides for one prop id.
 static func reset(id: String) -> void:
 	overrides.erase(id)
 
 
+## Loads prop_tune.json overrides from user storage.
 static func load_saved() -> void:
 	overrides.clear()
 	if not FileAccess.file_exists(PATH):
@@ -110,6 +128,7 @@ static func load_saved() -> void:
 			_assign(id, str(key), value)
 
 
+## Writes current prop overrides to prop_tune.json.
 static func save_file() -> String:
 	var dir := ProjectSettings.globalize_path("res://dev")
 	DirAccess.make_dir_recursive_absolute(dir)
@@ -122,6 +141,7 @@ static func save_file() -> String:
 	return ProjectSettings.globalize_path(PATH)
 
 
+## Creates the bench boot flag so PropTune opens next session.
 static func arm_boot() -> void:
 	var file := FileAccess.open(BOOT, FileAccess.WRITE)
 	if file == null:
@@ -129,6 +149,7 @@ static func arm_boot() -> void:
 	file.store_string("1")
 
 
+## Reads and clears the bench boot flag if present.
 static func consume_boot() -> bool:
 	if not FileAccess.file_exists(BOOT):
 		return false
@@ -138,6 +159,7 @@ static func consume_boot() -> bool:
 	return true
 
 
+## Internal helper for prop tune tune serialization or bench rows.
 static func _build() -> void:
 	for kind in Catalog.BUILD_INFO:
 		var info: Dictionary = Catalog.BUILD_INFO[kind]
@@ -173,12 +195,14 @@ static func _build() -> void:
 	_push("item", Catalog.ITEM_EGG, 0, "HUEVO", "ITEM_EGG", Catalog.ICON_EGG, false)
 
 
+## Internal helper for prop tune tune serialization or bench rows.
 static func _variants(kind: int, count: int, label: String, constant: String, icon: int) -> void:
 	for ore in count:
 		var name := label if count == 1 else "%s %d" % [label, ore + 1]
 		_push("feature", kind, ore, name, constant, icon, false)
 
 
+## Internal helper for prop tune tune serialization or bench rows.
 static func _push(group: String, kind: int, ore: int, label: String, constant: String, icon: int, node: bool) -> void:
 	var id := "%s:%d" % [group, kind]
 	if ore > 0:
@@ -197,6 +221,7 @@ static func _push(group: String, kind: int, ore: int, label: String, constant: S
 	_index[id] = row
 
 
+## Internal helper for prop tune tune serialization or bench rows.
 static func _bld_name(kind: int) -> String:
 	match kind:
 		Catalog.BLD_APPLE:
@@ -231,6 +256,7 @@ static func _bld_name(kind: int) -> String:
 			return "BLD_%d" % kind
 
 
+## Internal helper for prop tune tune serialization or bench rows.
 static func _defaults(row: Dictionary) -> Dictionary:
 	var size := Vector2i(1, 1)
 	var scale := 1.0
@@ -265,6 +291,7 @@ static func _defaults(row: Dictionary) -> Dictionary:
 	}
 
 
+## Internal helper for prop tune tune serialization or bench rows.
 static func _assign(id: String, key: String, value) -> void:
 	if entry(id).is_empty():
 		return
@@ -282,6 +309,7 @@ static func _assign(id: String, key: String, value) -> void:
 	overrides[id][key] = value
 
 
+## Internal helper for prop tune tune serialization or bench rows.
 static func _same(key: String, a, b) -> bool:
 	if key == "footprint":
 		return a == b
@@ -290,6 +318,7 @@ static func _same(key: String, a, b) -> bool:
 	return is_equal_approx(float(a), float(b))
 
 
+## Internal helper for prop tune tune serialization or bench rows.
 static func _read_value(key: String, raw):
 	if raw == null:
 		return null
@@ -318,6 +347,7 @@ static func _read_value(key: String, raw):
 	return snappedf(clampf(float(raw), -40.0, 40.0), 0.01)
 
 
+## Internal helper for prop tune tune serialization or bench rows.
 static func _document() -> Dictionary:
 	var changes: Array = []
 	for row in entries():
@@ -355,7 +385,7 @@ static func _document() -> Dictionary:
 		"how_to_apply": _how(),
 		"units": {
 			"footprint": "cells [x, y], centered on the snap cell through Catalog.footprint_offsets",
-			"scale": "uniform sprite scale passed to _push_iso and _pad_nudge",
+			"scale": "uniform sprite scale passed to iso_draw.push_iso and _pad_nudge",
 			"offset": "extra world pixels [x, y] after the current anchor. +x east, +y south",
 			"z": "sprite: added to sort y, higher draws in front. node: Node2D z_index",
 			"rot": "degrees, clockwise, around the anchor. 0 leaves the sprite unrotated",
@@ -366,6 +396,7 @@ static func _document() -> Dictionary:
 	}
 
 
+## Internal helper for prop tune tune serialization or bench rows.
 static func _json_value(key: String, value):
 	if key == "footprint":
 		var size: Vector2i = value
@@ -378,16 +409,18 @@ static func _json_value(key: String, value):
 	return snappedf(float(value), 0.01)
 
 
+## Internal helper for prop tune tune serialization or bench rows.
 static func _anchor_fn(row: Dictionary) -> String:
 	if bool(row.node):
 		return "Main._sync_monolith"
 	if str(row.group) == "building":
-		return "Main._building_draw_at"
+		return "Main.iso_draw.building_draw_at"
 	if str(row.group) == "item":
-		return "Main._item_draw_at"
-	return "Main._feature_draw_at"
+		return "Main.iso_draw.item_draw_at"
+	return "Main.iso_draw.feature_draw_at"
 
 
+## Internal helper for prop tune tune serialization or bench rows.
 static func _shares_kind(row: Dictionary) -> bool:
 	var n := 0
 	for other in entries():
@@ -396,6 +429,7 @@ static func _shares_kind(row: Dictionary) -> bool:
 	return n > 1
 
 
+## Internal helper for prop tune tune serialization or bench rows.
 static func _only(row: Dictionary) -> String:
 	var constant := "Catalog." + str(row.constant)
 	if _shares_kind(row):
@@ -403,6 +437,7 @@ static func _only(row: Dictionary) -> String:
 	return "Only %s. Do not change other kinds." % constant
 
 
+## Internal helper for prop tune tune serialization or bench rows.
 static func _apply_in(row: Dictionary, key: String) -> String:
 	var only := _only(row)
 	var group := str(row.group)
@@ -415,15 +450,15 @@ static func _apply_in(row: Dictionary, key: String) -> String:
 			if _shares_kind(row):
 				extra = " footprint_for_feature(kind) ignores ore today, so branch on ore and leave the other variants on their current size."
 			return only + " Change Catalog.footprint_for_feature." + extra + " Placement already uses this function."
-		return only + " Items have no footprint yet. Main._item_draw_at passes Vector2i(1, 1). Use this size there, the same way buildings use footprint_for_building."
+		return only + " Items have no footprint yet. Main.iso_draw.item_draw_at passes Vector2i(1, 1). Use this size there, the same way buildings use footprint_for_building."
 	if key == "scale":
 		if bool(row.node):
 			return only + " In Main._sync_monolith set Node2D.scale to Vector2(scale, scale). It is unset today, which means (1, 1)."
 		if group == "building":
-			return only + " Pass this scale to _pad_nudge in Main._building_draw_at and to _push_iso for this building in _sync_actors, the carried ghost, the kit ghost, and the focus draw. BLD_TUB uses Catalog.TUB_SPRITE_SCALE. BLD_ROUND uses Catalog.ROUND_SPRITE_SCALE. Other buildings use 1.0."
+			return only + " Pass this scale to _pad_nudge in Main.iso_draw.building_draw_at and to iso_draw.push_iso for this building in world_actor_sync.sync, the carried ghost, the kit ghost, and the focus draw. BLD_TUB uses Catalog.TUB_SPRITE_SCALE. BLD_ROUND uses Catalog.ROUND_SPRITE_SCALE. Other buildings use 1.0."
 		if group == "item":
-			return only + " Pass this scale to _pad_nudge in Main._item_draw_at and to _push_iso for this item. Items use 1.0 today."
-		return only + " Pass this scale to _pad_nudge in Main._feature_draw_at and to _push_iso for this feature, including the held-feature ghost. Features use 1.0 today."
+			return only + " Pass this scale to _pad_nudge in Main.iso_draw.item_draw_at and to iso_draw.push_iso for this item. Items use 1.0 today."
+		return only + " Pass this scale to _pad_nudge in Main.iso_draw.feature_draw_at and to iso_draw.push_iso for this feature, including the held-feature ghost. Features use 1.0 today."
 	if key == "offset":
 		if bool(row.node):
 			return only + " Add this world Vector2 to the position passed into Main._sync_monolith. That anchor is the snap cell, not the footprint center."
@@ -431,16 +466,17 @@ static func _apply_in(row: Dictionary, key: String) -> String:
 	if key == "rot":
 		if bool(row.node):
 			return only + " Set rotation_degrees on the monolith Node2D in Main._sync_monolith. Positive degrees turn clockwise around the snap-cell anchor. 0 means leave it at 0."
-		return only + " Degrees, clockwise, around the anchor after footprint_center, _pad_nudge, and the extra offset. Main._write_mesh reads the draw key rot and spins the quad around p. Set rot on this prop's draws in _sync_actors, the carried ghost, the kit ghost, and the focus draw. 0 means leave the key unset. Do not rotate other props."
+		return only + " Degrees, clockwise, around the anchor after footprint_center, _pad_nudge, and the extra offset. Main._write_mesh reads the draw key rot and spins the quad around p. Set rot on this prop's draws in world_actor_sync.sync, the carried ghost, the kit ghost, and the focus draw. 0 means leave the key unset. Do not rotate other props."
 	if key == "reach":
 		return only + " Change that match arm in Catalog.building_reach. If it falls through to the footprint+pad formula, give it its own arm with Vector2(rx, ry) in world pixels. ThrongletSimServer._approach_building and enter checks already call Catalog.building_reach."
 	if key == "active_offset":
-		return only + " Change that match arm in Catalog.active_building_draw_off. Main._building_active_draw_at uses this instead of building_draw_off. Idle/default offset is untouched. Active and goo overlays for dwell/fancy/theatre/mine/factory use it."
+		return only + " Change that match arm in Catalog.active_building_draw_off. Main.iso_draw.building_active_draw_at uses this instead of building_draw_off. Idle/default offset is untouched. Active and goo overlays for dwell/fancy/theatre/mine/factory use it."
 	if bool(row.node):
 		return only + " Set z_index on the monolith Node2D in Main._sync_monolith. 0 means leave it unset."
-	return only + " Add this number to that prop's draw sy after _push_iso. Higher draws in front. Multimesh props have no z_index. Do not set one."
+	return only + " Add this number to that prop's draw sy after iso_draw.push_iso. Higher draws in front. Multimesh props have no z_index. Do not set one."
 
 
+## Internal helper for prop tune tune serialization or bench rows.
 static func _how() -> String:
 	return " ".join(PackedStringArray([
 		"Apply each object in changes and nothing else.",

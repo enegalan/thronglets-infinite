@@ -1,16 +1,24 @@
 class_name DialogueBook
 extends RefCounted
 
+## Preloaded catalog reference for gaze event to tree mapping.
 const Catalog := preload("res://scripts/data/catalog.gd")
+## Folder holding branching dialogue tree JSON files.
 const TREE_DIR := "res://data/dialogue/trees"
+## Manifest listing discoverable dialogue tree ids.
 const INDEX_PATH := "res://data/dialogue/trees/_index.json"
 
+## Loaded dialogue tree dictionaries keyed by tree id.
 static var trees := {}
+## Parsed _index.json metadata for dialogue assets.
 static var index := {}
+## True after dialogue trees and index have been scanned.
 static var ready := false
+## Tree ids eligible for ambient popup dialogue rotation.
 static var ambient_ids: Array = []
 
 
+## Scans tree JSON files and builds the in-memory dialogue cache.
 static func ensure() -> void:
 	if ready:
 		return
@@ -40,6 +48,7 @@ static func ensure() -> void:
 	dir.list_dir_end()
 
 
+## Resolves a gaze or sim event string to a dialogue tree id.
 static func tree_id_for(event: String) -> String:
 	ensure()
 	var gaze_table: Dictionary = {}
@@ -53,15 +62,18 @@ static func tree_id_for(event: String) -> String:
 	return ""
 
 
+## Whether a dialogue tree exists for the given event key.
 static func has_tree(event: String) -> bool:
 	return tree_id_for(event) != ""
 
 
+## Starts a new dialogue session for a gaze or confirm event.
 static func open_session(event: String) -> Dictionary:
 	ensure()
 	return open_tree(tree_id_for(event))
 
 
+## Starts a session at a tree's start node with initial log lines.
 static func open_tree(tid: String) -> Dictionary:
 	ensure()
 	if tid == "" or not trees.has(tid):
@@ -81,6 +93,7 @@ static func open_tree(tid: String) -> Dictionary:
 	}
 
 
+## Returns choice dictionaries for the current session node.
 static func choices_of(session: Dictionary) -> Array:
 	ensure()
 	var tree: Dictionary = trees.get(str(session.get("tree", "")), {})
@@ -89,6 +102,7 @@ static func choices_of(session: Dictionary) -> Array:
 	return raw if raw is Array else []
 
 
+## Formats the running session log as displayable transcript text.
 static func log_text(session: Dictionary) -> String:
 	var rows: Array = session.get("log", [])
 	if typeof(rows) != TYPE_ARRAY:
@@ -101,6 +115,7 @@ static func log_text(session: Dictionary) -> String:
 	return out
 
 
+## Applies a player choice and appends the next node lines to the log.
 static func advance(session: Dictionary, index: int) -> Dictionary:
 	ensure()
 	var tree: Dictionary = trees.get(str(session.get("tree", "")), {})
@@ -130,6 +145,7 @@ static func advance(session: Dictionary, index: int) -> Dictionary:
 	return {"done": false, "session": session, "edge": edge}
 
 
+## Picks an ambient tree id not recently used in the session.
 static func ambient_for(used: Dictionary) -> String:
 	ensure()
 	for tid in ambient_ids:
@@ -142,6 +158,7 @@ static func ambient_for(used: Dictionary) -> String:
 	return ""
 
 
+## Fetches one node dictionary from a tree by node id.
 static func _node(tree: Dictionary, node_id: String) -> Dictionary:
 	var nodes = tree.get("nodes", {})
 	if typeof(nodes) != TYPE_DICTIONARY:
@@ -150,6 +167,7 @@ static func _node(tree: Dictionary, node_id: String) -> Dictionary:
 	return node if node is Dictionary else {}
 
 
+## Appends speaker lines from a node into a session log array.
 static func _append_lines(log: Array, node: Dictionary) -> void:
 	var lines = node.get("lines", [])
 	if typeof(lines) != TYPE_ARRAY:

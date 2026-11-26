@@ -1,9 +1,27 @@
 extends RefCounted
 class_name UIAssets
+## Cached UI textures, fonts, and theme style boxes.
 
+## Portrait PNG paths keyed by mood id for dialogue and pop-up faces.
+const POP_FACES := {
+	"base": "res://resources/ui/face_base.png",
+	"happy": "res://resources/ui/face_happy.png",
+	"cry": "res://resources/ui/face_cry.png",
+	"suspicious": "res://resources/ui/face_suspicious.png",
+	"freak": "res://resources/ui/face_freak.png",
+	"trance": "res://resources/ui/face_trance.png",
+	"epilogue_angry": "res://resources/ui/face_Epilogue_Angry.png",
+	"epilogue_bewildered": "res://resources/ui/face_Epilogue_Bewildered.png",
+	"epilogue_caretaker": "res://resources/ui/face_Epilogue_Caretaker.png",
+	"epilogue_birthday": "res://resources/ui/face_Epilogue_Birthday.png",
+	"epilogue_capitalist": "res://resources/ui/face_Epilogue_Capitalist.png",
+}
+
+## Path-keyed texture cache so HUD widgets reuse one load per asset.
 var _textures := {}
 
 
+## Loads and caches a texture from [param path].
 func tex(path: String) -> Texture2D:
 	if _textures.has(path):
 		return _textures[path]
@@ -16,6 +34,7 @@ func tex(path: String) -> Texture2D:
 	return t
 
 
+## Like [method tex] but forces RGBA8 for shader-safe sampling.
 func tex_rgba(path: String) -> Texture2D:
 	var key := path + "::rgba"
 	if _textures.has(key):
@@ -30,6 +49,7 @@ func tex_rgba(path: String) -> Texture2D:
 	return t
 
 
+## Primary pixel UI font with fallbacks.
 func ui_font() -> FontFile:
 	var font := FontFile.new()
 	font.antialiasing = TextServer.FONT_ANTIALIASING_NONE
@@ -46,6 +66,7 @@ func ui_font() -> FontFile:
 	return null
 
 
+## DOS-style boot screen font, else [method ui_font].
 func dos_font() -> FontFile:
 	var font := FontFile.new()
 	font.antialiasing = TextServer.FONT_ANTIALIASING_NONE
@@ -56,20 +77,24 @@ func dos_font() -> FontFile:
 	return ui_font()
 
 
+## Default menu text ink color.
 func menu_ink() -> Color:
 	return Color(0.28, 0.14, 0.05)
 
 
+## Large framed panel style for dialogs.
 func panel_style() -> StyleBoxTexture:
 	var style := box_style("res://resources/ui/ui_frame_9patch.png", 8, 8)
 	style.content_margin_top = 14
 	return style
 
 
+## Inventory slot frame style.
 func slot_style() -> StyleBoxTexture:
 	return box_style("res://resources/ui/ui_slot.png", 4, 3)
 
 
+## Gem counter frame with stretch margins.
 func gem_style() -> StyleBoxTexture:
 	var style := StyleBoxTexture.new()
 	style.texture = tex("res://resources/ui/gem_frame.png")
@@ -86,6 +111,7 @@ func gem_style() -> StyleBoxTexture:
 	return style
 
 
+## Flat bordered box for choice buttons.
 func choice_box(fill: Color, edge: Color) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
 	style.bg_color = fill
@@ -95,10 +121,12 @@ func choice_box(fill: Color, edge: Color) -> StyleBoxFlat:
 	return style
 
 
+## Goal UI label ink color.
 func goal_ink() -> Color:
 	return Color(0.188, 0.322, 0.416)
 
 
+## OldOS button plate with [param pad] content margin.
 func oldos_plate_style(pad: int = 3) -> StyleBoxTexture:
 	var style := StyleBoxTexture.new()
 	style.texture = tex_rgba("res://resources/ui/ui_oldos_button.png")
@@ -110,6 +138,7 @@ func oldos_plate_style(pad: int = 3) -> StyleBoxTexture:
 	return style
 
 
+## Outer goal card border with shadow.
 func goal_outer_style() -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color(0, 0, 0, 0)
@@ -122,6 +151,7 @@ func goal_outer_style() -> StyleBoxFlat:
 	return style
 
 
+## Cyan-bordered inner goal frame.
 func goal_cyan_style() -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color(0, 0, 0, 0)
@@ -131,14 +161,17 @@ func goal_cyan_style() -> StyleBoxFlat:
 	return style
 
 
+## Goal tag header strip style.
 func goal_tag_style() -> StyleBoxTexture:
 	return box_style("res://resources/ui/ui_goal_tag.png", 0, 3)
 
 
+## Goal description body panel style.
 func goal_body_style() -> StyleBoxTexture:
 	return box_style("res://resources/ui/ui_goal_body.png", 0, 3)
 
 
+## Nine-patch box from [param path] with edge and padding.
 func box_style(path: String, edge: int, pad: int) -> StyleBoxTexture:
 	var style := StyleBoxTexture.new()
 	style.texture = tex(path)
@@ -150,14 +183,15 @@ func box_style(path: String, edge: int, pad: int) -> StyleBoxTexture:
 	return style
 
 
+## Speech bubble panel style (frame 0).
 func speech_bubble_style() -> StyleBoxTexture:
 	var style := box_style("res://resources/ui/speech_bubble_0.png", 6, 6)
 	bubble_margins(style, 0)
 	return style
 
 
-func bubble_margins(style: StyleBoxTexture, frame: int) -> void:
-	var _frame := frame
+## Sets bubble texture margins on [param style] ([param frame] kept for call-site symmetry).
+func bubble_margins(style: StyleBoxTexture, _frame: int) -> void:
 	style.texture_margin_left = 8
 	style.texture_margin_right = 8
 	style.texture_margin_top = 8
@@ -168,6 +202,7 @@ func bubble_margins(style: StyleBoxTexture, frame: int) -> void:
 	style.content_margin_bottom = 10
 
 
+## Swaps [param panel] to speech bubble variant [param frame].
 func apply_bubble_frame(panel: PanelContainer, frame: int) -> void:
 	var style := panel.get_theme_stylebox("panel") as StyleBoxTexture
 	if style == null:

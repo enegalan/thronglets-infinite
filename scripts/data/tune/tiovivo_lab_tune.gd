@@ -1,24 +1,27 @@
 class_name TiovivoLabTune
 
-# Shared config for the tiovivo/carousel. Saved to res://dev/tiovivo_lab.json.
-# Used by the dev bench lab and by the game (simulation + render) so both stay faithful.
+## Shared config for the tiovivo/carousel. Saved to res://dev/tiovivo_lab.json.
+## Used by the dev bench lab and by the game (simulation + render) so both stay faithful.
 
 const PATH := "res://dev/tiovivo_lab.json"
 
+## Internal cache backing tiovivo lab tune tune lookups.
 static var _cache: Dictionary = {}
+## Internal cache backing tiovivo lab tune tune lookups.
 static var _cache_mtime: int = -1
 
+## Shipped carousel timing and spacing defaults.
 static func defaults() -> Dictionary:
 	return {
 		"carousel": {
 			"cell": [8, 16],
-			"center_offset": [12.0, 12.0],
-			"seat_spacing": 12.0,
+			"center_offset": [18.0, 18.0],
+			"seat_spacing": 0.0,
 			"slots": 4,
-			"spin_speed": 2.8,
+			"spin_speed": -2.8,
 			"slot_base_deg": 0.0,
 			"face_mode": "inward", # inward, outward, tangent, spin
-			"sprite_dir_offset": 0,
+			"sprite_dir_offset": 4,
 			"sprite_dir_follow": true,
 			"min_stay": 8.0,
 			"ride_fun_rate": 2.5,
@@ -43,32 +46,34 @@ static func defaults() -> Dictionary:
 	}
 
 
+## Clears cached lab JSON so the next read reloads from disk.
 static func invalidate() -> void:
 	_cache.clear()
 	_cache_mtime = -1
 
 
+## Merged carousel config used by the sim and presentation.
 static func carousel() -> Dictionary:
 	var cfg := load_saved()
 	var car: Dictionary = {}
 	if cfg.has("carousel") and typeof(cfg.carousel) == TYPE_DICTIONARY:
 		car = cfg.carousel
-	var off = car.get("center_offset", [12.0, 12.0])
-	var offx := float(off[0]) if typeof(off) == TYPE_ARRAY and off.size() > 0 else 12.0
-	var offy := float(off[1]) if typeof(off) == TYPE_ARRAY and off.size() > 1 else 12.0
+	var off = car.get("center_offset", [18.0, 18.0])
+	var offx := float(off[0]) if typeof(off) == TYPE_ARRAY and off.size() > 0 else 18.0
+	var offy := float(off[1]) if typeof(off) == TYPE_ARRAY and off.size() > 1 else 18.0
 	var slots_n := maxi(1, int(car.get("slots", 4)))
-	var spacing := float(car.get("seat_spacing", 12.0))
+	var spacing := float(car.get("seat_spacing", 0.0))
 	if car.has("radius"):
 		# compat: old configs used orbit radius; convert to distance between plazas
-		spacing = 2.0 * float(car.get("radius", 4.0)) * sin(PI / maxf(1.0, float(slots_n)))
+		spacing = 2.0 * float(car.get("radius", 0.0)) * sin(PI / maxf(1.0, float(slots_n)))
 	return {
 		"center_offset": Vector2(offx, offy),
 		"seat_spacing": spacing,
 		"slots": slots_n,
-		"spin_speed": float(car.get("spin_speed", 2.8)),
+		"spin_speed": float(car.get("spin_speed", -2.8)),
 		"slot_base_deg": float(car.get("slot_base_deg", 0.0)),
 		"face_mode": str(car.get("face_mode", "inward")),
-		"sprite_dir_offset": int(car.get("sprite_dir_offset", 0)),
+		"sprite_dir_offset": int(car.get("sprite_dir_offset", 4)),
 		"sprite_dir_follow": bool(car.get("sprite_dir_follow", true)),
 		"min_stay": float(car.get("min_stay", 8.0)),
 		"ride_fun_rate": float(car.get("ride_fun_rate", 2.5)),
@@ -76,6 +81,7 @@ static func carousel() -> Dictionary:
 	}
 
 
+## Computes rider ring radius from slot count and spacing.
 static func seat_radius(slots_n: int, spacing: float) -> float:
 	# Distance between plazas is the primary control: radius derived so adjacent seats are `spacing` apart.
 	if slots_n <= 1:
@@ -86,6 +92,7 @@ static func seat_radius(slots_n: int, spacing: float) -> float:
 	return spacing / denom
 
 
+## Internal helper for tiovivo lab tune tune serialization or bench rows.
 static func _deep_merge(base: Variant, over: Variant) -> Variant:
 	if typeof(base) != TYPE_DICTIONARY or typeof(over) != TYPE_DICTIONARY:
 		return over
@@ -98,8 +105,8 @@ static func _deep_merge(base: Variant, over: Variant) -> Variant:
 	return out
 
 
+## Loads tiovivo_lab.json and merges over defaults.
 static func load_saved() -> Dictionary:
-	var path := ProjectSettings.globalize_path(PATH)
 	if not FileAccess.file_exists(PATH):
 		_cache = defaults()
 		_cache_mtime = -1
@@ -117,6 +124,7 @@ static func load_saved() -> Dictionary:
 	return _cache
 
 
+## Writes a carousel lab config dictionary to disk.
 static func save_file(cfg: Dictionary) -> String:
 	var dir := ProjectSettings.globalize_path("res://dev")
 	DirAccess.make_dir_recursive_absolute(dir)

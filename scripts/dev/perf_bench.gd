@@ -3,31 +3,54 @@ extends Node
 # Automated thronglet performance harness.
 # Driven by CLI: godot --path . -- --perf [--perf-count=50] [--perf-seconds=4] [--perf-busy]
 
+## Default thronglet count when --perf-count is omitted.
 const DEFAULT_COUNT := 50
+## Default per-zoom sampling duration in seconds.
 const DEFAULT_SECONDS := 4.0
+## Idle time after spawn before FPS sampling begins.
 const WARMUP_SECONDS := 1.0
+## Default JSON output path for the performance report.
 const REPORT_PATH := "res://shots/perf_report.json"
 
+## Main scene host providing camera rig and FPS overlay prefs.
 var main = null
+## Requested living thronglet count from CLI.
 var count := DEFAULT_COUNT
+## Seconds to record FPS samples per zoom case.
 var sample_seconds := DEFAULT_SECONDS
+## Filesystem path for the JSON perf report.
 var out_path := REPORT_PATH
+## Whether --perf-busy stamps wear and props around the spawn focus.
 var busy := false
+## Multiplier for debug_perf_busy path stamping density.
 var busy_scale := 1
+## Last debug_perf_busy return payload for the report.
 var busy_stats := {}
+## Harness state: boot, warmup, sample, write, or quit.
 var phase := "boot"
+## Time accumulated in the current harness phase.
 var phase_t := 0.0
+## Named zoom levels exercised during sampling.
 var zoom_cases: Array = []
+## Index of the zoom case currently being sampled.
 var case_i := 0
+## FPS samples collected for the active zoom case.
 var samples: PackedFloat32Array = PackedFloat32Array()
+## Wall frame durations (ms) for the active case.
 var frame_ms_samples: PackedFloat32Array = PackedFloat32Array()
+## Main meta perf_sync_ms samples for the active case.
 var sync_ms_samples: PackedFloat32Array = PackedFloat32Array()
+## Finished per-zoom statistical rows appended for the report.
 var results: Array = []
+## Whether debug_spawn has already been issued this run.
 var spawned := false
+## Previous tick timestamp for frame ms derivation.
 var last_usec := 0
+## Set when the harness has finished and quit is pending.
 var done := false
 
 
+## Parses CLI perf flags, disables vsync, and seeds zoom cases.
 func setup(host) -> void:
 	main = host
 	var args := OS.get_cmdline_user_args()
@@ -47,6 +70,7 @@ func setup(host) -> void:
 	print("PERF BENCH start count=%s seconds=%s busy=%s scale=%s" % [count, sample_seconds, busy, busy_scale])
 
 
+## Reads key=value pairs from user command-line arguments.
 func _arg(args: PackedStringArray, key: String, fallback: String) -> String:
 	var prefix := key + "="
 	for raw in args:
@@ -56,6 +80,7 @@ func _arg(args: PackedStringArray, key: String, fallback: String) -> String:
 	return fallback
 
 
+## Drives the perf state machine each frame from Main.
 func tick(delta: float) -> void:
 	if done or main == null:
 		return
@@ -86,6 +111,7 @@ func tick(delta: float) -> void:
 			_quit()
 
 
+## Hides title, spawns thronglets, optionally stamps busy paths.
 func _boot() -> void:
 	var sim = ThrongletSimServer
 	if sim == null or main.cam_rig == null:
@@ -96,19 +122,19 @@ func _boot() -> void:
 		sim.smoke_hold = false
 		sim.modal = {}
 		main.in_title = false
-		if main.title_root != null:
-			main.title_root.visible = false
+		if main.title.title_root != null:
+			main.title.title_root.visible = false
 		if main.ui != null:
 			main.ui.visible = true
-		main.show_fps = true
-		main._apply_show_fps()
+		main.prefs.show_fps = true
+		main.prefs.apply_show_fps()
 		main.cam_rig.set_zoom(2.0)
 		main.cam_rig.focus_world(Vector2(256, 256))
 		if busy:
-			busy_stats = sim.debug_perf_busy(Vector2(256, 256), busy_scale)
+			busy_stats = sim.harness.debug_perf_busy(Vector2(256, 256), busy_scale)
 			# Force path/world sprites to rebuild for the stamped wear cells.
 			main.seen_epoch = -1
-		sim.debug_spawn(count, Vector2(256, 256))
+		sim.harness.debug_spawn(count, Vector2(256, 256))
 		spawned = true
 		print("PERF BENCH spawned living=%s features=%s items=%s buildings=%s busy=%s" % [
 			sim.living, sim.features.size(), sim.items.size(), sim.buildings.size(), busy_stats
@@ -117,6 +143,7 @@ func _boot() -> void:
 	phase_t = 0.0
 
 
+## Resets sample buffers and applies one zoom case to the camera.
 func _begin_case(index: int) -> void:
 	case_i = index
 	if case_i >= zoom_cases.size():
@@ -133,6 +160,7 @@ func _begin_case(index: int) -> void:
 	print("PERF BENCH case %s zoom=%s" % [row.name, row.zoom])
 
 
+## Aggregates stats for the case and advances or enters write phase.
 func _finish_case() -> void:
 	var row: Dictionary = zoom_cases[case_i]
 	var stats := _stats(samples)
@@ -159,6 +187,7 @@ func _finish_case() -> void:
 	_begin_case(case_i + 1)
 
 
+## Computes avg, min, max, and 1st-percentile for a sample buffer.
 func _stats(values: PackedFloat32Array) -> Dictionary:
 	if values.is_empty():
 		return {"avg": 0.0, "minv": 0.0, "maxv": 0.0, "p1": 0.0}
@@ -181,6 +210,7 @@ func _stats(values: PackedFloat32Array) -> Dictionary:
 	}
 
 
+## Serializes colony stats and case results to JSON on disk.
 func _write_report() -> void:
 	var path_cells := 0
 	for _k in ThrongletSimServer.wear.keys():
@@ -218,6 +248,7 @@ func _write_report() -> void:
 	print("PERF BENCH PASS=%s" % str(report.pass))
 
 
+## Whether results meet FPS gates for living count and zoom level.
 func _passes(cases: Array) -> bool:
 	# Cap target is Catalog.MAX_SLOTS (120k): hold near vsync, including zoomed out.
 	var living_n := int(ThrongletSimServer.living)
@@ -235,6 +266,7 @@ func _passes(cases: Array) -> bool:
 	return true
 
 
+## Ends the process with exit code 0 on pass or 2 on failure.
 func _quit() -> void:
 	done = true
 	var code := 0 if _passes(results) else 2

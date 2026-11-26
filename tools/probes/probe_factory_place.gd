@@ -1,13 +1,21 @@
 extends SceneTree
 
-const SimScript := preload("res://scripts/core/ThrongletSimServer.gd")
-const SAVE := "/Users/egalan/Library/Application Support/Godot/app_userdata/Thronglets- Infinite/thronglets_slot_0.save"
+
+## Loads slot_0 and scans chunks for a valid factory pad placement.
+
+## Preloaded ThrongletSimServer script used for headless simulation steps.
+const SimScript = preload("res://scripts/core/ThrongletSimServer.gd")
+
+## On-disk slot_0 save path exercised for regression probes.
+const SAVE = "/Users/egalan/Library/Application Support/Godot/app_userdata/Thronglets- Infinite/thronglets_slot_0.save"
 
 
+## Defers probe execution until the SceneTree root is ready.
 func _init() -> void:
 	call_deferred("_run")
 
 
+## Boots the sim, runs assertions, and quits with pass/fail status.
 func _run() -> void:
 	var sim = SimScript.new()
 	sim.testing = true
@@ -30,67 +38,67 @@ func _run() -> void:
 	sim.modal = {}
 	sim.talk_pending = {}
 	sim.gaze_queue.clear()
-	sim._restore_gaze()
+	sim.dialogue._restore_gaze()
 	print("SAVE living=%d gems=%d wood=%d factory_unlock=%s market=%s" % [
 		sim.living,
 		sim.gems,
-		sim.count_item(Catalog.ITEM_WOOD),
+		sim.world_entities.count_item(Catalog.ITEM_WOOD),
 		str(bool(sim.unlocks.get("factory", false))),
-		str(sim._has_building(Catalog.BLD_MARKET)),
+		str(sim.building_sim._has_building(Catalog.BLD_MARKET)),
 	])
-	var factories := 0
+	var factories = 0
 	for b in sim.buildings:
 		if not b.dead and (int(b.kind) == Catalog.BLD_FACTORY or int(b.kind) == Catalog.BLD_FACTORY2):
 			factories += 1
 	print("FACTORIES already=%d" % factories)
-	var build_kinds := {}
+	var build_kinds = {}
 	var build_xy: Array = []
 	for b in sim.buildings:
 		if b.dead:
 			continue
-		var k := int(b.kind)
+		var k = int(b.kind)
 		build_kinds[k] = int(build_kinds.get(k, 0)) + 1
 		if build_xy.size() < 20:
 			build_xy.append("k%s@(%.0f,%.0f)" % [str(k), float(b.x), float(b.y)])
 	print("BUILD kinds=%s" % str(build_kinds))
 	print("BUILD sample=%s" % " ".join(build_xy))
-	print("GOAL %s" % sim.goal_line())
+	print("GOAL %s" % sim.dialogue.goal_line())
 
 	# Scan every revealed chunk for a free 5x5 factory pad.
-	var free_n := 0
-	var free_ignore_items := 0
-	var first_free := Vector2.ZERO
-	var first_ignore := Vector2.ZERO
-	var first_home := Vector2.ZERO
-	var item_blocked := 0
-	var other_blocked := 0
-	var home_free := 0
-	var home_hard := 0
+	var free_n = 0
+	var free_ignore_items = 0
+	var first_free = Vector2.ZERO
+	var first_ignore = Vector2.ZERO
+	var first_home = Vector2.ZERO
+	var item_blocked = 0
+	var other_blocked = 0
+	var home_free = 0
+	var home_hard = 0
 	var samples: Array = []
-	var free_by_chunk := {}
+	var free_by_chunk = {}
 	for key in sim.revealed.keys():
-		var parts := str(key).split(",")
+		var parts = str(key).split(",")
 		if parts.size() != 2:
 			continue
-		var chunk := Vector2i(int(parts[0]), int(parts[1]))
-		var chunk_key := "%d,%d" % [chunk.x, chunk.y]
+		var chunk = Vector2i(int(parts[0]), int(parts[1]))
+		var chunk_key = "%d,%d" % [chunk.x, chunk.y]
 		for ly in range(2, Catalog.CHUNK - 2, 2):
 			for lx in range(2, Catalog.CHUNK - 2, 2):
-				var wx := float((chunk.x * Catalog.CHUNK + lx) * Catalog.TILE + 8)
-				var wy := float((chunk.y * Catalog.CHUNK + ly) * Catalog.TILE + 8)
-				var at := Catalog.snap_world(wx, wy)
-				if not sim._can_drop(at.x, at.y, false):
+				var wx = float((chunk.x * Catalog.CHUNK + lx) * Catalog.TILE + 8)
+				var wy = float((chunk.y * Catalog.CHUNK + ly) * Catalog.TILE + 8)
+				var at = Catalog.snap_world(wx, wy)
+				if not sim.player_tools._can_drop(at.x, at.y, false):
 					continue
-				var cells := sim._footprint_cells(at.x, at.y, Catalog.footprint_for_building(Catalog.BLD_FACTORY))
-				if not sim._footprint_holds(cells):
+				var cells = sim.building_sim._footprint_cells(at.x, at.y, Catalog.footprint_for_building(Catalog.BLD_FACTORY))
+				if not sim.building_sim._footprint_holds(cells):
 					continue
-				var item_hit := false
-				var hard_hit := false
-				var feat_hit := 0
-				var bld_hit := 0
+				var item_hit = false
+				var hard_hit = false
+				var feat_hit = 0
+				var bld_hit = 0
 				for cell in cells:
-					var mid := sim._cell_world(cell)
-					if not sim.revealed.has(sim._ck_of(mid.x, mid.y)):
+					var mid = sim.world_entities._cell_world(cell)
+					if not sim.revealed.has(sim.spatial._ck_of(mid.x, mid.y)):
 						hard_hit = true
 						break
 					if int(sim.building_cell.get(cell, -1)) >= 0:
@@ -101,9 +109,9 @@ func _run() -> void:
 						feat_hit += 1
 						hard_hit = true
 						break
-					if not sim._item_spot_free(mid.x, mid.y):
+					if not sim.world_entities._item_spot_free(mid.x, mid.y):
 						item_hit = true
-				var on_home := chunk.x == 0 and chunk.y == 0
+				var on_home = chunk.x == 0 and chunk.y == 0
 				if hard_hit:
 					other_blocked += 1
 					if on_home:
@@ -131,42 +139,42 @@ func _run() -> void:
 	print("FREE by chunk=%s samples=%s" % [str(free_by_chunk), str(samples)])
 	print("FIRST free=%s home=%s ignore_items=%s" % [str(first_free), str(first_home), str(first_ignore)])
 	# Why home island rejects 5x5: classify blockers near existing buildings.
-	var why_feat := 0
-	var why_bld := 0
-	var why_tile := 0
-	var why_reveal := 0
-	var feat_kinds := {}
+	var why_feat = 0
+	var why_bld = 0
+	var why_tile = 0
+	var why_reveal = 0
+	var feat_kinds = {}
 	for ly in range(2, Catalog.CHUNK - 2):
 		for lx in range(2, Catalog.CHUNK - 2):
-			var wx2 := float(lx * Catalog.TILE + 8)
-			var wy2 := float(ly * Catalog.TILE + 8)
-			var at2 := Catalog.snap_world(wx2, wy2)
-			if not sim.revealed.has(sim._ck_of(at2.x, at2.y)):
+			var wx2 = float(lx * Catalog.TILE + 8)
+			var wy2 = float(ly * Catalog.TILE + 8)
+			var at2 = Catalog.snap_world(wx2, wy2)
+			if not sim.revealed.has(sim.spatial._ck_of(at2.x, at2.y)):
 				continue
-			if not sim._tile_holds(at2.x, at2.y):
+			if not sim.collision._tile_holds(at2.x, at2.y):
 				continue
-			var cells2 := sim._footprint_cells(at2.x, at2.y, Catalog.footprint_for_building(Catalog.BLD_FACTORY))
-			var blocked_by := ""
+			var cells2 = sim.building_sim._footprint_cells(at2.x, at2.y, Catalog.footprint_for_building(Catalog.BLD_FACTORY))
+			var blocked_by = ""
 			for cell2 in cells2:
-				var mid2 := sim._cell_world(cell2)
-				if not sim.revealed.has(sim._ck_of(mid2.x, mid2.y)):
+				var mid2 = sim.world_entities._cell_world(cell2)
+				if not sim.revealed.has(sim.spatial._ck_of(mid2.x, mid2.y)):
 					blocked_by = "reveal"
 					why_reveal += 1
 					break
 					break
-				if not sim._tile_holds(mid2.x, mid2.y):
+				if not sim.collision._tile_holds(mid2.x, mid2.y):
 					blocked_by = "tile"
 					why_tile += 1
 					break
-				var bid := int(sim.building_cell.get(cell2, -1))
+				var bid = int(sim.building_cell.get(cell2, -1))
 				if bid >= 0:
 					blocked_by = "bld"
 					why_bld += 1
 					break
-				var fid := int(sim.feature_cell.get(cell2, -1))
+				var fid = int(sim.feature_cell.get(cell2, -1))
 				if fid >= 0:
 					var feat = sim.feature_by_id.get(fid, {})
-					var fk := int(feat.get("kind", -1))
+					var fk = int(feat.get("kind", -1))
 					feat_kinds[fk] = int(feat_kinds.get(fk, 0)) + 1
 					blocked_by = "feat"
 					why_feat += 1
@@ -178,25 +186,25 @@ func _run() -> void:
 	])
 	# Would a smaller pad fit on home?
 	for size in [Vector2i(5, 5), Vector2i(4, 4), Vector2i(3, 3), Vector2i(2, 2)]:
-		var nfit := 0
+		var nfit = 0
 		for ly3 in range(2, Catalog.CHUNK - 2, 2):
 			for lx3 in range(2, Catalog.CHUNK - 2, 2):
-				var at3 := Catalog.snap_world(float(lx3 * Catalog.TILE + 8), float(ly3 * Catalog.TILE + 8))
-				if not sim._can_drop(at3.x, at3.y, false):
+				var at3 = Catalog.snap_world(float(lx3 * Catalog.TILE + 8), float(ly3 * Catalog.TILE + 8))
+				if not sim.player_tools._can_drop(at3.x, at3.y, false):
 					continue
-				var ok := true
-				for cell3 in sim._footprint_cells(at3.x, at3.y, size):
-					var mid3 := sim._cell_world(cell3)
-					if not sim.revealed.has(sim._ck_of(mid3.x, mid3.y)):
+				var ok = true
+				for cell3 in sim.building_sim._footprint_cells(at3.x, at3.y, size):
+					var mid3 = sim.world_entities._cell_world(cell3)
+					if not sim.revealed.has(sim.spatial._ck_of(mid3.x, mid3.y)):
 						ok = false
 						break
-					if not sim._tile_holds(mid3.x, mid3.y):
+					if not sim.collision._tile_holds(mid3.x, mid3.y):
 						ok = false
 						break
 					if int(sim.building_cell.get(cell3, -1)) >= 0 or int(sim.feature_cell.get(cell3, -1)) >= 0:
 						ok = false
 						break
-					if not sim._item_spot_free(mid3.x, mid3.y):
+					if not sim.world_entities._item_spot_free(mid3.x, mid3.y):
 						ok = false
 						break
 				if ok:
@@ -205,15 +213,15 @@ func _run() -> void:
 
 	if not bool(sim.unlocks.get("factory", false)):
 		print("BUY attempt gems=%d cost=%d" % [sim.gems, int(Catalog.MARKET.factory.cost)])
-		var bought := sim.buy("factory")
+		var bought = sim.player_tools.buy("factory")
 		print("BUY factory=%s unlock=%s notes=%s" % [
 			str(bought), str(bool(sim.unlocks.get("factory", false))), str(sim.notes),
 		])
 		sim.notes.clear()
 
-	var target := first_home if first_home != Vector2.ZERO else first_free
+	var target = first_home if first_home != Vector2.ZERO else first_free
 	if target == Vector2.ZERO:
-		target = sim._smoke_find_spot(Catalog.BLD_FACTORY, [
+		target = sim.harness._smoke_find_spot(Catalog.BLD_FACTORY, [
 			Vector2(256, 256), Vector2(200, 280), Vector2(320, 200), Vector2(180, 180),
 		])
 		print("SMOKE spot=%s" % str(target))
@@ -223,20 +231,20 @@ func _run() -> void:
 		quit(1)
 		return
 
-	var can := sim.can_place_building(Catalog.BLD_FACTORY, target.x, target.y)
+	var can = sim.player_tools.can_place_building(Catalog.BLD_FACTORY, target.x, target.y)
 	print("CAN place at %s = %s wood=%d home=%s" % [
-		str(target), str(can), sim.count_item(Catalog.ITEM_WOOD), str(first_home != Vector2.ZERO),
+		str(target), str(can), sim.world_entities.count_item(Catalog.ITEM_WOOD), str(first_home != Vector2.ZERO),
 	])
-	while sim.count_item(Catalog.ITEM_WOOD) < 3:
-		sim._add_item(Catalog.ITEM_WOOD, target.x + 96.0, target.y + 96.0, 1)
+	while sim.world_entities.count_item(Catalog.ITEM_WOOD) < 3:
+		sim.world_entities._add_item(Catalog.ITEM_WOOD, target.x + 96.0, target.y + 96.0, 1)
 	sim.notes.clear()
-	var placed := sim.place_building(Catalog.BLD_FACTORY, target.x, target.y)
+	var placed = sim.player_tools.place_building(Catalog.BLD_FACTORY, target.x, target.y)
 	print("PLACE=%s notes=%s" % [str(placed), str(sim.notes)])
-	var after := 0
+	var after = 0
 	for b in sim.buildings:
 		if not b.dead and (int(b.kind) == Catalog.BLD_FACTORY or int(b.kind) == Catalog.BLD_FACTORY2):
 			after += 1
 	print("FACTORIES after=%d" % after)
-	var home_ok := first_home != Vector2.ZERO and placed
+	var home_ok = first_home != Vector2.ZERO and placed
 	print("PROBE result=%s home_place=%s" % [("PASS" if home_ok else "FAIL"), str(home_ok)])
 	quit(0 if home_ok else 1)

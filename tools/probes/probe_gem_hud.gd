@@ -1,26 +1,34 @@
 extends SceneTree
 
-const UIAssets := preload("res://scripts/presentation/ui/ui_assets.gd")
-const PLAQUE_H := 36
+
+## Renders gem HUD plaque layout off-screen and asserts expected dimensions.
+
+## Preloaded UI atlas helper for gem plaque layout checks.
+const UIAssets = preload("res://scripts/presentation/ui/ui_assets.gd")
+
+## Expected gem plaque height in pixels for HUD layout asserts.
+const PLAQUE_H = 36
 
 
+## Defers probe execution until the SceneTree root is ready.
 func _init() -> void:
 	call_deferred("_run")
 
 
+## Boots the sim, runs assertions, and quits with pass/fail status.
 func _run() -> void:
 	var ui_assets: UIAssets = UIAssets.new()
-	var vp := SubViewport.new()
+	var vp = SubViewport.new()
 	vp.size = Vector2i(260, 90)
 	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	vp.transparent_bg = true
 	root.add_child(vp)
 
-	var root_ctrl := Control.new()
+	var root_ctrl = Control.new()
 	root_ctrl.size = Vector2(260, 90)
 	vp.add_child(root_ctrl)
 
-	var badge := TextureRect.new()
+	var badge = TextureRect.new()
 	badge.texture = ui_assets.tex("res://resources/ui/thronglet_counter.png")
 	badge.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	badge.position = Vector2(6, 6)
@@ -29,14 +37,14 @@ func _run() -> void:
 	badge.stretch_mode = TextureRect.STRETCH_KEEP
 	root_ctrl.add_child(badge)
 
-	var gem_panel := Control.new()
+	var gem_panel = Control.new()
 	gem_panel.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	gem_panel.position = Vector2(72, 18)
 	gem_panel.custom_minimum_size = Vector2(96, PLAQUE_H)
 	gem_panel.size = Vector2(96, PLAQUE_H)
 	root_ctrl.add_child(gem_panel)
 
-	var gem_bg := NinePatchRect.new()
+	var gem_bg = NinePatchRect.new()
 	gem_bg.texture = ui_assets.tex("res://resources/ui/gem_frame.png")
 	gem_bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	gem_bg.patch_margin_left = 17
@@ -46,7 +54,7 @@ func _run() -> void:
 	gem_bg.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	gem_panel.add_child(gem_bg)
 
-	var gem_row := HBoxContainer.new()
+	var gem_row = HBoxContainer.new()
 	gem_row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	gem_row.offset_left = 10
 	gem_row.offset_top = 0
@@ -56,11 +64,11 @@ func _run() -> void:
 	gem_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	gem_panel.add_child(gem_row)
 
-	var gem_icon_slot := CenterContainer.new()
+	var gem_icon_slot = CenterContainer.new()
 	gem_icon_slot.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	gem_row.add_child(gem_icon_slot)
 
-	var gem_icon := TextureRect.new()
+	var gem_icon = TextureRect.new()
 	gem_icon.texture = ui_assets.tex("res://resources/ui/gem_icon.png")
 	gem_icon.custom_minimum_size = Vector2(17, 18)
 	gem_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -68,13 +76,13 @@ func _run() -> void:
 	gem_icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	gem_icon_slot.add_child(gem_icon)
 
-	var gem_label_slot := CenterContainer.new()
+	var gem_label_slot = CenterContainer.new()
 	gem_label_slot.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	gem_row.add_child(gem_label_slot)
 
-	var gem_label := Label.new()
+	var gem_label = Label.new()
 	gem_label.text = "642"
-	var font := ui_assets.ui_font()
+	var font = ui_assets.ui_font()
 	if font != null:
 		gem_label.add_theme_font_override("font", font)
 	gem_label.add_theme_font_size_override("font_size", 18)
@@ -90,8 +98,8 @@ func _run() -> void:
 
 	await process_frame
 	await process_frame
-	var text_w := gem_label.get_minimum_size().x
-	var width := int(ceil(10.0 + 17.0 + 10.0 + text_w + 14.0))
+	var text_w = gem_label.get_minimum_size().x
+	var width = int(ceil(10.0 + 17.0 + 10.0 + text_w + 14.0))
 	width = maxi(width, 96)
 	gem_panel.custom_minimum_size = Vector2(width, PLAQUE_H)
 	gem_panel.size = Vector2(width, PLAQUE_H)

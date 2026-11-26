@@ -1,44 +1,79 @@
 extends RefCounted
 class_name ShotCapture
 
+## Shared world mesh/cell sizing used when building shot review boards.
+const WorldBootstrap := preload("res://scripts/presentation/world/world_bootstrap.gd")
+
+## Main scene driving viewport capture and camera framing.
 var main: Node2D
+
 var sim: Node
 
+## Frames waited before capturing the current shot step.
 var frames := 0
+## Shot harness finished and ready to quit.
 var done := false
+## Whether task and gem HUD reference shots were written.
 var hud_saved := false
+## Whether bark bubble shot was captured.
 var bubbles_saved := false
+## Whether starter egg air-drain sequence completed before HUD.
 var egg_done := false
+## Whether gaze console placeholder shot was saved.
 var console_saved := false
+## Unused name-field shot gate (legacy sequence slot).
 var name_saved := false
+## Whether DOS boot fullscreen shot was captured.
 var dos_saved := false
+## Whether all settings tab shots were captured.
 var settings_saved := false
+## Whether tutorial sign overlay shot was captured.
 var sign_saved := false
+## Whether island overview shot finished before path zoom.
 var path_saved := false
+## Whether dev-bench FX reference shots all succeeded.
 var fx_saved := false
+## Index of current effect case in the FX shot suite.
 var fx_i := 0
+## Living ids seated on the roundabout for spin shots.
 var round_ids: Array = []
+## Index of spin angle landmark being validated.
 var round_mark := -1
+## Frames to hold each spin angle before capture.
 var round_hold := 0
+## SubViewport or MultiMesh board used as PNG capture source.
 var board: Node
+## Whether video library shell shot was captured.
 var video_saved := false
+## Whether title screen CRT shot was captured.
 var title_saved := false
+## Multi-step apple bite sequence phase index.
 var apple_phase := 0
+## First thronglet id in apple bite choreography.
 var apple_a := -1
+## Second thronglet id in apple bite choreography.
 var apple_b := -1
+## World apple item id tracked across bite phases.
 var apple_id := -1
+## Frames waited in the current apple phase guard.
 var apple_wait := 0
+## Building-kind index in goo idle/active/goo row shots.
 var bld_goo_i := 0
+## Goo suite phase: per-kind rows, mop before, mop after.
 var bld_goo_phase := 0
+## Building id used for mop before/after goo shots.
 var bld_goo_mop_id := -1
+## Corpse blood wide vs close-up shot phase.
 var blood_phase := 0
 
 
+## Caches Main and ThrongletSimServer references for shot runs.
 func setup(p_main: Node2D) -> void:
 	main = p_main
 	sim = ThrongletSimServer
 
 
+## Main shot driver: routes to specialized captures or UI sequence.
 func tick_shot() -> void:
 	if sim.shot_anims:
 		_tick_shot_anims()
@@ -93,15 +128,15 @@ func tick_shot() -> void:
 		if not dos_saved:
 			if main.ui != null:
 				main.ui.visible = true
-			main._open_dos()
-			main.dos_shown = main.dos_full.length()
-			main.dos_label.text = main.dos_full
+			main.boot_seq.open_dos()
+			main.boot_seq.dos_shown = main.boot_seq.dos_full.length()
+			main.boot_seq.dos_label.text = main.boot_seq.dos_full
 			if frames < 4:
 				return
 			if not save_shot(main.get_viewport(), "res://shots/dos.png"):
 				main.get_tree().quit(1)
 				return
-			main._finish_dos()
+			main.boot_seq.finish_dos()
 			dos_saved = true
 			frames = 0
 			return
@@ -116,17 +151,12 @@ func tick_shot() -> void:
 				main.focus_frame.visible = false
 			if main.focus_box != null:
 				main.focus_box.visible = false
-			if main.console != null:
-				main.console.visible = show_console
-			if main.console_log != null:
-				main.console_log.text = ""
-			if main.console_prompts != null:
-				main.console_prompts.visible = false
-			if main.console_input != null:
-				main.console_input.visible = false
+			if main.gaze_panel != null:
+				main.gaze_panel.visible = show_console
 			if show_console:
-				main._layout_console()
-				main.console_log.text = "Arrastra una setita de la base al Dr. Thronglet."
+				main.console_ui.layout_console()
+				if main.gaze_text != null:
+					main.gaze_text.text = "[SHOT] Placeholder console text."
 				sim.shown_dialogue = true
 			if frames < 8:
 				return
@@ -140,12 +170,12 @@ func tick_shot() -> void:
 			main.in_title = true
 			if main.ui != null:
 				main.ui.visible = true
-			main.title_root.visible = true
-			main.crt_on = true
-			main._apply_crt()
-			main._fill_title()
-			main.title_layout_size = Vector2.ZERO
-			main._tick_title(0.0)
+			main.title.title_root.visible = true
+			main.prefs.crt_on = true
+			main.prefs.apply_crt()
+			main.title.fill_title()
+			main.title.title_layout_size = Vector2.ZERO
+			main.title.tick(0.0)
 			if frames < 8:
 				return
 			if not save_shot(main.get_viewport(), "res://shots/title.png"):
@@ -156,9 +186,9 @@ func tick_shot() -> void:
 			return
 		if not settings_saved:
 			main.in_title = true
-			main.title_root.visible = true
-			main.crt_on = true
-			main._apply_crt()
+			main.title.title_root.visible = true
+			main.prefs.crt_on = true
+			main.prefs.apply_crt()
 			var settings_shots := [
 				{"tab": 0, "path": "res://shots/settings_mail.png"},
 				{"tab": 1, "path": "res://shots/settings_cog.png"},
@@ -167,10 +197,10 @@ func tick_shot() -> void:
 			]
 			var shot_i := mini(frames / 4, settings_shots.size() - 1)
 			var spec: Dictionary = settings_shots[shot_i]
-			main.settings_tab = int(spec.tab)
-			main.crt_on = true
-			main._apply_crt()
-			main._fill_settings()
+			main.settings_menu.settings_tab = int(spec.tab)
+			main.prefs.crt_on = true
+			main.prefs.apply_crt()
+			main.settings_menu.fill()
 			if frames % 4 != 3:
 				return
 			if not save_shot(main.get_viewport(), str(spec.path)):
@@ -178,37 +208,37 @@ func tick_shot() -> void:
 				return
 			if shot_i < settings_shots.size() - 1:
 				return
-			main.crt_on = false
-			main._apply_crt()
-			main.title_root.visible = false
+			main.prefs.crt_on = false
+			main.prefs.apply_crt()
+			main.title.title_root.visible = false
 			main.in_title = false
 			settings_saved = true
 			frames = 0
 			return
 		if not video_saved:
 			main.in_title = true
-			main.title_root.visible = true
-			main.crt_on = true
-			main._apply_crt()
-			main._fill_title()
-			if main.title_menu != null:
-				main.title_menu.visible = false
-			if main.title_hud != null:
-				main.title_hud.visible = true
-			if main.video_library_grid == null or main.video_library_grid.get_child_count() == 0:
+			main.title.title_root.visible = true
+			main.prefs.crt_on = true
+			main.prefs.apply_crt()
+			main.title.fill_title()
+			if main.settings_menu.title_menu != null:
+				main.settings_menu.title_menu.visible = false
+			if main.title.title_hud != null:
+				main.title.title_hud.visible = true
+			if main.video_lib.video_library_grid == null or main.video_lib.video_library_grid.get_child_count() == 0:
 				main.media.video_played["SEQ_1.5"] = true
-				main._fill_video_library()
-			if main.video_library != null:
-				main.video_library.visible = true
-				main._layout_video_library_shell()
+				main.video_lib.fill()
+			if main.video_lib.video_library != null:
+				main.video_lib.video_library.visible = true
+				main.video_lib.layout_shell()
 			if frames < 8:
 				return
 			if not save_shot(main.get_viewport(), "res://shots/video_library.png"):
 				main.get_tree().quit(1)
 				return
-			if main.video_library != null:
-				main.video_library.visible = false
-			main.title_root.visible = false
+			if main.video_lib.video_library != null:
+				main.video_lib.video_library.visible = false
+			main.title.title_root.visible = false
 			main.in_title = false
 			video_saved = true
 			frames = 0
@@ -216,17 +246,17 @@ func tick_shot() -> void:
 		if not sign_saved:
 			sim.tutorial_i = 2
 			main._set_hud_shown(false)
-			main._sync_focus(0.0)
+			main.focus_viewport.sync_focus(0.0)
 			if frames < 4:
 				return
 			if not save_shot(main.get_viewport(), "res://shots/sign.png"):
 				main.get_tree().quit(1)
 				return
 			sim.tutorial_i = -1
-			if main.sign_button != null:
-				main.sign_button.visible = false
+			if main.boot_seq.sign_button != null:
+				main.boot_seq.sign_button.visible = false
 			main._set_hud_shown(true)
-			main._sync_focus(0.0)
+			main.focus_viewport.sync_focus(0.0)
 			sign_saved = true
 			frames = 0
 			return
@@ -238,13 +268,13 @@ func tick_shot() -> void:
 			sim.talk_pending = {}
 			sim.frozen = false
 			sim.tutorial_i = -1
-			if main.sign_button != null:
-				main.sign_button.visible = false
+			if main.boot_seq.sign_button != null:
+				main.boot_seq.sign_button.visible = false
 			if not egg_done:
-				var egg: Dictionary = main._starter_egg()
+				var egg: Dictionary = main.focus_viewport.starter_egg()
 				if egg.is_empty():
-					sim._spawn_starter_egg()
-					egg = main._starter_egg()
+					sim.world_entities._spawn_starter_egg()
+					egg = main.focus_viewport.starter_egg()
 				if float(egg.get("air", 0.0)) <= 0.0 and main.focus_hold <= 0.0 and frames == 1:
 					egg.air = 140.0
 					egg.x = 256.0
@@ -256,11 +286,11 @@ func tick_shot() -> void:
 					if main.ui != null:
 						main.ui.visible = true
 					main._set_hud_shown(true)
-					main._sync_focus(0.016)
+					main.focus_viewport.sync_focus(0.016)
 					return
 				if main.focus_hold > 0.0:
 					main.focus_hold = maxf(0.0, main.focus_hold - 0.016)
-					main._sync_focus(0.016)
+					main.focus_viewport.sync_focus(0.016)
 					return
 				egg_done = true
 				frames = 0
@@ -285,9 +315,9 @@ func tick_shot() -> void:
 			main._set_hud_shown(true)
 			main.kit_open = true
 			main.kit_tab = 0
-			main._set_kit_shown(true)
+			main.kit_toolbar.set_kit_shown(true)
 			main._sync_hud(0.0)
-			main._sync_focus(0.0)
+			main.focus_viewport.sync_focus(0.0)
 			if main.task_panel != null:
 				main.task_panel.visible = true
 			if frames < 12:
@@ -319,7 +349,7 @@ func tick_shot() -> void:
 			if sim.shot_throng >= 0:
 				main.camera.position = main.cam_rig.to_iso(Vector2(sim.pos_x[sim.shot_throng], sim.pos_y[sim.shot_throng]))
 			main.cam_rig.set_zoom(3.0)
-			main._sync_marks()
+			main.world_marks_ui.sync_marks()
 			if frames < 8:
 				return
 			if not save_shot(main.get_viewport(), "res://shots/bubbles_now.png"):
@@ -358,18 +388,18 @@ func tick_shot() -> void:
 	main.get_tree().quit(0)
 
 
+## Captures need-bar low and recovered card shots.
 func _tick_shot_needs() -> void:
 	if main.ui != null:
 		main.ui.visible = true
 	main.kit_open = true
 	main.kit_tab = 0
-	main._set_kit_shown(true)
+	main.kit_toolbar.set_kit_shown(true)
 	main._set_hud_shown(true)
-	if "console" in main and main.console != null:
-		main.console.visible = false
-	main.crt_on = false
-	if main.has_method("_apply_crt"):
-		main._apply_crt()
+	if main.gaze_panel != null:
+		main.gaze_panel.visible = false
+	main.prefs.crt_on = false
+	main.prefs.apply_crt()
 	if sim.shot_throng >= 0:
 		main.selected = sim.shot_throng
 	main.cam_rig.set_zoom(3.2)
@@ -383,11 +413,10 @@ func _tick_shot_needs() -> void:
 		sim.amused[sim.shot_throng] = 0.0
 		sim.clean[sim.shot_throng] = 0.0
 	if frames == 18 and sim.shot_throng >= 0:
-		# Full cyan pills like the user reference (no gray track peeking).
 		sim.fed[sim.shot_throng] = 100.0
 		sim.amused[sim.shot_throng] = 100.0
 		sim.clean[sim.shot_throng] = 100.0
-	main._sync_need_bars()
+	main.world_marks_ui.sync_need_bars()
 	if frames == 14:
 		RenderingServer.force_draw()
 		if not save_shot(main.get_viewport(), "res://shots/needs_low.png"):
@@ -409,15 +438,16 @@ func _tick_shot_needs() -> void:
 	main.get_tree().quit(0)
 
 
+## Validates prop carry frames and saves carry_check.png.
 func _tick_shot_carry() -> void:
 	if main.ui != null:
 		main.ui.visible = false
 	main.kit_open = false
-	main._set_kit_shown(false)
+	main.kit_toolbar.set_kit_shown(false)
 	if main.task_panel != null:
 		main.task_panel.visible = false
-	main.crt_on = false
-	main._apply_crt()
+	main.prefs.crt_on = false
+	main.prefs.apply_crt()
 	main.camera.position = main.cam_rig.to_iso(sim.shot_focus)
 	var view := main.get_viewport_rect().size
 	var reach: float = float(sim.shot_span)
@@ -428,16 +458,16 @@ func _tick_shot_carry() -> void:
 	frames += 1
 	if frames < 8:
 		return
-	var wood_f: int = int(main._prop_frame(Catalog.ICON_WOOD))
-	var bone_f: int = int(main._prop_frame(Catalog.ICON_BONE))
-	var ore_f: int = int(main._prop_frame(Catalog.ICON_ORE))
+	var wood_f: int = int(main.anim_frames.prop_frame(Catalog.ICON_WOOD))
+	var bone_f: int = int(main.anim_frames.prop_frame(Catalog.ICON_BONE))
+	var ore_f: int = int(main.anim_frames.prop_frame(Catalog.ICON_ORE))
 	var carry_fs: Array = []
 	var carriers := 0
 	for i in sim.slot_count:
 		if sim.state[i] != Catalog.ST_LIVING:
 			continue
 		carriers += 1
-		carry_fs.append(main._frame(i, sim.time))
+		carry_fs.append(main.anim_frames.frame(i, sim.time))
 	print("SHOT CARRY frames=%s ore=%d wood=%d bone=%d carriers=%d carry=%s" % [
 		carry_fs.size(), ore_f, wood_f, bone_f, carriers, str(carry_fs)
 	])
@@ -452,15 +482,16 @@ func _tick_shot_carry() -> void:
 	main.get_tree().quit(0)
 
 
+## Seats riders and captures synchronized spin angles.
 func _tick_shot_round() -> void:
 	if main.ui != null:
 		main.ui.visible = false
 	main.kit_open = false
-	main._set_kit_shown(false)
+	main.kit_toolbar.set_kit_shown(false)
 	if main.task_panel != null:
 		main.task_panel.visible = false
-	main.crt_on = false
-	main._apply_crt()
+	main.prefs.crt_on = false
+	main.prefs.apply_crt()
 	main.camera.position = main.cam_rig.to_iso(sim.shot_focus)
 	main.cam_rig.set_zoom(5.0)
 	var round_b := {}
@@ -483,18 +514,18 @@ func _tick_shot_round() -> void:
 		round_b.rider = -1
 		round_ids.clear()
 		for slot_i in 8:
-			var id: int = int(sim._push_slot(float(round_b.x) + 24.0, float(round_b.y) + 24.0, 80.0, 20.0, 80.0, 80.0, -1))
+			var id: int = int(sim.world_entities._push_slot(float(round_b.x) + 24.0, float(round_b.y) + 24.0, 80.0, 20.0, 80.0, 80.0, -1))
 			if id < 0:
 				break
 			sim.act[id] = ThrongletSimServer.ACT_PLAY
 			sim.act_t[id] = 0.55
-			sim._set_ride_slot(round_b, id, slot_i)
-			sim._set_rider(round_b, id, true)
-			sim._set_ride_age(round_b, id, 0.0)
-			sim._place_on_ride_slot(id, round_b, slot_i)
+			sim.agent_tick._set_ride_slot(round_b, id, slot_i)
+			sim.agent_tick._set_rider(round_b, id, true)
+			sim.agent_tick._set_ride_age(round_b, id, 0.0)
+			sim.agent_tick._place_on_ride_slot(id, round_b, slot_i)
 			round_ids.append(id)
 		round_b.active = true
-		sim._rebuild_hash()
+		sim.spatial._rebuild_hash()
 		print("SHOT ROUND seated ids=%s slots=%s" % [str(round_ids), str(round_b.get("ride_slot", {}))])
 		round_mark = 0
 		round_hold = 0
@@ -509,8 +540,8 @@ func _tick_shot_round() -> void:
 	for id in round_ids:
 		if id < 0 or id >= sim.slot_count or sim.state[id] != Catalog.ST_LIVING:
 			continue
-		var slot: int = int(sim._ride_slot_of(round_b, id))
-		sim._place_on_ride_slot(id, round_b, slot)
+		var slot: int = int(sim.agent_tick._ride_slot_of(round_b, id))
+		sim.agent_tick._place_on_ride_slot(id, round_b, slot)
 		sim.act[id] = ThrongletSimServer.ACT_PLAY
 		sim.act_t[id] = 0.55
 	round_hold += 1
@@ -523,14 +554,14 @@ func _tick_shot_round() -> void:
 	var a := int(round_ids[0])
 	var b_id := int(round_ids[1])
 	var mid := Vector2(float(round_b.x), float(round_b.y)) + Catalog.ROUND_RIDE_OFF
-	var ang_a := atan2(sim.pos_y[a] - mid.y, sim.pos_x[a] - mid.x)
-	var ang_b := atan2(sim.pos_y[b_id] - mid.y, sim.pos_x[b_id] - mid.x)
+	var ang_a = atan2(sim.pos_y[a] - mid.y, sim.pos_x[a] - mid.x)
+	var ang_b = atan2(sim.pos_y[b_id] - mid.y, sim.pos_x[b_id] - mid.x)
 	var sep := absf(fposmod(ang_a - ang_b + PI, TAU) - PI)
-	var gap := Vector2(sim.pos_x[a] - sim.pos_x[b_id], sim.pos_y[a] - sim.pos_y[b_id]).length()
+	var gap = Vector2(sim.pos_x[a] - sim.pos_x[b_id], sim.pos_y[a] - sim.pos_y[b_id]).length()
 	var deg := int(round(float(marks[round_mark]) * 360.0))
 	print("SHOT ROUND spin=%d deg sep=%.2f gap=%.1f a=(%.1f,%.1f) b=(%.1f,%.1f) frame=%d" % [
 		deg, sep, gap, sim.pos_x[a], sim.pos_y[a], sim.pos_x[b_id], sim.pos_y[b_id],
-		posmod(int(floor(target / (TAU / float(main.ROUND_ANIM_N)))), main.ROUND_ANIM_N)
+		posmod(int(floor(target / (TAU / float(StructureTextures.ROUND_ANIM_N)))), StructureTextures.ROUND_ANIM_N)
 	])
 	if absf(sep - PI) > 0.12:
 		print("SHOT ROUND FAIL unsynced sep=%.2f at %d" % [sep, deg])
@@ -547,6 +578,7 @@ func _tick_shot_round() -> void:
 	round_hold = 0
 
 
+## Steps dev bench effects and saves each fx_*.png.
 func _tick_shot_fx() -> void:
 	var cases := [
 		{"id": "aura:flower", "wait": 24, "path": "res://shots/fx_aura_flower.png"},
@@ -607,6 +639,7 @@ func _tick_shot_fx() -> void:
 
 
 
+## Looks up the living ITEM_APPLE dict in sim.items.
 func _apple_item() -> Dictionary:
 	for it in sim.items:
 		if not it.dead and int(it.kind) == Catalog.ITEM_APPLE:
@@ -614,21 +647,20 @@ func _apple_item() -> Dictionary:
 	return {}
 
 
+## Runs live bite timing and saves apple_bites_*.png.
 func _tick_shot_apple() -> void:
 	if main.ui != null:
 		main.ui.visible = false
 	main.kit_open = false
-	if main.has_method("_set_kit_shown"):
-		main._set_kit_shown(false)
-	elif "kit_panel" in main and main.kit_panel != null:
+	main.kit_toolbar.set_kit_shown(false)
+	if "kit_panel" in main and main.kit_panel != null:
 		main.kit_panel.visible = false
 	if "task_panel" in main and main.task_panel != null:
 		main.task_panel.visible = false
-	if "console" in main and main.console != null:
-		main.console.visible = false
-	main.crt_on = false
-	if main.has_method("_apply_crt"):
-		main._apply_crt()
+	if main.gaze_panel != null:
+		main.gaze_panel.visible = false
+	main.prefs.crt_on = false
+	main.prefs.apply_crt()
 	main.cam_rig.set_zoom(5.5)
 	main.camera.position = main.cam_rig.to_iso(sim.shot_focus)
 
@@ -767,6 +799,7 @@ func _tick_shot_apple() -> void:
 			return
 		return
 
+## Renders a Viewport to PNG under res://shots.
 func save_shot(source: Viewport, path: String) -> bool:
 	var image := source.get_texture().get_image()
 	if image == null or image.get_width() < 2:
@@ -778,6 +811,7 @@ func save_shot(source: Viewport, path: String) -> bool:
 	return err == OK
 
 
+## Captures anim review board and per-strip copies.
 func _tick_shot_anims() -> void:
 	if board == null:
 		if main.ui != null:
@@ -800,23 +834,23 @@ func _tick_shot_anims() -> void:
 	main.get_tree().quit(0)
 
 
+## Hides kit and gaze UI for building goo captures.
 func _bld_goo_hide_ui() -> void:
 	if main.ui != null:
 		main.ui.visible = false
 	main.kit_open = false
-	if main.has_method("_set_kit_shown"):
-		main._set_kit_shown(false)
-	elif "kit_panel" in main and main.kit_panel != null:
+	main.kit_toolbar.set_kit_shown(false)
+	if "kit_panel" in main and main.kit_panel != null:
 		main.kit_panel.visible = false
 	if "task_panel" in main and main.task_panel != null:
 		main.task_panel.visible = false
-	if "console" in main and main.console != null:
-		main.console.visible = false
-	main.crt_on = false
-	if main.has_method("_apply_crt"):
-		main._apply_crt()
+	if main.gaze_panel != null:
+		main.gaze_panel.visible = false
+	main.prefs.crt_on = false
+	main.prefs.apply_crt()
 
 
+## Frames camera from shot_span around shot_focus.
 func _bld_goo_frame_camera() -> void:
 	var view := main.get_viewport_rect().size
 	var reach: float = float(sim.shot_span)
@@ -827,6 +861,7 @@ func _bld_goo_frame_camera() -> void:
 	main.camera.position = main.cam_rig.to_iso(sim.shot_focus)
 
 
+## Validates idle/active/goo sprites before goo PNG.
 func _bld_goo_assert_overlays(row: Dictionary, name: String) -> bool:
 	var idle: Dictionary = row.idle
 	var active: Dictionary = row.active
@@ -834,25 +869,25 @@ func _bld_goo_assert_overlays(row: Dictionary, name: String) -> bool:
 	if idle.is_empty() or active.is_empty() or goo.is_empty():
 		print("SHOT BLD GOO FAIL %s missing building" % name)
 		return false
-	if sim.building_is_polluted(idle):
+	if sim.building_sim.building_is_polluted(idle):
 		print("SHOT BLD GOO FAIL %s idle polluted" % name)
 		return false
-	if sim.building_is_polluted(active):
+	if sim.building_sim.building_is_polluted(active):
 		print("SHOT BLD GOO FAIL %s active polluted" % name)
 		return false
-	if not sim.building_is_polluted(goo):
+	if not sim.building_sim.building_is_polluted(goo):
 		print("SHOT BLD GOO FAIL %s goo not polluted" % name)
 		return false
 	var kind := int(idle.kind)
-	if main._active_structure_texture(kind) == null:
+	if main.structure_tex.active_structure_texture(kind) == null:
 		print("SHOT BLD GOO FAIL %s missing active tex" % name)
 		return false
-	if main._goo_structure_texture(kind) == null:
+	if main.structure_tex.goo_structure_texture(kind) == null:
 		print("SHOT BLD GOO FAIL %s missing goo tex" % name)
 		return false
 	var show_on := false
 	if kind == Catalog.BLD_DWELL or kind == Catalog.BLD_FANCY or kind == Catalog.BLD_THEATRE:
-		show_on = int(sim._live_guests(active)) > 0
+		show_on = int(sim.building_sim._live_guests(active)) > 0
 	else:
 		show_on = bool(active.get("active", false))
 	if not show_on:
@@ -873,13 +908,13 @@ func _bld_goo_assert_overlays(row: Dictionary, name: String) -> bool:
 	if goo_node == null or not goo_node.visible:
 		print("SHOT BLD GOO FAIL %s goo sprite missing" % name)
 		return false
-	if idle_node.texture != main._idle_structure_texture(kind):
+	if idle_node.texture != main.structure_tex.idle_structure_texture(kind):
 		print("SHOT BLD GOO FAIL %s idle tex mismatch" % name)
 		return false
-	if active_node.texture != main._active_structure_texture(kind):
+	if active_node.texture != main.structure_tex.active_structure_texture(kind):
 		print("SHOT BLD GOO FAIL %s active tex mismatch" % name)
 		return false
-	if goo_node.texture != main._goo_structure_texture(kind):
+	if goo_node.texture != main.structure_tex.goo_structure_texture(kind):
 		print("SHOT BLD GOO FAIL %s goo tex mismatch" % name)
 		return false
 	var scale_tol := 0.001
@@ -893,35 +928,36 @@ func _bld_goo_assert_overlays(row: Dictionary, name: String) -> bool:
 	return true
 
 
+## Captures per-kind goo rows and mop logic sweep.
 func _tick_shot_bld_goo() -> void:
 	# Per kind: idle | active | goo row shot, then mop before/after + logic sweep.
 	_bld_goo_hide_ui()
-	var kinds: Array = sim._shot_bld_goo_kinds()
+	var kinds: Array = sim.harness._shot_bld_goo_kinds()
 	if bld_goo_phase == 0:
 		if bld_goo_i >= kinds.size():
 			bld_goo_phase = 1
 			frames = 0
 			# Prep mop scene on dwell.
 			var dwell_kind := Catalog.BLD_DWELL
-			sim._clear_shot_props()
-			var at: Vector2 = sim._shot_force_pad(dwell_kind, 256.0, 256.0)
-			var b: Dictionary = sim._add_building(dwell_kind, at.x, at.y)
+			sim.harness._clear_shot_props()
+			var at: Vector2 = sim.harness._shot_force_pad(dwell_kind, 256.0, 256.0)
+			var b: Dictionary = sim.world_entities._add_building(dwell_kind, at.x, at.y)
 			if b.is_empty():
 				print("SHOT BLD GOO FAIL mop place dwell")
 				main.get_tree().quit(1)
 				return
-			sim._shot_paint_building_goo(b)
+			sim.harness._shot_paint_building_goo(b)
 			bld_goo_mop_id = int(b.id)
 			sim.shot_focus = Vector2(float(b.x), float(b.y))
 			sim.shot_span = 90.0
 			sim.view_rect = Rect2(sim.shot_focus.x - sim.shot_span, sim.shot_focus.y - sim.shot_span, sim.shot_span * 2.0, sim.shot_span * 2.0)
 			sim.smoke_hold = true
-			sim._rebuild_hash()
-			print("SHOT BLD GOO MOP PREP id=%s polluted=%s" % [bld_goo_mop_id, sim.building_is_polluted(b)])
+			sim.spatial._rebuild_hash()
+			print("SHOT BLD GOO MOP PREP id=%s polluted=%s" % [bld_goo_mop_id, sim.building_sim.building_is_polluted(b)])
 			return
 		var spec: Dictionary = kinds[bld_goo_i]
 		if frames == 0:
-			var row: Dictionary = sim._shot_place_bld_row(int(spec.kind))
+			var row: Dictionary = sim.harness._shot_place_bld_row(int(spec.kind))
 			if row.has("error"):
 				print("SHOT BLD GOO FAIL %s" % str(row.error))
 				main.get_tree().quit(1)
@@ -950,7 +986,7 @@ func _tick_shot_bld_goo() -> void:
 		if frames < 8:
 			return
 		var b: Dictionary = sim.building_by_id.get(bld_goo_mop_id, {})
-		if b.is_empty() or not sim.building_is_polluted(b):
+		if b.is_empty() or not sim.building_sim.building_is_polluted(b):
 			print("SHOT BLD GOO FAIL mop before not polluted")
 			main.get_tree().quit(1)
 			return
@@ -958,9 +994,9 @@ func _tick_shot_bld_goo() -> void:
 		if not save_shot(main.get_viewport(), "res://shots/bld_mop_before.png"):
 			main.get_tree().quit(1)
 			return
-		sim._shot_mop_building(b)
-		sim._tick_buildings(0.016)
-		if sim.building_is_polluted(b):
+		sim.harness._shot_mop_building(b)
+		sim.building_sim._tick_buildings(0.016)
+		if sim.building_sim.building_is_polluted(b):
 			print("SHOT BLD GOO FAIL mop left dwell polluted")
 			main.get_tree().quit(1)
 			return
@@ -981,21 +1017,21 @@ func _tick_shot_bld_goo() -> void:
 		# Logic sweep: every goo-capable kind pollutes then cleans under mop.
 		for spec in kinds:
 			var kind := int(spec.kind)
-			sim._clear_shot_props()
-			var at: Vector2 = sim._shot_force_pad(kind, 256.0, 256.0)
-			var b2: Dictionary = sim._add_building(kind, at.x, at.y)
+			sim.harness._clear_shot_props()
+			var at: Vector2 = sim.harness._shot_force_pad(kind, 256.0, 256.0)
+			var b2: Dictionary = sim.world_entities._add_building(kind, at.x, at.y)
 			if b2.is_empty():
 				print("SHOT BLD GOO FAIL mop-loop place %s" % str(spec.name))
 				main.get_tree().quit(1)
 				return
-			sim._shot_paint_building_goo(b2)
-			if not sim.building_is_polluted(b2):
+			sim.harness._shot_paint_building_goo(b2)
+			if not sim.building_sim.building_is_polluted(b2):
 				print("SHOT BLD GOO FAIL mop-loop %s not polluted" % str(spec.name))
 				main.get_tree().quit(1)
 				return
-			sim._shot_mop_building(b2)
-			sim._tick_buildings(0.016)
-			if sim.building_is_polluted(b2):
+			sim.harness._shot_mop_building(b2)
+			sim.building_sim._tick_buildings(0.016)
+			if sim.building_sim.building_is_polluted(b2):
 				print("SHOT BLD GOO FAIL mop-loop %s still polluted" % str(spec.name))
 				main.get_tree().quit(1)
 				return
@@ -1006,19 +1042,18 @@ func _tick_shot_bld_goo() -> void:
 		return
 
 
+## Captures neglect vs splash blood layouts.
 func _tick_shot_blood() -> void:
 	# Left: neglect corpse (no blood). Mid: living. Right: splash-kill + blood pool.
 	if blood_phase == 0 and frames == 0:
 		if main.ui != null:
 			main.ui.visible = false
 		main.kit_open = false
-		if main.has_method("_set_kit_shown"):
-			main._set_kit_shown(false)
+		main.kit_toolbar.set_kit_shown(false)
 		if main.task_panel != null:
 			main.task_panel.visible = false
-		main.crt_on = false
-		if main.has_method("_apply_crt"):
-			main._apply_crt()
+		main.prefs.crt_on = false
+		main.prefs.apply_crt()
 		main.cam_rig.set_zoom(3.0)
 		main.camera.position = main.cam_rig.to_iso(sim.shot_focus)
 	frames += 1
@@ -1056,19 +1091,18 @@ func _tick_shot_blood() -> void:
 	main.get_tree().quit(0)
 
 
+## Simulates sponge scrub and saves wash comparison.
 func _tick_shot_wash() -> void:
 	# Left: bubbles from live scrub path (small strokes). Right: CLEAN + Happy.
 	if frames == 0:
 		if main.ui != null:
 			main.ui.visible = false
 		main.kit_open = false
-		if main.has_method("_set_kit_shown"):
-			main._set_kit_shown(false)
+		main.kit_toolbar.set_kit_shown(false)
 		if main.task_panel != null:
 			main.task_panel.visible = false
-		main.crt_on = false
-		if main.has_method("_apply_crt"):
-			main._apply_crt()
+		main.prefs.crt_on = false
+		main.prefs.apply_crt()
 		main.tool = Catalog.TOOL_SPONGE
 		main.cam_rig.set_zoom(3.0)
 		main.camera.position = main.cam_rig.to_iso(sim.shot_focus)
@@ -1080,10 +1114,10 @@ func _tick_shot_wash() -> void:
 	frames += 1
 	main.sponge_tracking = true
 	# Simulate gentle rub (was failing when stroke_min was 2.0).
-	var scrub_at := Vector2(sim.shot_focus.x - 36.0 + sin(float(frames) * 0.9) * 3.0, sim.shot_focus.y)
+	var scrub_at = Vector2(sim.shot_focus.x - 36.0 + sin(float(frames) * 0.9) * 3.0, sim.shot_focus.y)
 	var stroke := 0.0 if frames <= 1 else scrub_at.distance_to(main.sponge_last)
 	main.sponge_last = scrub_at
-	sim.scrub(scrub_at.x, scrub_at.y, stroke, stroke >= ThrongletSimServer.SCRUB_STROKE_MIN)
+	sim.player_tools.scrub(scrub_at.x, scrub_at.y, stroke, stroke >= ThrongletSimServer.SCRUB_STROKE_MIN)
 	for i in sim.slot_count:
 		if sim.state[i] != Catalog.ST_LIVING:
 			continue
@@ -1119,26 +1153,25 @@ func _tick_shot_wash() -> void:
 	main.get_tree().quit(0)
 
 
+## Freezes kick/happy walk and validates ball scale shot.
 func _tick_shot_ball() -> void:
 	# Live world: Default | Happy_Walk+ball | kick Happy+ball pop — scales must match.
 	if frames == 0:
 		if main.ui != null:
 			main.ui.visible = false
 		main.kit_open = false
-		if main.has_method("_set_kit_shown"):
-			main._set_kit_shown(false)
+		main.kit_toolbar.set_kit_shown(false)
 		if main.task_panel != null:
 			main.task_panel.visible = false
-		main.crt_on = false
-		if main.has_method("_apply_crt"):
-			main._apply_crt()
+		main.prefs.crt_on = false
+		main.prefs.apply_crt()
 		main.cam_rig.set_zoom(3.0)
 		main.camera.position = main.cam_rig.to_iso(sim.shot_focus)
 		var hw := ThrongClips.frame_at("ThrongA_Happy_Walk", 0)
 		var df := ThrongClips.frame_at("ThrongA_Default", 0)
 		print("SHOT BALL SCALE Default=%.2f Happy_Walk=%.2f pop_ball=%.2f" % [
-			main._throng_sprite_scale(df),
-			main._throng_sprite_scale(hw),
+			main.anim_frames.throng_sprite_scale(df),
+			main.anim_frames.throng_sprite_scale(hw),
 			Catalog.BALL_SPRITE_SCALE,
 		])
 	frames += 1
@@ -1162,7 +1195,7 @@ func _tick_shot_ball() -> void:
 		main.get_tree().quit(1)
 		return
 	var hw2: int = ThrongClips.frame_at("ThrongA_Happy_Walk", 0)
-	var sc: float = float(main._throng_sprite_scale(hw2))
+	var sc: float = float(main.anim_frames.throng_sprite_scale(hw2))
 	if absf(sc - 0.4) > 0.01:
 		print("SHOT BALL FAIL Happy_Walk scale=%.3f expected 0.4" % sc)
 		main.get_tree().quit(1)
@@ -1172,19 +1205,18 @@ func _tick_shot_ball() -> void:
 	main.get_tree().quit(0)
 
 
+## Captures dirt shader parity on walk vs held board.
 func _tick_shot_dirt() -> void:
 	# Screen-space board through the real thronglet shader (no headless SubViewport).
 	if frames == 0:
 		if main.ui != null:
 			main.ui.visible = false
 		main.kit_open = false
-		if main.has_method("_set_kit_shown"):
-			main._set_kit_shown(false)
+		main.kit_toolbar.set_kit_shown(false)
 		if main.task_panel != null:
 			main.task_panel.visible = false
-		main.crt_on = false
-		if main.has_method("_apply_crt"):
-			main._apply_crt()
+		main.prefs.crt_on = false
+		main.prefs.apply_crt()
 		# Hide island thronglets — board owns the proof sprites.
 		sim.held_kind = ""
 		sim.held_ref = -1
@@ -1210,6 +1242,7 @@ func _tick_shot_dirt() -> void:
 	main.get_tree().quit(0)
 
 
+## Builds screen-space dirt comparison multimesh.
 func _build_dirt_screen_board() -> void:
 	var samples: Array = [
 		["clean Default", "ThrongA_Default", 0, 0.0],
@@ -1236,9 +1269,9 @@ func _build_dirt_screen_board() -> void:
 	title.size = Vector2(900, 24)
 	root.add_child(title)
 	var sheet := MultiMeshInstance2D.new()
-	sheet.texture = main._cell_tex(ThrongClips.frame_at("ThrongA_Default", 0))
+	sheet.texture = main.world_drawer.cell_tex(ThrongClips.frame_at("ThrongA_Default", 0))
 	sheet.material = main.world.material
-	sheet.multimesh = main._mesh(true, Vector2(main.WORLD_CELL, main.WORLD_CELL))
+	sheet.multimesh = main.world_boot.mesh(true, Vector2(WorldBootstrap.WORLD_CELL, WorldBootstrap.WORLD_CELL))
 	sheet.z_index = 1
 	root.add_child(sheet)
 	board = sheet
@@ -1256,7 +1289,7 @@ func _build_dirt_screen_board() -> void:
 		var center := Vector2(140.0 + float(col) * 200.0, 120.0 + float(row) * 160.0)
 		var frame := ThrongClips.frame_at(clip, int(sample[2]))
 		draws.append({
-			"p": center + Vector2(0.0, main.WORLD_CELL * 0.5 * scale),
+			"p": center + Vector2(0.0, WorldBootstrap.WORLD_CELL * 0.5 * scale),
 			"icon": frame,
 			"tint": Color.WHITE,
 			"scale": scale,
@@ -1268,10 +1301,11 @@ func _build_dirt_screen_board() -> void:
 		tag.size = Vector2(160, 18)
 		tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		root.add_child(tag)
-	main._write_mesh(sheet.multimesh, draws)
+	main.world_drawer.write_mesh(sheet.multimesh, draws)
 	print("SHOT DIRT BOARD n=%d zoom=%.2f" % [draws.size(), main.cam_rig.zoom_level])
 
 
+## Offline SubViewport dirt board for manual debug.
 func build_dirt_review_shot() -> void:
 	# Atlas board kept for offline debug; live --shot-dirt uses _tick_shot_dirt.
 	main.cam_rig.set_zoom(2.0)
@@ -1297,9 +1331,9 @@ func build_dirt_review_shot() -> void:
 	bg.size = Vector2(board_vp.size)
 	board_vp.add_child(bg)
 	var sheet := MultiMeshInstance2D.new()
-	sheet.texture = main._cell_tex(ThrongClips.frame_at("ThrongA_Default", 0))
+	sheet.texture = main.world_drawer.cell_tex(ThrongClips.frame_at("ThrongA_Default", 0))
 	sheet.material = main.world.material
-	sheet.multimesh = main._mesh(true, Vector2(main.WORLD_CELL, main.WORLD_CELL))
+	sheet.multimesh = main.world_boot.mesh(true, Vector2(WorldBootstrap.WORLD_CELL, WorldBootstrap.WORLD_CELL))
 	board_vp.add_child(sheet)
 	var scale := 0.9
 	var draws: Array = []
@@ -1312,15 +1346,16 @@ func build_dirt_review_shot() -> void:
 		var row := int(i / cols)
 		var center := Vector2(75 + col * 150, 75 + row * 150)
 		draws.append({
-			"p": center + Vector2(0, main.WORLD_CELL * 0.5 * scale),
+			"p": center + Vector2(0, WorldBootstrap.WORLD_CELL * 0.5 * scale),
 			"icon": ThrongClips.frame_at(clip, int(sample[2])),
 			"tint": Color.WHITE,
 			"scale": scale,
 			"dirty": float(sample[3]),
 		})
-	main._write_mesh(sheet.multimesh, draws)
+	main.world_drawer.write_mesh(sheet.multimesh, draws)
 
 
+## Clip matrix used for anim review and strip dumps.
 func _anim_review_samples() -> Array:
 	return [
 		["1 idle", "ThrongA_Default", 0, 0.0],
@@ -1354,6 +1389,7 @@ func _anim_review_samples() -> Array:
 	]
 
 
+## Builds labeled SubViewport for thronglet_sheet.
 func build_anim_review_shot() -> void:
 	var samples: Array = _anim_review_samples()
 	var cols := 7
@@ -1370,9 +1406,9 @@ func build_anim_review_shot() -> void:
 	bg.size = Vector2(board_vp.size)
 	board_vp.add_child(bg)
 	var sheet := MultiMeshInstance2D.new()
-	sheet.texture = main._cell_tex(ThrongClips.frame_at("ThrongA_Default", 0))
+	sheet.texture = main.world_drawer.cell_tex(ThrongClips.frame_at("ThrongA_Default", 0))
 	sheet.material = main.world.material
-	sheet.multimesh = main._mesh(true, Vector2(main.WORLD_CELL, main.WORLD_CELL))
+	sheet.multimesh = main.world_boot.mesh(true, Vector2(WorldBootstrap.WORLD_CELL, WorldBootstrap.WORLD_CELL))
 	board_vp.add_child(sheet)
 	var labels := CanvasLayer.new()
 	board_vp.add_child(labels)
@@ -1404,7 +1440,7 @@ func build_anim_review_shot() -> void:
 		var center := Vector2(70 + col * 140, 70 + row * 130)
 		var frame := ThrongClips.frame_at(clip, int(sample[2]))
 		draws.append({
-			"p": center + Vector2(0, main.WORLD_CELL * 0.5 * scale),
+			"p": center + Vector2(0, WorldBootstrap.WORLD_CELL * 0.5 * scale),
 			"icon": frame,
 			"tint": Color.WHITE,
 			"scale": scale,
@@ -1416,9 +1452,10 @@ func build_anim_review_shot() -> void:
 		tag.size = Vector2(112, 16)
 		tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		root.add_child(tag)
-	main._write_mesh(sheet.multimesh, draws)
+	main.world_drawer.write_mesh(sheet.multimesh, draws)
 
 
+## Copies raw atlas strips into shots/ for inspection.
 func _save_anim_strip_shots() -> bool:
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://shots"))
 	var wanted := [
@@ -1458,6 +1495,7 @@ func _save_anim_strip_shots() -> bool:
 	return true
 
 
+## Builds thronglet and FX atlas montage for asset sheet.
 func build_asset_shot() -> void:
 	var board_vp := SubViewport.new()
 	board_vp.size = Vector2i(960, 980)
@@ -1467,9 +1505,9 @@ func build_asset_shot() -> void:
 	main.add_child(board_vp)
 	board = board_vp
 	var sheet := MultiMeshInstance2D.new()
-	sheet.texture = main._cell_tex(ThrongClips.frame_at("ThrongA_Default", 0))
+	sheet.texture = main.world_drawer.cell_tex(ThrongClips.frame_at("ThrongA_Default", 0))
 	sheet.material = main.world.material
-	sheet.multimesh = main._mesh(true, Vector2(main.WORLD_CELL, main.WORLD_CELL))
+	sheet.multimesh = main.world_boot.mesh(true, Vector2(WorldBootstrap.WORLD_CELL, WorldBootstrap.WORLD_CELL))
 	board_vp.add_child(sheet)
 	var samples: Array = [
 		["idle", ThrongClips.frame_at("ThrongA_Default", 0), 0.0],
@@ -1546,7 +1584,7 @@ func build_asset_shot() -> void:
 		if frame < 0:
 			continue
 		draws.append({
-			"p": center + Vector2(0, main.WORLD_CELL * 0.5 * scale),
+			"p": center + Vector2(0, WorldBootstrap.WORLD_CELL * 0.5 * scale),
 			"icon": frame,
 			"tint": Color.WHITE,
 			"scale": scale,
@@ -1558,7 +1596,7 @@ func build_asset_shot() -> void:
 		tag.size = Vector2(80, 12)
 		tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		root.add_child(tag)
-	main._write_mesh(sheet.multimesh, draws)
+	main.world_drawer.write_mesh(sheet.multimesh, draws)
 	var panel := PanelContainer.new()
 	panel.position = Vector2(16, 820)
 	panel.custom_minimum_size = Vector2(620, 120)
@@ -1581,7 +1619,7 @@ func build_asset_shot() -> void:
 	var faces := ["epilogue_angry", "epilogue_bewildered", "epilogue_caretaker", "epilogue_birthday", "epilogue_capitalist"]
 	for i in faces.size():
 		var face := TextureRect.new()
-		face.texture = main.ui_assets.tex(main.POP_FACES[faces[i]])
+		face.texture = main.ui_assets.tex(main.ui_assets.POP_FACES[faces[i]])
 		face.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED

@@ -3,28 +3,48 @@ extends Node
 # Load the player's live save and measure real-path FPS (full Main._process).
 # CLI: godot --path . -- --save-perf [--save-slot=0] [--perf-seconds=3]
 
+## Default sampling duration per zoom case for save perf.
 const DEFAULT_SECONDS := 3.0
+## Delay after load before FPS measurement starts.
 const WARMUP_SECONDS := 1.5
 
+## Main host running the full _process path under test.
 var main = null
+## Save slot index to load via --save-slot.
 var slot := 0
+## Seconds to sample each zoom case after warmup.
 var sample_seconds := DEFAULT_SECONDS
+## Harness phase: boot, warmup, sample, or quit.
 var phase := "boot"
+## Elapsed time within the current save-perf phase.
 var phase_t := 0.0
+## Camera zoom presets cycled during measurement.
 var zoom_cases: Array = []
+## Active index in zoom_cases.
 var case_i := 0
+## FPS samples for the active zoom case.
 var samples: PackedFloat32Array = PackedFloat32Array()
+## Frame wall times (ms) for the active case.
 var frame_ms_samples: PackedFloat32Array = PackedFloat32Array()
+## save_perf_sync_ms meta samples for the active case.
 var sync_ms_samples: PackedFloat32Array = PackedFloat32Array()
+## save_perf_world_ms draw timing samples.
 var world_ms_samples: PackedFloat32Array = PackedFloat32Array()
+## save_perf_step_ms simulation timing samples.
 var step_ms_samples: PackedFloat32Array = PackedFloat32Array()
+## Completed zoom-case result dictionaries.
 var results: Array = []
+## Whether the save slot has been loaded successfully.
 var loaded := false
+## Previous frame timestamp for frame-ms measurement.
 var last_usec := 0
+## Halts ticking after fatal load failure or completion.
 var done := false
+## World focus point for camera during all zoom cases.
 var focus := Vector2(256, 256)
 
 
+## Parses save-slot and duration CLI args and builds zoom cases.
 func setup(host) -> void:
 	main = host
 	var args := OS.get_cmdline_user_args()
@@ -39,6 +59,7 @@ func setup(host) -> void:
 	print("SAVE PERF start slot=%s seconds=%s" % [slot, sample_seconds])
 
 
+## Extracts a single key=value from PackedStringArray CLI args.
 func _arg(args: PackedStringArray, key: String, fallback: String) -> String:
 	var prefix := key + "="
 	for raw in args:
@@ -48,6 +69,7 @@ func _arg(args: PackedStringArray, key: String, fallback: String) -> String:
 	return fallback
 
 
+## Runs save-perf phases and records extended timing metas.
 func tick(delta: float) -> void:
 	if done or main == null:
 		return
@@ -78,6 +100,7 @@ func tick(delta: float) -> void:
 			_quit()
 
 
+## Loads player save, reveals view, logs colony need histogram.
 func _boot() -> void:
 	var sim = ThrongletSimServer
 	if sim == null or main.cam_rig == null:
@@ -88,12 +111,12 @@ func _boot() -> void:
 		sim.smoke_hold = false
 		sim.modal = {}
 		main.in_title = false
-		if main.title_root != null:
-			main.title_root.visible = false
+		if main.title.title_root != null:
+			main.title.title_root.visible = false
 		if main.ui != null:
 			main.ui.visible = true
-		main.show_fps = true
-		main._apply_show_fps()
+		main.prefs.show_fps = true
+		main.prefs.apply_show_fps()
 		if not sim.save_system.load_slot(slot):
 			push_error("SAVE PERF failed to load slot %s path=%s" % [slot, sim.save_system.slot_path(slot)])
 			done = true
@@ -105,12 +128,12 @@ func _boot() -> void:
 		sim.autosave_interval = 0.0
 		main.seen_epoch = -1
 		main._feat_static_epoch = -1
-		main._clear_feat_static()
+		main.world_drawer.clear_feat_static()
 		focus = _living_focus(sim)
 		main.cam_rig.set_zoom(2.0)
 		main.cam_rig.focus_world(focus)
 		# Reveal whatever the current view covers, same as normal play.
-		sim.explore_rect(main.cam_rig.world_view().grow(8.0))
+		sim.spatial.explore_rect(main.cam_rig.world_view().grow(8.0))
 		loaded = true
 		var n_hungry := 0
 		var n_dirty := 0
@@ -153,6 +176,7 @@ func _boot() -> void:
 	phase_t = 0.0
 
 
+## Centroid of up to 64 living agents for camera aim.
 func _living_focus(sim) -> Vector2:
 	if sim.living <= 0 or sim.pos_x.is_empty():
 		return Vector2(256, 256)
@@ -172,6 +196,7 @@ func _living_focus(sim) -> Vector2:
 	return Vector2(sx / float(n), sy / float(n))
 
 
+## Starts sampling window at a zoom preset around focus.
 func _begin_case(index: int) -> void:
 	case_i = index
 	if case_i >= zoom_cases.size():
@@ -190,6 +215,7 @@ func _begin_case(index: int) -> void:
 	print("SAVE PERF case %s zoom=%s" % [row.name, row.zoom])
 
 
+## Stores case stats and advances or ends with quit phase.
 func _finish_case() -> void:
 	var row: Dictionary = zoom_cases[case_i]
 	var entry := {
@@ -210,6 +236,7 @@ func _finish_case() -> void:
 	_begin_case(case_i + 1)
 
 
+## Average, min, and max for a PackedFloat32Array of samples.
 func _stats(values: PackedFloat32Array) -> Dictionary:
 	if values.is_empty():
 		return {"avg": 0.0, "minv": 0.0, "maxv": 0.0}
@@ -223,6 +250,7 @@ func _stats(values: PackedFloat32Array) -> Dictionary:
 	return {"avg": sum / float(values.size()), "minv": minv, "maxv": maxv}
 
 
+## Prints summary and exits the process with code 0.
 func _quit() -> void:
 	done = true
 	print("SAVE PERF done cases=%s" % results.size())

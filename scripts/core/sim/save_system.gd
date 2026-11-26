@@ -1,25 +1,32 @@
 extends RefCounted
 class_name SaveSystem
 
+## Number of rotating campaign checkpoint files on disk.
 const SLOT_COUNT := 4
+## Index of the live autosave slot that always mirrors current play.
 const LIVE_SLOT := 0
+## Persistent path for sandbox free-build sessions.
 const SANDBOX_PATH := "user://thronglets_sandbox.save"
 
 var _sim
 
 
+## Captures the simulation instance to serialize.
 func _init(sim) -> void:
 	_sim = sim
 
 
+## Resolves the user:// path for a numbered campaign slot.
 func slot_path(index: int) -> String:
 	return "user://thronglets_slot_%d.save" % index
 
 
+## Returns the fixed sandbox save file path.
 func sandbox_path() -> String:
 	return SANDBOX_PATH
 
 
+## Loads slot metadata (last played, population snapshots).
 func read_meta() -> Dictionary:
 	if not FileAccess.file_exists("user://thronglets_slots.meta"):
 		return {}
@@ -32,17 +39,20 @@ func read_meta() -> Dictionary:
 	return data
 
 
+## Persists slot metadata beside the binary saves.
 func write_meta(meta: Dictionary) -> void:
 	var file := FileAccess.open("user://thronglets_slots.meta", FileAccess.WRITE)
 	if file != null:
 		file.store_var(meta, true)
 
 
+## Index of the slot the player used most recently.
 func last_slot() -> int:
 	var meta := read_meta()
 	return int(meta.get("last", -1))
 
 
+## Deletes only the sandbox file from user data.
 func clear_sandbox_save() -> void:
 	var dir := DirAccess.open("user://")
 	var path := sandbox_path()
@@ -50,6 +60,7 @@ func clear_sandbox_save() -> void:
 		dir.remove(path.get_file())
 
 
+## Wipes all slots and resets session flags on the sim.
 func clear_saves() -> void:
 	var sim = _sim
 	var dir := DirAccess.open("user://")
@@ -63,15 +74,18 @@ func clear_saves() -> void:
 	sim.game_over = false
 
 
+## Removes campaign and sandbox saves together.
 func clear_all_progress() -> void:
 	clear_saves()
 	clear_sandbox_save()
 
 
+## True when a sandbox file exists on disk.
 func has_sandbox_save() -> bool:
 	return FileAccess.file_exists(sandbox_path())
 
 
+## Loads sandbox file, unlocks everything, and marks sandbox mode.
 func load_sandbox() -> bool:
 	var sim = _sim
 	if not has_sandbox_save():
@@ -81,11 +95,12 @@ func load_sandbox() -> bool:
 		return false
 	sim.current_slot = -1
 	sim.sandbox_mode = true
-	sim._unlock_all()
+	sim.dialogue._unlock_all()
 	sim.unlock_serial += 1
 	return true
 
 
+## Writes the sim into a numbered slot and updates metadata.
 func save_slot(index: int) -> bool:
 	var sim = _sim
 	if index < 0 or index >= SLOT_COUNT:
@@ -102,6 +117,7 @@ func save_slot(index: int) -> bool:
 	return true
 
 
+## Routes saves to sandbox file or live slot depending on mode.
 func save_progress() -> bool:
 	var sim = _sim
 	# Sandbox keeps its own file so campaign slots / autosave history stay intact.
@@ -114,6 +130,7 @@ func save_progress() -> bool:
 	return save_slot(LIVE_SLOT)
 
 
+## Accumulates time and triggers rotation plus save when due.
 func tick_autosave(delta: float) -> void:
 	var sim = _sim
 	if sim.testing or sim.game_over or not sim.session_live or sim.autosave_interval <= 0.0:
@@ -129,6 +146,7 @@ func tick_autosave(delta: float) -> void:
 	save_progress()
 
 
+## Shifts slot files so older checkpoints roll forward.
 func rotate_autosave_history() -> void:
 	var sim = _sim
 	if not FileAccess.file_exists(slot_path(LIVE_SLOT)):
@@ -152,6 +170,7 @@ func rotate_autosave_history() -> void:
 	write_meta(meta)
 
 
+## Builds HUD rows for each occupied slot with stats.
 func list_checkpoints() -> Array:
 	var meta := read_meta()
 	var out: Array = []
@@ -168,10 +187,12 @@ func list_checkpoints() -> Array:
 	return out
 
 
+## True when at least one slot contains a save.
 func has_checkpoint() -> bool:
 	return list_checkpoints().size() > 0
 
 
+## Loads the newest available checkpoint slot.
 func load_checkpoint() -> bool:
 	var rows := list_checkpoints()
 	if rows.is_empty():
@@ -179,6 +200,7 @@ func load_checkpoint() -> bool:
 	return load_slot(int(rows[0].i))
 
 
+## Hydrates the sim from a specific slot index.
 func load_slot(index: int) -> bool:
 	var sim = _sim
 	if index < 0 or index >= SLOT_COUNT:
@@ -194,6 +216,7 @@ func load_slot(index: int) -> bool:
 	return true
 
 
+## Continues the last played slot if the session is not live.
 func resume_last() -> bool:
 	if _sim.session_live:
 		return true
@@ -203,14 +226,15 @@ func resume_last() -> bool:
 	return load_slot(last)
 
 
+## Serializes full colony state to the active save_path.
 func save_game() -> bool:
 	var sim = _sim
-	sim.cancel_hold()
+	sim.player_tools.cancel_hold()
 	var gazing: bool = sim.frozen and not sim.gaze_home.is_empty()
-	sim._restore_gaze()
-	sim._compact(sim.items)
-	sim._compact(sim.features)
-	sim._compact(sim.buildings)
+	sim.dialogue._restore_gaze()
+	sim.world_entities._compact(sim.items)
+	sim.world_entities._compact(sim.features)
+	sim.world_entities._compact(sim.buildings)
 	var data := {
 		"v": 1,
 		"seed": sim.world_seed,
@@ -282,15 +306,16 @@ func save_game() -> bool:
 	if file == null:
 		sim.notes.append("NO SE PUDO GUARDAR.")
 		if gazing:
-			sim._line_up_gaze()
+			sim.dialogue._line_up_gaze()
 		return false
 	file.store_var(data, true)
 	sim.save_pulse += 1
 	if gazing:
-		sim._line_up_gaze()
+		sim.dialogue._line_up_gaze()
 	return true
 
 
+## Deserializes colony state from save_path into the sim.
 func load_game() -> bool:
 	var sim = _sim
 	if not FileAccess.file_exists(sim.save_path):
@@ -303,7 +328,7 @@ func load_game() -> bool:
 	if typeof(data) != TYPE_DICTIONARY or int(data.get("v", 0)) != 1 or not data.has("pos_x"):
 		sim.notes.append("PARTIDA ILEGIBLE.")
 		return false
-	sim._reset_world()
+	sim.world_entities._reset_world()
 	sim.world_seed = int(data.get("seed", 1))
 	sim.peak = int(data.get("peak", 0))
 	sim.gems = int(data.get("gems", 0))
@@ -334,44 +359,44 @@ func load_game() -> bool:
 	sim.monolith_tier_spawned = data.get("monoliths", {})
 	sim.talk_pending = {}
 	sim.gaze_queue.clear()
-	sim.pos_x = sim._as_f32(data.pos_x)
-	sim.pos_y = sim._as_f32(data.pos_y)
-	sim.dir_x = sim._as_f32(data.dir_x)
-	sim.dir_y = sim._as_f32(data.dir_y)
-	sim.fed = sim._as_f32(data.fed)
-	sim.amused = sim._as_f32(data.amused)
-	sim.clean = sim._as_f32(data.clean)
-	sim.cool = sim._as_f32(data.cool)
-	sim.starve = sim._as_f32(data.starve)
-	sim.hungry_t = sim._as_f32(data.get("hungry_t", []))
-	sim.wander_t = sim._as_f32(data.wander_t)
-	sim.mito_t = sim._as_f32(data.mito_t)
-	sim.mito_charge = sim._as_f32(data.get("mito_charge", []))
-	sim.shake_t = sim._as_f32(data.shake_t)
-	sim.buff_t = sim._as_f32(data.buff_t)
-	sim.react_t = sim._as_f32(data.get("react_t", []))
-	sim.cheer_t = sim._as_f32(data.get("cheer_t", []))
-	sim.sleep_t = sim._as_f32(data.get("sleep_t", []))
-	sim.peer_t = sim._as_f32(data.get("peer_t", []))
-	sim.peer_of = sim._as_i32(data.get("peer_of", []))
+	sim.pos_x = sim.spatial._as_f32(data.pos_x)
+	sim.pos_y = sim.spatial._as_f32(data.pos_y)
+	sim.dir_x = sim.spatial._as_f32(data.dir_x)
+	sim.dir_y = sim.spatial._as_f32(data.dir_y)
+	sim.fed = sim.spatial._as_f32(data.fed)
+	sim.amused = sim.spatial._as_f32(data.amused)
+	sim.clean = sim.spatial._as_f32(data.clean)
+	sim.cool = sim.spatial._as_f32(data.cool)
+	sim.starve = sim.spatial._as_f32(data.starve)
+	sim.hungry_t = sim.spatial._as_f32(data.get("hungry_t", []))
+	sim.wander_t = sim.spatial._as_f32(data.wander_t)
+	sim.mito_t = sim.spatial._as_f32(data.mito_t)
+	sim.mito_charge = sim.spatial._as_f32(data.get("mito_charge", []))
+	sim.shake_t = sim.spatial._as_f32(data.shake_t)
+	sim.buff_t = sim.spatial._as_f32(data.buff_t)
+	sim.react_t = sim.spatial._as_f32(data.get("react_t", []))
+	sim.cheer_t = sim.spatial._as_f32(data.get("cheer_t", []))
+	sim.sleep_t = sim.spatial._as_f32(data.get("sleep_t", []))
+	sim.peer_t = sim.spatial._as_f32(data.get("peer_t", []))
+	sim.peer_of = sim.spatial._as_i32(data.get("peer_of", []))
 	sim.peer_sing = PackedByteArray()
 	for raw_sing in data.get("peer_sing", []):
 		sim.peer_sing.append(int(raw_sing))
-	sim.drop_t = sim._as_f32(data.get("drop_t", []))
+	sim.drop_t = sim.spatial._as_f32(data.get("drop_t", []))
 	sim.bloody = PackedByteArray()
 	for raw_blood in data.get("bloody", []):
 		sim.bloody.append(int(raw_blood))
-	sim.state = sim._as_i32(data.state)
-	sim.carry = sim._as_i32(data.carry)
-	sim.carry_value = sim._as_i32(data.carry_value)
-	sim.tint = sim._as_i32(data.tint)
-	sim.claim = sim._as_i32(data.claim)
+	sim.state = sim.spatial._as_i32(data.state)
+	sim.carry = sim.spatial._as_i32(data.carry)
+	sim.carry_value = sim.spatial._as_i32(data.carry_value)
+	sim.tint = sim.spatial._as_i32(data.tint)
+	sim.claim = sim.spatial._as_i32(data.claim)
 	sim.slot_count = sim.pos_x.size()
 	sim.mine_job = PackedInt32Array()
 	sim.mine_job.resize(sim.slot_count)
 	sim.mine_job.fill(-1)
-	sim.act = sim._as_i32(data.get("act", []))
-	sim.act_t = sim._as_f32(data.get("act_t", []))
+	sim.act = sim.spatial._as_i32(data.get("act", []))
+	sim.act_t = sim.spatial._as_f32(data.get("act_t", []))
 	while sim.act.size() < sim.slot_count:
 		sim.act.append(0)
 	while sim.act_t.size() < sim.slot_count:
@@ -424,12 +449,12 @@ func load_game() -> bool:
 	sim.player_name = str(data.get("player_name", ""))
 	sim.tutorial_i = int(data.get("tutorial_i", -1))
 	sim.count_unknown = bool(data.get("count_unknown", false))
-	sim._recount()
-	sim._reindex()
-	sim._refresh_pop_gates(false)
-	sim._shape_island()
-	sim._seed_mine_nodes(0, 0)
-	sim._rebuild_hash()
+	sim.world_entities._recount()
+	sim.world_entities._reindex()
+	sim.dialogue._refresh_pop_gates(false)
+	sim.island_gen.shape_island()
+	sim.island_gen.seed_mine_nodes(0, 0)
+	sim.spatial._rebuild_hash()
 	sim.paint_epoch += 1
 	sim.dirty_chunks.clear()
 	for key in sim.revealed.keys():
@@ -439,11 +464,11 @@ func load_game() -> bool:
 	sim.paused = false
 	sim.modal = {}
 	sim.hand_id = -1
-	sim._clear_held()
+	sim.player_tools._clear_held()
 	sim.sponge_id = -1
 	sim.sponge_hold = 0.0
 	sim.notes.append("PARTIDA CARGADA.")
 	sim.session_live = true
 	if sim.living <= 0 and sim.peak > 0:
-		sim._enter_game_over()
+		sim.dialogue._enter_game_over()
 	return true
