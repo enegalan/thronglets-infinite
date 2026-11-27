@@ -285,7 +285,7 @@ static func piece(mask: int) -> String:
 
 ## Piece string for a type id.
 static func piece_for_id(id: String) -> String:
-	var cfg := load_saved()
+	var cfg := _ensure_cache()
 	if id.begins_with("thin_"):
 		var mask := clampi(int(id.substr(5)), 0, 15)
 		var thin = cfg.get("thin", cfg.get("pieces", []))
@@ -332,23 +332,73 @@ static func encode_piece(index: int, ops: String) -> String:
 	return "%d%s" % [clampi(index, 0, TILE_COUNT - 1), clean_ops]
 
 
-## Loads path_lab.json and merges over defaults.
-static func load_saved() -> Dictionary:
+## Maps one path_turn op over pixel ([param x], [param y]) in a 16×16 tile.
+static func _op_xy(op: String, x: int, y: int) -> Vector2i:
+	if op == "h":
+		return Vector2i(15 - x, y)
+	if op == "v":
+		return Vector2i(x, 15 - y)
+	return Vector2i(y, 15 - x)
+
+
+## Canonical rot/h/v matching sequential path_turn ops (encode order r*h?v?).
+static func normalize_ops(ops: String) -> Dictionary:
+	var p00 := Vector2i(0, 0)
+	var p10 := Vector2i(1, 0)
+	var p01 := Vector2i(0, 1)
+	for i in ops.length():
+		var ch := ops.substr(i, 1).to_lower()
+		if ch != "h" and ch != "v" and ch != "r":
+			continue
+		p00 = _op_xy(ch, p00.x, p00.y)
+		p10 = _op_xy(ch, p10.x, p10.y)
+		p01 = _op_xy(ch, p01.x, p01.y)
+	for rot in range(4):
+		for h in [false, true]:
+			for v in [false, true]:
+				var t00 := Vector2i(0, 0)
+				var t10 := Vector2i(1, 0)
+				var t01 := Vector2i(0, 1)
+				for _r in rot:
+					t00 = _op_xy("r", t00.x, t00.y)
+					t10 = _op_xy("r", t10.x, t10.y)
+					t01 = _op_xy("r", t01.x, t01.y)
+				if h:
+					t00 = _op_xy("h", t00.x, t00.y)
+					t10 = _op_xy("h", t10.x, t10.y)
+					t01 = _op_xy("h", t01.x, t01.y)
+				if v:
+					t00 = _op_xy("v", t00.x, t00.y)
+					t10 = _op_xy("v", t10.x, t10.y)
+					t01 = _op_xy("v", t01.x, t01.y)
+				if t00 == p00 and t10 == p10 and t01 == p01:
+					return {"rot": rot, "h": h, "v": v}
+	return {"rot": 0, "h": false, "v": false}
+
+
+## Ensures _cache holds the current lab config; returns it without copying.
+static func _ensure_cache() -> Dictionary:
 	if not FileAccess.file_exists(PATH):
-		_cache = defaults()
-		_cache_mtime = -1
-		return _cache.duplicate(true)
+		if _cache.is_empty() or _cache_mtime != -1:
+			_cache = defaults()
+			_cache_mtime = -1
+		return _cache
 	var mtime := FileAccess.get_modified_time(PATH)
 	if not _cache.is_empty() and mtime == _cache_mtime:
-		return _cache.duplicate(true)
+		return _cache
 	var parsed = JSON.parse_string(FileAccess.get_file_as_string(PATH))
 	if typeof(parsed) != TYPE_DICTIONARY:
 		_cache = defaults()
 		_cache_mtime = mtime
-		return _cache.duplicate(true)
+		return _cache
 	_cache = _merge(defaults(), parsed)
 	_cache_mtime = mtime
-	return _cache.duplicate(true)
+	return _cache
+
+
+## Loads path_lab.json and merges over defaults.
+static func load_saved() -> Dictionary:
+	return _ensure_cache().duplicate(true)
 
 
 ## Writes a path lab config dictionary to disk.

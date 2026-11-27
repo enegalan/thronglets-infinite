@@ -2598,11 +2598,13 @@ func _show_path_lab() -> void:
 		effect_ring.visible = false
 	_hide_effect_need_bars()
 	_clear_placed()
+	main.world_drawer.paint_props([])
 	_paint_ground()
 	main.cam_rig.set_zoom(1.6)
 	main.camera.position = main.cam_rig.to_iso(Catalog.cell_world(Vector2i(12, 18)))
 	if path_lab != null:
 		path_lab.open()
+	queue_redraw()
 	_refresh_status()
 
 

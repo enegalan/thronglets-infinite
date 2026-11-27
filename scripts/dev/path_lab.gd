@@ -330,12 +330,12 @@ func _refresh_type_buttons() -> void:
 func _fill_inspector() -> void:
 	var piece := _piece_for_id(selected_id)
 	var parsed := PathLabTune.parse_piece(piece)
+	var orient := PathLabTune.normalize_ops(str(parsed.ops))
 	_fill = true
 	tile_spin.value = int(parsed.index)
-	var ops := str(parsed.ops)
-	flip_h.button_pressed = ops.contains("h")
-	flip_v.button_pressed = ops.contains("v")
-	rot_spin.value = ops.count("r")
+	flip_h.button_pressed = bool(orient.h)
+	flip_v.button_pressed = bool(orient.v)
+	rot_spin.value = int(orient.rot)
 	_fill = false
 	piece_label.text = piece
 	name_label.text = "LAB PATH  -  %s  (%s)" % [PathLabTune.label_for_id(selected_id), selected_id]
