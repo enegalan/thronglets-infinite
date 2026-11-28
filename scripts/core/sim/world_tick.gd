@@ -98,8 +98,14 @@ func _tick_corpses(dt: float) -> void:
 
 
 
-## Factory mishap paints nearby grass/dirt with goo tiles and may unlock mop plus ethics talk.
+## Factory mishap paints nearby grass/dirt with goo tiles once the mop is owned.
 func _spill_goo(x: float, y: float, amount: int) -> void:
+	# Goo must not grow before the mop, or the player cannot clean it.
+	if not bool(sim.unlocks.get("mop", false)):
+		if sim.dialogue._grant("mop", "", false):
+			sim.notes.append("LLEGA LA FREGONA. APROVECHA PARA LIMPIAR EN ÁREAS SUCIAS.")
+			sim.dialogue._reflect("goo")
+		return
 	for _n in amount:
 		var ang = randf() * TAU
 		var dist = randf_range(16.0, 54.0)
@@ -110,9 +116,6 @@ func _spill_goo(x: float, y: float, amount: int) -> void:
 			var cell = sim.spatial._cell_vec(gx, gy)
 			sim.collision._set_world_cell(cell.x, cell.y, Catalog.TILE_GOO, false)
 			sim.goo_count += 1
-	if sim.goo_count >= 8 and sim.dialogue._grant("mop", "", false):
-		sim.notes.append("LA FABRICA MANCHA EL SUELO. LLEGA LA FREGONA.")
-		sim.dialogue._reflect("goo")
 
 
 

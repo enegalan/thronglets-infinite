@@ -34,7 +34,7 @@ func path_at(cx: int, cy: int) -> bool:
 
 
 
-## Dirty path cell plus cardinals so ground art can show trails.
+## Dirty path cell plus cardinals and diagonals so trail art updates.
 func _mark_path(cell: Vector2i) -> void:
 	var spots: Array[Vector2i] = [
 		cell,
@@ -42,6 +42,10 @@ func _mark_path(cell: Vector2i) -> void:
 		cell + Vector2i(-1, 0),
 		cell + Vector2i(0, 1),
 		cell + Vector2i(0, -1),
+		cell + Vector2i(1, 1),
+		cell + Vector2i(1, -1),
+		cell + Vector2i(-1, 1),
+		cell + Vector2i(-1, -1),
 	]
 	for spot in spots:
 		sim.spatial._mark_dirty(sim.spatial._ck(sim.spatial._floor_div(spot.x, Catalog.CHUNK), sim.spatial._floor_div(spot.y, Catalog.CHUNK)))

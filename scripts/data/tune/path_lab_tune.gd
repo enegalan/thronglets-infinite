@@ -1,0 +1,516 @@
+class_name PathLabTune
+
+## Path overlay piece map. Saved to res://dev/path_lab.json.
+##
+## Thin trails use the 4 cardinal bits (N=1 E=2 S=4 W=8) when no diagonal
+## "counts". Filled plazas (2x2 / 4x4 blobs from screenshots ~54:30+) also need
+## diagonals: a diagonal only counts when both adjacent cardinals are path
+## (classic blob rule). That unlocks the unused atlas tiles (3,7–14), especially
+## tile 9 rotated for outer corners of a filled block.
+
+const PATH := "res://dev/path_lab.json"
+const SHEET := "res://resources/tiles/path_overlay.png"
+const TILE_COUNT := 15
+
+## Cardinal bits.
+const N := 1
+const E := 2
+const S := 4
+const W := 8
+
+## Diagonal bits (only valid when both adjacent cardinals are set).
+const NE := 1
+const SE := 2
+const SW := 4
+const NW := 8
+
+## Thin trail defaults (old PATH_PIECE). Used when no counted diagonal is set.
+const DEFAULT_THIN := [
+	"0h", "6rv", "6h", "5h", "6r", "4rv", "5hv", "2rrr",
+	"6", "5", "4", "2", "5r", "2rv", "2rrh", "1",
+]
+
+## Fill / blob defaults. Tile 9 = outer corner (dirt NW, grass SE) + rotations.
+## Tile 8 = solid interior. Edges/inners are best-effort starters for the lab.
+## Fill defaults from lab (dev/path_lab.json).
+const DEFAULT_FILL := {
+	"fill_solid": "8",
+	"fill_outer_se": "9",
+	"fill_outer_sw": "9rrr",
+	"fill_outer_nw": "9rr",
+	"fill_outer_ne": "9r",
+	"fill_edge_n": "10v",
+	"fill_edge_e": "10rv",
+	"fill_edge_s": "10",
+	"fill_edge_w": "10rrr",
+	# T into a 2xN stub: open side + which single diagonal carries the fill.
+	"fill_t_n_se": "10v",
+	"fill_t_n_sw": "14v",
+	"fill_t_e_nw": "14rv",
+	"fill_t_e_sw": "14r",
+	"fill_t_s_ne": "13",
+	"fill_t_s_nw": "13h",
+	"fill_t_w_ne": "14rrr",
+	"fill_t_w_se": "14rh",
+	# Full cardinals + exactly one diagonal: 2x2 corner with L stubs (tile 12).
+	"fill_bend_nw": "12v",
+	"fill_bend_ne": "12rv",
+	"fill_bend_se": "12h",
+	"fill_bend_sw": "12rh",
+	# Full cardinals + two diags on one side: corridor / pipe (tile 11).
+	"fill_pipe_w": "11rrr",
+	"fill_pipe_e": "11rrrh",
+	"fill_pipe_n": "11rrh",
+	"fill_pipe_s": "11",
+	"fill_inner_se": "3rrr",
+	"fill_inner_sw": "3rr",
+	"fill_inner_nw": "3h",
+	"fill_inner_ne": "3",
+}
+
+## Ordered fill type ids shown in the lab.
+const FILL_IDS := [
+	"fill_solid",
+	"fill_outer_se", "fill_outer_sw", "fill_outer_nw", "fill_outer_ne",
+	"fill_edge_n", "fill_edge_e", "fill_edge_s", "fill_edge_w",
+	"fill_t_n_se", "fill_t_n_sw", "fill_t_e_nw", "fill_t_e_sw",
+	"fill_t_s_ne", "fill_t_s_nw", "fill_t_w_ne", "fill_t_w_se",
+	"fill_bend_nw", "fill_bend_ne", "fill_bend_se", "fill_bend_sw",
+	"fill_pipe_w", "fill_pipe_e", "fill_pipe_n", "fill_pipe_s",
+	"fill_inner_se", "fill_inner_sw", "fill_inner_nw", "fill_inner_ne",
+]
+
+const FILL_LABELS := {
+	"fill_solid": "RELLENO SOLIDO",
+	"fill_outer_se": "RELLENO ESQ SE",
+	"fill_outer_sw": "RELLENO ESQ SW",
+	"fill_outer_nw": "RELLENO ESQ NW",
+	"fill_outer_ne": "RELLENO ESQ NE",
+	"fill_edge_n": "RELLENO BORDE N",
+	"fill_edge_e": "RELLENO BORDE E",
+	"fill_edge_s": "RELLENO BORDE S",
+	"fill_edge_w": "RELLENO BORDE W",
+	"fill_t_n_se": "RELLENO T N+SE",
+	"fill_t_n_sw": "RELLENO T N+SW",
+	"fill_t_e_nw": "RELLENO T E+NW",
+	"fill_t_e_sw": "RELLENO T E+SW",
+	"fill_t_s_ne": "RELLENO T S+NE",
+	"fill_t_s_nw": "RELLENO T S+NW",
+	"fill_t_w_ne": "RELLENO T W+NE",
+	"fill_t_w_se": "RELLENO T W+SE",
+	"fill_bend_nw": "RELLENO CODO NW",
+	"fill_bend_ne": "RELLENO CODO NE",
+	"fill_bend_se": "RELLENO CODO SE",
+	"fill_bend_sw": "RELLENO CODO SW",
+	"fill_pipe_w": "RELLENO TUBO W",
+	"fill_pipe_e": "RELLENO TUBO E",
+	"fill_pipe_n": "RELLENO TUBO N",
+	"fill_pipe_s": "RELLENO TUBO S",
+	"fill_inner_se": "RELLENO INT SE",
+	"fill_inner_sw": "RELLENO INT SW",
+	"fill_inner_nw": "RELLENO INT NW",
+	"fill_inner_ne": "RELLENO INT NE",
+}
+
+## Human labels for each thin 4-neighbor mask (0–15).
+const MASK_LABELS := [
+	"SOLO",
+	"PUNTA N",
+	"PUNTA E",
+	"ESQUINA N+E",
+	"PUNTA S",
+	"RECTO N-S",
+	"ESQUINA E+S",
+	"T N+E+S",
+	"PUNTA W",
+	"ESQUINA N+W",
+	"RECTO E-W",
+	"T N+E+W",
+	"ESQUINA S+W",
+	"T N+S+W",
+	"T E+S+W",
+	"CRUZ",
+]
+
+## Short kind tag for thin masks.
+const MASK_KINDS := [
+	"aislado",
+	"punta",
+	"punta",
+	"esquina",
+	"punta",
+	"recto",
+	"esquina",
+	"T",
+	"punta",
+	"esquina",
+	"recto",
+	"T",
+	"esquina",
+	"T",
+	"T",
+	"cruz",
+]
+
+## Internal cache backing path lab tune lookups.
+static var _cache: Dictionary = {}
+## Internal cache backing path lab tune lookups.
+static var _cache_mtime: int = -1
+
+
+## Shipped defaults for path_lab.json.
+static func defaults() -> Dictionary:
+	var thin: Array = []
+	for mask in range(16):
+		thin.append({
+			"mask": mask,
+			"id": thin_id(mask),
+			"label": MASK_LABELS[mask],
+			"kind": MASK_KINDS[mask],
+			"dirs": mask_dirs(mask),
+			"piece": DEFAULT_THIN[mask],
+		})
+	var fill: Array = []
+	for id in FILL_IDS:
+		fill.append({
+			"id": id,
+			"label": str(FILL_LABELS.get(id, id)),
+			"kind": "relleno",
+			"piece": str(DEFAULT_FILL.get(id, "8")),
+		})
+	return {
+		"sheet": SHEET,
+		"tile_count": TILE_COUNT,
+		"bits": {"N": N, "E": E, "S": S, "W": W, "NE": NE, "SE": SE, "SW": SW, "NW": NW},
+		"thin": thin,
+		"fill": fill,
+	}
+
+
+## Clears cached lab JSON so the next read reloads from disk.
+static func invalidate() -> void:
+	_cache.clear()
+	_cache_mtime = -1
+
+
+## Thin type id for cardinal [param mask].
+static func thin_id(mask: int) -> String:
+	return "thin_%02d" % clampi(mask, 0, 15)
+
+
+## Direction letters present in cardinal [param mask].
+static func mask_dirs(mask: int) -> Array:
+	var dirs: Array = []
+	if mask & N:
+		dirs.append("N")
+	if mask & E:
+		dirs.append("E")
+	if mask & S:
+		dirs.append("S")
+	if mask & W:
+		dirs.append("W")
+	return dirs
+
+
+## Display label for thin [param mask].
+static func label_for(mask: int) -> String:
+	return MASK_LABELS[clampi(mask, 0, 15)]
+
+
+## Kind tag for thin [param mask].
+static func kind_for(mask: int) -> String:
+	return MASK_KINDS[clampi(mask, 0, 15)]
+
+
+## Label for a type id (thin_XX or fill_*).
+static func label_for_id(id: String) -> String:
+	if id.begins_with("thin_"):
+		return label_for(int(id.substr(5)))
+	return str(FILL_LABELS.get(id, id))
+
+
+## Counts set bits in [param value].
+static func _pop(value: int) -> int:
+	var n := 0
+	var v := value
+	while v != 0:
+		n += v & 1
+		v >>= 1
+	return n
+
+
+## Resolves type id from cardinal + counted-diagonal masks.
+static func type_id(card: int, diag: int) -> String:
+	var c := card & 15
+	var d := diag & 15
+	# Diagonals that cannot count are ignored by the caller; still clamp.
+	if d == 0:
+		return thin_id(c)
+
+	# Full surround → solid fill (4x4 interiors).
+	if c == 15 and d == 15:
+		return "fill_solid"
+
+	# Four cardinals with diagonal variants.
+	if c == 15:
+		# One grass pocket (3 diags) → inner corner.
+		if d == (NE | SE | SW):
+			return "fill_inner_nw"
+		if d == (SE | SW | NW):
+			return "fill_inner_ne"
+		if d == (SW | NW | NE):
+			return "fill_inner_se"
+		if d == (NW | NE | SE):
+			return "fill_inner_sw"
+		# Exactly one diagonal: 2x2 body + L stubs (was wrongly CRUZ / tile 1).
+		if d == NW:
+			return "fill_bend_nw"
+		if d == NE:
+			return "fill_bend_ne"
+		if d == SE:
+			return "fill_bend_se"
+		if d == SW:
+			return "fill_bend_sw"
+		# Two diags on the same side: corridor through fill (tile 11), not solid.
+		if d == (NW | SW):
+			return "fill_pipe_w"
+		if d == (NE | SE):
+			return "fill_pipe_e"
+		if d == (NW | NE):
+			return "fill_pipe_n"
+		if d == (SW | SE):
+			return "fill_pipe_s"
+		# Two opposite diags or other → solid-ish fill.
+		if _pop(d) >= 2:
+			return "fill_solid"
+		return thin_id(15)
+
+	# Outer corner of a filled block: exactly two adjacent cardinals + their diagonal.
+	if c == (N | W) and (d & NW):
+		return "fill_outer_se"
+	if c == (N | E) and (d & NE):
+		return "fill_outer_sw"
+	if c == (S | E) and (d & SE):
+		return "fill_outer_nw"
+	if c == (S | W) and (d & SW):
+		return "fill_outer_ne"
+
+	# Edge of a filled block: named by the open (grass) side.
+	# Missing N → northern edge; missing E → eastern edge; etc.
+	if c == (E | S | W) and (d & SE) and (d & SW):
+		return "fill_edge_n"
+	if c == (N | S | W) and (d & NW) and (d & SW):
+		return "fill_edge_e"
+	if c == (N | E | W) and (d & NE) and (d & NW):
+		return "fill_edge_s"
+	if c == (N | E | S) and (d & NE) and (d & SE):
+		return "fill_edge_w"
+
+	# T with one counted diagonal: side matters (stub E vs stub W are mirrors).
+	# Full edges already returned above when both diags are set.
+	if c == (E | S | W):
+		if d & SE:
+			return "fill_t_n_se"
+		return "fill_t_n_sw"
+	if c == (N | S | W):
+		if d & NW:
+			return "fill_t_e_nw"
+		return "fill_t_e_sw"
+	if c == (N | E | W):
+		if d & NE:
+			return "fill_t_s_ne"
+		return "fill_t_s_nw"
+	if c == (N | E | S):
+		if d & NE:
+			return "fill_t_w_ne"
+		return "fill_t_w_se"
+
+	# Anything else with a counted diagonal falls back to thin art for that card.
+	return thin_id(c)
+
+
+## Piece string for cardinal+diag from saved config.
+static func piece_for(card: int, diag: int = 0) -> String:
+	return piece_for_id(type_id(card, diag))
+
+
+## Compat: thin-only lookup by cardinal mask.
+static func piece(mask: int) -> String:
+	return piece_for(mask, 0)
+
+
+## Piece string for a type id.
+static func piece_for_id(id: String) -> String:
+	var cfg := _ensure_cache()
+	if id.begins_with("thin_"):
+		var mask := clampi(int(id.substr(5)), 0, 15)
+		var thin = cfg.get("thin", cfg.get("pieces", []))
+		if typeof(thin) == TYPE_ARRAY and thin.size() > mask:
+			var row = thin[mask]
+			if typeof(row) == TYPE_DICTIONARY and row.has("piece"):
+				return str(row.piece)
+			if typeof(row) == TYPE_STRING:
+				return str(row)
+		return DEFAULT_THIN[mask]
+	var fill = cfg.get("fill", [])
+	if typeof(fill) == TYPE_ARRAY:
+		for row in fill:
+			if typeof(row) == TYPE_DICTIONARY and str(row.get("id", "")) == id:
+				return str(row.get("piece", DEFAULT_FILL.get(id, "8")))
+	return str(DEFAULT_FILL.get(id, "8"))
+
+
+## Parses a piece string into atlas index and transform ops.
+static func parse_piece(piece_str: String) -> Dictionary:
+	var raw := piece_str.strip_edges()
+	var index_chars := ""
+	var ops := ""
+	for i in raw.length():
+		var ch := raw.substr(i, 1)
+		if index_chars.is_empty() and ch.is_valid_int():
+			index_chars += ch
+		elif ch.is_valid_int() and ops.is_empty():
+			index_chars += ch
+		else:
+			ops += ch
+	var index := int(index_chars) if index_chars != "" else 0
+	index = clampi(index, 0, TILE_COUNT - 1)
+	return {"index": index, "ops": ops}
+
+
+## Builds a piece string from atlas [param index] and [param ops].
+static func encode_piece(index: int, ops: String) -> String:
+	var clean_ops := ""
+	for i in ops.length():
+		var ch := ops.substr(i, 1).to_lower()
+		if ch == "h" or ch == "v" or ch == "r":
+			clean_ops += ch
+	return "%d%s" % [clampi(index, 0, TILE_COUNT - 1), clean_ops]
+
+
+## Maps one path_turn op over pixel ([param x], [param y]) in a 16×16 tile.
+static func _op_xy(op: String, x: int, y: int) -> Vector2i:
+	if op == "h":
+		return Vector2i(15 - x, y)
+	if op == "v":
+		return Vector2i(x, 15 - y)
+	return Vector2i(y, 15 - x)
+
+
+## Canonical rot/h/v matching sequential path_turn ops (encode order r*h?v?).
+static func normalize_ops(ops: String) -> Dictionary:
+	var p00 := Vector2i(0, 0)
+	var p10 := Vector2i(1, 0)
+	var p01 := Vector2i(0, 1)
+	for i in ops.length():
+		var ch := ops.substr(i, 1).to_lower()
+		if ch != "h" and ch != "v" and ch != "r":
+			continue
+		p00 = _op_xy(ch, p00.x, p00.y)
+		p10 = _op_xy(ch, p10.x, p10.y)
+		p01 = _op_xy(ch, p01.x, p01.y)
+	for rot in range(4):
+		for h in [false, true]:
+			for v in [false, true]:
+				var t00 := Vector2i(0, 0)
+				var t10 := Vector2i(1, 0)
+				var t01 := Vector2i(0, 1)
+				for _r in rot:
+					t00 = _op_xy("r", t00.x, t00.y)
+					t10 = _op_xy("r", t10.x, t10.y)
+					t01 = _op_xy("r", t01.x, t01.y)
+				if h:
+					t00 = _op_xy("h", t00.x, t00.y)
+					t10 = _op_xy("h", t10.x, t10.y)
+					t01 = _op_xy("h", t01.x, t01.y)
+				if v:
+					t00 = _op_xy("v", t00.x, t00.y)
+					t10 = _op_xy("v", t10.x, t10.y)
+					t01 = _op_xy("v", t01.x, t01.y)
+				if t00 == p00 and t10 == p10 and t01 == p01:
+					return {"rot": rot, "h": h, "v": v}
+	return {"rot": 0, "h": false, "v": false}
+
+
+## Ensures _cache holds the current lab config; returns it without copying.
+static func _ensure_cache() -> Dictionary:
+	if not FileAccess.file_exists(PATH):
+		if _cache.is_empty() or _cache_mtime != -1:
+			_cache = defaults()
+			_cache_mtime = -1
+		return _cache
+	var mtime := FileAccess.get_modified_time(PATH)
+	if not _cache.is_empty() and mtime == _cache_mtime:
+		return _cache
+	var parsed = JSON.parse_string(FileAccess.get_file_as_string(PATH))
+	if typeof(parsed) != TYPE_DICTIONARY:
+		_cache = defaults()
+		_cache_mtime = mtime
+		return _cache
+	_cache = _merge(defaults(), parsed)
+	_cache_mtime = mtime
+	return _cache
+
+
+## Loads path_lab.json and merges over defaults.
+static func load_saved() -> Dictionary:
+	return _ensure_cache().duplicate(true)
+
+
+## Writes a path lab config dictionary to disk.
+static func save_file(cfg: Dictionary) -> String:
+	var dir := ProjectSettings.globalize_path("res://dev")
+	DirAccess.make_dir_recursive_absolute(dir)
+	var file := FileAccess.open(PATH, FileAccess.WRITE)
+	if file == null:
+		push_error("path lab: " + error_string(FileAccess.get_open_error()))
+		return ""
+	file.store_string(JSON.stringify(_normalize(cfg), "  "))
+	file.close()
+	invalidate()
+	return ProjectSettings.globalize_path(PATH)
+
+
+## Normalizes cfg into the shipped schema before writing.
+static func _normalize(cfg: Dictionary) -> Dictionary:
+	return _merge(defaults(), cfg)
+
+
+## Merges saved thin/fill piece strings over defaults.
+static func _merge(base: Dictionary, over: Dictionary) -> Dictionary:
+	var out := base.duplicate(true)
+	if over.has("sheet"):
+		out.sheet = str(over.sheet)
+	if over.has("tile_count"):
+		out.tile_count = int(over.tile_count)
+
+	var thin_src = over.get("thin", over.get("pieces", []))
+	if typeof(thin_src) == TYPE_ARRAY:
+		var thin: Array = out.thin
+		for i in mini(thin.size(), thin_src.size()):
+			var row: Dictionary = thin[i]
+			var item = thin_src[i]
+			if typeof(item) == TYPE_DICTIONARY and item.has("piece"):
+				row.piece = str(item.piece)
+			elif typeof(item) == TYPE_STRING:
+				row.piece = str(item)
+			thin[i] = row
+		out.thin = thin
+	# Drop legacy duplicate key if present in memory after merge/save.
+	out.erase("pieces")
+
+	var fill_src = over.get("fill", [])
+	if typeof(fill_src) == TYPE_ARRAY:
+		var by_id := {}
+		for item in fill_src:
+			if typeof(item) == TYPE_DICTIONARY and item.has("id") and item.has("piece"):
+				by_id[str(item.id)] = str(item.piece)
+		var fill: Array = out.fill
+		for i in fill.size():
+			var row: Dictionary = fill[i]
+			var id := str(row.id)
+			if by_id.has(id):
+				row.piece = by_id[id]
+			fill[i] = row
+		out.fill = fill
+	return out

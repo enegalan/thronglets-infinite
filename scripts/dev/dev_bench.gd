@@ -20,6 +20,8 @@ const ThrongTune := preload("res://scripts/data/tune/throng_tune.gd")
 const AnimTune := preload("res://scripts/data/tune/anim_tune.gd")
 ## Carousel lab JSON schema loader for roundabout admission tuning.
 const TiovivoLabTune := preload("res://scripts/data/tune/tiovivo_lab_tune.gd")
+## Path mask → atlas piece lab (dev/path_lab.json).
+const PathLabScript := preload("res://scripts/dev/path_lab.gd")
 const WorldBootstrap := preload("res://scripts/presentation/world/world_bootstrap.gd")
 
 ## Main scene host providing camera, world drawer, and dev entry.
@@ -90,6 +92,8 @@ var throng_mode := false
 var effect_mode := false
 ## True when carousel tiovivo lab UI is active.
 var lab_mode := false
+## Path piece lab (mask gallery + sprite picker).
+var path_lab = null
 ## Reserved uid for the staged effect thronglet instance.
 const EFFECT_ACTIVE_UID := -2
 ## Left rail for clip list and anim tuning in throng mode.
@@ -258,6 +262,9 @@ func setup(host) -> void:
 	add_child(effect_ring)
 	_build_ui()
 	_build_effect_gauge()
+	path_lab = PathLabScript.new()
+	path_lab.setup(main, self, _theme())
+	add_child(path_lab)
 
 
 ## Resets modes, loads saved tunes, shows prop rail, and frames the pad.
@@ -275,6 +282,8 @@ func open() -> void:
 	throng_mode = false
 	effect_mode = false
 	lab_mode = false
+	if path_lab != null:
+		path_lab.close()
 	rail.visible = true
 	bar.visible = true
 	if throng_rail:
@@ -349,6 +358,10 @@ func close() -> void:
 		lab_bar.visible = false
 		lab_bar.queue_free()
 		lab_bar = null
+	if path_lab != null:
+		path_lab.dispose()
+		path_lab.queue_free()
+		path_lab = null
 
 
 ## Paints placed props or lab/effect previews and syncs playheads each frame.
@@ -356,6 +369,9 @@ func tick() -> void:
 	if main == null:
 		return
 	_advance()
+	if path_lab != null and path_lab.is_open():
+		path_lab.tick()
+		return
 	if lab_mode:
 		_lab_drag_update()
 		_lab_tick_draw()
@@ -412,6 +428,10 @@ func input(event: InputEvent) -> void:
 		main.get_viewport().set_input_as_handled()
 		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		if path_lab != null and path_lab.is_open():
+			path_lab.handle_click(event.shift_pressed)
+			main.get_viewport().set_input_as_handled()
+			return
 		if lab_mode:
 			_lab_click(event.shift_pressed)
 			main.get_viewport().set_input_as_handled()
@@ -475,6 +495,8 @@ func input(event: InputEvent) -> void:
 ## Overlays grid, footprints, reach, selection marks, and placement ghost.
 func _draw() -> void:
 	if main == null:
+		return
+	if path_lab != null and path_lab.is_open():
 		return
 	if lab_mode:
 		_lab_draw()
@@ -1216,6 +1238,7 @@ func _build_ui() -> void:
 	actions.add_child(_text_button("ANIM", _show_throng))
 	actions.add_child(_text_button("EFFECTS", _show_effects))
 	actions.add_child(_text_button("LAB TIOVIVO", _show_lab))
+	actions.add_child(_text_button("LAB PATH", _show_path_lab))
 	actions.add_child(_text_button("MENU", main._leave_dev))
 	status = Label.new()
 	status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1712,6 +1735,7 @@ func _build_throng_ui(theme: Theme, root: Control) -> void:
 	save_row.add_child(_text_button("PROPS", _show_props))
 	save_row.add_child(_text_button("EFFECTS", _show_effects))
 	save_row.add_child(_text_button("LAB TIOVIVO", _show_lab))
+	save_row.add_child(_text_button("LAB PATH", _show_path_lab))
 	save_row.add_child(_text_button("MENU", main._leave_dev))
 	throng_status = Label.new()
 	throng_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1789,6 +1813,7 @@ func _build_effect_ui(theme: Theme, root: Control) -> void:
 	actions.add_child(_text_button("PROPS", _show_props))
 	actions.add_child(_text_button("ANIM", _show_throng))
 	actions.add_child(_text_button("LAB TIOVIVO", _show_lab))
+	actions.add_child(_text_button("LAB PATH", _show_path_lab))
 	actions.add_child(_text_button("MENU", main._leave_dev))
 	effect_status = Label.new()
 	effect_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -2461,6 +2486,8 @@ func _show_throng() -> void:
 	throng_mode = true
 	effect_mode = false
 	lab_mode = false
+	if path_lab != null:
+		path_lab.close()
 	rail.visible = false
 	bar.visible = false
 	if effect_rail:
@@ -2495,6 +2522,8 @@ func _show_props() -> void:
 	throng_mode = false
 	effect_mode = false
 	lab_mode = false
+	if path_lab != null:
+		path_lab.close()
 	if throng_rail:
 		throng_rail.visible = false
 	if throng_bar:
@@ -2523,6 +2552,8 @@ func _show_effects() -> void:
 	throng_mode = false
 	effect_mode = true
 	lab_mode = false
+	if path_lab != null:
+		path_lab.close()
 	rail.visible = false
 	bar.visible = false
 	if throng_rail:
@@ -2541,6 +2572,39 @@ func _show_effects() -> void:
 		_fill_effect()
 		_stage_effect()
 		_mark_effects()
+	_refresh_status()
+
+
+## Switches UI to path piece lab (mask gallery + sprite picker).
+func _show_path_lab() -> void:
+	throng_mode = false
+	effect_mode = false
+	lab_mode = false
+	rail.visible = false
+	bar.visible = false
+	if throng_rail:
+		throng_rail.visible = false
+	if throng_bar:
+		throng_bar.visible = false
+	if effect_rail:
+		effect_rail.visible = false
+	if effect_bar:
+		effect_bar.visible = false
+	if lab_rail:
+		lab_rail.visible = false
+	if lab_bar:
+		lab_bar.visible = false
+	if effect_ring:
+		effect_ring.visible = false
+	_hide_effect_need_bars()
+	_clear_placed()
+	main.world_drawer.paint_props([])
+	_paint_ground()
+	main.cam_rig.set_zoom(1.6)
+	main.camera.position = main.cam_rig.to_iso(Catalog.cell_world(Vector2i(12, 18)))
+	if path_lab != null:
+		path_lab.open()
+	queue_redraw()
 	_refresh_status()
 
 
@@ -3314,6 +3378,8 @@ func _show_lab() -> void:
 	throng_mode = false
 	effect_mode = false
 	lab_mode = true
+	if path_lab != null:
+		path_lab.close()
 	rail.visible = false
 	bar.visible = false
 	if throng_rail:
@@ -3431,6 +3497,7 @@ func _build_lab_ui(theme: Theme, root: Control) -> void:
 	actions.add_child(_text_button("PROPS", _show_props))
 	actions.add_child(_text_button("ANIM", _show_throng))
 	actions.add_child(_text_button("EFFECTS", _show_effects))
+	actions.add_child(_text_button("LAB PATH", _show_path_lab))
 	actions.add_child(_text_button("MENU", main._leave_dev))
 	lab_status = Label.new()
 	lab_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL

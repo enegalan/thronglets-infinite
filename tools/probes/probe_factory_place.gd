@@ -212,12 +212,8 @@ func _run() -> void:
 		print("HOME fit size=%dx%d count=%d" % [size.x, size.y, nfit])
 
 	if not bool(sim.unlocks.get("factory", false)):
-		print("BUY attempt gems=%d cost=%d" % [sim.gems, int(Catalog.MARKET.factory.cost)])
-		var bought = sim.player_tools.buy("factory")
-		print("BUY factory=%s unlock=%s notes=%s" % [
-			str(bought), str(bool(sim.unlocks.get("factory", false))), str(sim.notes),
-		])
-		sim.notes.clear()
+		sim.dialogue._grant("factory", "", false)
+		print("GRANT factory unlock=%s" % str(bool(sim.unlocks.get("factory", false))))
 
 	var target = first_home if first_home != Vector2.ZERO else first_free
 	if target == Vector2.ZERO:

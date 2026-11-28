@@ -1009,14 +1009,12 @@ func grab_at(x: float, y: float) -> bool:
 
 
 
-## Valid stand or drop tile for agents, including mine walk pads.
+## Valid stand or drop tile for agents, including mine walk pads and shore lip.
 func _thronglet_ground_ok(px: float, py: float) -> bool:
 	# Mine zones are walkable ground pads: allow dropping/standing on them.
 	if sim.collision._on_mine_pad(px, py):
-		return sim.revealed.has(sim.spatial._ck_of(px, py)) and sim.collision._tile_holds(px, py) and not Catalog.tile_blocks(sim.collision._tile_at(px, py))
-	if not _can_drop(px, py):
-		return false
-	return sim.collision._land_inland(px, py)
+		return sim.revealed.has(sim.spatial._ck_of(px, py)) and not Catalog.tile_blocks(sim.collision._tile_at(px, py))
+	return _can_drop(px, py)
 
 
 
@@ -1443,7 +1441,7 @@ func sandbox_place_prop(prop: String, x: float, y: float) -> bool:
 			sim.collision._set_world_cell(cell.x, cell.y, Catalog.TILE_GRASS, true)
 			return true
 		"thronglet":
-			if Catalog.tile_blocks(sim.collision._tile_at(at.x, at.y)) or not sim.collision._land_inland(at.x, at.y):
+			if Catalog.tile_blocks(sim.collision._tile_at(at.x, at.y)):
 				return false
 			var tint = randi() % Catalog.TINTS.size()
 			return sim.world_entities._push_slot(at.x, at.y, 90.0, 90.0, 90.0, 8.0, tint) >= 0

@@ -778,9 +778,7 @@ static func cell_world(cell: Vector2i) -> Vector2:
 ## Gem shop price table for catalog unlock purchases.
 const MARKET := {
 	"pickaxe": {"cost": 15, "label": "PICO"},
-	"mine": {"cost": 50, "label": "MINA"},
 	"dwelling": {"cost": 200, "label": "VIVIENDA"},
-	"factory": {"cost": 200, "label": "FABRICA"},
 	"chainsaw": {"cost": 400, "label": "MOTOSIERRA"},
 	"theatre": {"cost": 1000, "label": "TEATRO"},
 	"factory2": {"cost": 5000, "label": "FABRICA II"},
