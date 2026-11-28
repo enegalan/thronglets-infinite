@@ -39,18 +39,32 @@ const DEFAULT_FILL := {
 	"fill_outer_sw": "9rrr",
 	"fill_outer_nw": "9rr",
 	"fill_outer_ne": "9r",
-	"fill_edge_n": "10rr",
-	"fill_edge_e": "10r",
+	"fill_edge_n": "10v",
+	"fill_edge_e": "10rv",
 	"fill_edge_s": "10",
 	"fill_edge_w": "10rrr",
-	# T into a 2xN / stepped blob (one counted diagonal, not a full edge).
-	"fill_t_n": "10v",
-	"fill_t_e": "14rv",
-	"fill_t_s": "3",
-	"fill_t_w": "14rrr",
+	# T into a 2xN stub: open side + which single diagonal carries the fill.
+	"fill_t_n_se": "10v",
+	"fill_t_n_sw": "14v",
+	"fill_t_e_nw": "14rv",
+	"fill_t_e_sw": "14r",
+	"fill_t_s_ne": "13",
+	"fill_t_s_nw": "13h",
+	"fill_t_w_ne": "14rrr",
+	"fill_t_w_se": "14rh",
+	# Full cardinals + exactly one diagonal: 2x2 corner with L stubs (tile 12).
+	"fill_bend_nw": "12v",
+	"fill_bend_ne": "12rv",
+	"fill_bend_se": "12h",
+	"fill_bend_sw": "12rh",
+	# Full cardinals + two diags on one side: corridor / pipe (tile 11).
+	"fill_pipe_w": "11rrr",
+	"fill_pipe_e": "11rrrh",
+	"fill_pipe_n": "11rrh",
+	"fill_pipe_s": "11",
 	"fill_inner_se": "3rrr",
 	"fill_inner_sw": "3rr",
-	"fill_inner_nw": "7rr",
+	"fill_inner_nw": "3h",
 	"fill_inner_ne": "3",
 }
 
@@ -59,7 +73,10 @@ const FILL_IDS := [
 	"fill_solid",
 	"fill_outer_se", "fill_outer_sw", "fill_outer_nw", "fill_outer_ne",
 	"fill_edge_n", "fill_edge_e", "fill_edge_s", "fill_edge_w",
-	"fill_t_n", "fill_t_e", "fill_t_s", "fill_t_w",
+	"fill_t_n_se", "fill_t_n_sw", "fill_t_e_nw", "fill_t_e_sw",
+	"fill_t_s_ne", "fill_t_s_nw", "fill_t_w_ne", "fill_t_w_se",
+	"fill_bend_nw", "fill_bend_ne", "fill_bend_se", "fill_bend_sw",
+	"fill_pipe_w", "fill_pipe_e", "fill_pipe_n", "fill_pipe_s",
 	"fill_inner_se", "fill_inner_sw", "fill_inner_nw", "fill_inner_ne",
 ]
 
@@ -73,10 +90,22 @@ const FILL_LABELS := {
 	"fill_edge_e": "RELLENO BORDE E",
 	"fill_edge_s": "RELLENO BORDE S",
 	"fill_edge_w": "RELLENO BORDE W",
-	"fill_t_n": "RELLENO T N",
-	"fill_t_e": "RELLENO T E",
-	"fill_t_s": "RELLENO T S",
-	"fill_t_w": "RELLENO T W",
+	"fill_t_n_se": "RELLENO T N+SE",
+	"fill_t_n_sw": "RELLENO T N+SW",
+	"fill_t_e_nw": "RELLENO T E+NW",
+	"fill_t_e_sw": "RELLENO T E+SW",
+	"fill_t_s_ne": "RELLENO T S+NE",
+	"fill_t_s_nw": "RELLENO T S+NW",
+	"fill_t_w_ne": "RELLENO T W+NE",
+	"fill_t_w_se": "RELLENO T W+SE",
+	"fill_bend_nw": "RELLENO CODO NW",
+	"fill_bend_ne": "RELLENO CODO NE",
+	"fill_bend_se": "RELLENO CODO SE",
+	"fill_bend_sw": "RELLENO CODO SW",
+	"fill_pipe_w": "RELLENO TUBO W",
+	"fill_pipe_e": "RELLENO TUBO E",
+	"fill_pipe_n": "RELLENO TUBO N",
+	"fill_pipe_s": "RELLENO TUBO S",
 	"fill_inner_se": "RELLENO INT SE",
 	"fill_inner_sw": "RELLENO INT SW",
 	"fill_inner_nw": "RELLENO INT NW",
@@ -222,8 +251,9 @@ static func type_id(card: int, diag: int) -> String:
 	if c == 15 and d == 15:
 		return "fill_solid"
 
-	# Four cardinals with one grass pocket → inner corner.
+	# Four cardinals with diagonal variants.
 	if c == 15:
+		# One grass pocket (3 diags) → inner corner.
 		if d == (NE | SE | SW):
 			return "fill_inner_nw"
 		if d == (SE | SW | NW):
@@ -232,7 +262,25 @@ static func type_id(card: int, diag: int) -> String:
 			return "fill_inner_se"
 		if d == (NW | NE | SE):
 			return "fill_inner_sw"
-		# Partial diagonals with full cardinals: prefer solid if 2+ diags, else thin cross.
+		# Exactly one diagonal: 2x2 body + L stubs (was wrongly CRUZ / tile 1).
+		if d == NW:
+			return "fill_bend_nw"
+		if d == NE:
+			return "fill_bend_ne"
+		if d == SE:
+			return "fill_bend_se"
+		if d == SW:
+			return "fill_bend_sw"
+		# Two diags on the same side: corridor through fill (tile 11), not solid.
+		if d == (NW | SW):
+			return "fill_pipe_w"
+		if d == (NE | SE):
+			return "fill_pipe_e"
+		if d == (NW | NE):
+			return "fill_pipe_n"
+		if d == (SW | SE):
+			return "fill_pipe_s"
+		# Two opposite diags or other → solid-ish fill.
 		if _pop(d) >= 2:
 			return "fill_solid"
 		return thin_id(15)
@@ -258,16 +306,24 @@ static func type_id(card: int, diag: int) -> String:
 	if c == (N | E | S) and (d & NE) and (d & SE):
 		return "fill_edge_w"
 
-	# T with only one counted diagonal: 2x2 + stub / stepped 2xN (tile 14).
+	# T with one counted diagonal: side matters (stub E vs stub W are mirrors).
 	# Full edges already returned above when both diags are set.
 	if c == (E | S | W):
-		return "fill_t_n"
+		if d & SE:
+			return "fill_t_n_se"
+		return "fill_t_n_sw"
 	if c == (N | S | W):
-		return "fill_t_e"
+		if d & NW:
+			return "fill_t_e_nw"
+		return "fill_t_e_sw"
 	if c == (N | E | W):
-		return "fill_t_s"
+		if d & NE:
+			return "fill_t_s_ne"
+		return "fill_t_s_nw"
 	if c == (N | E | S):
-		return "fill_t_w"
+		if d & NE:
+			return "fill_t_w_ne"
+		return "fill_t_w_se"
 
 	# Anything else with a counted diagonal falls back to thin art for that card.
 	return thin_id(c)

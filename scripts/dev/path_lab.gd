@@ -26,9 +26,34 @@ const FILL_DEMOS := [
 	{"label": "3x3", "size": Vector2i(3, 3)},
 	{"label": "2x5", "size": Vector2i(2, 5)},
 	{"label": "4x4", "size": Vector2i(4, 4)},
-	# Extra cell east of top-right → former corner becomes fill_t_n (tile 14).
 	{"label": "2x2+E", "cells": [Vector2i(0, 0), Vector2i(1, 0), Vector2i(0, 1), Vector2i(1, 1), Vector2i(2, 0)]},
 	{"label": "2x2+S", "cells": [Vector2i(0, 0), Vector2i(1, 0), Vector2i(0, 1), Vector2i(1, 1), Vector2i(1, 2)]},
+	# Stub east vs west of bottom row → fill_t_s_nw vs fill_t_s_ne (not the same tile).
+	{"label": "2x2+Ebot", "cells": [
+		Vector2i(0, 0), Vector2i(1, 0),
+		Vector2i(0, 1), Vector2i(1, 1), Vector2i(2, 1),
+	]},
+	{"label": "2x2+Wbot", "cells": [
+		Vector2i(1, 0), Vector2i(2, 0),
+		Vector2i(0, 1), Vector2i(1, 1), Vector2i(2, 1),
+	]},
+	# 2x2 + east+south stubs off SE corner → fill_bend_nw (tile 12).
+	{"label": "2x2+ES", "cells": [
+		Vector2i(0, 0), Vector2i(1, 0),
+		Vector2i(0, 1), Vector2i(1, 1), Vector2i(2, 1),
+		Vector2i(1, 2),
+	]},
+	# Middle of a 3-row / offset sandwich → fill_pipe (tile 11), not solid 8.
+	{"label": "pipeW", "cells": [
+		Vector2i(0, 0), Vector2i(1, 0),
+		Vector2i(0, 1), Vector2i(1, 1), Vector2i(2, 1),
+		Vector2i(0, 2), Vector2i(1, 2),
+	]},
+	{"label": "pipeE", "cells": [
+		Vector2i(1, 0), Vector2i(2, 0),
+		Vector2i(0, 1), Vector2i(1, 1), Vector2i(2, 1),
+		Vector2i(1, 2), Vector2i(2, 2),
+	]},
 ]
 
 ## Main scene host (DevBench.main).
