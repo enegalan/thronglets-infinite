@@ -13,6 +13,10 @@ const GALLERY_ORIGIN := Vector2i(2, 6)
 const CLUSTER_STRIDE := 4
 ## Filled plaza demos origin (2x2, 2x3, 3x3, 4x4, 2x5).
 const FILL_ORIGIN := Vector2i(2, 24)
+## Max cell X for fill demos (must stay inside DevBench PAD_MAX).
+const FILL_MAX_X := 40
+## Gap between fill demos in cells.
+const FILL_GAP := 2
 ## Paint playground origin.
 const PAINT_ORIGIN := Vector2i(22, 8)
 ## Paint playground size in cells.
@@ -230,7 +234,7 @@ func _build_ui() -> void:
 	bar = PanelContainer.new()
 	bar.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	bar.offset_left = 238
-	bar.offset_top = -150
+	bar.offset_top = -198
 	bar.offset_right = -4
 	bar.offset_bottom = -4
 	bar.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -238,6 +242,7 @@ func _build_ui() -> void:
 	bar.visible = false
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 2)
+	box.size_flags_vertical = Control.SIZE_SHRINK_END
 	name_label = Label.new()
 	name_label.clip_text = true
 	box.add_child(name_label)
@@ -276,25 +281,37 @@ func _build_ui() -> void:
 	edit.add_child(piece_label)
 	box.add_child(edit)
 
-	var actions := HBoxContainer.new()
-	actions.add_theme_constant_override("separation", 4)
-	actions.add_child(_btn("<<", _select_prev))
-	actions.add_child(_btn(">>", _select_next))
-	actions.add_child(_btn("DEFAULT", _reset_selected))
-	actions.add_child(_btn("DEFAULT ALL", _reset_all))
-	actions.add_child(_btn("LIMPIAR PINTURA", _clear_paint))
-	actions.add_child(_btn("GUARDAR JSON", _save))
-	actions.add_child(_btn("CARGAR JSON", _load))
-	actions.add_child(_btn("PROPS", func(): bench._show_props()))
-	actions.add_child(_btn("ANIM", func(): bench._show_throng()))
-	actions.add_child(_btn("EFFECTS", func(): bench._show_effects()))
-	actions.add_child(_btn("LAB TIOVIVO", func(): bench._show_lab()))
-	actions.add_child(_btn("MENU", main._leave_dev))
+	# Three short rows so all twelve actions stay inside the 640×360 bottom bar.
+	var actions := VBoxContainer.new()
+	actions.add_theme_constant_override("separation", 2)
+	actions.custom_minimum_size = Vector2(0, 72)
+	actions.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	var row_piece := HBoxContainer.new()
+	row_piece.add_theme_constant_override("separation", 4)
+	row_piece.add_child(_btn("<<", _select_prev))
+	row_piece.add_child(_btn(">>", _select_next))
+	row_piece.add_child(_btn("DEFAULT", _reset_selected))
+	row_piece.add_child(_btn("DEFAULT ALL", _reset_all))
+	actions.add_child(row_piece)
+	var row_io := HBoxContainer.new()
+	row_io.add_theme_constant_override("separation", 4)
+	row_io.add_child(_btn("LIMPIAR PINTURA", _clear_paint))
+	row_io.add_child(_btn("GUARDAR JSON", _save))
+	row_io.add_child(_btn("CARGAR JSON", _load))
+	actions.add_child(row_io)
+	var row_nav := HBoxContainer.new()
+	row_nav.add_theme_constant_override("separation", 4)
+	row_nav.add_child(_btn("PROPS", func(): bench._show_props()))
+	row_nav.add_child(_btn("ANIM", func(): bench._show_throng()))
+	row_nav.add_child(_btn("EFFECTS", func(): bench._show_effects()))
+	row_nav.add_child(_btn("LAB TIOVIVO", func(): bench._show_lab()))
+	row_nav.add_child(_btn("MENU", main._leave_dev))
 	status_label = Label.new()
 	status_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	status_label.clip_text = true
-	actions.add_child(status_label)
+	row_nav.add_child(status_label)
+	actions.add_child(row_nav)
 	box.add_child(actions)
 	bar.add_child(box)
 	root.add_child(bar)
@@ -567,30 +584,26 @@ func _rebuild_world() -> void:
 			worn["%d,%d" % [center.x - 1, center.y]] = true
 		_stamp_worn(worn, PathLabTune.thin_id(mask), center)
 
-	# Fill plaza demos: solid rectangles + stepped stubs.
-	var cursor := FILL_ORIGIN
-	for demo in FILL_DEMOS:
+	# Fill plaza demos: solid rectangles + stepped stubs (wrapped to pad).
+	for slot in _fill_demo_layout():
+		var demo: Dictionary = slot.demo
+		var origin: Vector2i = slot.origin
 		var worn := {}
-		var span := Vector2i.ZERO
 		if demo.has("cells"):
 			for offset in demo.cells:
 				var o: Vector2i = offset
-				worn["%d,%d" % [cursor.x + o.x, cursor.y + o.y]] = true
-				span.x = maxi(span.x, o.x + 1)
-				span.y = maxi(span.y, o.y + 1)
+				worn["%d,%d" % [origin.x + o.x, origin.y + o.y]] = true
 		else:
 			var size: Vector2i = demo.size
-			span = size
 			for y in size.y:
 				for x in size.x:
-					worn["%d,%d" % [cursor.x + x, cursor.y + y]] = true
+					worn["%d,%d" % [origin.x + x, origin.y + y]] = true
 		_stamp_worn(worn, "", Vector2i(-999, -999))
-		_place_label(cursor + Vector2i(0, -1), str(demo.label), false)
+		_place_label(origin + Vector2i(0, -1), str(demo.label), false)
 		for key in worn.keys():
 			var parts := str(key).split(",")
 			var cell := Vector2i(int(parts[0]), int(parts[1]))
 			hotspots[cell] = PathLabTune.type_id(_mask_from_worn(cell, worn), _diag_from_worn(cell, worn))
-		cursor.x += span.x + 2
 
 	# Paint playground
 	_stamp_worn(paint_cells, "", Vector2i(-999, -999), true)
@@ -695,6 +708,35 @@ func _in_paint(cell: Vector2i) -> bool:
 		and cell.x < PAINT_ORIGIN.x + PAINT_SIZE.x and cell.y < PAINT_ORIGIN.y + PAINT_SIZE.y
 
 
+## Cell span of one FILL_DEMOS entry (size or cells bbox).
+func _demo_span(demo: Dictionary) -> Vector2i:
+	if demo.has("cells"):
+		var span := Vector2i.ZERO
+		for offset in demo.cells:
+			var o: Vector2i = offset
+			span.x = maxi(span.x, o.x + 1)
+			span.y = maxi(span.y, o.y + 1)
+		return span
+	return demo.size
+
+
+## Shared wrap layout for fill demos (kept inside FILL_MAX_X / pad ground).
+## Each slot: {demo, origin, span}.
+func _fill_demo_layout() -> Array:
+	var slots: Array = []
+	var cursor := FILL_ORIGIN
+	var row_h := 0
+	for demo in FILL_DEMOS:
+		var span := _demo_span(demo)
+		if cursor.x + span.x - 1 > FILL_MAX_X and cursor.x != FILL_ORIGIN.x:
+			cursor = Vector2i(FILL_ORIGIN.x, cursor.y + row_h + FILL_GAP)
+			row_h = 0
+		slots.append({"demo": demo, "origin": cursor, "span": span})
+		row_h = maxi(row_h, span.y)
+		cursor.x += span.x + FILL_GAP
+	return slots
+
+
 ## Grid cell under the current pointer.
 func _cursor_cell() -> Vector2i:
 	var at: Vector2 = main.cam_rig.grid_pointer_world()
@@ -714,23 +756,19 @@ func _draw() -> void:
 		for y in PAINT_SIZE.y:
 			for x in PAINT_SIZE.x:
 				_stroke_cell(PAINT_ORIGIN + Vector2i(x, y), poly, Color(0.35, 0.7, 1.0, 0.18), Color(0, 0, 0, 0))
-		# Outline fill demos
-		var cursor := FILL_ORIGIN
-		for demo in FILL_DEMOS:
-			var span := Vector2i.ONE
+		# Outline fill demos (same wrap layout as _rebuild_world).
+		for slot in _fill_demo_layout():
+			var demo: Dictionary = slot.demo
+			var origin: Vector2i = slot.origin
 			if demo.has("cells"):
 				for offset in demo.cells:
 					var o: Vector2i = offset
-					_stroke_cell(cursor + o, poly, Color(1.0, 0.7, 0.25, 0.35), Color(0, 0, 0, 0))
-					span.x = maxi(span.x, o.x + 1)
-					span.y = maxi(span.y, o.y + 1)
+					_stroke_cell(origin + o, poly, Color(1.0, 0.7, 0.25, 0.35), Color(0, 0, 0, 0))
 			else:
 				var size: Vector2i = demo.size
-				span = size
 				for y in size.y:
 					for x in size.x:
-						_stroke_cell(cursor + Vector2i(x, y), poly, Color(1.0, 0.7, 0.25, 0.35), Color(0, 0, 0, 0))
-			cursor.x += span.x + 2
+						_stroke_cell(origin + Vector2i(x, y), poly, Color(1.0, 0.7, 0.25, 0.35), Color(0, 0, 0, 0))
 	for row in captions:
 		var text := str(row.text)
 		var pos: Vector2 = row.pos
